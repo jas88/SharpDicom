@@ -1,0 +1,11 @@
+Source: https://github.com/malaterre/dicom-private-dicts
+Branch: master
+Downloaded: 2026-01-27
+
+Files:
+- siemens.xml (2933 entries)
+- gems.xml (3844 entries)
+- philips.xml (2294 entries, source: pms.xml)
+- other.xml (197 entries)
+
+Total: 9268 private tag definitions

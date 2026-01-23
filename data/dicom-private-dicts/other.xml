@@ -1,0 +1,275 @@
+<?xml version="1.0"?>
+<dict>
+
+  
+    
+    <entry owner="CEMAX-ICON" group="0019" element="xx00" vr="LT" vm="1" name="CR Processing Parameters"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx10" vr="LO" vm="1" name="CR Exposure Menu Code"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx20" vr="LO" vm="1" name="CR Exposure Menu String"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx30" vr="LO" vm="1" name="CR EDR Mode"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx40" vr="LO" vm="1" name="CR Latitude"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx50" vr="LO" vm="1" name="CR Group Number"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx60" vr="LO" vm="1" name="CR Equipment ID"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx70" vr="LO" vm="1" name="CR Image Serial Number"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx80" vr="LO" vm="1" name="CR Bar Code Number"/>
+    <entry owner="CEMAX-ICON" group="0019" element="xx90" vr="LO" vm="1" name="CR Film Output Exposure"/>
+    
+    <entry owner="CEMAX-ICON" group="0029" element="xx00" vr="LO" vm="1" name="Key Image"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx10" vr="LT" vm="1-n" name="Note"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx20" vr="SQ" vm="1" name="Annotation Sequence"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx30" vr="IS" vm="1" name="X Start Position"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx40" vr="IS" vm="1" name="Y Start Position"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx50" vr="IS" vm="1" name="X End Position"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx60" vr="IS" vm="1" name="Y End Position"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx70" vr="LO" vm="1" name="Annotation Text"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx80" vr="IS" vm="1" name="Which Marker"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx90" vr="SQ" vm="1" name="Annotation Sequence"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx91" vr="IS" vm="1-n" name="X Coordinates"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx92" vr="IS" vm="1-n" name="Y Coordinates"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx93" vr="IS" vm="1" name="Annotation Type"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx94" vr="IS" vm="1" name="Number of points"/>
+    <entry owner="CEMAX-ICON" group="0029" element="xx95" vr="IS" vm="1" name="Fill Type"/>
+    
+    <entry owner="CEMAX-ICON" group="3033" element="xx00" vr="CS" vm="1" name="Study Priority Status"/>
+  
+
+
+
+<entry owner="AMICAS0" group="0023" element="xx01" vr="UI" vm="1" name="Original SOP Instance UID"/>
+<entry owner="AMICAS0" group="0023" element="xx02" vr="OB" vm="1" name="Compressed Pixel Data"/>
+<entry owner="AMICAS0" group="0023" element="xx08" vr="US" vm="1" name="Minimum Pixel Value"/>
+<entry owner="AMICAS0" group="0023" element="xx10" vr="US" vm="1" name="Maximum Pixel Value"/>
+<entry owner="AMICAS0" group="0023" element="xx16" vr="SL" vm="1" name="Intercept"/>
+<entry owner="AMICAS0" group="0023" element="xx17" vr="UL" vm="1" name="Compressed Image Length"/>
+<entry owner="AMICAS0" group="0023" element="xx18" vr="US" vm="1" name="Compressed Image Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx19" vr="US" vm="1" name="Reconstituted Image Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx20" vr="LO" vm="1" name="Compressed Mimetype"/>
+<entry owner="AMICAS0" group="0023" element="xx21" vr="US" vm="1" name="Telemed Image Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx22" vr="UL" vm="1" name="Original Station ID"/>
+<entry owner="AMICAS0" group="0023" element="xx30" vr="LO" vm="1" name="Validation Element Signature"/>
+<entry owner="AMICAS0" group="0023" element="xx31" vr="LO" vm="1" name="Validation Element Reason"/>
+<entry owner="AMICAS0" group="0023" element="xx32" vr="DA" vm="1" name="Validation Element Date"/>
+<entry owner="AMICAS0" group="0023" element="xx33" vr="LO" vm="1" name="Validation Element State"/>
+<entry owner="AMICAS0" group="0023" element="xx34" vr="UI" vm="1" name="Validation Element Old Amicas Image UID"/>
+<entry owner="AMICAS0" group="0023" element="xx35" vr="UI" vm="1" name="Old Study Instance UID"/>
+<entry owner="AMICAS0" group="0023" element="xx36" vr="UI" vm="1" name="Old Series Instance UID"/>
+<entry owner="AMICAS0" group="0023" element="xx37" vr="UI" vm="1" name="Old SOP Instance UID"/>
+<entry owner="AMICAS0" group="0023" element="xx40" vr="US" vm="1" name="Archive Restored Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx42" vr="US" vm="1" name="Migrated Image Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx43" vr="US" vm="1" name="Lossless Compression Flag"/>
+<entry owner="AMICAS0" group="0023" element="xx44" vr="UT" vm="1" name="Spine Label Set"/>
+<entry owner="AMICAS0" group="0023" element="xx45" vr="US" vm="1" name="Demo File Version"/>
+<entry owner="AMICAS0" group="0023" element="xx46" vr="CS" vm="1" name="Sharpen Type"/>
+<entry owner="AMICAS0" group="0023" element="xx47" vr="US" vm="1" name="Kernel Rows"/>
+<entry owner="AMICAS0" group="0023" element="xx48" vr="US" vm="1" name="Kernel Columns"/>
+<entry owner="AMICAS0" group="0023" element="xx49" vr="FL" vm="1" name="Kernel Data"/>
+<entry owner="AMICAS0" group="0023" element="xx4a" vr="US" vm="1" name="Mammography Edges"/>
+<entry owner="AMICAS0" group="0023" element="xx50" vr="UT" vm="1" name="3D Key Image Info"/>
+<entry owner="AMICAS0" group="0023" element="xx51" vr="UT" vm="1" name="Viewer Layout Information"/>
+<entry owner="AMICAS0" group="0023" element="xx52" vr="UT" vm="1" name="MPR Series Creation Info"/>
+<entry owner="AMICAS0" group="0023" element="xx53" vr="UT" vm="1" name="Study Presentation Step Info"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Creator ID" group="0009" element="xx01" vr="UI" vm="1" name="Instance UID"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Creator ID" group="0009" element="xx02" vr="LO" vm="1" name="Name"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Creator ID" group="0009" element="xx03" vr="SQ" vm="1" name="Sequence"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Creator ID" group="0009" element="xx04" vr="UL" vm="1" name="Mode"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Creator ID" group="0009" element="xx05" vr="UL" vm="1" name="Type"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx01" vr="UI" vm="1" name="Image Instance UID"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx02" vr="US" vm="1" name="Number"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx03" vr="US" vm="1" name="Order"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx04" vr="US" vm="1" name="Type"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx05" vr="US" vm="1" name="Orientation"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx06" vr="UN" vm="1" name="Rect (Left, Top, Width, Height)"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx07" vr="US" vm="1" name="Caption Height"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx08" vr="US" vm="1" name="Source"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx09" vr="US" vm="1" name="Default Width"/>
+    <entry owner="SCHICK TECHNOLOGIES - Viewset Item Creator ID" group="0009" element="xx0a" vr="US" vm="1" name="Default Height"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Change List Creator ID" group="0021" element="xx01" vr="UI" vm="1" name="Reference Image Instance UID"/>
+    <entry owner="SCHICK TECHNOLOGIES - Change List Creator ID" group="0021" element="xx02" vr="SQ" vm="1" name="Sequence"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Change Item Creator ID" group="0021" element="xx01" vr="UI" vm="1" name="Change List Item UID"/>
+    <entry owner="SCHICK TECHNOLOGIES - Change Item Creator ID" group="0021" element="xx02" vr="US" vm="1" name="Operation"/>
+    <entry owner="SCHICK TECHNOLOGIES - Change Item Creator ID" group="0021" element="xx03" vr="DT" vm="1" name="Date"/>
+    <entry owner="SCHICK TECHNOLOGIES - Change Item Creator ID" group="0021" element="xx04" vr="PN" vm="1" name="User Name"/>
+    <entry owner="SCHICK TECHNOLOGIES - Change Item Creator ID" group="0021" element="xx05" vr="OB" vm="1" name="Additional Change Data"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Note List Creator ID" group="0021" element="xx01" vr="UI" vm="1" name="Reference Image Instance UID"/>
+    <entry owner="SCHICK TECHNOLOGIES - Note List Creator ID" group="0021" element="xx02" vr="SQ" vm="1" name="Item"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Note Item Creator ID" group="0021" element="xx01" vr="ST" vm="1" name="Text"/>
+    <entry owner="SCHICK TECHNOLOGIES - Note Item Creator ID" group="0021" element="xx02" vr="DT" vm="1" name="Date"/>
+    <entry owner="SCHICK TECHNOLOGIES - Note Item Creator ID" group="0021" element="xx03" vr="PN" vm="1" name="User Name"/>
+    <entry owner="SCHICK TECHNOLOGIES - Note Item Creator ID" group="0021" element="xx04" vr="UN" vm="1" name="Coordinates (X, Y)"/>
+
+
+
+  
+    <entry owner="SCHICK TECHNOLOGIES - Image Security Creator ID" group="0029" element="xx01" vr="UL" vm="1" name="Image Checksum"/>
+
+
+
+  
+    <entry owner="Sound Technologies" group="f001" element="xx00" vr="CS" vm="1" name="Patient Species"/>
+    <entry owner="Sound Technologies" group="f001" element="xx01" vr="CS" vm="1" name="Patient Breed"/>
+    <entry owner="Sound Technologies" group="f001" element="xx02" vr="CS" vm="1" name="Patient Category Size"/>
+    <entry owner="Sound Technologies" group="f001" element="xx03" vr="CS" vm="1" name="Patient Sex Extended (including spay/neuter)"/>
+    <entry owner="Sound Technologies" group="f001" element="xx04" vr="CS" vm="1" name="Image View"/>
+    <entry owner="Sound Technologies" group="f001" element="xx05" vr="CS" vm="1" name="Anatomy Imaged"/>
+    <entry owner="Sound Technologies" group="f001" element="xx06" vr="CS" vm="1" name="Image enhancements"/>
+    <entry owner="Sound Technologies" group="f001" element="xx07" vr="CS" vm="1" name="Detector Settings"/>
+    <entry owner="Sound Technologies" group="f001" element="xx08" vr="CS" vm="1" name="Application Version"/>
+    <entry owner="Sound Technologies" group="f001" element="xx09" vr="LO" vm="1" name="Image Laterality Extended"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0a" vr="PN" vm="1" name="Client Name"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0b" vr="UI" vm="1" name="Reference Study Instance Uid"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0c" vr="UI" vm="1" name="Reference Series Instance Uid"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0d" vr="LO" vm="1" name="Exam Ref Id"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0e" vr="ST" vm="1" name="Physician Of Record Address"/>
+    <entry owner="Sound Technologies" group="f001" element="xx0f" vr="SH" vm="1" name="Physician Of Record Phone Numbers"/>
+    <entry owner="Sound Technologies" group="f001" element="xx10" vr="LT" vm="1" name="Reason For Study"/>
+    <entry owner="Sound Technologies" group="f001" element="xx11" vr="LO" vm="1" name="Protocol"/>
+    <entry owner="Sound Technologies" group="f001" element="xx12" vr="LO" vm="1" name="CaptureInputType"/>
+    <entry owner="Sound Technologies" group="f001" element="xx13" vr="LT" vm="1" name="Exam Complaint"/>
+    <entry owner="Sound Technologies" group="f001" element="xx14" vr="LO" vm="1" name="Exam Web Code"/>
+    <entry owner="Sound Technologies" group="f001" element="xx15" vr="LO" vm="1" name="Exam Category"/>
+    <entry owner="Sound Technologies" group="f001" element="xx16" vr="SH" vm="1" name="Exam Diagnosis"/>
+    <entry owner="Sound Technologies" group="f001" element="xx17" vr="PN" vm="1" name="Exam Created By"/>
+    <entry owner="Sound Technologies" group="f001" element="xx18" vr="LO" vm="1" name="Exam Created By Group"/>
+    <entry owner="Sound Technologies" group="f001" element="xx19" vr="DT" vm="1" name="Exam Required By DateTime"/>
+    <entry owner="Sound Technologies" group="f001" element="xx1a" vr="LO" vm="1" name="Capture Type"/>
+    <entry owner="Sound Technologies" group="f001" element="xx1b" vr="IS" vm="1" name="Telemed Exam ID"/>
+    <entry owner="Sound Technologies" group="f001" element="xx1c" vr="LO" vm="1" name="Exam Created By Guid"/>
+    <entry owner="Sound Technologies" group="f001" element="xx1d" vr="LO" vm="1" name="Client Name Guid"/>
+
+
+
+  
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xxf0" vr="LO" vm="1" name="Private Creator Data Element"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xx01" vr="SQ" vm="1" name="Private Original Attribute Sequence"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xx05" vr="DT" vm="1" name="Replacement Date and Time"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xx10" vr="LO" vm="1" name="Replacement Originator Name"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xx12" vr="LO" vm="1" name="Replacement Reason"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xxf0" vr="LO" vm="1" name="Private Creator Data Element"/>
+    <entry owner="PRIVATE ORIGINAL ATTRIBUTES" group="0021" element="xx70" vr="PN" vm="1-n" name="Original Operators&#x2019; Name"/>
+
+
+
+  
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx29" vr="UN" vm="1" name="Private Tag Range"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx20" vr="UN" vm="1" name="Description"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx21" vr="UN" vm="1" name="Orientation"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx22" vr="UN" vm="1" name="Parameter 1"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx23" vr="UN" vm="1" name="Parameter 2"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx24" vr="UN" vm="1" name="Teeth"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx25" vr="UN" vm="1" name="Jaw"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx26" vr="UN" vm="1" name="Quadrant"/>
+    <entry owner="2.16.840.1.114059.1.1.6.1.50.1" group="0029" element="xx27" vr="UN" vm="1" name="CRC"/>
+
+
+
+  
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx00" vr="LO" vm="1" name="Private Creator ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx01" vr="LO" vm="1" name="Filename"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx02" vr="OB" vm="1" name="Data Blob of a Visit"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx03" vr="US" vm="1" name="Revision Number"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx04" vr="UL" vm="1" name="Unix Timestamp"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx05" vr="IS" vm="1" name="Bag ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx0c" vr="UI" vm="1" name="Original Study UID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx0d" vr="US" vm="1" name="Overlay Grayscale Value"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx0e" vr="CS" vm="1" name="Anonymization Status"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx0f" vr="CS" vm="1" name="Instance Type"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx30" vr="LO" vm="1" name="IP Converted Frame"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc3" vr="LO" vm="1" name="ALI_SIM_PRIVATE_ MC_STRING"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx00" vr="LO" vm="1" name="Private Creator ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxb0" vr="OB" vm="1" name="ALI_SERIALIZED_ANNOTATIONS"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxb1" vr="DA" vm="1" name="ALI_SERIALIZED_GSPS_DATE"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxb2" vr="TM" vm="1" name="ALI_SERIALIZED_GSPS_TIME"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxb3" vr="OB" vm="1" name="ALI_SERIALIZED_PRESENTATION"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx00" vr="LO" vm="1" name="Private Creator ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc4" vr="SQ" vm="1" name="ALI_SIM_DATA_SEQUENCE"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx00" vr="LO" vm="1" name="Private Creator ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc0" vr="OB" vm="1" name="ALI_SIM_DATA_BLOB"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc2" vr="UL" vm="1" name="ALI_SIM_DATA_BLOB_SIZE"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc1" vr="LO" vm="1" name="ALI_SIM_WRAP_FILE_CREATOR _ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc3" vr="LO" vm="1" name="ALI_SIM_PRIVATE_MC_STRING"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx01" vr="LO" vm="1" name="ALI_FILENAME_TAG"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx05" vr="IS" vm="1" name="ALI_BAG_ID_TAG"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx00" vr="LO" vm="1" name="Private Creator ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc1" vr="LO" vm="1" name="ALI_SIM_WRAP_FILE_CREATOR_ID"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc2" vr="UL" vm="1" name="ALI_SIM_DATA_BLOB_SIZE"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xxc3" vr="LO" vm="1" name="ALI_SIM_PRIVATE_MC_STRING"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx01" vr="LO" vm="1" name="ALI_FILENAME_TAG"/>
+    <entry owner="A.L.I. Technologies, Inc." group="3711" element="xx05" vr="IS" vm="1" name="ALI_BAG_ID_TAG"/>
+
+
+
+  
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx00" vr="UN" vm="1" name="PrivateCreatorData"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx90" vr="UN" vm="1" name="BritOriginalSenderAETitle"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa0" vr="SQ" vm="1" name="BritObjectActionSequence"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx00" vr="UN" vm="1" name="PrivateCreatorData"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx91" vr="UN" vm="1" name="BritSoftwareTitle"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx92" vr="UN" vm="1" name="BritSoftwareVersion"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xx93" vr="UN" vm="1" name="BritSerialNumber"/>
+
+
+
+  
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa1" vr="UN" vm="1" name="BritObjectAction"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa2" vr="UN" vm="1" name="BritObjectActionDate"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa3" vr="UN" vm="1" name="BritObjectActionTime"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa4" vr="UN" vm="1" name="BritObjectActionUser"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa5" vr="UN" vm="1" name="BritLocalAETitle"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa6" vr="UN" vm="1" name="BritLocalIPAddress"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa7" vr="UN" vm="1" name="BritRemoteAETitle"/>
+    <entry owner="BRIT Systems, Inc." group="0021" element="xxa8" vr="UN" vm="1" name="BritRemoteIPAddress"/>
+
+
+
+  
+    <entry owner="BrainLAB_Conversion" group="0009" element="xx00" vr="LO" vm="1" name="Private Creator Code &#x201C;BrainLAB_Conversion&#x201D;"/>
+    <entry owner="BrainLAB_Conversion" group="0009" element="xx01" vr="LO" vm="1" name="Export Platform Name"/>
+    <entry owner="BrainLAB_Conversion" group="0009" element="xx02" vr="OB" vm="1" name="Export Platform Data"/>
+
+
+
+  
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx01" vr="SQ" vm="1" name="Beam Profile Sequence"/>
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx02" vr="IS" vm="1" name="Beam Profile Number"/>
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx03" vr="SQ" vm="1" name="Beam Parameter Sequence"/>
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx04" vr="UT" vm="1" name="Parameter Description"/>
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx05" vr="OB" vm="1" name="Parameter Data"/>
+    <entry owner="BrainLAB_BeamProfile" group="3411" element="xx06" vr="IS" vm="1" name="Referenced Beam Profile Number"/>
+    <entry owner="BrainLAB_BeamProfile" group="3273" element="xx00" vr="LO" vm="1" name="Private Creator Code &#x201C;BrainLAB_PatientSetup&#x201D; (see Note 8-6)"/>
+    <entry owner="BrainLAB_BeamProfile" group="3273" element="xx00" vr="DS" vm="3" name="Isocenter Position (see Note 8-6)"/>
+    <entry owner="BrainLAB_BeamProfile" group="3273" element="xx01" vr="CS" vm="1" name="Patient Position (see Note 8-6)"/>
+
+
+
+  
+    <entry owner="Canon Inc." group="0019" element="xx00" vr="LO" vm="1" name="Implementor Information (*)"/>
+    <entry owner="Canon Inc." group="0019" element="xx16" vr="LO" vm="1" name="Implementor Information"/>
+    <entry owner="Canon Inc." group="0019" element="xx60" vr="US" vm="1" name="Performed number of series"/>
+    <entry owner="Canon Inc." group="0019" element="xx70" vr="US" vm="1" name="Performed number of images"/>
+
+
+</dict>
