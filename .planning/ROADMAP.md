@@ -42,6 +42,17 @@
 
 **Requirements**: FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11
 
+**Plans**: 7 plans in 4 waves
+
+Plans:
+- [ ] 10-01-PLAN.md — PDU types, constants, DicomStatus, network exceptions
+- [ ] 10-02-PLAN.md — Presentation context, user information, association options
+- [ ] 10-03-PLAN.md — PduReader/PduWriter ref structs for PDU I/O
+- [ ] 10-04-PLAN.md — DicomAssociation state machine (13 states)
+- [ ] 10-05-PLAN.md — DicomClient SCU with async connect/release
+- [ ] 10-06-PLAN.md — DicomServer SCP with event-based handlers
+- [ ] 10-07-PLAN.md — C-ECHO SCU/SCP and integration tests
+
 **Must-haves**:
 - [ ] PDU parsing and building (A-ASSOCIATE-RQ/AC/RJ, P-DATA-TF, A-RELEASE-RQ/RP, A-ABORT)
 - [ ] PduReader/PduWriter ref structs following DicomStreamReader pattern
