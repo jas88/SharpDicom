@@ -198,18 +198,20 @@ namespace SharpDicom.Network
 
                     try
                     {
-                        // Create association for SCP path
-                        var assocOptions = new AssociationOptions(
-                            _options.AETitle, // Called (we are the SCP)
-                            string.Empty, // Calling will be set from A-ASSOCIATE-RQ
-                            Array.Empty<PresentationContext>());
-
-                        var association = new DicomAssociation(assocOptions);
-                        association.ProcessEvent(AssociationEvent.TransportConnectionIndication);
-
-                        // Read A-ASSOCIATE-RQ
+                        // Read A-ASSOCIATE-RQ first to get AE titles
                         var (callingAE, calledAE, requestedContexts) =
                             await ReadAssociateRequestAsync(stream, artimCts.Token).ConfigureAwait(false);
+
+                        // Now create association for SCP path with actual AE titles
+                        var assocOptions = new AssociationOptions(
+                            calledAE,  // Called AE from request (should match _options.AETitle)
+                            callingAE, // Calling AE from request
+                            requestedContexts);
+
+                        var association = new DicomAssociation(assocOptions);
+                        // For SCP: Transport open -> Association request received
+                        association.ProcessEvent(AssociationEvent.TransportConnectionIndication);
+                        association.ProcessEvent(AssociationEvent.AssociateRqPduReceived);
 
                         // Stop ARTIM timer (got valid PDU)
 #if NET6_0_OR_GREATER
@@ -218,8 +220,6 @@ namespace SharpDicom.Network
                         // netstandard2.0 doesn't support CancelAfter with InfiniteTimeSpan after already set
                         // The timer is effectively stopped when we proceed
 #endif
-
-                        association.ProcessEvent(AssociationEvent.AssociateRqPduReceived);
 
                         // Validate and decide
                         var requestContext = new AssociationRequestContext(

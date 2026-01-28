@@ -126,6 +126,8 @@ namespace SharpDicom.Network
                 _options.DimseTimeout);
 
             _association = new DicomAssociation(assocOptions);
+            // SCU state machine: Idle -> AwaitingTransportConnectionOpen -> AwaitingAssociateResponse
+            _association.ProcessEvent(AssociationEvent.AAssociateRequest);
             _association.ProcessEvent(AssociationEvent.TransportConnectionConfirm);
 
             // Send A-ASSOCIATE-RQ
