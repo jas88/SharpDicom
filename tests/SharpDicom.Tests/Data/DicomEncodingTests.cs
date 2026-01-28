@@ -95,6 +95,14 @@ public class DicomEncodingTests
 
     #region Multi-Valued Character Set Parsing
 
+    private static readonly string[] SingleValueLatin1 = new[] { "ISO_IR 100" };
+    private static readonly string[] SingleValueJapaneseISO2022 = new[] { "ISO 2022 IR 87" };
+    private static readonly string[] MultiValueJapanese = new[] { "ISO 2022 IR 87", "ISO 2022 IR 13" };
+    private static readonly string[] Utf8WithExtensions = new[] { "ISO_IR 192", "ISO 2022 IR 87" };
+    private static readonly string[] GB18030WithExtensions = new[] { "GB18030", "ISO 2022 IR 87" };
+    private static readonly string[] GBKWithExtensions = new[] { "GBK", "ISO 2022 IR 87" };
+    private static readonly string[] JapaneseWithEmptyExtensions = new[] { "ISO 2022 IR 87", "", "  " };
+
     [Test]
     public void FromSpecificCharacterSet_Array_Empty_ReturnsDefault()
     {
@@ -112,7 +120,7 @@ public class DicomEncodingTests
     [Test]
     public void FromSpecificCharacterSet_Array_SingleValue_ReturnsPrimaryOnly()
     {
-        var encoding = DicomEncoding.FromSpecificCharacterSet(new[] { "ISO_IR 100" });
+        var encoding = DicomEncoding.FromSpecificCharacterSet(SingleValueLatin1);
         Assert.That(encoding.Primary.CodePage, Is.EqualTo(28591)); // Latin-1
         Assert.That(encoding.Extensions, Is.Null);
     }
@@ -120,7 +128,7 @@ public class DicomEncodingTests
     [Test]
     public void FromSpecificCharacterSet_Array_JapaneseISO2022_ReturnsPrimaryAndExtensions()
     {
-        var encoding = DicomEncoding.FromSpecificCharacterSet(new[] { "ISO 2022 IR 87" });
+        var encoding = DicomEncoding.FromSpecificCharacterSet(SingleValueJapaneseISO2022);
         Assert.That(encoding.Primary.CodePage, Is.EqualTo(50220)); // JIS X 0208
         // Single value, no extensions
         Assert.That(encoding.Extensions, Is.Null);
@@ -129,7 +137,7 @@ public class DicomEncodingTests
     [Test]
     public void FromSpecificCharacterSet_Array_MultiValuedJapanese_HasExtensions()
     {
-        var encoding = DicomEncoding.FromSpecificCharacterSet(new[] { "ISO 2022 IR 87", "ISO 2022 IR 13" });
+        var encoding = DicomEncoding.FromSpecificCharacterSet(MultiValueJapanese);
         Assert.That(encoding.Primary.CodePage, Is.EqualTo(50220)); // JIS X 0208
         Assert.That(encoding.Extensions, Is.Not.Null);
         Assert.That(encoding.Extensions!.Count, Is.EqualTo(1));
@@ -140,7 +148,7 @@ public class DicomEncodingTests
     public void FromSpecificCharacterSet_Array_Utf8WithExtensions_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            DicomEncoding.FromSpecificCharacterSet(new[] { "ISO_IR 192", "ISO 2022 IR 87" }));
+            DicomEncoding.FromSpecificCharacterSet(Utf8WithExtensions));
         Assert.That(ex!.Message, Does.Contain("ISO_IR 192"));
         Assert.That(ex.Message, Does.Contain("code extensions"));
     }
@@ -149,7 +157,7 @@ public class DicomEncodingTests
     public void FromSpecificCharacterSet_Array_GB18030WithExtensions_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            DicomEncoding.FromSpecificCharacterSet(new[] { "GB18030", "ISO 2022 IR 87" }));
+            DicomEncoding.FromSpecificCharacterSet(GB18030WithExtensions));
         Assert.That(ex!.Message, Does.Contain("GB18030"));
         Assert.That(ex.Message, Does.Contain("code extensions"));
     }
@@ -158,7 +166,7 @@ public class DicomEncodingTests
     public void FromSpecificCharacterSet_Array_GBKWithExtensions_Throws()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
-            DicomEncoding.FromSpecificCharacterSet(new[] { "GBK", "ISO 2022 IR 87" }));
+            DicomEncoding.FromSpecificCharacterSet(GBKWithExtensions));
         Assert.That(ex!.Message, Does.Contain("GBK"));
         Assert.That(ex.Message, Does.Contain("code extensions"));
     }
@@ -166,7 +174,7 @@ public class DicomEncodingTests
     [Test]
     public void FromSpecificCharacterSet_Array_SkipsEmptyExtensions()
     {
-        var encoding = DicomEncoding.FromSpecificCharacterSet(new[] { "ISO 2022 IR 87", "", "  " });
+        var encoding = DicomEncoding.FromSpecificCharacterSet(JapaneseWithEmptyExtensions);
         Assert.That(encoding.Primary.CodePage, Is.EqualTo(50220));
         // Empty and whitespace extensions should be skipped
         Assert.That(encoding.Extensions, Is.Null);
@@ -350,10 +358,12 @@ public class DicomEncodingTests
         Assert.That(encoding.Extensions, Is.Null);
     }
 
+    private static readonly string[] JapaneseCharacterSets = new[] { "ISO 2022 IR 87", "ISO 2022 IR 13" };
+
     [Test]
     public void MultiValue_HasExtensions_True()
     {
-        var encoding = DicomEncoding.FromSpecificCharacterSet(new[] { "ISO 2022 IR 87", "ISO 2022 IR 13" });
+        var encoding = DicomEncoding.FromSpecificCharacterSet(JapaneseCharacterSets);
         Assert.That(encoding.HasExtensions, Is.True);
         Assert.That(encoding.Extensions, Is.Not.Null);
         Assert.That(encoding.Extensions!.Count, Is.GreaterThan(0));

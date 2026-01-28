@@ -13,6 +13,8 @@ namespace SharpDicom.Generators.Parsing
     {
         private static readonly XNamespace DocBookNs = "http://docbook.org/ns/docbook";
         private static readonly Regex TagPattern = new Regex(@"\(([0-9A-Fa-f]{4}),([0-9A-Fa-f]{4})\)", RegexOptions.Compiled);
+        private static readonly char[] VrSeparators = new[] { ',', ' ' };
+        private static readonly char[] KeywordSeparators = new[] { ' ', '-', '/', '(', ')', '[', ']' };
 
         /// <summary>
         /// Parses command field tag definitions (Group 0000) from Part 7 XML document.
@@ -136,7 +138,7 @@ namespace SharpDicom.Generators.Parsing
             }
 
             // Handle comma-separated or space-separated
-            var parts = cleaned.Split(new[] { ',', ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+            var parts = cleaned.Split(VrSeparators, System.StringSplitOptions.RemoveEmptyEntries);
             var vrs = new List<string>();
 
             foreach (var part in parts)
@@ -159,7 +161,7 @@ namespace SharpDicom.Generators.Parsing
             }
 
             // Remove special characters and split into words
-            var words = name.Split(new[] { ' ', '-', '/', '(', ')', '[', ']' }, System.StringSplitOptions.RemoveEmptyEntries);
+            var words = name.Split(KeywordSeparators, System.StringSplitOptions.RemoveEmptyEntries);
             var sb = new StringBuilder();
 
             foreach (var word in words)

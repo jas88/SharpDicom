@@ -315,7 +315,7 @@ namespace SharpDicom.IO
         /// <summary>
         /// Handles pixel data based on the configured PixelDataHandling option.
         /// </summary>
-        private IDicomElement? HandlePixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, uint valueLength, bool littleEndian)
+        private DicomPixelDataElement? HandlePixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, uint valueLength, bool littleEndian)
         {
             var ts = TransferSyntax;
             bool isEncapsulated = valueLength == SequenceParser.UndefinedLength || ts.IsEncapsulated;
@@ -349,7 +349,7 @@ namespace SharpDicom.IO
         /// <summary>
         /// Handles native (uncompressed) pixel data.
         /// </summary>
-        private IDicomElement? HandleNativePixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, uint valueLength, PixelDataInfo info, PixelDataHandling handling)
+        private DicomPixelDataElement? HandleNativePixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, uint valueLength, PixelDataInfo info, PixelDataHandling handling)
         {
             // Calculate absolute stream offset for the pixel data value
             // _streamPosition tracks total bytes read so far, but we're working within a buffer
@@ -418,7 +418,7 @@ namespace SharpDicom.IO
         /// <summary>
         /// Handles encapsulated (compressed) pixel data.
         /// </summary>
-        private IDicomElement? HandleEncapsulatedPixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, PixelDataInfo info, PixelDataHandling handling, bool littleEndian)
+        private DicomPixelDataElement? HandleEncapsulatedPixelData(byte[] buffer, int offset, ref DicomStreamReader reader, DicomVR vr, PixelDataInfo info, PixelDataHandling handling, bool littleEndian)
         {
             // Find the sequence delimiter to determine content length
             var remainingBuffer = buffer.AsSpan(offset + reader.Position);

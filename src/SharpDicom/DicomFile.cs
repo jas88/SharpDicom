@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 using SharpDicom.IO;
 using SharpDicom.Validation;
 
@@ -92,8 +93,7 @@ public sealed class DicomFile
     /// <exception cref="FileNotFoundException">Thrown when the file does not exist.</exception>
     public static DicomFile Open(string path, DicomReaderOptions? options = null)
     {
-        if (path == null)
-            throw new ArgumentNullException(nameof(path));
+        ThrowHelpers.ThrowIfNull(path, nameof(path));
 
         using var stream = File.OpenRead(path);
         return Open(stream, options);
@@ -108,14 +108,9 @@ public sealed class DicomFile
     /// <exception cref="ArgumentNullException">Thrown when stream is null.</exception>
     public static DicomFile Open(Stream stream, DicomReaderOptions? options = null)
     {
-        if (stream == null)
-            throw new ArgumentNullException(nameof(stream));
+        ThrowHelpers.ThrowIfNull(stream, nameof(stream));
 
-#if NETSTANDARD2_0
         return OpenAsync(stream, options, CancellationToken.None).AsTask().GetAwaiter().GetResult();
-#else
-        return OpenAsync(stream, options, CancellationToken.None).GetAwaiter().GetResult();
-#endif
     }
 
     /// <summary>
@@ -132,8 +127,7 @@ public sealed class DicomFile
         DicomReaderOptions? options = null,
         CancellationToken ct = default)
     {
-        if (path == null)
-            throw new ArgumentNullException(nameof(path));
+        ThrowHelpers.ThrowIfNull(path, nameof(path));
 
 #if NETSTANDARD2_0
         var stream = new FileStream(
@@ -177,8 +171,7 @@ public sealed class DicomFile
         DicomReaderOptions? options = null,
         CancellationToken ct = default)
     {
-        if (stream == null)
-            throw new ArgumentNullException(nameof(stream));
+        ThrowHelpers.ThrowIfNull(stream, nameof(stream));
 
 #if NETSTANDARD2_0
         var reader = new DicomFileReader(stream, options, leaveOpen: true);
@@ -266,8 +259,7 @@ public sealed class DicomFile
     /// <param name="options">Writer options, or null for defaults.</param>
     public void Save(string path, DicomWriterOptions? options = null)
     {
-        if (path == null)
-            throw new ArgumentNullException(nameof(path));
+        ThrowHelpers.ThrowIfNull(path, nameof(path));
 
         using var stream = File.Create(path);
         Save(stream, options);
@@ -280,8 +272,7 @@ public sealed class DicomFile
     /// <param name="options">Writer options, or null for defaults.</param>
     public void Save(Stream stream, DicomWriterOptions? options = null)
     {
-        if (stream == null)
-            throw new ArgumentNullException(nameof(stream));
+        ThrowHelpers.ThrowIfNull(stream, nameof(stream));
 
         using var writer = new DicomFileWriter(stream, options, leaveOpen: true);
         writer.Write(this);
@@ -298,8 +289,7 @@ public sealed class DicomFile
         DicomWriterOptions? options = null,
         CancellationToken ct = default)
     {
-        if (path == null)
-            throw new ArgumentNullException(nameof(path));
+        ThrowHelpers.ThrowIfNull(path, nameof(path));
 
 #if NETSTANDARD2_0
         var stream = new FileStream(
@@ -341,8 +331,7 @@ public sealed class DicomFile
         DicomWriterOptions? options = null,
         CancellationToken ct = default)
     {
-        if (stream == null)
-            throw new ArgumentNullException(nameof(stream));
+        ThrowHelpers.ThrowIfNull(stream, nameof(stream));
 
 #if NETSTANDARD2_0
         var writer = new DicomFileWriter(stream, options, leaveOpen: true);

@@ -23,7 +23,7 @@ namespace SharpDicom.Codecs.Rle
         /// The Extended Offset Table (7FE0,0001) provides 64-bit offsets for large multi-frame images.
         /// Default is <c>false</c>.
         /// </remarks>
-        public bool GenerateExtendedOffsetTable { get; init; } = false;
+        public bool GenerateExtendedOffsetTable { get; init; }
 
         /// <summary>
         /// Gets or sets the maximum degree of parallelism for frame encoding.

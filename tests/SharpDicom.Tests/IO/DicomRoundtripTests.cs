@@ -584,7 +584,7 @@ namespace SharpDicom.Tests.IO
             dataset.Add(CreateStringElement(DicomTag.SOPInstanceUID, DicomVR.UI, TestSOPInstanceUID));
         }
 
-        private DicomDataset CreateTestDataset()
+        private static DicomDataset CreateTestDataset()
         {
             var dataset = new DicomDataset();
             AddRequiredSopUids(dataset);
@@ -595,7 +595,7 @@ namespace SharpDicom.Tests.IO
             return dataset;
         }
 
-        private void VerifyTestDataset(DicomDataset dataset)
+        private static void VerifyTestDataset(DicomDataset dataset)
         {
             Assert.That(dataset.GetString(DicomTag.PatientName), Is.EqualTo("Test^Patient"));
             Assert.That(dataset.GetString(DicomTag.PatientID), Is.EqualTo("TEST001"));
@@ -603,7 +603,7 @@ namespace SharpDicom.Tests.IO
             Assert.That(dataset.GetString(Modality), Is.EqualTo("CT"));
         }
 
-        private DicomSequence CreateTestSequence()
+        private static DicomSequence CreateTestSequence()
         {
             var item = new DicomDataset();
             item.Add(CreateStringElement(DicomTag.PatientName, DicomVR.PN, "Test^Name"));

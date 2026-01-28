@@ -3,6 +3,7 @@ using System.Buffers;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO
 {
@@ -103,8 +104,7 @@ namespace SharpDicom.IO
         /// </summary>
         private void EnsureCapacity(int sizeHint)
         {
-            if (sizeHint < 0)
-                throw new ArgumentOutOfRangeException(nameof(sizeHint));
+            ThrowHelpers.ThrowIfNegative(sizeHint, nameof(sizeHint));
 
             // Default to minimum reasonable size if 0
             if (sizeHint == 0)

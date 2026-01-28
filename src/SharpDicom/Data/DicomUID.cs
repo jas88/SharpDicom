@@ -286,7 +286,7 @@ namespace SharpDicom.Data
             bigIntBytes[16] = 0;
 
             var bigInt = new BigInteger(bigIntBytes);
-            var decimalString = bigInt.ToString();
+            var decimalString = bigInt.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             return new DicomUID($"2.25.{decimalString}");
         }
@@ -343,7 +343,7 @@ namespace SharpDicom.Data
             bigIntBytes[16] = 0;
 
             var bigInt = new BigInteger(bigIntBytes);
-            var decimalString = bigInt.ToString();
+            var decimalString = bigInt.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             return new DicomUID($"{root}.{decimalString}");
         }

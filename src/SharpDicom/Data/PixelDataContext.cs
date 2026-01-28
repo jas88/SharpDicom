@@ -1,4 +1,5 @@
 using System;
+using SharpDicom.Internal;
 
 namespace SharpDicom.Data;
 
@@ -99,10 +100,7 @@ public readonly struct PixelDataContext
         bool isEncapsulated,
         long valueLength)
     {
-        if (dataset is null)
-        {
-            throw new ArgumentNullException(nameof(dataset));
-        }
+        ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
         return new PixelDataContext
         {

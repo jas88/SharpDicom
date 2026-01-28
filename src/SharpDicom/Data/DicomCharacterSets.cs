@@ -4,6 +4,7 @@ using System.Collections.Frozen;
 #endif
 using System.Collections.Generic;
 using System.Text;
+using SharpDicom.Internal;
 
 namespace SharpDicom.Data;
 
@@ -115,8 +116,7 @@ public static class DicomCharacterSets
     /// <exception cref="ArgumentException">Thrown when the term is not recognized.</exception>
     public static Encoding GetEncoding(string dicomTerm)
     {
-        if (dicomTerm == null)
-            throw new ArgumentNullException(nameof(dicomTerm));
+        ThrowHelpers.ThrowIfNull(dicomTerm, nameof(dicomTerm));
 
         // Normalize the term
         var normalized = NormalizeTerm(dicomTerm);
@@ -139,8 +139,7 @@ public static class DicomCharacterSets
     /// <returns>The DICOM character set term, or null if not found.</returns>
     public static string? GetDicomTerm(Encoding encoding)
     {
-        if (encoding == null)
-            throw new ArgumentNullException(nameof(encoding));
+        ThrowHelpers.ThrowIfNull(encoding, nameof(encoding));
 
         return CodePageToTerm.TryGetValue(encoding.CodePage, out var term) ? term : null;
     }

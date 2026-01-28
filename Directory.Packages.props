@@ -2,6 +2,10 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
+
+  <!-- Import shared package versions -->
+  <Import Project="build-standards/Directory.Packages.props.shared" />
+
   <ItemGroup>
     <!-- Test Framework -->
     <PackageVersion Include="NUnit" Version="4.3.2" />

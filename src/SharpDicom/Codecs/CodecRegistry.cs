@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 #if NET8_0_OR_GREATER
 using System.Collections.Frozen;
 #endif
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.Codecs
 {
@@ -46,10 +48,7 @@ namespace SharpDicom.Codecs
         /// <exception cref="ArgumentNullException"><paramref name="codec"/> is null.</exception>
         public static void Register(IPixelDataCodec codec)
         {
-            if (codec == null)
-            {
-                throw new ArgumentNullException(nameof(codec));
-            }
+            ThrowHelpers.ThrowIfNull(codec, nameof(codec));
 
             lock (_lock)
             {
@@ -78,12 +77,17 @@ namespace SharpDicom.Codecs
         /// </summary>
         /// <param name="assembly">The assembly to scan.</param>
         /// <exception cref="ArgumentNullException"><paramref name="assembly"/> is null.</exception>
+        /// <remarks>
+        /// This method uses reflection and is not compatible with trimming or AOT compilation.
+        /// For trim-compatible scenarios, use <see cref="Register(IPixelDataCodec)"/> or
+        /// <see cref="Register{TCodec}"/> to register codecs explicitly.
+        /// </remarks>
+#if NET5_0_OR_GREATER
+        [RequiresUnreferencedCode("This method uses reflection to scan for codec types. Use Register(IPixelDataCodec) or Register<TCodec>() for trim-compatible registration.")]
+#endif
         public static void RegisterFromAssembly(Assembly assembly)
         {
-            if (assembly == null)
-            {
-                throw new ArgumentNullException(nameof(assembly));
-            }
+            ThrowHelpers.ThrowIfNull(assembly, nameof(assembly));
 
             var codecInterface = typeof(IPixelDataCodec);
 

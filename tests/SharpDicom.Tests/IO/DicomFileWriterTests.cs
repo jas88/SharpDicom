@@ -489,7 +489,7 @@ public class DicomFileWriterTests
 
         stream.Position = 128;
         var prefix = new byte[4];
-        await stream.ReadAsync(prefix, 0, 4);
+        await stream.ReadAsync(prefix.AsMemory(0, 4));
 
         Assert.That(Encoding.ASCII.GetString(prefix), Is.EqualTo("DICM"));
     }

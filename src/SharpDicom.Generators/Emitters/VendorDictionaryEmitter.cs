@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -51,7 +52,7 @@ namespace SharpDicom.Generators.Emitters
                 sb.Append("            (\"");
                 sb.Append(EscapeString(tag.Creator));
                 sb.Append("\", (byte)0x");
-                sb.Append(tag.ElementOffset.ToString("X2"));
+                sb.Append(tag.ElementOffset.ToString("X2", CultureInfo.InvariantCulture));
                 sb.Append(", \"");
                 sb.Append(tag.VR);
                 sb.Append("\", \"");

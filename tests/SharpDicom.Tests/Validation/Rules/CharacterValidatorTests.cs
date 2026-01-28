@@ -25,7 +25,7 @@ public class CharacterValidatorTests
         _asValidator = new AgeStringValidator();
     }
 
-    private ElementValidationContext CreateContext(string value, DicomVR vr, DicomTag? tag = null)
+    private static ElementValidationContext CreateContext(string value, DicomVR vr, DicomTag? tag = null)
     {
         return new ElementValidationContext
         {

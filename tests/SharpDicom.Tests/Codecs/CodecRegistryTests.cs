@@ -11,9 +11,19 @@ using PixelDataInfo = SharpDicom.Codecs.PixelDataInfo;
 namespace SharpDicom.Tests.Codecs
 {
     /// <summary>
+    /// Static arrays for mock codecs to avoid CA1861 warnings.
+    /// </summary>
+    internal static class MockCodecArrays
+    {
+        public static readonly int[] StandardBitDepths = new[] { 8, 16 };
+        public static readonly int[] StandardSamplesPerPixel = new[] { 1, 3 };
+        public static readonly int[] LimitedBitDepths = new[] { 8 };
+    }
+
+    /// <summary>
     /// Mock codec implementation for testing CodecRegistry.
     /// </summary>
-    internal class MockCodec : IPixelDataCodec
+    internal sealed class MockCodec : IPixelDataCodec
     {
         public TransferSyntax TransferSyntax { get; }
         public string Name { get; }
@@ -29,8 +39,8 @@ namespace SharpDicom.Tests.Codecs
                 IsLossy: false,
                 SupportsMultiFrame: true,
                 SupportsParallelEncode: true,
-                SupportedBitDepths: new[] { 8, 16 },
-                SupportedSamplesPerPixel: new[] { 1, 3 });
+                SupportedBitDepths: MockCodecArrays.StandardBitDepths,
+                SupportedSamplesPerPixel: MockCodecArrays.StandardSamplesPerPixel);
         }
 
         /// <summary>
@@ -59,7 +69,7 @@ namespace SharpDicom.Tests.Codecs
     /// <summary>
     /// Decode-only mock codec for testing capabilities.
     /// </summary>
-    internal class DecodeOnlyMockCodec : IPixelDataCodec
+    internal sealed class DecodeOnlyMockCodec : IPixelDataCodec
     {
         public TransferSyntax TransferSyntax => TransferSyntax.JPEGBaseline;
         public string Name => "Decode Only Mock";
@@ -69,8 +79,8 @@ namespace SharpDicom.Tests.Codecs
             IsLossy: true,
             SupportsMultiFrame: true,
             SupportsParallelEncode: false,
-            SupportedBitDepths: new[] { 8 },
-            SupportedSamplesPerPixel: new[] { 1, 3 });
+            SupportedBitDepths: MockCodecArrays.LimitedBitDepths,
+            SupportedSamplesPerPixel: MockCodecArrays.StandardSamplesPerPixel);
 
         public DecodeResult Decode(DicomFragmentSequence fragments, PixelDataInfo info, int frameIndex, Memory<byte> destination)
             => DecodeResult.Ok(0);

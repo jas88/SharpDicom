@@ -8,7 +8,10 @@ namespace SharpDicom.Data
     /// <remarks>
     /// The dictionary is populated by generated code from the DICOM standard.
     /// Uses the generated GeneratedDictionaryData class for lookups.
+    /// Instance methods are used (rather than static) to allow future extension
+    /// with custom dictionaries and to support dependency injection/mocking.
     /// </remarks>
+#pragma warning disable CA1822 // Mark members as static - instance pattern intentional for extensibility
     public sealed class DicomDictionary
     {
         private static readonly DicomDictionary _default = new();
@@ -79,4 +82,5 @@ namespace SharpDicom.Data
             };
         }
     }
+#pragma warning restore CA1822
 }

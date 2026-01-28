@@ -14,6 +14,7 @@ namespace SharpDicom.Generators.Parsing
     {
         private static readonly XNamespace DocBookNs = "http://docbook.org/ns/docbook";
         private static readonly Regex TagPattern = new Regex(@"\(([0-9A-Fa-fxX]{4}),([0-9A-Fa-fxX]{4})\)", RegexOptions.Compiled);
+        private static readonly string[] VrOrSeparators = new[] { " or ", " Or ", " OR " };
 
         /// <summary>
         /// Parses tag definitions from Part 6 XML document.
@@ -220,7 +221,7 @@ namespace SharpDicom.Generators.Parsing
             }
 
             // Handle "US or SS", "OB or OW", etc.
-            var parts = vrText.Split(new[] { " or ", " Or ", " OR " }, StringSplitOptions.RemoveEmptyEntries);
+            var parts = vrText.Split(VrOrSeparators, StringSplitOptions.RemoveEmptyEntries);
             var vrs = new List<string>();
 
             foreach (var part in parts)

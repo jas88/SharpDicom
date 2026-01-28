@@ -60,7 +60,11 @@ namespace SharpDicom.Data
             pattern = pattern.Trim();
 
             // Expected format: (GGxx,EExx) or variations
-            if (!pattern.StartsWith("(") || !pattern.EndsWith(")") || !pattern.Contains(","))
+#if NETSTANDARD2_0
+            if (!pattern.StartsWith("(", StringComparison.Ordinal) || !pattern.EndsWith(")", StringComparison.Ordinal) || pattern.IndexOf(',') < 0)
+#else
+            if (!pattern.StartsWith('(') || !pattern.EndsWith(')') || !pattern.Contains(','))
+#endif
                 throw new DicomTagException($"Invalid masked tag pattern: {pattern}");
 
             pattern = pattern.Substring(1, pattern.Length - 2); // Remove parentheses

@@ -18,7 +18,7 @@ public class DateValidatorTests
         _validator = new DateValidator();
     }
 
-    private ElementValidationContext CreateContext(string value, DicomVR vr)
+    private static ElementValidationContext CreateContext(string value, DicomVR vr)
     {
         return new ElementValidationContext
         {
