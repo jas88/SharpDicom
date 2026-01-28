@@ -94,7 +94,7 @@ public readonly struct DateOnly : IEquatable<DateOnly>, IComparable<DateOnly>
     public override int GetHashCode() => _value.Date.GetHashCode();
 
     /// <inheritdoc />
-    public override string ToString() => _value.ToString("yyyy-MM-dd");
+    public override string ToString() => _value.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Equality operator.
@@ -132,6 +132,7 @@ public readonly struct DateOnly : IEquatable<DateOnly>, IComparable<DateOnly>
 /// </summary>
 public readonly struct TimeOnly : IEquatable<TimeOnly>, IComparable<TimeOnly>
 {
+    private static readonly string[] TimeFormats = { "HHmmss", "HHmmss.ffffff", "HHmmss.FFFFFF" };
     private readonly TimeSpan _value;
 
     /// <summary>
@@ -195,8 +196,7 @@ public readonly struct TimeOnly : IEquatable<TimeOnly>, IComparable<TimeOnly>
     /// </summary>
     public static TimeOnly Parse(string s)
     {
-        var dt = DateTime.ParseExact(s, new[] { "HHmmss", "HHmmss.ffffff", "HHmmss.FFFFFF" },
-            CultureInfo.InvariantCulture, DateTimeStyles.None);
+        var dt = DateTime.ParseExact(s, TimeFormats, CultureInfo.InvariantCulture, DateTimeStyles.None);
         return FromDateTime(dt);
     }
 
@@ -237,7 +237,7 @@ public readonly struct TimeOnly : IEquatable<TimeOnly>, IComparable<TimeOnly>
     public override int GetHashCode() => _value.GetHashCode();
 
     /// <inheritdoc />
-    public override string ToString() => _value.ToString(@"hh\:mm\:ss");
+    public override string ToString() => _value.ToString(@"hh\:mm\:ss", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Equality operator.

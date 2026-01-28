@@ -17,12 +17,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
           cache: true
+          cache-dependency-path: Directory.Packages.props
 
       - name: Restore
         run: dotnet restore
@@ -41,30 +44,10 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages
-          path: |
-            src/**/bin/Release/*.nupkg
-            src/**/bin/Release/*.snupkg
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-          cache: true
-
       - name: Pack
-        run: dotnet pack --configuration Release -p:PackageVersion=${GITHUB_REF_NAME#v}
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: dotnet pack --no-build --configuration Release -p:PackageVersion=${GITHUB_REF_NAME#v}
 
       - name: Push to NuGet
+        if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

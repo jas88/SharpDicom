@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO
 {
@@ -66,8 +67,7 @@ namespace SharpDicom.IO
         /// </remarks>
         public void WriteElement(IDicomElement element)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
+            ThrowHelpers.ThrowIfNull(element, nameof(element));
 
             var vrInfo = DicomVRInfo.GetInfo(element.VR);
             var value = element.RawValue.Span;
@@ -236,8 +236,7 @@ namespace SharpDicom.IO
         /// </remarks>
         public void WriteDataset(DicomDataset dataset)
         {
-            if (dataset == null)
-                throw new ArgumentNullException(nameof(dataset));
+            ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
             foreach (var element in dataset)
             {
@@ -263,8 +262,7 @@ namespace SharpDicom.IO
         /// </remarks>
         public void WriteSequence(DicomSequence sequence)
         {
-            if (sequence == null)
-                throw new ArgumentNullException(nameof(sequence));
+            ThrowHelpers.ThrowIfNull(sequence, nameof(sequence));
 
             if (_sequenceLengthMode == SequenceLengthEncoding.Defined)
             {

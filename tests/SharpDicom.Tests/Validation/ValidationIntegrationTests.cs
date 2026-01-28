@@ -47,7 +47,7 @@ public class ValidationIntegrationTests
         WriteExplicitElement(writer, 0x0002, 0x0012, "UI", Encoding.ASCII.GetBytes("1.2.3.4.5.6.7.8.9\0"));
 
         // Dataset element with the specified tag/vr/value
-        var valueBytes = vr == "DA" || vr == "TM" || vr == "DT" || vr.StartsWith("U") || vr == "LO" || vr == "SH" || vr == "CS" || vr == "PN"
+        var valueBytes = vr == "DA" || vr == "TM" || vr == "DT" || vr.StartsWith('U') || vr == "LO" || vr == "SH" || vr == "CS" || vr == "PN"
             ? Encoding.ASCII.GetBytes(value.PadRight((value.Length + 1) & ~1)) // Even padding
             : Encoding.ASCII.GetBytes(value);
 
@@ -334,7 +334,7 @@ public class ValidationIntegrationTests
     /// <summary>
     /// Test validation rule for integration testing.
     /// </summary>
-    private class TestValidationRule : IValidationRule
+    private sealed class TestValidationRule : IValidationRule
     {
         private readonly Func<ElementValidationContext, ValidationIssue?>? _validateFunc;
 

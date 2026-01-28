@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.Codecs.Rle
 {
@@ -45,10 +46,7 @@ namespace SharpDicom.Codecs.Rle
             int frameIndex,
             Memory<byte> destination)
         {
-            if (fragments == null)
-            {
-                throw new ArgumentNullException(nameof(fragments));
-            }
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
 
             if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
             {
@@ -139,8 +137,8 @@ namespace SharpDicom.Codecs.Rle
                     issues.Add(new CodecDiagnostic(
                         i, 0,
                         "Wrong segment count",
-                        expectedSegments.ToString(),
-                        header.NumberOfSegments.ToString()));
+                        expectedSegments.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        header.NumberOfSegments.ToString(System.Globalization.CultureInfo.InvariantCulture)));
                 }
             }
 

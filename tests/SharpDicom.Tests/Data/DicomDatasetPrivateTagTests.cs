@@ -22,13 +22,13 @@ namespace SharpDicom.Tests.Data
             dataset.AddPrivateString(0x0019, "MY CREATOR", 0x01, DicomVR.LO, "Private Value");
 
             // Verify private tag exists
-            Assert.That(dataset.Count(), Is.EqualTo(3)); // PatientName + creator + data
+            Assert.That(dataset.Count, Is.EqualTo(3)); // PatientName + creator + data
 
             // Strip
             dataset.StripPrivateTags();
 
             // Verify only public remains
-            Assert.That(dataset.Count(), Is.EqualTo(1));
+            Assert.That(dataset.Count, Is.EqualTo(1));
             Assert.That(dataset[DicomTag.PatientName], Is.Not.Null);
         }
 
@@ -70,7 +70,7 @@ namespace SharpDicom.Tests.Data
             // Verify sequence item's private tags are also stripped
             var seq = dataset.GetSequence(contentSequenceTag);
             Assert.That(seq, Is.Not.Null);
-            var strippedItem = seq!.Items.First();
+            var strippedItem = seq!.Items[0];
             Assert.That(strippedItem.Any(e => e.Tag.IsPrivate), Is.False);
         }
 
@@ -94,7 +94,7 @@ namespace SharpDicom.Tests.Data
 
             // Verify nested item kept the right creator
             var seq = dataset.GetSequence(contentSequenceTag);
-            var seqItem = seq!.Items.First();
+            var seqItem = seq!.Items[0];
             var creators = seqItem.PrivateCreators.GetAll().ToList();
             Assert.That(creators.Count, Is.EqualTo(1));
             Assert.That(creators[0].Creator, Is.EqualTo("KEEP ME"));

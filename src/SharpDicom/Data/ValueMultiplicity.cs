@@ -99,7 +99,7 @@ namespace SharpDicom.Data
         public override string ToString()
         {
             if (Min == Max)
-                return Min.ToString();
+                return Min.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             return IsUnlimited ? $"{Min}-n" : $"{Min}-{Max}";
         }
@@ -153,7 +153,11 @@ namespace SharpDicom.Data
 
             // Parse max
             var maxStr = vm.Substring(dashIndex + 1);
-            if (maxStr == "n" || maxStr.EndsWith("n"))
+#if NETSTANDARD2_0
+            if (maxStr == "n" || maxStr.EndsWith("n", StringComparison.Ordinal))
+#else
+            if (maxStr == "n" || maxStr.EndsWith('n'))
+#endif
                 return new ValueMultiplicity(min, ushort.MaxValue);
 
             if (ushort.TryParse(maxStr, out var max))

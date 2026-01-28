@@ -1,10 +1,50 @@
 <Project>
-  <PropertyGroup>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <AnalysisLevel>latest</AnalysisLevel>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <LangVersion>latest</LangVersion>
-    <ImplicitUsings>disable</ImplicitUsings>
+  <!--
+    SharpDicom Build Configuration
+
+    Imports shared build standards with project-specific overrides:
+    - netstandard2.0 included for broad compatibility
+    - GPL-3.0-or-later license (not MIT)
+    - Explicit usings (not implicit)
+    - Source generators use .Generators suffix
+  -->
+
+  <!-- Target Framework Configuration -->
+
+  <!-- Main library: multi-target including netstandard2.0 -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom'">
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
   </PropertyGroup>
+
+  <!-- Source Generators: must target netstandard2.0 for Roslyn compatibility -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Generators'">
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- Tests: single-target latest -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests'">
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- No test-specific suppressions needed - all analyzers pass -->
+  </PropertyGroup>
+
+  <!-- Import shared build standards -->
+  <Import Project="build-standards/Directory.Build.props.shared" />
+
+  <!-- Project-specific overrides -->
+  <PropertyGroup>
+    <!-- SharpDicom uses explicit usings for clarity -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <!-- GPL license for this project -->
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <!--
+      Analyzer rule suppressions - INTENTIONAL design choices:
+      - CA1707: Underscores in names (VM_1, VM_1_N match DICOM standard)
+      - CA1711: Dictionary suffix (DicomDictionary, PrivateCreatorDictionary ARE dictionaries)
+
+      Note: CA1822 (instance methods as static) is suppressed locally in DicomDictionary.cs
+      with pragma - the instance pattern is intentional for future extensibility.
+    -->
+    <NoWarn>$(NoWarn);CA1707;CA1711</NoWarn>
+  </PropertyGroup>
+
 </Project>

@@ -432,7 +432,7 @@ public class PixelDataSourceTests
     /// <summary>
     /// A stream that does not support seeking.
     /// </summary>
-    private class NonSeekableStream : Stream
+    private sealed class NonSeekableStream : Stream
     {
         public override bool CanRead => true;
         public override bool CanSeek => false;

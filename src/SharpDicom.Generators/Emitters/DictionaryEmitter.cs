@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -53,9 +54,9 @@ namespace SharpDicom.Generators.Emitters
             {
                 sb.Append("            new DicomTagEntry(");
                 sb.Append("0x");
-                sb.Append(tag.Group.ToString("X4"));
+                sb.Append(tag.Group.ToString("X4", CultureInfo.InvariantCulture));
                 sb.Append(", 0x");
-                sb.Append(tag.Element.ToString("X4"));
+                sb.Append(tag.Element.ToString("X4", CultureInfo.InvariantCulture));
                 sb.Append(", \"");
                 sb.Append(tag.Keyword);
                 sb.Append("\", \"");
@@ -66,9 +67,9 @@ namespace SharpDicom.Generators.Emitters
                 for (int i = 0; i < tag.VRs.Length; i++)
                 {
                     if (i > 0) sb.Append(", ");
-                    sb.Append("\"");
+                    sb.Append('"');
                     sb.Append(tag.VRs[i]);
-                    sb.Append("\"");
+                    sb.Append('"');
                 }
 
                 sb.Append(" }, \"");

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO;
 
@@ -49,10 +50,7 @@ public sealed class ImmediatePixelDataSource : IPixelDataSource
     /// <inheritdoc />
     public async ValueTask CopyToAsync(Stream destination, CancellationToken ct = default)
     {
-        if (destination is null)
-        {
-            throw new ArgumentNullException(nameof(destination));
-        }
+        ThrowHelpers.ThrowIfNull(destination, nameof(destination));
 
         ct.ThrowIfCancellationRequested();
 

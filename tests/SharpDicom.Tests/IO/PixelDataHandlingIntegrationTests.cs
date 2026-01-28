@@ -102,7 +102,7 @@ public class PixelDataHandlingIntegrationTests
 
         // Debug: Check what elements we got
         var elementTags = string.Join(", ", file.Dataset.Select(e => e.Tag.ToString()));
-        Assert.That(file.Dataset.Count(), Is.GreaterThan(0), $"Dataset should have elements. Got: {elementTags}");
+        Assert.That(file.Dataset.Count, Is.GreaterThan(0), $"Dataset should have elements. Got: {elementTags}");
 
         // Check if PixelData tag is present (even if not as DicomPixelDataElement)
         var pixelDataElement = file.Dataset[DicomTag.PixelData];

@@ -1,5 +1,6 @@
 using System;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO
 {
@@ -38,8 +39,7 @@ namespace SharpDicom.IO
         /// </remarks>
         public static uint CalculateSequenceLength(DicomSequence sequence, bool explicitVR)
         {
-            if (sequence == null)
-                throw new ArgumentNullException(nameof(sequence));
+            ThrowHelpers.ThrowIfNull(sequence, nameof(sequence));
 
             // Empty sequence has zero length
             if (sequence.Items.Count == 0)
@@ -79,8 +79,7 @@ namespace SharpDicom.IO
         /// </returns>
         public static uint CalculateDatasetLength(DicomDataset dataset, bool explicitVR)
         {
-            if (dataset == null)
-                throw new ArgumentNullException(nameof(dataset));
+            ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
             ulong total = 0;
 
@@ -117,8 +116,7 @@ namespace SharpDicom.IO
         /// </remarks>
         public static uint CalculateElementLength(IDicomElement element, bool explicitVR)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
+            ThrowHelpers.ThrowIfNull(element, nameof(element));
 
             // Handle sequences specially - they contain nested content
             if (element is DicomSequence sequence)

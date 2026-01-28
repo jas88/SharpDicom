@@ -208,7 +208,11 @@ public sealed class DicomStringElement : IDicomElement
 
         // Handle multi-valued strings - return first value
         string firstValue;
-        if (str!.Contains("\\"))
+#if NETSTANDARD2_0
+        if (str!.IndexOf('\\') >= 0)
+#else
+        if (str!.Contains('\\'))
+#endif
         {
             var parts = str.Split('\\');
             firstValue = parts[0];
@@ -241,7 +245,11 @@ public sealed class DicomStringElement : IDicomElement
 
         // Handle multi-valued strings - return first value
         string firstValue;
-        if (str!.Contains("\\"))
+#if NETSTANDARD2_0
+        if (str!.IndexOf('\\') >= 0)
+#else
+        if (str!.Contains('\\'))
+#endif
         {
             var parts = str.Split('\\');
             firstValue = parts[0];

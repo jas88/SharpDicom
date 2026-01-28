@@ -18,7 +18,7 @@ public class UidValidatorTests
         _validator = new UidValidator();
     }
 
-    private ElementValidationContext CreateContext(string value, DicomVR vr)
+    private static ElementValidationContext CreateContext(string value, DicomVR vr)
     {
         return new ElementValidationContext
         {
@@ -30,7 +30,7 @@ public class UidValidatorTests
         };
     }
 
-    private ElementValidationContext CreateContextWithNullPadding(string value)
+    private static ElementValidationContext CreateContextWithNullPadding(string value)
     {
         var bytes = new byte[value.Length + 1];
         Encoding.ASCII.GetBytes(value, 0, value.Length, bytes, 0);

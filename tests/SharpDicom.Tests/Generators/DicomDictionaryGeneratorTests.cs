@@ -223,12 +223,15 @@ public class DicomDictionaryGeneratorTests
     private static Task VerifyGenerator(string xmlContent, string fileName)
     {
         // Create compilation
+        // IL3000: Assembly.Location is required for source generator tests to get metadata references
+#pragma warning disable IL3000
         var compilation = CSharpCompilation.Create("TestAssembly",
             references: new[]
             {
                 MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(System.Linq.Enumerable).Assembly.Location)
             },
+#pragma warning restore IL3000
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         // Create generator

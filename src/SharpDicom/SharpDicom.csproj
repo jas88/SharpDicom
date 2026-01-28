@@ -1,19 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <RootNamespace>SharpDicom</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- NuGet Package -->
     <PackageId>SharpDicom</PackageId>
     <Description>Pure .NET DICOM toolkit with zero external DICOM library dependencies. High-performance Span-based parsing, streaming I/O, and comprehensive DICOM PS3 support.</Description>
-    <Authors>jas88</Authors>
     <PackageTags>dicom;medical-imaging;healthcare;pacs;dcm;radiology</PackageTags>
-    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>

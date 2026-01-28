@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO;
 
@@ -75,7 +76,7 @@ public sealed class LazyPixelDataSource : IPixelDataSource
         }
 
         // Sync over async is acceptable for this fallback case
-        return GetDataAsync(CancellationToken.None).GetAwaiter().GetResult();
+        return GetDataAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
     }
 
     /// <inheritdoc />
@@ -146,10 +147,7 @@ public sealed class LazyPixelDataSource : IPixelDataSource
     /// <inheritdoc />
     public async ValueTask CopyToAsync(Stream destination, CancellationToken ct = default)
     {
-        if (destination is null)
-        {
-            throw new ArgumentNullException(nameof(destination));
-        }
+        ThrowHelpers.ThrowIfNull(destination, nameof(destination));
 
         ThrowIfDisposed();
 
@@ -230,9 +228,6 @@ public sealed class LazyPixelDataSource : IPixelDataSource
 
     private void ThrowIfDisposed()
     {
-        if (_disposed)
-        {
-            throw new ObjectDisposedException(nameof(LazyPixelDataSource));
-        }
+        ThrowHelpers.ThrowIfDisposed(_disposed, this);
     }
 }

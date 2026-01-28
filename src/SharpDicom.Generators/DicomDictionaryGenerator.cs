@@ -22,7 +22,7 @@ namespace SharpDicom.Generators
         {
             // Filter for part06.xml additional file
             var part6Xml = context.AdditionalTextsProvider
-                .Where(static file => file.Path.EndsWith("part06.xml"));
+                .Where(static file => file.Path.EndsWith("part06.xml", System.StringComparison.Ordinal));
 
             // Parse tags from Part 6
             var tags = part6Xml
@@ -76,7 +76,7 @@ namespace SharpDicom.Generators
 
             // Filter for part07.xml additional file
             var part7Xml = context.AdditionalTextsProvider
-                .Where(static file => file.Path.EndsWith("part07.xml"));
+                .Where(static file => file.Path.EndsWith("part07.xml", System.StringComparison.Ordinal));
 
             // Parse command tags from Part 7
             var commandTags = part7Xml
@@ -182,7 +182,7 @@ namespace SharpDicom.Generators
             var privateXmls = context.AdditionalTextsProvider
                 .Where(static file =>
                     file.Path.Contains("dicom-private-dicts") &&
-                    file.Path.EndsWith(".xml"));
+                    file.Path.EndsWith(".xml", System.StringComparison.Ordinal));
 
             // Parse private tags from all vendor XMLs
             var privateTags = privateXmls

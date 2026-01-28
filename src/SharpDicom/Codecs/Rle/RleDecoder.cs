@@ -92,8 +92,8 @@ namespace SharpDicom.Codecs.Rle
                 return DecodeResult.Fail(
                     frameIndex, 0,
                     $"Expected {expectedSegments} segments but header contains {header.NumberOfSegments}",
-                    expectedSegments.ToString(),
-                    header.NumberOfSegments.ToString());
+                    expectedSegments.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    header.NumberOfSegments.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
 
             // 3. Calculate expected output size
@@ -105,8 +105,8 @@ namespace SharpDicom.Codecs.Rle
                 return DecodeResult.Fail(
                     frameIndex, 0,
                     $"Output buffer too small: need {expectedFrameSize} bytes, got {output.Length}",
-                    expectedFrameSize.ToString(),
-                    output.Length.ToString());
+                    expectedFrameSize.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    output.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
 
             // 4. Decode each segment to temporary buffers
@@ -148,8 +148,8 @@ namespace SharpDicom.Codecs.Rle
                         return DecodeResult.Fail(
                             frameIndex, offset,
                             $"Segment {seg}: decoded {decoded} bytes, expected {segmentSize}",
-                            segmentSize.ToString(),
-                            decoded.ToString());
+                            segmentSize.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            decoded.ToString(System.Globalization.CultureInfo.InvariantCulture));
                     }
                 }
 

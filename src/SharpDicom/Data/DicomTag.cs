@@ -90,7 +90,11 @@ namespace SharpDicom.Data
             value = value.Trim();
 
             // Format: (GGGG,EEEE)
-            if (value.StartsWith("(") && value.EndsWith(")") && value.Contains(","))
+#if NETSTANDARD2_0
+            if (value.StartsWith("(", StringComparison.Ordinal) && value.EndsWith(")", StringComparison.Ordinal) && value.IndexOf(',') >= 0)
+#else
+            if (value.StartsWith('(') && value.EndsWith(')') && value.Contains(','))
+#endif
             {
                 value = value.Substring(1, value.Length - 2); // Remove parentheses
                 var parts = value.Split(',');

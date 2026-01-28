@@ -1,4 +1,5 @@
 using System;
+using SharpDicom.Internal;
 
 namespace SharpDicom.Data;
 
@@ -146,10 +147,7 @@ public readonly struct PixelDataInfo
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="dataset"/> is null.</exception>
     public static PixelDataInfo FromDataset(DicomDataset dataset)
     {
-        if (dataset is null)
-        {
-            throw new ArgumentNullException(nameof(dataset));
-        }
+        ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
         return new PixelDataInfo
         {

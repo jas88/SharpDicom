@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Internal;
 
 namespace SharpDicom.IO
 {
@@ -53,8 +54,7 @@ namespace SharpDicom.IO
         /// <param name="file">The DICOM file to write.</param>
         public void Write(DicomFile file)
         {
-            if (file == null)
-                throw new ArgumentNullException(nameof(file));
+            ThrowHelpers.ThrowIfNull(file, nameof(file));
 
             Write(file.Dataset, file.TransferSyntax, file.FileMetaInfo);
         }
@@ -67,8 +67,7 @@ namespace SharpDicom.IO
         /// <param name="existingFmi">Existing FMI to use. If null and AutoGenerateFmi is true, generates FMI.</param>
         public void Write(DicomDataset dataset, TransferSyntax? transferSyntax = null, DicomDataset? existingFmi = null)
         {
-            if (dataset == null)
-                throw new ArgumentNullException(nameof(dataset));
+            ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
             transferSyntax ??= _options.TransferSyntax;
 
@@ -100,8 +99,7 @@ namespace SharpDicom.IO
         /// <param name="ct">Cancellation token.</param>
         public ValueTask WriteAsync(DicomFile file, CancellationToken ct = default)
         {
-            if (file == null)
-                throw new ArgumentNullException(nameof(file));
+            ThrowHelpers.ThrowIfNull(file, nameof(file));
 
             return WriteAsync(file.Dataset, file.TransferSyntax, file.FileMetaInfo, ct);
         }
@@ -119,8 +117,7 @@ namespace SharpDicom.IO
             DicomDataset? existingFmi = null,
             CancellationToken ct = default)
         {
-            if (dataset == null)
-                throw new ArgumentNullException(nameof(dataset));
+            ThrowHelpers.ThrowIfNull(dataset, nameof(dataset));
 
             transferSyntax ??= _options.TransferSyntax;
 

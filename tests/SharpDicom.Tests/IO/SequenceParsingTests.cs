@@ -173,12 +173,14 @@ namespace SharpDicom.Tests.IO
 
         #region Multiple Item Tests
 
+        private static readonly string[] TwoItemValues = new[] { "Item1 ", "Item2 " };
+
         [Test]
         public void ParseSequence_TwoItems_ParsesBoth()
         {
             // Arrange
             var parser = new SequenceParser(explicitVR: true);
-            var sequence = BuildSequenceWithStringItems(new[] { "Item1 ", "Item2 " });
+            var sequence = BuildSequenceWithStringItems(TwoItemValues);
 
             var tag = new DicomTag(0x0040, 0x0100);
 
@@ -537,6 +539,8 @@ namespace SharpDicom.Tests.IO
 
         #region Max Total Items Tests
 
+        private static readonly string[] FiveItemValues = new[] { "1     ", "2     ", "3     ", "4     ", "5     " };
+
         [Test]
         public void ParseSequence_ExceedsMaxTotalItems_Throws()
         {
@@ -545,7 +549,7 @@ namespace SharpDicom.Tests.IO
             var parser = new SequenceParser(explicitVR: true, options: options);
 
             // Build sequence with 5 items
-            var sequence = BuildSequenceWithStringItems(new[] { "1     ", "2     ", "3     ", "4     ", "5     " });  // 6 chars each
+            var sequence = BuildSequenceWithStringItems(FiveItemValues);  // 6 chars each
             var tag = new DicomTag(0x0040, 0x0100);
 
             // Act & Assert
@@ -746,7 +750,7 @@ namespace SharpDicom.Tests.IO
             Assert.That(innerSeq!.Items[0].GetString(DicomTag.PatientName), Is.EqualTo("Inner"));
         }
 
-        private byte[] BuildUndefinedLengthSequenceElement(DicomTag tag, byte[] content)
+        private static byte[] BuildUndefinedLengthSequenceElement(DicomTag tag, byte[] content)
         {
             var element = new List<byte>();
             element.AddRange(UInt16LE(tag.Group));
@@ -763,7 +767,7 @@ namespace SharpDicom.Tests.IO
 
         #region Helper Methods
 
-        private byte[] BuildStringElement(DicomTag tag, string value)
+        private static byte[] BuildStringElement(DicomTag tag, string value)
         {
             // Ensure value is even length (pad with space if odd)
             var valueBytes = System.Text.Encoding.ASCII.GetBytes(value);
@@ -790,7 +794,7 @@ namespace SharpDicom.Tests.IO
             return element.ToArray();
         }
 
-        private byte[] WrapInItem(byte[] content)
+        private static byte[] WrapInItem(byte[] content)
         {
             var item = new List<byte>();
             item.AddRange(ItemTag);
@@ -799,7 +803,7 @@ namespace SharpDicom.Tests.IO
             return item.ToArray();
         }
 
-        private byte[] BuildSequenceElement(DicomTag tag, byte[] sequenceContent)
+        private static byte[] BuildSequenceElement(DicomTag tag, byte[] sequenceContent)
         {
             var element = new List<byte>();
             // Tag
@@ -818,7 +822,7 @@ namespace SharpDicom.Tests.IO
             return element.ToArray();
         }
 
-        private byte[] BuildSequenceWithStringItems(string[] values)
+        private static byte[] BuildSequenceWithStringItems(string[] values)
         {
             var sequence = new List<byte>();
 

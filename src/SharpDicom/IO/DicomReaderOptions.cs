@@ -93,7 +93,7 @@ namespace SharpDicom.IO
         /// Set to true for strict mode validation.
         /// Default is false for maximum compatibility.
         /// </remarks>
-        public bool FailOnOrphanPrivateElements { get; init; } = false;
+        public bool FailOnOrphanPrivateElements { get; init; }
 
         /// <summary>
         /// Gets whether to fail when duplicate private creator slots are detected.
@@ -104,7 +104,7 @@ namespace SharpDicom.IO
         /// Set to true for strict mode validation.
         /// Default is false for maximum compatibility.
         /// </remarks>
-        public bool FailOnDuplicatePrivateSlots { get; init; } = false;
+        public bool FailOnDuplicatePrivateSlots { get; init; }
 
         /// <summary>
         /// Gets the validation profile to use during parsing.
