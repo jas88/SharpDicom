@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: 01 of 7 complete (re-executed)
+**Plan**: 03 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-01-28 - Re-executed 10-01-PLAN.md (Network Types Foundation)
+**Last activity**: 2026-01-28 - Completed 10-03-PLAN.md (PDU Parsing)
 
-**Progress**: █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/7 plans in Phase 10)
+**Progress**: ███░░░░░░░░░░░░░░░░░░░░░░░░░░░ (3/7 plans in Phase 10)
 
-**Test Status**: 1093 tests passing, 0 failed, 0 skipped
+**Test Status**: 1132 tests passing, 0 failed, 0 skipped
 
 ## Completed
 
@@ -64,7 +64,7 @@
 
 - [x] Phase 10 Plan 01: PDU types and constants
 - [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
-- [ ] Phase 10 Plan 03: PDU parsing
+- [x] Phase 10 Plan 03: PDU parsing (PduReader, PduWriter ref structs)
 - [ ] Phase 10 Plan 04: Association negotiation
 - [ ] Phase 10 Plan 05: DIMSE message types
 - [ ] Phase 10 Plan 06: C-ECHO implementation
@@ -72,7 +72,7 @@
 
 ## In Progress
 
-- Phase 10 - Network Foundation (Plan 01 complete, 6 remaining)
+- Phase 10 - Network Foundation (Plan 03 complete, 4 remaining)
 
 ## Blocked
 
@@ -82,11 +82,11 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | In Progress | 1/7 | 2026-01-28 | — |
-| 11 | DIMSE Services | Pending | ?/? | — | — |
-| 12 | Pure C# Codecs | Pending | ?/? | — | — |
-| 13 | Native Codecs Package | Pending | ?/? | — | — |
-| 14 | De-identification | Pending | ?/? | — | — |
+| 10 | Network Foundation | In Progress | 3/7 | 2026-01-28 | - |
+| 11 | DIMSE Services | Pending | ?/? | - | - |
+| 12 | Pure C# Codecs | Pending | ?/? | - | - |
+| 13 | Native Codecs Package | Pending | ?/? | - | - |
+| 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -198,20 +198,24 @@
 | 2026-01-28 | 10-01 | RejectReason single enum with multi-source interpretation | Overlapping PS3.8 values handled via documentation |
 | 2026-01-28 | 10-01 | DicomStatus equality by code only | ErrorComment is informational, not identity |
 | 2026-01-28 | 10-01 | Exception Source property renamed | AbortSource/RejectSource avoid hiding Exception.Source |
+| 2026-01-28 | 10-03 | PduReader as ref struct | Zero-copy PDU parsing following DicomStreamReader pattern |
+| 2026-01-28 | 10-03 | PduWriter as ref struct | Efficient PDU building with IBufferWriter<byte> pattern |
+| 2026-01-28 | 10-03 | TryRead returns false on insufficient data | TCP fragmentation handling without exceptions |
+| 2026-01-28 | 10-03 | Big-Endian for all PDU lengths | DICOM PS3.8 requirement for network byte order |
 
 ## Session Continuity
 
 **Last session**: 2026-01-28
-**Stopped at**: Completed 10-01-PLAN.md (Network Types Foundation)
+**Stopped at**: Completed 10-03-PLAN.md (PDU Parsing)
 **Resume file**: None
-**Next step**: Execute 10-02-PLAN.md (PDU Sub-Items)
+**Next step**: Execute 10-04-PLAN.md (Association Negotiation)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 10 - Network Foundation (2/7 plans complete)
+2. **Current phase**: Phase 10 - Network Foundation (3/7 plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -223,15 +227,17 @@ If resuming after a break:
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
 4. **v2.0.0 progress**:
-   - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions (complete)
-5. **Test coverage**: 1093 tests passing, 0 failed, 0 skipped
+   - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions
+   - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
+   - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
+5. **Test coverage**: 1132 tests passing, 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FR-10.1 (PDU parsing) | Phase 10 | In Progress |
+| FR-10.1 (PDU parsing) | Phase 10 | Complete (10-03) |
 | FR-10.2 (Association negotiation) | Phase 10 | In Progress |
 | FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
 | FR-10.4 (C-ECHO SCP) | Phase 10 | Pending |
