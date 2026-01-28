@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
     <ProjectReference Include="..\..\src\SharpDicom\SharpDicom.csproj" />
     <ProjectReference Include="..\..\src\SharpDicom.Generators\SharpDicom.Generators.csproj" />
   </ItemGroup>
