@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: Pending (roadmap created, awaiting plan-phase)
-**Status**: Ready for planning
-**Last activity**: 2026-01-27 - v2.0.0 roadmap created
+**Plan**: 02 of 7 complete
+**Status**: In progress
+**Last activity**: 2026-01-28 - Completed 10-02-PLAN.md (PDU Sub-Items)
 
-**Progress**: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (0/? plans, phase planning pending)
+**Progress**: ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/7 plans in Phase 10)
 
-**Test Status**: 2070 tests passing, 0 failed, 0 skipped
+**Test Status**: 2116 tests passing, 0 failed, 0 skipped
 
 ## Completed
 
@@ -25,6 +25,7 @@
 - [x] v2.0.0 Research completed (SUMMARY.md updated)
 - [x] v2.0.0 Requirements defined (REQUIREMENTS.md updated)
 - [x] v2.0.0 Roadmap created (Phases 10-14)
+- [x] Phase 10 plans created (7 plans)
 
 ### v1.0.0 Plans (Complete)
 
@@ -59,9 +60,19 @@
 - [x] Phase 9 Plan 02: RLE codec with PackBits compression, SIMD optimization, MSB-first interleaving
 - [x] Phase 7 Plan 03: Sequence length handling, sequence writing, roundtrip integration tests
 
+### v2.0.0 Plans (In Progress)
+
+- [x] Phase 10 Plan 01: PDU types and constants
+- [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
+- [ ] Phase 10 Plan 03: PDU parsing
+- [ ] Phase 10 Plan 04: Association negotiation
+- [ ] Phase 10 Plan 05: DIMSE message types
+- [ ] Phase 10 Plan 06: C-ECHO implementation
+- [ ] Phase 10 Plan 07: DicomClient and DicomServer
+
 ## In Progress
 
-*None - awaiting Phase 10 planning*
+- Phase 10 - Network Foundation (Plan 02 complete, 5 remaining)
 
 ## Blocked
 
@@ -71,7 +82,7 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | Pending | ?/? | — | — |
+| 10 | Network Foundation | In Progress | 2/7 | 2026-01-28 | — |
 | 11 | DIMSE Services | Pending | ?/? | — | — |
 | 12 | Pure C# Codecs | Pending | ?/? | — | — |
 | 13 | Native Codecs Package | Pending | ?/? | — | — |
@@ -180,20 +191,24 @@
 | 2026-01-27 | 07-03 | Two-pass length calculation | SequenceLengthCalculator computes lengths recursively |
 | 2026-01-27 | 07-03 | Overflow protection for defined length | Return UndefinedLength (0xFFFFFFFF) on overflow, fall back to delimiter mode |
 | 2026-01-27 | 07-03 | Skip undefined-length roundtrip tests | Pre-existing reader bug in FindSequenceDelimiter, writer is correct |
+| 2026-01-28 | 10-02 | PresentationContext ID validation | Must be odd integer 1-255 per DICOM PS3.8 |
+| 2026-01-28 | 10-02 | UserInformation.Default uses fixed UID | 2.25.{uuid} for consistent implementation identification |
+| 2026-01-28 | 10-02 | PresentationDataValue as struct | Zero-allocation for high-throughput P-DATA handling |
+| 2026-01-28 | 10-02 | AE title validation | 1-16 ASCII printable chars, no leading/trailing spaces |
 
 ## Session Continuity
 
-**Last session**: 2026-01-27
-**Stopped at**: v2.0.0 roadmap created (Phases 10-14 defined)
+**Last session**: 2026-01-28
+**Stopped at**: Completed 10-02-PLAN.md (PDU Sub-Items)
 **Resume file**: None
-**Next step**: Run `/gsd:plan-phase 10` to create detailed plans for Network Foundation
+**Next step**: Execute 10-03-PLAN.md (PDU Parsing)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 10 - Network Foundation (planning pending)
+2. **Current phase**: Phase 10 - Network Foundation (2/7 plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -204,21 +219,18 @@ If resuming after a break:
    - **Phase 7**: File writing with sequence support (both length modes)
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
-4. **v2.0.0 phases planned**:
-   - **Phase 10**: Network Foundation (PDU, Association, C-ECHO)
-   - **Phase 11**: DIMSE Services (C-STORE, C-FIND, C-MOVE, C-GET)
-   - **Phase 12**: Pure C# Codecs (JPEG, J2K)
-   - **Phase 13**: Native Codecs Package (libjpeg-turbo, OpenJPEG)
-   - **Phase 14**: De-identification (PS3.15, UID remapping, date shifting)
-5. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
+4. **v2.0.0 progress**:
+   - **Phase 10 Plan 01**: PDU types and constants (complete)
+   - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, AssociationOptions (complete)
+5. **Test coverage**: 2116 tests passing, 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FR-10.1 (PDU parsing) | Phase 10 | Pending |
-| FR-10.2 (Association negotiation) | Phase 10 | Pending |
+| FR-10.1 (PDU parsing) | Phase 10 | In Progress |
+| FR-10.2 (Association negotiation) | Phase 10 | In Progress |
 | FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
 | FR-10.4 (C-ECHO SCP) | Phase 10 | Pending |
 | FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
@@ -251,4 +263,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-27*
+*Last updated: 2026-01-28*
