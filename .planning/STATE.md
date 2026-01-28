@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: 04 of 7 complete
+**Plan**: 06 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-01-28 - Completed 10-04-PLAN.md (Association State Machine)
+**Last activity**: 2026-01-28 - Completed 10-06-PLAN.md (DicomServer C-ECHO SCP)
 
-**Progress**: ████░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/7 plans in Phase 10)
+**Progress**: ██████████████████████████░░░░ (6/7 plans in Phase 10)
 
-**Test Status**: 1162 tests passing, 0 failed, 0 skipped
+**Test Status**: 1189 tests passing, 0 failed, 1 skipped
 
 ## Completed
 
@@ -66,13 +66,13 @@
 - [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
 - [x] Phase 10 Plan 03: PDU parsing (PduReader, PduWriter ref structs)
 - [x] Phase 10 Plan 04: Association state machine (13 states, DicomAssociation)
-- [ ] Phase 10 Plan 05: DIMSE message types
-- [ ] Phase 10 Plan 06: C-ECHO implementation
-- [ ] Phase 10 Plan 07: DicomClient and DicomServer
+- [x] Phase 10 Plan 05: DIMSE command infrastructure (CommandField, DicomCommand)
+- [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
+- [ ] Phase 10 Plan 07: Integration tests
 
 ## In Progress
 
-- Phase 10 - Network Foundation (Plan 04 complete, 3 remaining)
+- Phase 10 - Network Foundation (Plan 06 complete, 1 remaining)
 
 ## Blocked
 
@@ -82,7 +82,7 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | In Progress | 4/7 | 2026-01-28 | - |
+| 10 | Network Foundation | In Progress | 6/7 | 2026-01-28 | - |
 | 11 | DIMSE Services | Pending | ?/? | - | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
@@ -206,20 +206,24 @@
 | 2026-01-28 | 10-04 | Event-based ARTIM timer | Timer start/stop via events, caller integrates |
 | 2026-01-28 | 10-04 | Switch expression for state table | (current, event) => (next, action) pattern |
 | 2026-01-28 | 10-04 | Release collision states Sta9-Sta12 | Full edge case handling for simultaneous release |
+| 2026-01-28 | 10-06 | ArrayBufferWriter polyfill | netstandard2.0 compatibility for PDU building |
+| 2026-01-28 | 10-06 | Inline C-ECHO parsing | Avoid dependency on full DIMSE infrastructure |
+| 2026-01-28 | 10-06 | Task-per-association model | SemaphoreSlim for MaxAssociations throttling |
+| 2026-01-28 | 10-06 | ARTIM timer via CancelAfter | Linked CTS for association timeout enforcement |
 
 ## Session Continuity
 
 **Last session**: 2026-01-28
-**Stopped at**: Completed 10-04-PLAN.md (Association State Machine)
+**Stopped at**: Completed 10-06-PLAN.md (DicomServer C-ECHO SCP)
 **Resume file**: None
-**Next step**: Execute 10-05-PLAN.md (DIMSE Message Types)
+**Next step**: Execute 10-07-PLAN.md (Integration Tests)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 10 - Network Foundation (3/7 plans complete)
+2. **Current phase**: Phase 10 - Network Foundation (6/7 plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -235,7 +239,9 @@ If resuming after a break:
    - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
    - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
    - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
-5. **Test coverage**: 1162 tests passing, 0 failed, 0 skipped
+   - **Phase 10 Plan 05**: DIMSE command infrastructure - CommandField, DicomCommand factory methods
+   - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
+5. **Test coverage**: 1189 tests passing, 0 failed, 1 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -245,14 +251,14 @@ If resuming after a break:
 | FR-10.1 (PDU parsing) | Phase 10 | Complete (10-03) |
 | FR-10.2 (Association negotiation) | Phase 10 | Complete (10-04) |
 | FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
-| FR-10.4 (C-ECHO SCP) | Phase 10 | Pending |
+| FR-10.4 (C-ECHO SCP) | Phase 10 | Complete (10-06) |
 | FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
 | FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
 | FR-10.7 (C-FIND SCU) | Phase 11 | Pending |
 | FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
 | FR-10.9 (C-GET SCU) | Phase 11 | Pending |
 | FR-10.10 (DicomClient async) | Phase 10 | Pending |
-| FR-10.11 (DicomServer events) | Phase 10 | Pending |
+| FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
 | FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
 | FR-11.2 (JPEG Lossless) | Phase 12 | Pending |
