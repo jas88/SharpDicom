@@ -2,13 +2,13 @@
 
 ## Current Status
 
-**Milestone**: v1.0.0 - Core DICOM Toolkit
-**Phase**: 9 of 9 (RLE Codec)
-**Plan**: 2 of 2 COMPLETE
-**Status**: ALL PHASES COMPLETE
-**Last activity**: 2026-01-27 - Milestone complete
+**Milestone**: v2.0.0 - Network, Codecs & De-identification
+**Phase**: 10 - Network Foundation
+**Plan**: Pending (roadmap created, awaiting plan-phase)
+**Status**: Ready for planning
+**Last activity**: 2026-01-27 - v2.0.0 roadmap created
 
-**Progress**: ██████████████████████████████ (30/30 plans complete, 100% of roadmap)
+**Progress**: ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (0/? plans, phase planning pending)
 
 **Test Status**: 2070 tests passing, 0 failed, 0 skipped
 
@@ -17,10 +17,17 @@
 - [x] Project initialization
 - [x] PROJECT.md created
 - [x] GSD workflow configured (YOLO mode)
-- [x] Research completed (Stack, Features, Architecture, Pitfalls)
-- [x] Research synthesized (SUMMARY.md)
-- [x] Requirements defined (REQUIREMENTS.md)
-- [x] Roadmap created (ROADMAP.md)
+- [x] v1.0.0 Research completed (Stack, Features, Architecture, Pitfalls)
+- [x] v1.0.0 Research synthesized (SUMMARY.md)
+- [x] v1.0.0 Requirements defined (REQUIREMENTS.md)
+- [x] v1.0.0 Roadmap created (ROADMAP.md)
+- [x] v1.0.0 ALL 9 PHASES COMPLETE (30/30 plans executed)
+- [x] v2.0.0 Research completed (SUMMARY.md updated)
+- [x] v2.0.0 Requirements defined (REQUIREMENTS.md updated)
+- [x] v2.0.0 Roadmap created (Phases 10-14)
+
+### v1.0.0 Plans (Complete)
+
 - [x] Phase 1 Plan 01: Core primitive types (DicomTag, DicomVR, DicomVRInfo, DicomMaskedTag, ValueMultiplicity)
 - [x] Phase 1 Plan 02: Source generator infrastructure and NEMA XML cache
 - [x] Phase 1 Plan 03: DicomUID and TransferSyntax types
@@ -54,13 +61,23 @@
 
 ## In Progress
 
-*None - ALL PHASES COMPLETE*
+*None - awaiting Phase 10 planning*
 
 ## Blocked
 
 *None*
 
-## Phase Progress
+## v2.0.0 Phase Progress
+
+| Phase | Name | Status | Plans | Started | Completed |
+|-------|------|--------|-------|---------|-----------|
+| 10 | Network Foundation | Pending | ?/? | — | — |
+| 11 | DIMSE Services | Pending | ?/? | — | — |
+| 12 | Pure C# Codecs | Pending | ?/? | — | — |
+| 13 | Native Codecs Package | Pending | ?/? | — | — |
+| 14 | De-identification | Pending | ?/? | — | — |
+
+## v1.0.0 Phase Progress (Complete)
 
 | Phase | Status | Plans | Started | Completed |
 |-------|--------|-------|---------|-----------|
@@ -167,16 +184,17 @@
 ## Session Continuity
 
 **Last session**: 2026-01-27
-**Stopped at**: v1.0.0 milestone complete - 30/30 plans executed, 2070 tests passing
+**Stopped at**: v2.0.0 roadmap created (Phases 10-14 defined)
 **Resume file**: None
-**Next plan**: None - v1.0.0 complete, future work in Potential Future Work section
+**Next step**: Run `/gsd:plan-phase 10` to create detailed plans for Network Foundation
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: ALL 9 PHASES COMPLETE
-2. **Project accomplishments**:
+1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
+2. **Current phase**: Phase 10 - Network Foundation (planning pending)
+3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
    - **Phase 3**: Implicit VR and sequence parsing with depth guards
@@ -186,16 +204,51 @@ If resuming after a break:
    - **Phase 7**: File writing with sequence support (both length modes)
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
-3. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
-4. **Known issues**: None
+4. **v2.0.0 phases planned**:
+   - **Phase 10**: Network Foundation (PDU, Association, C-ECHO)
+   - **Phase 11**: DIMSE Services (C-STORE, C-FIND, C-MOVE, C-GET)
+   - **Phase 12**: Pure C# Codecs (JPEG, J2K)
+   - **Phase 13**: Native Codecs Package (libjpeg-turbo, OpenJPEG)
+   - **Phase 14**: De-identification (PS3.15, UID remapping, date shifting)
+5. **Test coverage**: 2070 tests passing (1035 x 2 assemblies), 0 failed, 0 skipped
+6. **Known issues**: None
 
-## Potential Future Work
+## v2.0.0 Requirements Coverage
 
-- Manual DCMTK validation of written files
-- Performance benchmarking vs fo-dicom
-- Additional codec implementations (JPEG, JPEG 2000, JPEG-LS)
-- DIMSE network services (C-ECHO, C-STORE, C-FIND, C-MOVE)
-- De-identification using PS3.15 confidentiality profiles
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FR-10.1 (PDU parsing) | Phase 10 | Pending |
+| FR-10.2 (Association negotiation) | Phase 10 | Pending |
+| FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
+| FR-10.4 (C-ECHO SCP) | Phase 10 | Pending |
+| FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
+| FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
+| FR-10.7 (C-FIND SCU) | Phase 11 | Pending |
+| FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
+| FR-10.9 (C-GET SCU) | Phase 11 | Pending |
+| FR-10.10 (DicomClient async) | Phase 10 | Pending |
+| FR-10.11 (DicomServer events) | Phase 10 | Pending |
+| FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
+| FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
+| FR-11.2 (JPEG Lossless) | Phase 12 | Pending |
+| FR-11.3 (J2K Lossless) | Phase 12 | Pending |
+| FR-11.4 (J2K Lossy) | Phase 12 | Pending |
+| FR-11.5 (Pure C#) | Phase 12 | Pending |
+| FR-11.6 (Trim/AOT) | Phase 12 | Pending |
+| FR-11.7 (IPixelDataCodec) | Phase 12 | Pending |
+| FR-12.1 (SharpDicom.Codecs) | Phase 13 | Pending |
+| FR-12.2 (libjpeg-turbo) | Phase 13 | Pending |
+| FR-12.3 (OpenJPEG) | Phase 13 | Pending |
+| FR-12.4 (Override registration) | Phase 13 | Pending |
+| FR-12.5 (Cross-platform) | Phase 13 | Pending |
+| FR-13.1 (PS3.15 Basic) | Phase 14 | Pending |
+| FR-13.2 (Source-generated) | Phase 14 | Pending |
+| FR-13.3 (UID remapping) | Phase 14 | Pending |
+| FR-13.4 (Date shifting) | Phase 14 | Pending |
+| FR-13.5 (Callback integration) | Phase 14 | Pending |
+| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending |
+
+**Coverage**: 30/30 requirements mapped
 
 ---
 *Last updated: 2026-01-27*

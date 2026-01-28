@@ -1,142 +1,124 @@
 # SharpDicom Requirements
 
-## Version: 1.0.0 (MVP)
+## Version: 2.0.0
 
 ### Functional Requirements
 
-#### FR-01: Core Data Model
+#### FR-10: DICOM Networking (Part 8)
 | ID | Requirement | Priority | Source |
 |----|-------------|----------|--------|
-| FR-01.1 | DicomTag as 4-byte struct with group/element properties | Must | CLAUDE.md |
-| FR-01.2 | DicomVR as 2-byte struct with validation | Must | CLAUDE.md |
-| FR-01.3 | DicomElement struct with typed accessors | Must | CLAUDE.md |
-| FR-01.4 | DicomDataset with O(1) lookup, sorted enumeration | Must | CLAUDE.md |
-| FR-01.5 | DicomSequence class with nested dataset support | Must | Research |
-| FR-01.6 | DicomUID struct with inline 64-byte storage | Must | CLAUDE.md |
+| FR-10.1 | PDU parsing and building (A-ASSOCIATE, P-DATA, A-RELEASE, A-ABORT) | Must | Research |
+| FR-10.2 | Association negotiation with presentation contexts | Must | Research |
+| FR-10.3 | C-ECHO SCU (verify connectivity) | Must | User |
+| FR-10.4 | C-ECHO SCP (respond to verification) | Must | User |
+| FR-10.5 | C-STORE SCU (send DICOM files) | Must | User |
+| FR-10.6 | C-STORE SCP with streaming support | Must | User |
+| FR-10.7 | C-FIND SCU (query remote PACS) | Must | User |
+| FR-10.8 | C-MOVE SCU (retrieve from PACS) | Must | User |
+| FR-10.9 | C-GET SCU (retrieve without sub-operations) | Must | User |
+| FR-10.10 | DicomClient class with async API | Must | CLAUDE.md |
+| FR-10.11 | DicomServer class with event-based handlers | Must | CLAUDE.md |
+| FR-10.12 | Zero-copy PDU parsing via System.IO.Pipelines | Should | Research |
 
-#### FR-02: DICOM Dictionary
+#### FR-11: Image Codecs (Pure C#)
 | ID | Requirement | Priority | Source |
 |----|-------------|----------|--------|
-| FR-02.1 | Source generator consuming NEMA Part 6 XML | Must | PROJECT.md |
-| FR-02.2 | Static DicomTag members for all ~4000 standard tags | Must | Research |
-| FR-02.3 | Static DicomUID members for transfer syntaxes, SOP classes | Must | Research |
-| FR-02.4 | FrozenDictionary on .NET 8+, Dictionary fallback | Should | Research |
-| FR-02.5 | VR info lookup (name, padding, max length) | Must | CLAUDE.md |
+| FR-11.1 | JPEG Baseline codec (8-bit lossy, Process 1) | Must | User |
+| FR-11.2 | JPEG Lossless codec (Process 14, Selection Value 1) | Must | User |
+| FR-11.3 | JPEG 2000 Lossless codec | Must | User |
+| FR-11.4 | JPEG 2000 Lossy codec | Should | User |
+| FR-11.5 | Pure C# implementations (no native dependencies) | Must | User |
+| FR-11.6 | Trim/AOT compatible | Must | PROJECT.md |
+| FR-11.7 | Register via existing IPixelDataCodec interface | Must | Architecture |
 
-#### FR-03: File Reading
+#### FR-12: Native Codecs Package (Optional)
 | ID | Requirement | Priority | Source |
 |----|-------------|----------|--------|
-| FR-03.1 | Parse DICOM Part 10 files with preamble/DICM | Must | PROJECT.md |
-| FR-03.2 | Parse files without preamble (heuristic detection) | Must | Pitfalls |
-| FR-03.3 | Explicit VR Little Endian support | Must | Research |
-| FR-03.4 | Implicit VR Little Endian support | Must | Research |
-| FR-03.5 | Streaming element-by-element iteration | Must | PROJECT.md |
-| FR-03.6 | File Meta Information (Group 0002) parsing | Must | Research |
-| FR-03.7 | Defined length sequence/item parsing | Must | Research |
-| FR-03.8 | Undefined length sequence/item parsing | Must | Research |
+| FR-12.1 | SharpDicom.Codecs NuGet package | Should | User |
+| FR-12.2 | Native JPEG codec (libjpeg-turbo) | Should | Research |
+| FR-12.3 | Native JPEG 2000 codec (OpenJPEG) | Should | Research |
+| FR-12.4 | Override registration for pure C# codecs | Should | Architecture |
+| FR-12.5 | Cross-platform natives (win-x64, linux-x64, osx-arm64) | Should | Research |
 
-#### FR-04: Character Encoding ✅
-| ID | Requirement | Priority | Status |
-|----|-------------|----------|--------|
-| FR-04.1 | ASCII/ISO-IR 6 default encoding | Must | ✅ Complete |
-| FR-04.2 | UTF-8 (ISO-IR 192) with zero-copy fast path | Must | ✅ Complete |
-| FR-04.3 | Latin-1 (ISO-IR 100) support | Must | ✅ Complete |
-| FR-04.4 | Specific Character Set (0008,0005) parsing | Must | ✅ Complete |
-| FR-04.5 | ISO 2022 escape sequences (JIS, GB18030) | Should | ✅ Complete |
-
-#### FR-05: Pixel Data
+#### FR-13: De-identification
 | ID | Requirement | Priority | Source |
 |----|-------------|----------|--------|
-| FR-05.1 | Native (uncompressed) pixel data reading | Must | Research |
-| FR-05.2 | Encapsulated pixel data with fragment sequence | Must | Research |
-| FR-05.3 | Basic Offset Table parsing | Must | Research |
-| FR-05.4 | Configurable handling (load/lazy/skip/callback) | Must | CLAUDE.md |
-| FR-05.5 | Multi-frame pixel data support | Must | Research |
-
-#### FR-06: Private Tags
-| ID | Requirement | Priority | Source |
-|----|-------------|----------|--------|
-| FR-06.1 | Private creator element tracking | Must | CLAUDE.md |
-| FR-06.2 | Private tag slot resolution | Must | Research |
-| FR-06.3 | Configurable retention (keep/strip) | Should | CLAUDE.md |
-| FR-06.4 | Bundled vendor dictionaries (Siemens, GE, Philips) | Could | Research |
-
-#### FR-07: File Writing
-| ID | Requirement | Priority | Source |
-|----|-------------|----------|--------|
-| FR-07.1 | Write DICOM Part 10 files with preamble/DICM | Must | PROJECT.md |
-| FR-07.2 | File Meta Information generation | Must | Research |
-| FR-07.3 | Explicit VR Little Endian output | Must | Research |
-| FR-07.4 | Streaming write via IBufferWriter<byte> | Should | Research |
-| FR-07.5 | Defined/undefined length sequence writing | Should | Research |
-
-#### FR-08: Validation
-| ID | Requirement | Priority | Source |
-|----|-------------|----------|--------|
-| FR-08.1 | Strict/lenient/permissive mode presets | Must | Research |
-| FR-08.2 | Callback-based element validation | Should | CLAUDE.md |
-| FR-08.3 | VR mismatch detection | Should | Research |
-| FR-08.4 | Value length validation | Should | Research |
-
-#### FR-09: RLE Codec
-| ID | Requirement | Priority | Source |
-|----|-------------|----------|--------|
-| FR-09.1 | RLE decompression without external dependencies | Should | Research |
-| FR-09.2 | RLE compression | Could | Research |
-| FR-09.3 | IPixelDataCodec interface for future codecs | Must | CLAUDE.md |
+| FR-13.1 | PS3.15 Basic Application Level Confidentiality Profile | Must | User |
+| FR-13.2 | Source-generated action table from NEMA part15.xml | Must | Research |
+| FR-13.3 | UID remapping with consistent study-level replacement | Must | User |
+| FR-13.4 | Date shifting with configurable offset | Must | User |
+| FR-13.5 | Integration with existing element callback system | Must | Architecture |
+| FR-13.6 | DicomDeidentifier class with fluent configuration | Should | Research |
 
 ### Non-Functional Requirements
 
-#### NFR-01: Performance
+#### NFR-04: Networking Performance
 | ID | Requirement | Target | Source |
 |----|-------------|--------|--------|
-| NFR-01.1 | File parsing 2-3× faster than fo-dicom | Benchmark | PROJECT.md |
-| NFR-01.2 | 50%+ lower memory allocations | Benchmark | PROJECT.md |
-| NFR-01.3 | Zero-allocation hot paths where possible | Design | CLAUDE.md |
-| NFR-01.4 | Sub-millisecond element access | Design | CLAUDE.md |
+| NFR-04.1 | Zero-copy PDU parsing where possible | Design | Research |
+| NFR-04.2 | Streaming C-STORE without full file buffering | Design | Research |
+| NFR-04.3 | Configurable PDU size (16KB-1MB) | Design | Research |
 
-#### NFR-02: Compatibility
+#### NFR-05: Codec Performance
 | ID | Requirement | Target | Source |
 |----|-------------|--------|--------|
-| NFR-02.1 | netstandard2.0 support | Must | PROJECT.md |
-| NFR-02.2 | net8.0 LTS support | Must | PROJECT.md |
-| NFR-02.3 | net9.0 latest support | Must | PROJECT.md |
-| NFR-02.4 | Trimming compatible (no reflection) | Must | PROJECT.md |
-| NFR-02.5 | Native AOT compatible | Must | PROJECT.md |
+| NFR-05.1 | Pure C# codecs: acceptable for typical use | Design | User |
+| NFR-05.2 | Native codecs: 10-50× faster than pure C# | Benchmark | Research |
+| NFR-05.3 | No memory leaks in codec operations | Design | Research |
 
-#### NFR-03: Quality
-| ID | Requirement | Target | Source |
-|----|-------------|--------|--------|
-| NFR-03.1 | Unit test coverage > 80% | CI | Standards |
-| NFR-03.2 | Roundtrip tests (read → write → read) | CI | Research |
-| NFR-03.3 | Multi-vendor test file coverage | CI | Research |
-| NFR-03.4 | Warnings as errors | Build | Standards |
-
-### Out of Scope (v2+)
+### Out of Scope (v3+)
 
 | Feature | Reason |
 |---------|--------|
-| DICOM networking (DIMSE) | Complexity; v2 milestone |
-| JPEG/JPEG2000/JPEG-LS codecs | External dependencies; separate packages |
-| De-identification engine | Requires stable core; v2 |
-| Video transfer syntaxes | Different model; v2 |
-| fo-dicom API compatibility layer | Migration tooling; parallel track |
-| MongoDB/BSON serialization | v2 feature |
+| TLS support | Orthogonal to core networking, defer to v2.1 or v3 |
+| Modality Worklist (MWL) | Niche RIS integration |
+| DIMSE-N services | Normalized objects are <5% of use cases |
+| C-FIND SCP / C-MOVE SCP | Most users are SCU; SCP is complex |
+| JPEG-LS codec | Less common than JPEG/J2K |
+| HTJ2K codec | Emerging standard, defer |
+| Burned-in PHI detection | Requires OCR, too complex for v2 |
+| Multiple de-id profiles | Basic profile covers 90% of use cases |
 
-### Acceptance Criteria
+### Traceability
 
-**v1.0 is complete when:**
-1. ✅ Parse standard Explicit VR LE files
-2. ✅ Parse Implicit VR LE files
-3. ✅ Parse files without preamble
-4. ✅ Handle sequences (defined + undefined length)
-5. ✅ Read/write roundtrip preserves data
-6. ✅ Character encoding works for UTF-8 and Latin-1
-7. ✅ Pixel data accessible (load or lazy)
-8. ✅ Private tags preserved with creator tracking
-9. ✅ Benchmarks show 2× fo-dicom performance
-10. ✅ Multi-target build passes on all TFMs
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FR-10.1 | Phase 10 | Pending |
+| FR-10.2 | Phase 10 | Pending |
+| FR-10.3 | Phase 10 | Pending |
+| FR-10.4 | Phase 10 | Pending |
+| FR-10.5 | Phase 10 | Pending |
+| FR-10.6 | Phase 10 | Pending |
+| FR-10.7 | Phase 11 | Pending |
+| FR-10.8 | Phase 11 | Pending |
+| FR-10.9 | Phase 11 | Pending |
+| FR-10.10 | Phase 10 | Pending |
+| FR-10.11 | Phase 10 | Pending |
+| FR-10.12 | Phase 10 | Pending |
+| FR-11.1 | Phase 12 | Pending |
+| FR-11.2 | Phase 12 | Pending |
+| FR-11.3 | Phase 12 | Pending |
+| FR-11.4 | Phase 12 | Pending |
+| FR-11.5 | Phase 12 | Pending |
+| FR-11.6 | Phase 12 | Pending |
+| FR-11.7 | Phase 12 | Pending |
+| FR-12.1 | Phase 13 | Pending |
+| FR-12.2 | Phase 13 | Pending |
+| FR-12.3 | Phase 13 | Pending |
+| FR-12.4 | Phase 13 | Pending |
+| FR-12.5 | Phase 13 | Pending |
+| FR-13.1 | Phase 14 | Pending |
+| FR-13.2 | Phase 14 | Pending |
+| FR-13.3 | Phase 14 | Pending |
+| FR-13.4 | Phase 14 | Pending |
+| FR-13.5 | Phase 14 | Pending |
+| FR-13.6 | Phase 14 | Pending |
+
+**Coverage:**
+- v2 requirements: 30 total
+- Mapped to phases: 30
+- Unmapped: 0 ✓
 
 ---
-*Derived from: PROJECT.md, CLAUDE.md, research synthesis*
-*Last updated: 2026-01-27 (FR-04 complete)*
+*Requirements defined: 2026-01-27*
+*Last updated: 2026-01-27 after v2.0.0 scope finalization*
