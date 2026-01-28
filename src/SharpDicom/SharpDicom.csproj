@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- In shared framework for net10.0+; NuGet correctly omits dependency for those TFMs -->
     <PackageReference Include="System.Text.Encoding.CodePages" />
   </ItemGroup>
 
