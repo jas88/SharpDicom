@@ -81,7 +81,7 @@
 - [ ] C-STORE SCP with streaming support (receive without full buffering)
 - [ ] C-FIND SCU (query PACS/RIS for studies/series/instances)
 - [ ] C-MOVE SCU (retrieve from PACS via sub-operations)
-- [ ] C-GET SCU (direct retrieval without sub-operations)
+- [ ] C-GET SCU (retrieve via C-STORE sub-ops on same association)
 - [ ] IAsyncEnumerable for C-FIND/C-MOVE/C-GET responses
 
 **Should-haves**:

@@ -70,7 +70,7 @@
 
 | Feature | Reason |
 |---------|--------|
-| TLS support | Orthogonal to core networking, defer to v2.1 or v3 |
+| TLS support | Orthogonal to core networking |
 | Modality Worklist (MWL) | Niche RIS integration |
 | DIMSE-N services | Normalized objects are <5% of use cases |
 | C-FIND SCP / C-MOVE SCP | Most users are SCU; SCP is complex |
