@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: 03 of 7 complete
+**Plan**: 04 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-01-28 - Completed 10-03-PLAN.md (PDU Parsing)
+**Last activity**: 2026-01-28 - Completed 10-04-PLAN.md (Association State Machine)
 
-**Progress**: ███░░░░░░░░░░░░░░░░░░░░░░░░░░░ (3/7 plans in Phase 10)
+**Progress**: ████░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/7 plans in Phase 10)
 
-**Test Status**: 1132 tests passing, 0 failed, 0 skipped
+**Test Status**: 1162 tests passing, 0 failed, 0 skipped
 
 ## Completed
 
@@ -65,14 +65,14 @@
 - [x] Phase 10 Plan 01: PDU types and constants
 - [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
 - [x] Phase 10 Plan 03: PDU parsing (PduReader, PduWriter ref structs)
-- [ ] Phase 10 Plan 04: Association negotiation
+- [x] Phase 10 Plan 04: Association state machine (13 states, DicomAssociation)
 - [ ] Phase 10 Plan 05: DIMSE message types
 - [ ] Phase 10 Plan 06: C-ECHO implementation
 - [ ] Phase 10 Plan 07: DicomClient and DicomServer
 
 ## In Progress
 
-- Phase 10 - Network Foundation (Plan 03 complete, 4 remaining)
+- Phase 10 - Network Foundation (Plan 04 complete, 3 remaining)
 
 ## Blocked
 
@@ -82,7 +82,7 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | In Progress | 3/7 | 2026-01-28 | - |
+| 10 | Network Foundation | In Progress | 4/7 | 2026-01-28 | - |
 | 11 | DIMSE Services | Pending | ?/? | - | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
@@ -202,13 +202,17 @@
 | 2026-01-28 | 10-03 | PduWriter as ref struct | Efficient PDU building with IBufferWriter<byte> pattern |
 | 2026-01-28 | 10-03 | TryRead returns false on insufficient data | TCP fragmentation handling without exceptions |
 | 2026-01-28 | 10-03 | Big-Endian for all PDU lengths | DICOM PS3.8 requirement for network byte order |
+| 2026-01-28 | 10-04 | 13 states with Sta1-Sta13 numbering | Match PS3.8 Section 9.2 for cross-reference |
+| 2026-01-28 | 10-04 | Event-based ARTIM timer | Timer start/stop via events, caller integrates |
+| 2026-01-28 | 10-04 | Switch expression for state table | (current, event) => (next, action) pattern |
+| 2026-01-28 | 10-04 | Release collision states Sta9-Sta12 | Full edge case handling for simultaneous release |
 
 ## Session Continuity
 
 **Last session**: 2026-01-28
-**Stopped at**: Completed 10-03-PLAN.md (PDU Parsing)
+**Stopped at**: Completed 10-04-PLAN.md (Association State Machine)
 **Resume file**: None
-**Next step**: Execute 10-04-PLAN.md (Association Negotiation)
+**Next step**: Execute 10-05-PLAN.md (DIMSE Message Types)
 
 ## Context for Next Session
 
@@ -230,7 +234,8 @@ If resuming after a break:
    - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions
    - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
    - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
-5. **Test coverage**: 1132 tests passing, 0 failed, 0 skipped
+   - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
+5. **Test coverage**: 1162 tests passing, 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -238,7 +243,7 @@ If resuming after a break:
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FR-10.1 (PDU parsing) | Phase 10 | Complete (10-03) |
-| FR-10.2 (Association negotiation) | Phase 10 | In Progress |
+| FR-10.2 (Association negotiation) | Phase 10 | Complete (10-04) |
 | FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
 | FR-10.4 (C-ECHO SCP) | Phase 10 | Pending |
 | FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
