@@ -10,7 +10,7 @@
 
 **Progress**: ██████████████████████████████ (7/7 plans in Phase 10 - COMPLETE)
 
-**Test Status**: 1230 tests passing, 0 failed, 0 skipped
+**Test Status**: 2460 tests passing, 0 failed, 0 skipped (10 DCMTK integration tests skipped)
 
 ## Completed
 
@@ -249,7 +249,7 @@ If resuming after a break:
    - **Phase 10 Plan 05**: DicomClient SCU - CommandField, DicomCommand, DicomClient with CEchoAsync
    - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
    - **Phase 10 Plan 07**: Integration tests - CEchoTests (11 roundtrip tests), CEchoIntegrationTests (DCMTK)
-5. **Test coverage**: 1230 tests passing, 0 failed, 0 skipped
+5. **Test coverage**: 2460 tests passing (10 DCMTK integration tests skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage

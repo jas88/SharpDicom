@@ -28,7 +28,7 @@
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 10 | Network Foundation | FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11 | Pending |
+| 10 | Network Foundation | FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11 | **Complete** |
 | 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | Pending |
 | 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | Pending |
 | 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | Pending |
@@ -45,39 +45,39 @@
 **Plans**: 7 plans in 4 waves
 
 Plans:
-- [ ] 10-01-PLAN.md — PDU types, constants, DicomStatus, network exceptions
-- [ ] 10-02-PLAN.md — Presentation context, user information, association options
-- [ ] 10-03-PLAN.md — PduReader/PduWriter ref structs for PDU I/O
-- [ ] 10-04-PLAN.md — DicomAssociation state machine (13 states)
-- [ ] 10-05-PLAN.md — DicomClient SCU with async connect/release
-- [ ] 10-06-PLAN.md — DicomServer SCP with event-based handlers
-- [ ] 10-07-PLAN.md — C-ECHO SCU/SCP and integration tests
+- [x] 10-01-PLAN.md — PDU types, constants, DicomStatus, network exceptions
+- [x] 10-02-PLAN.md — Presentation context, user information, association options
+- [x] 10-03-PLAN.md — PduReader/PduWriter ref structs for PDU I/O
+- [x] 10-04-PLAN.md — DicomAssociation state machine (13 states)
+- [x] 10-05-PLAN.md — DicomClient SCU with async connect/release
+- [x] 10-06-PLAN.md — DicomServer SCP with event-based handlers
+- [x] 10-07-PLAN.md — C-ECHO SCU/SCP and integration tests
 
 **Must-haves**:
-- [ ] PDU parsing and building (A-ASSOCIATE-RQ/AC/RJ, P-DATA-TF, A-RELEASE-RQ/RP, A-ABORT)
-- [ ] PduReader/PduWriter ref structs following DicomStreamReader pattern
-- [ ] DicomAssociation state machine with presentation context negotiation
-- [ ] DicomClient class with async API for SCU operations
-- [ ] DicomServer class with event-based handlers for SCP operations
-- [ ] C-ECHO SCU implementation (verify remote connectivity)
-- [ ] C-ECHO SCP handler (respond to verification requests)
+- [x] PDU parsing and building (A-ASSOCIATE-RQ/AC/RJ, P-DATA-TF, A-RELEASE-RQ/RP, A-ABORT)
+- [x] PduReader/PduWriter ref structs following DicomStreamReader pattern
+- [x] DicomAssociation state machine with presentation context negotiation
+- [x] DicomClient class with async API for SCU operations
+- [x] DicomServer class with event-based handlers for SCP operations
+- [x] C-ECHO SCU implementation (verify remote connectivity)
+- [x] C-ECHO SCP handler (respond to verification requests)
 
 **Should-haves**:
-- [ ] Configurable ARTIM timer (association request/release timeout)
-- [ ] Configurable PDU size (16KB-1MB range)
-- [ ] Association abort with reason codes
+- [x] Configurable ARTIM timer (association request/release timeout)
+- [x] Configurable PDU size (16KB-1MB range)
+- [x] Association abort with reason codes
 
 **Dependencies**: Phase 4 (character encoding for DIMSE text VRs), Phase 7 (dataset serialization for command sets)
 
 **Research Needed**: No (foundation layer; C-MOVE investigation deferred to Phase 11)
 
 **Success Criteria**:
-- [ ] Can establish association with DCMTK storescp
-- [ ] Can accept association from DCMTK storescu
-- [ ] C-ECHO roundtrip succeeds (SCU and SCP)
-- [ ] PDU parsing handles fragmented reads correctly
-- [ ] Association state machine rejects malformed PDUs
-- [ ] Tests pass with real PACS simulator
+- [x] Can establish association with DCMTK storescp
+- [x] Can accept association from DCMTK storescu
+- [x] C-ECHO roundtrip succeeds (SCU and SCP)
+- [x] PDU parsing handles fragmented reads correctly
+- [x] Association state machine rejects malformed PDUs
+- [x] Tests pass with real PACS simulator
 
 ---
 
@@ -567,4 +567,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-01-27 (v2.0.0 roadmap created)*
+*Last updated: 2026-01-28 (Phase 10 complete)*
