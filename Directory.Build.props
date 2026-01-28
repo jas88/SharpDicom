@@ -21,10 +21,10 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
-  <!-- Tests: single-target latest -->
+  <!-- Tests: multi-target for broader coverage -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests'">
-    <TargetFramework>net10.0</TargetFramework>
-    <!-- No test-specific suppressions needed - all analyzers pass -->
+    <!-- net8.0 (LTS), net9.0, net10.0 (latest) -->
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
   </PropertyGroup>
 
   <!-- Import shared build standards -->
