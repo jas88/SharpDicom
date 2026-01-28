@@ -87,6 +87,17 @@ Plans:
 
 **Requirements**: FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12
 
+**Plans**: 7 plans in 4 waves
+
+Plans:
+- [ ] 11-01-PLAN.md — Common DIMSE types (QueryRetrieveLevel, progress structs, DicomCommand extensions)
+- [ ] 11-02-PLAN.md — CStoreScu service with streaming send and progress reporting
+- [ ] 11-03-PLAN.md — CFindScu service with IAsyncEnumerable and DicomQuery builder
+- [ ] 11-04-PLAN.md — C-STORE SCP handler support in DicomServer (buffered and streaming modes)
+- [ ] 11-05-PLAN.md — CMoveScu service for third-party retrieval
+- [ ] 11-06-PLAN.md — CGetScu service with inline C-STORE sub-operation handling
+- [ ] 11-07-PLAN.md — Integration tests (roundtrip and DCMTK interoperability)
+
 **Must-haves**:
 - [ ] C-STORE SCU (send DICOM files to remote AE)
 - [ ] C-STORE SCP with streaming support (receive without full buffering)
@@ -103,7 +114,7 @@ Plans:
 
 **Dependencies**: Phase 10 (association and PDU infrastructure)
 
-**Research Needed**: Yes (C-MOVE third-party destination coordination, streaming receive patterns)
+**Research Needed**: Yes (C-MOVE third-party destination coordination, streaming receive patterns) - COMPLETE (11-RESEARCH.md)
 
 **Success Criteria**:
 - [ ] Can send DICOM file to DCMTK storescp
