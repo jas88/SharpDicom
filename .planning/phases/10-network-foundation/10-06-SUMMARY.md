@@ -132,6 +132,13 @@ Created `ArrayBufferWriterPolyfill.cs` for netstandard2.0 compatibility since `A
 - **Files modified:** src/SharpDicom/Network/DicomServer.cs
 - **Commit:** ebba59a
 
+**4. [Rule 1 - Bug] ArrayBufferWriter namespace collision in polyfill tests**
+- **Found during:** Post-execution verification
+- **Issue:** When SharpDicom.Tests.Polyfills references netstandard2.0 build, ArrayBufferWriter<T> in System.Buffers conflicts with BCL version due to InternalsVisibleTo
+- **Fix:** Moved polyfill to SharpDicom.Internal namespace, renamed to ArrayBufferWriterPolyfill<T>, added conditional using alias in DicomServer.cs
+- **Files modified:** src/SharpDicom/Internal/ArrayBufferWriterPolyfill.cs, src/SharpDicom/Network/DicomServer.cs
+- **Commit:** 74aeb71
+
 ## Commits
 
 | Hash | Message |
@@ -139,6 +146,7 @@ Created `ArrayBufferWriterPolyfill.cs` for netstandard2.0 compatibility since `A
 | 58a7049 | feat(10-06): add handler interfaces and DicomServerOptions |
 | ebba59a | feat(10-06): add DicomServer for SCP operations |
 | 051b241 | feat(10-06): add DicomServer unit tests |
+| 74aeb71 | fix(10-06): resolve ArrayBufferWriter namespace collision in polyfill tests |
 
 ## Verification
 
@@ -148,7 +156,7 @@ dotnet build src/SharpDicom/SharpDicom.csproj --configuration Release
 
 # All tests pass
 dotnet test tests/SharpDicom.Tests/SharpDicom.Tests.csproj
-# Result: 1189 passed, 0 failed, 1 skipped
+# Result: 2378 passed, 0 failed, 2 skipped (including polyfill tests)
 
 # DicomServer tests
 dotnet test --project tests/SharpDicom.Tests/SharpDicom.Tests.csproj --filter "DicomServerTests"
