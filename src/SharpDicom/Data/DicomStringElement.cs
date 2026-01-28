@@ -3,10 +3,6 @@ using System.Globalization;
 using System.Linq;
 using SharpDicom.Data.Exceptions;
 
-#if NETSTANDARD2_0 || NETFRAMEWORK
-using SharpDicom.Internal;
-#endif
-
 namespace SharpDicom.Data;
 
 /// <summary>
@@ -90,9 +86,11 @@ public sealed class DicomStringElement : IDicomElement
     public string[] GetStringsOrThrow(DicomEncoding? encoding = null)
         => GetStrings(encoding) ?? throw new DicomDataException($"Tag {Tag} has no value");
 
+#if NET6_0_OR_GREATER
     /// <summary>
     /// Parse as a date (DA VR format: YYYYMMDD).
     /// </summary>
+    /// <returns>The parsed date, or null if empty or invalid.</returns>
     public DateOnly? GetDate()
     {
         var str = GetString();
@@ -100,14 +98,13 @@ public sealed class DicomStringElement : IDicomElement
             return null;
 
         // DICOM DA format is YYYYMMDD (no separators)
-        // Use DateTime.TryParseExact then convert to DateOnly for netstandard2.0 compatibility
-        if (DateTime.TryParseExact(str, "yyyyMMdd", CultureInfo.InvariantCulture,
-            DateTimeStyles.None, out var dateTime))
-            return new DateOnly(dateTime.Year, dateTime.Month, dateTime.Day);
+        if (DateOnly.TryParseExact(str, "yyyyMMdd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var date))
+            return date;
 
         // Fallback to standard parsing for older formats with separators
-        if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateTime))
-            return new DateOnly(dateTime.Year, dateTime.Month, dateTime.Day);
+        if (DateOnly.TryParse(str, CultureInfo.InvariantCulture, out date))
+            return date;
 
         return null;
     }
@@ -117,10 +114,45 @@ public sealed class DicomStringElement : IDicomElement
     /// </summary>
     public DateOnly GetDateOrThrow()
         => GetDate() ?? throw new DicomDataException($"Tag {Tag} is not a valid date");
+#else
+    /// <summary>
+    /// Parse as a date (DA VR format: YYYYMMDD).
+    /// </summary>
+    /// <returns>The parsed date (time component set to midnight), or null if empty or invalid.</returns>
+    /// <remarks>
+    /// On .NET Standard 2.0, returns DateTime instead of DateOnly.
+    /// The time component is always midnight (00:00:00).
+    /// </remarks>
+    public DateTime? GetDate()
+    {
+        var str = GetString();
+        if (string.IsNullOrEmpty(str))
+            return null;
 
+        // DICOM DA format is YYYYMMDD (no separators)
+        if (DateTime.TryParseExact(str, "yyyyMMdd", CultureInfo.InvariantCulture,
+            DateTimeStyles.None, out var dateTime))
+            return dateTime.Date;
+
+        // Fallback to standard parsing for older formats with separators
+        if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateTime))
+            return dateTime.Date;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parse as a date or throw if invalid.
+    /// </summary>
+    public DateTime GetDateOrThrow()
+        => GetDate() ?? throw new DicomDataException($"Tag {Tag} is not a valid date");
+#endif
+
+#if NET6_0_OR_GREATER
     /// <summary>
     /// Parse as a time (TM VR format: HHMMSS.FFFFFF).
     /// </summary>
+    /// <returns>The parsed time, or null if empty or invalid.</returns>
     public TimeOnly? GetTime()
     {
         var str = GetString();
@@ -128,7 +160,53 @@ public sealed class DicomStringElement : IDicomElement
             return null;
 
         // DICOM TM formats (compact, no colons): HHMMSS.FFFFFF, HHMMSS, HHMM, HH
-        // Use DateTime.TryParseExact then convert to TimeOnly for netstandard2.0 compatibility
+        var formats = new[]
+        {
+            "HHmmss.ffffff",
+            "HHmmss.fffff",
+            "HHmmss.ffff",
+            "HHmmss.fff",
+            "HHmmss.ff",
+            "HHmmss.f",
+            "HHmmss",
+            "HHmm",
+            "HH"
+        };
+
+        foreach (var format in formats)
+        {
+            if (TimeOnly.TryParseExact(str, format, CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var time))
+                return time;
+        }
+
+        // Fallback to standard parsing for formats with colons
+        if (TimeOnly.TryParse(str, CultureInfo.InvariantCulture, out var fallbackTime))
+            return fallbackTime;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Parse as a time or throw if invalid.
+    /// </summary>
+    public TimeOnly GetTimeOrThrow()
+        => GetTime() ?? throw new DicomDataException($"Tag {Tag} is not a valid time");
+#else
+    /// <summary>
+    /// Parse as a time (TM VR format: HHMMSS.FFFFFF).
+    /// </summary>
+    /// <returns>The parsed time as a TimeSpan, or null if empty or invalid.</returns>
+    /// <remarks>
+    /// On .NET Standard 2.0, returns TimeSpan instead of TimeOnly.
+    /// </remarks>
+    public TimeSpan? GetTime()
+    {
+        var str = GetString();
+        if (string.IsNullOrEmpty(str))
+            return null;
+
+        // DICOM TM formats (compact, no colons): HHMMSS.FFFFFF, HHMMSS, HHMM, HH
         var formats = new[]
         {
             "HHmmss.ffffff",
@@ -146,12 +224,12 @@ public sealed class DicomStringElement : IDicomElement
         {
             if (DateTime.TryParseExact(str, format, CultureInfo.InvariantCulture,
                 DateTimeStyles.None, out var dateTime))
-                return new TimeOnly(dateTime.Hour, dateTime.Minute, dateTime.Second, dateTime.Millisecond);
+                return dateTime.TimeOfDay;
         }
 
         // Fallback to standard parsing for formats with colons
         if (DateTime.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var fallbackDateTime))
-            return new TimeOnly(fallbackDateTime.Hour, fallbackDateTime.Minute, fallbackDateTime.Second, fallbackDateTime.Millisecond);
+            return fallbackDateTime.TimeOfDay;
 
         return null;
     }
@@ -159,8 +237,9 @@ public sealed class DicomStringElement : IDicomElement
     /// <summary>
     /// Parse as a time or throw if invalid.
     /// </summary>
-    public TimeOnly GetTimeOrThrow()
+    public TimeSpan GetTimeOrThrow()
         => GetTime() ?? throw new DicomDataException($"Tag {Tag} is not a valid time");
+#endif
 
     /// <summary>
     /// Parse as a datetime (DT VR format: YYYYMMDDHHMMSS.FFFFFF±ZZZZ).

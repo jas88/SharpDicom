@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Define constant for tests to detect they're testing netstandard2.0 library -->
+    <DefineConstants>$(DefineConstants);TESTING_NETSTANDARD_POLYFILLS</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" />
+
+    <!-- Test code uses IAsyncEnumerable/IAsyncDisposable which come from this package
+         when compiling against netstandard2.0 library types -->
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+
+    <!-- Source Generator Testing -->
+    <PackageReference Include="Verify.SourceGenerators" />
+    <PackageReference Include="Verify.NUnit" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Force reference to netstandard2.0 build to test polyfills -->
+    <ProjectReference Include="..\..\src\SharpDicom\SharpDicom.csproj" SetTargetFramework="TargetFramework=netstandard2.0" />
+    <ProjectReference Include="..\..\src\SharpDicom.Generators\SharpDicom.Generators.csproj" />
+  </ItemGroup>
+
+  <!-- Share test source files from main test project, excluding obj/bin -->
+  <ItemGroup>
+    <Compile Include="..\SharpDicom.Tests\**\*.cs"
+             Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**"
+             LinkBase="Tests" />
+  </ItemGroup>
+</Project>

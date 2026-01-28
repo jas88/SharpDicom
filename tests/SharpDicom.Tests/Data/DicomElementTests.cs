@@ -72,9 +72,17 @@ namespace SharpDicom.Tests.Data
             var time = element.GetTime();
 
             Assert.That(time, Is.Not.Null);
+#if TESTING_NETSTANDARD_POLYFILLS
+            // netstandard2.0 returns TimeSpan
+            Assert.That(time!.Value.Hours, Is.EqualTo(14));
+            Assert.That(time.Value.Minutes, Is.EqualTo(30));
+            Assert.That(time.Value.Seconds, Is.EqualTo(52));
+#else
+            // net6.0+ returns TimeOnly
             Assert.That(time!.Value.Hour, Is.EqualTo(14));
             Assert.That(time.Value.Minute, Is.EqualTo(30));
             Assert.That(time.Value.Second, Is.EqualTo(52));
+#endif
         }
 
         [Test]
