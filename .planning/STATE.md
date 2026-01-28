@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: 06 of 7 complete
-**Status**: In progress
-**Last activity**: 2026-01-28 - Completed 10-06-PLAN.md (DicomServer C-ECHO SCP)
+**Plan**: 07 of 7 complete
+**Status**: Phase 10 COMPLETE
+**Last activity**: 2026-01-28 - Completed 10-07-PLAN.md (Integration Tests)
 
-**Progress**: ██████████████████████████░░░░ (6/7 plans in Phase 10)
+**Progress**: ██████████████████████████████ (7/7 plans in Phase 10 - COMPLETE)
 
-**Test Status**: 1220 tests passing, 0 failed, 1 skipped
+**Test Status**: 1230 tests passing, 0 failed, 0 skipped
 
 ## Completed
 
@@ -68,11 +68,11 @@
 - [x] Phase 10 Plan 04: Association state machine (13 states, DicomAssociation)
 - [x] Phase 10 Plan 05: DicomClient SCU with C-ECHO (CommandField, DicomCommand, DicomClient)
 - [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
-- [ ] Phase 10 Plan 07: Integration tests
+- [x] Phase 10 Plan 07: Integration tests (CEchoTests, CEchoIntegrationTests, state machine bug fixes)
 
 ## In Progress
 
-- Phase 10 - Network Foundation (Plan 06 complete, 1 remaining)
+- Phase 11 - DIMSE Services (planning needed)
 
 ## Blocked
 
@@ -82,7 +82,7 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | In Progress | 6/7 | 2026-01-28 | - |
+| 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | Pending | ?/? | - | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
@@ -214,20 +214,23 @@
 | 2026-01-28 | 10-05 | Static VR lookup for command elements | Group 0000 elements have fixed VRs per PS3.7 |
 | 2026-01-28 | 10-05 | BufferWriter type alias pattern | ArrayBufferWriter polyfill for netstandard2.0 |
 | 2026-01-28 | 10-05 | IDicomElement for dataset iteration | DicomDataset implements IEnumerable<IDicomElement> |
+| 2026-01-28 | 10-07 | Fix DicomClient state machine | Add AAssociateRequest before TransportConnectionConfirm per PS3.8 |
+| 2026-01-28 | 10-07 | Fix DicomServer AssociationOptions timing | Read A-ASSOCIATE-RQ before creating AssociationOptions |
+| 2026-01-28 | 10-07 | Integration test isolation | Use [Explicit] + [Category("Integration")] for DCMTK tests |
 
 ## Session Continuity
 
 **Last session**: 2026-01-28
-**Stopped at**: Completed 10-06-PLAN.md (DicomServer C-ECHO SCP)
+**Stopped at**: Completed 10-07-PLAN.md (Integration Tests) - Phase 10 Complete
 **Resume file**: None
-**Next step**: Execute 10-07-PLAN.md (Integration Tests)
+**Next step**: Plan Phase 11 (DIMSE Services)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 10 - Network Foundation (6/7 plans complete)
+2. **Current phase**: Phase 10 - Network Foundation (7/7 plans complete - PHASE COMPLETE)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -245,7 +248,8 @@ If resuming after a break:
    - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
    - **Phase 10 Plan 05**: DicomClient SCU - CommandField, DicomCommand, DicomClient with CEchoAsync
    - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
-5. **Test coverage**: 1220 tests passing, 0 failed, 1 skipped
+   - **Phase 10 Plan 07**: Integration tests - CEchoTests (11 roundtrip tests), CEchoIntegrationTests (DCMTK)
+5. **Test coverage**: 1230 tests passing, 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
