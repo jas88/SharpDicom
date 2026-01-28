@@ -12,11 +12,11 @@
 | 2 | Basic File Reading | FR-03.1-3.3, FR-03.6 | **Complete** |
 | 3 | Implicit VR & Sequences | FR-03.4, FR-03.7-3.8 | **Complete** |
 | 4 | Character Encoding | FR-04 | **Complete** |
-| 5 | Pixel Data & Lazy Loading | FR-05 | **Planned** |
-| 6 | Private Tags | FR-06 | Pending |
-| 7 | File Writing | FR-07 | Pending |
-| 8 | Validation & Strictness | FR-08 | Pending |
-| 9 | RLE Codec | FR-09 | Pending |
+| 5 | Pixel Data & Lazy Loading | FR-05 | **Complete** |
+| 6 | Private Tags | FR-06 | **Complete** |
+| 7 | File Writing | FR-07 | **Complete** |
+| 8 | Validation & Strictness | FR-08 | **Complete** |
+| 9 | RLE Codec | FR-09 | **Complete** |
 
 ---
 
@@ -165,9 +165,9 @@ Plans:
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 05-01-PLAN.md — Core pixel data types (PixelDataInfo, PixelDataHandling, FragmentParser)
-- [ ] 05-02-PLAN.md — Lazy loading infrastructure (IPixelDataSource, DicomPixelDataElement)
-- [ ] 05-03-PLAN.md — Integration with DicomFileReader and DicomFile
+- [x] 05-01-PLAN.md — Core pixel data types (PixelDataInfo, PixelDataHandling, FragmentParser)
+- [x] 05-02-PLAN.md — Lazy loading infrastructure (IPixelDataSource, DicomPixelDataElement)
+- [x] 05-03-PLAN.md — Integration with DicomFileReader and DicomFile
 
 **Delivers**:
 - PixelDataInfo struct with frame size calculation
@@ -184,10 +184,10 @@ Plans:
 **Research Needed**: Partial (fragment edge cases) - COMPLETE
 
 **Success Criteria**:
-- [ ] Load uncompressed pixel data
-- [ ] Parse encapsulated fragments
-- [ ] Lazy loading skips pixel data
-- [ ] Multi-frame datasets work
+- [x] Load uncompressed pixel data
+- [x] Parse encapsulated fragments
+- [x] Lazy loading skips pixel data
+- [x] Multi-frame datasets work
 
 ---
 
@@ -200,8 +200,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 06-01-PLAN.md — Vendor dictionary source generator (parse malaterre XMLs, generate code)
-- [ ] 06-02-PLAN.md — PrivateCreatorDictionary enhancements (slot allocation, compaction, lookup)
+- [x] 06-01-PLAN.md — Vendor dictionary source generator (parse malaterre XMLs, generate code)
+- [x] 06-02-PLAN.md — PrivateCreatorDictionary enhancements (slot allocation, compaction, lookup)
 
 **Delivers**:
 - VendorDictionary source-generated from malaterre/dicom-private-dicts
@@ -216,10 +216,10 @@ Plans:
 **Research Needed**: No (patterns clear) - COMPLETE (06-RESEARCH.md)
 
 **Success Criteria**:
-- [ ] Private creator tracking
-- [ ] Siemens/GE/Philips tags recognized
-- [ ] Strip-private callback works
-- [ ] Roundtrip preserves private data
+- [x] Private creator tracking
+- [x] Siemens/GE/Philips tags recognized
+- [x] Strip-private callback works
+- [x] Roundtrip preserves private data
 
 ---
 
@@ -232,9 +232,9 @@ Plans:
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 07-01-PLAN.md — DicomStreamWriter for low-level IBufferWriter-based element writing
-- [ ] 07-02-PLAN.md — DicomFileWriter and File Meta Information generation
-- [ ] 07-03-PLAN.md — Sequence length handling and roundtrip tests
+- [x] 07-01-PLAN.md — DicomStreamWriter for low-level IBufferWriter-based element writing
+- [x] 07-02-PLAN.md — DicomFileWriter and File Meta Information generation
+- [x] 07-03-PLAN.md — Sequence length handling and roundtrip tests
 
 **Delivers**:
 - DicomStreamWriter for IBufferWriter<byte> element serialization
@@ -250,10 +250,10 @@ Plans:
 **Research Needed**: No (mirror of reading) - COMPLETE
 
 **Success Criteria**:
-- [ ] Written files validate with dcmtk
-- [ ] Roundtrip read->write->read identical
-- [ ] Streaming write to network
-- [ ] Both length modes work
+- [x] Written files validate with dcmtk
+- [x] Roundtrip read->write->read identical
+- [x] Streaming write to network
+- [x] Both length modes work
 
 ---
 
@@ -266,9 +266,9 @@ Plans:
 **Plans**: 3 plans in 3 waves
 
 Plans:
-- [ ] 08-01-PLAN.md — ValidationIssue, ValidationResult, IValidationRule
-- [ ] 08-02-PLAN.md — Built-in VR validators (date, time, UID, character constraints)
-- [ ] 08-03-PLAN.md — ValidationProfile presets and integration
+- [x] 08-01-PLAN.md — ValidationIssue, ValidationResult, IValidationRule
+- [x] 08-02-PLAN.md — Built-in VR validators (date, time, UID, character constraints)
+- [x] 08-03-PLAN.md — ValidationProfile presets and integration
 
 **Delivers**:
 - ValidationIssue record with full context (tag, VR, position, message, code)
@@ -286,10 +286,10 @@ Plans:
 **Research Needed**: Yes - COMPLETE (08-RESEARCH.md)
 
 **Success Criteria**:
-- [ ] Strict mode rejects bad files
-- [ ] Lenient mode recovers gracefully
-- [ ] Validation callback invoked
-- [ ] Issues reported with context
+- [x] Strict mode rejects bad files
+- [x] Lenient mode recovers gracefully
+- [x] Validation callback invoked
+- [x] Issues reported with context
 
 ---
 
@@ -302,8 +302,8 @@ Plans:
 **Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 09-01-PLAN.md — IPixelDataCodec interface, CodecRegistry, CodecCapabilities
-- [ ] 09-02-PLAN.md — RLE decoder/encoder implementation with SIMD optimization
+- [x] 09-01-PLAN.md — IPixelDataCodec interface, CodecRegistry, CodecCapabilities
+- [x] 09-02-PLAN.md — RLE decoder/encoder implementation with SIMD optimization
 
 **Delivers**:
 - IPixelDataCodec interface
@@ -319,10 +319,10 @@ Plans:
 **Research Needed**: No (RLE spec straightforward) - COMPLETE
 
 **Success Criteria**:
-- [ ] Decode RLE-compressed files
-- [ ] Encode to RLE format
-- [ ] Codec interface extensible
-- [ ] No external dependencies
+- [x] Decode RLE-compressed files
+- [x] Encode to RLE format
+- [x] Codec interface extensible
+- [x] No external dependencies
 
 ---
 
@@ -353,4 +353,4 @@ Phase 3 (Implicit VR & Sequences)
 
 ---
 
-*Last updated: 2026-01-27 (Phase 5 planned)*
+*Last updated: 2026-01-27 (v1.0.0 milestone complete)*
