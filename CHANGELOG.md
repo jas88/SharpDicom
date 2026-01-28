@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-01-28
+
+### Fixed
+- NuGet package now includes README.md
+- Embedded PDBs in DLLs for debugging (replaces broken snupkg)
+- CI pack step uses `-warnaserror` to catch packaging issues
+
 ## [1.0.0] - 2026-01-28
 
 ### Added
@@ -31,5 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - net9.0
 - net10.0
 
-[Unreleased]: https://github.com/jas88/SharpDicom/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jas88/SharpDicom/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/jas88/SharpDicom/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/jas88/SharpDicom/releases/tag/v1.0.0
