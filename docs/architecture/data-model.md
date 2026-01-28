@@ -182,62 +182,118 @@ public enum InvalidVRHandling
 
 ---
 
-## DicomElement
+## IDicomElement and DicomElement
 
-**Hybrid approach**: Struct for regular elements, classes for sequences.
+**Interface-based design**: All element types implement `IDicomElement`.
 
 ```csharp
-public readonly struct DicomElement
+public interface IDicomElement
 {
-    public DicomTag Tag { get; }                    // 4 bytes
-    public DicomVR VR { get; }                      // 2 bytes
-    public ReadOnlyMemory<byte> RawValue { get; }   // 16 bytes
-    private readonly DicomSequence? _sequence;      // 8 bytes (null for non-SQ)
+    DicomTag Tag { get; }
+    DicomVR VR { get; }
+    ReadOnlyMemory<byte> RawValue { get; }
+    int Length { get; }
+    bool IsEmpty { get; }
 
-    // ~30 bytes total, no heap allocation for regular elements
-
-    public bool IsSequence => _sequence is not null;
-    public DicomSequence? Sequence => _sequence;
-
-    // Typed accessors (stateless, parse on call)
-    public string? GetString(DicomEncoding? encoding = null);
-    public string GetStringOrThrow(DicomEncoding? encoding = null);
-
-    public int? GetInt32();
-    public int GetInt32OrThrow();
-
-    public DateOnly? GetDate();
-    public DateOnly GetDateOrThrow();
-
-    public TimeOnly? GetTime();
-    public TimeOnly GetTimeOrThrow();
-
-    public DicomUID? GetUID();
-    public DicomUID GetUIDOrThrow();
+    // Deep copy when data must outlive pooled buffers
+    IDicomElement ToOwned();
 }
 ```
 
-### Sequence Classes
+**Abstract base class** provides common functionality:
 
 ```csharp
-public class DicomSequence
+public abstract class DicomElement : IDicomElement
 {
     public DicomTag Tag { get; }
-    public IReadOnlyList<DicomDataset> Items { get; }
-}
+    public DicomVR VR { get; }
+    public ReadOnlyMemory<byte> RawValue { get; }
+    public int Length => RawValue.Length;
+    public bool IsEmpty => RawValue.IsEmpty;
 
-public class DicomFragmentSequence : DicomSequence
-{
-    public ReadOnlyMemory<byte> OffsetTable { get; }
-    public IReadOnlyList<ReadOnlyMemory<byte>> Fragments { get; }
+    protected DicomElement(DicomTag tag, DicomVR vr, ReadOnlyMemory<byte> value)
+    {
+        Tag = tag;
+        VR = vr;
+        RawValue = value;
+    }
+
+    public abstract IDicomElement ToOwned();
 }
 ```
 
-**Benefits**:
-- Regular elements (99%): struct, no heap allocation
-- Sequences: proper class with `Items` collection
-- Fragments: inherits sequence, adds offset table + fragment list
-- `RawValue` empty for sequences (data is in `_sequence.Items`)
+### Concrete Element Types
+
+| Type | Description | VRs |
+|------|-------------|-----|
+| `DicomStringElement` | Text-based values | AE, AS, CS, DA, DS, DT, IS, LO, LT, PN, SH, ST, TM, UC, UI, UR, UT |
+| `DicomNumericElement` | Binary numeric values | FL, FD, SL, SS, UL, US, SV, UV |
+| `DicomBinaryElement` | Binary data | AT, OB, OD, OF, OL, OV, OW, UN |
+| `DicomSequence` | Nested datasets | SQ |
+| `DicomFragmentSequence` | Encapsulated pixel data | OB, OW (encapsulated) |
+| `DicomPixelDataElement` | Pixel data with lazy loading | OB, OW (tag 7FE0,0010) |
+
+---
+
+## DicomSequence
+
+Implements `IDicomElement` for sequences (SQ VR):
+
+```csharp
+public sealed class DicomSequence : IDicomElement
+{
+    public DicomTag Tag { get; }
+    public DicomVR VR => DicomVR.SQ;
+    public ReadOnlyMemory<byte> RawValue => ReadOnlyMemory<byte>.Empty;
+    public int Length => -1;  // Undefined length for sequences
+    public bool IsEmpty => Items.Count == 0;
+
+    public IReadOnlyList<DicomDataset> Items { get; }
+
+    public DicomSequence(DicomTag tag, IEnumerable<DicomDataset> items)
+    {
+        Tag = tag;
+        Items = items.ToList();
+    }
+
+    public IDicomElement ToOwned() =>
+        new DicomSequence(Tag, Items.Select(ds => ds.ToOwned()));
+}
+```
+
+## DicomFragmentSequence
+
+Implements `IDicomElement` for encapsulated pixel data (compressed images):
+
+```csharp
+public sealed class DicomFragmentSequence : IDicomElement
+{
+    public DicomTag Tag { get; }
+    public DicomVR VR { get; }  // OB or OW
+    public ReadOnlyMemory<byte> RawValue => ReadOnlyMemory<byte>.Empty;
+    public int Length => -1;  // Undefined length
+    public bool IsEmpty => Fragments.Count == 0;
+
+    public ReadOnlyMemory<byte> OffsetTable { get; }
+    public IReadOnlyList<ReadOnlyMemory<byte>> Fragments { get; }
+
+    // Extended Offset Table support for large multi-frame images
+    public ReadOnlyMemory<byte> ExtendedOffsetTable { get; }
+    public ReadOnlyMemory<byte> ExtendedOffsetTableLengths { get; }
+
+    // Parsed offsets (lazy)
+    public IReadOnlyList<uint> ParsedBasicOffsets { get; }
+    public IReadOnlyList<ulong>? ParsedExtendedOffsets { get; }
+    public IReadOnlyList<ulong>? ParsedExtendedLengths { get; }
+
+    public int FragmentCount => Fragments.Count;
+    public long TotalSize => Fragments.Sum(f => (long)f.Length);
+
+    public IDicomElement ToOwned() => /* deep copy */;
+}
+```
+
+**Note**: `DicomSequence` and `DicomFragmentSequence` are separate classes both implementing `IDicomElement`. They do not share an inheritance hierarchy.
 
 ---
 
@@ -246,51 +302,79 @@ public class DicomFragmentSequence : DicomSequence
 **Dictionary with cached sorted enumeration**:
 
 ```csharp
-public sealed class DicomDataset : IEnumerable<DicomElement>
+public sealed class DicomDataset : IEnumerable<IDicomElement>
 {
-    private readonly Dictionary<DicomTag, DicomElement> _elements = new();
+    private readonly Dictionary<DicomTag, IDicomElement> _elements = new();
     private readonly PrivateCreatorDictionary _privateCreators = new();
-    private DicomElement[]? _sortedCache;
+    private IDicomElement[]? _sortedCache;
     private bool _isDirty = true;
 
+    // Cached context for VR resolution
+    private ushort? _bitsAllocated;
+    private ushort? _pixelRepresentation;
+    private DicomEncoding _localEncoding = DicomEncoding.Default;
+
+    // Parent for sequence items (enables context inheritance)
+    public DicomDataset? Parent { get; internal set; }
+
+    // Context values with parent fallback
+    public ushort? BitsAllocated => _bitsAllocated ?? Parent?.BitsAllocated;
+    public ushort? PixelRepresentation => _pixelRepresentation ?? Parent?.PixelRepresentation;
+    public DicomEncoding Encoding => Contains(DicomTag.SpecificCharacterSet)
+        ? _localEncoding
+        : (Parent?.Encoding ?? DicomEncoding.Default);
+
     // O(1) access
-    public DicomElement? this[DicomTag tag]
+    public IDicomElement? this[DicomTag tag]
         => _elements.TryGetValue(tag, out var e) ? e : null;
 
     public bool Contains(DicomTag tag) => _elements.ContainsKey(tag);
 
+    public bool TryGetElement(DicomTag tag, out IDicomElement element)
+        => _elements.TryGetValue(tag, out element!);
+
     // O(1) mutation, invalidates cache
-    public void Add(DicomElement element)
+    public void Add(IDicomElement element)
     {
         _elements[element.Tag] = element;
         _isDirty = true;
+        // Track private creators, cache context values, update encoding
     }
 
+    public bool Remove(DicomTag tag);
+
     // Default enumeration: sorted by tag, cached until modified
-    public IEnumerator<DicomElement> GetEnumerator()
+    public IEnumerator<IDicomElement> GetEnumerator()
     {
         if (_isDirty)
         {
             _sortedCache = _elements.Values.OrderBy(e => e.Tag).ToArray();
             _isDirty = false;
         }
-        return ((IEnumerable<DicomElement>)_sortedCache).GetEnumerator();
+        return ((IEnumerable<IDicomElement>)_sortedCache!).GetEnumerator();
     }
 
-    // Typed convenience (delegates to element accessors)
-    public string? GetString(DicomTag tag, DicomEncoding? encoding = null)
-        => this[tag]?.GetString(encoding);
+    // Typed convenience accessors
+    public string? GetString(DicomTag tag, DicomEncoding? encoding = null);
+    public int? GetInt32(DicomTag tag);
+    public DateOnly? GetDate(DicomTag tag);  // net6.0+
+    public TimeOnly? GetTime(DicomTag tag);  // net6.0+
+    public DicomUID? GetUID(DicomTag tag);
+    public DicomSequence? GetSequence(DicomTag tag);
+    public DicomPixelDataElement? GetPixelData();
 
-    public int? GetInt32(DicomTag tag) => this[tag]?.GetInt32();
+    // Deep copy
+    public DicomDataset ToOwned();
 }
 ```
 
 **Design rationale**:
-- `Dictionary<DicomTag, DicomElement>`: O(1) lookup and insert
+- `Dictionary<DicomTag, IDicomElement>`: O(1) lookup and insert
 - Sorted cache: O(n log n) once per modification batch, O(1) reuse
 - Default `GetEnumerator()` returns sorted order (DICOM requirement)
 - Cache invalidated on any mutation
 - `PrivateCreatorDictionary` tracks private tag creators
+- Parent reference enables context inheritance in nested sequences
 
 ---
 

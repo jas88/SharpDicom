@@ -14,7 +14,7 @@ DICOM character set handling and the DicomEncoding system.
 | ISO_IR 126 | Greek | ISO-8859-7 | ✗ |
 | ISO_IR 138 | Hebrew | ISO-8859-8 | ✗ |
 | ISO_IR 148 | Turkish | ISO-8859-9 | ✗ |
-| ISO_IR 13 | Japanese | JIS X 0201 | ✗ |
+| ISO 2022 IR 13 | Japanese | JIS X 0201 | ✗ |
 | ISO_IR 166 | Thai | TIS-620 | ✗ |
 | ISO_IR 192 | UTF-8 | UTF-8 | ✓ |
 | GB18030 | Chinese | GB18030 | ✗ |
@@ -48,13 +48,11 @@ public sealed class DicomEncoding
     public static readonly DicomEncoding Latin1 = new(Encoding.Latin1);  // Needs transcode
 
     // Parse from Specific Character Set (0008,0005)
-    public static DicomEncoding FromSpecificCharacterSet(
-        string? value,
-        InvalidCharacterSetHandling handling = InvalidCharacterSetHandling.AssumeUtf8);
+    public static DicomEncoding FromSpecificCharacterSet(string? value);
+    public static DicomEncoding FromSpecificCharacterSet(string[]? values);
 
-    public static DicomEncoding FromSpecificCharacterSet(
-        string[]? values,
-        InvalidCharacterSetHandling handling = InvalidCharacterSetHandling.AssumeUtf8);
+    // Create from a .NET Encoding
+    public static DicomEncoding FromEncoding(Encoding encoding);
 }
 ```
 
@@ -75,24 +73,12 @@ public sealed class DicomEncoding
         return false;
     }
 
-    // Decode with invalid character handling
-    public string GetString(ReadOnlySpan<byte> bytes, InvalidCharacterHandling handling)
-    {
-        var decoder = Primary.GetDecoder();
-        decoder.Fallback = handling == InvalidCharacterHandling.Replace
-            ? DecoderFallback.ReplacementFallback   // U+FFFD
-            : DecoderFallback.ExceptionFallback;    // Throw
-
-        // Handle ISO 2022 escape sequences if extensions present
-        if (HasExtensions)
-            return DecodeWithExtensions(bytes, decoder);
-
-        return Primary.GetString(bytes);
-    }
-
-    public byte[] GetBytes(string value);
+    // Decode bytes to string using this encoding
+    public string GetString(ReadOnlySpan<byte> bytes);
 }
 ```
+
+For ISO 2022 encodings with extensions, .NET's ISO2022Encoding class automatically handles escape sequences during decoding. No custom escape sequence parsing is needed - the .NET Encoding classes (code pages 50220-50227) handle this internally.
 
 ## DicomStringValue
 
@@ -129,76 +115,23 @@ public static class DicomCharacterSets
 }
 ```
 
-## Validation Handling
+## Error Handling
 
-```csharp
-public enum InvalidCharacterSetHandling
-{
-    Throw,          // Strict: reject unknown charset
-    AssumeUtf8      // Lenient: fall back to UTF-8
-}
-
-public enum InvalidCharacterHandling
-{
-    Throw,          // Strict: reject invalid sequences
-    Replace         // Lenient: replace with U+FFFD
-}
-```
+Unknown character set terms throw `ArgumentException` from `FromSpecificCharacterSet()`. UTF-8, GB18030, and GBK prohibit code extensions and must be single-valued - passing them in a multi-valued array throws `ArgumentException`.
 
 ## Integration with DicomDataset
+
+The `DicomDataset` class tracks its encoding based on the Specific Character Set (0008,0005) element:
 
 ```csharp
 public sealed class DicomDataset
 {
-    // Determined from Specific Character Set (0008,0005)
-    public DicomEncoding Encoding { get; private set; } = DicomEncoding.Default;
-
-    public void Add(DicomElement element)
-    {
-        _elements[element.Tag] = element;
-        _isDirty = true;
-
-        // Update encoding when SpecificCharacterSet changes
-        if (element.Tag == DicomTag.SpecificCharacterSet)
-            Encoding = DicomEncoding.FromSpecificCharacterSet(element.GetStrings());
-    }
+    // Encoding is determined from Specific Character Set
+    public DicomEncoding Encoding { get; }
 
     // String access uses dataset encoding
-    public string? GetString(DicomTag tag)
-        => this[tag]?.GetString(Encoding);
+    public string? GetString(DicomTag tag);
 }
 ```
 
-## Reader Options with Character Set Handling
-
-```csharp
-public static readonly DicomReaderOptions Strict = new()
-{
-    InvalidVR = InvalidVRHandling.Throw,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.Throw,
-    Preamble = FilePreambleHandling.Require,
-    FileMetaInfo = FileMetaInfoHandling.Require,
-    UnknownCharacterSet = InvalidCharacterSetHandling.Throw,
-    InvalidCharacters = InvalidCharacterHandling.Throw
-};
-
-public static readonly DicomReaderOptions Lenient = new()
-{
-    InvalidVR = InvalidVRHandling.MapToUN,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.AssumeExplicitLE,
-    Preamble = FilePreambleHandling.Optional,
-    FileMetaInfo = FileMetaInfoHandling.Optional,
-    UnknownCharacterSet = InvalidCharacterSetHandling.AssumeUtf8,
-    InvalidCharacters = InvalidCharacterHandling.Replace
-};
-
-public static readonly DicomReaderOptions Permissive = new()
-{
-    InvalidVR = InvalidVRHandling.Preserve,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.TryParse,
-    Preamble = FilePreambleHandling.Ignore,
-    FileMetaInfo = FileMetaInfoHandling.Ignore,
-    UnknownCharacterSet = InvalidCharacterSetHandling.AssumeUtf8,
-    InvalidCharacters = InvalidCharacterHandling.Replace
-};
-```
+When a dataset is parsed, the encoding is automatically set from the Specific Character Set element if present, otherwise defaults to ASCII.

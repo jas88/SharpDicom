@@ -1,5 +1,7 @@
 # Network Layer
 
+> **Note**: The network layer is planned for future implementation. The APIs documented here represent the intended design, not currently implemented functionality.
+
 DICOM networking implementation following Part 8 of the DICOM standard.
 
 ## Client (SCU)

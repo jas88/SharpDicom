@@ -64,61 +64,101 @@ public sealed class DicomFileReader : IAsyncDisposable
 ## Reader Options
 
 ```csharp
-public class DicomReaderOptions
+public sealed class DicomReaderOptions
 {
-    public InvalidVRHandling InvalidVR { get; init; } = InvalidVRHandling.MapToUN;
-    public UnknownTransferSyntaxHandling UnknownTransferSyntax { get; init; }
+    // File format handling
     public FilePreambleHandling Preamble { get; init; } = FilePreambleHandling.Optional;
     public FileMetaInfoHandling FileMetaInfo { get; init; } = FileMetaInfoHandling.Optional;
-    public CallbackFilter CallbackFilter { get; init; }
-    public ElementCallback? ElementCallback { get; init; }
-    public PixelDataHandling PixelData { get; init; }
+    public InvalidVRHandling InvalidVR { get; init; } = InvalidVRHandling.MapToUN;
+
+    // Security limits
+    public uint MaxElementLength { get; init; } = 256 * 1024 * 1024; // 256 MB
+    public int MaxSequenceDepth { get; init; } = 128;
+    public int MaxTotalItems { get; init; } = 100_000;
+
+    // Pixel data handling
+    public PixelDataHandling PixelDataHandling { get; init; } = PixelDataHandling.LoadInMemory;
+    public Func<PixelDataContext, PixelDataHandling>? PixelDataCallback { get; init; }
+    public string? TempDirectory { get; init; }
+
+    // Private tag handling
+    public bool RetainUnknownPrivateTags { get; init; } = true;
+    public bool FailOnOrphanPrivateElements { get; init; }
+    public bool FailOnDuplicatePrivateSlots { get; init; }
+
+    // Validation
+    public ValidationProfile? ValidationProfile { get; init; }
+    public Func<ValidationIssue, bool>? ValidationCallback { get; init; }
+    public bool CollectValidationIssues { get; init; } = true;
 
     // Convenience presets
-    public static readonly DicomReaderOptions Strict;
-    public static readonly DicomReaderOptions Lenient;
-    public static readonly DicomReaderOptions Permissive;
+    public static DicomReaderOptions Strict { get; }
+    public static DicomReaderOptions Lenient { get; }
+    public static DicomReaderOptions Permissive { get; }
+    public static DicomReaderOptions Default { get; }
 }
 ```
 
 ### Presets
 
-**Strict**:
+**Strict** - requires valid preamble and FMI, strict validation:
 ```csharp
-public static readonly DicomReaderOptions Strict = new()
+public static DicomReaderOptions Strict { get; } = new()
 {
-    InvalidVR = InvalidVRHandling.Throw,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.Throw,
     Preamble = FilePreambleHandling.Require,
     FileMetaInfo = FileMetaInfoHandling.Require,
-    UnknownCharacterSet = InvalidCharacterSetHandling.Throw,
-    InvalidCharacters = InvalidCharacterHandling.Throw
+    InvalidVR = InvalidVRHandling.Throw,
+    MaxSequenceDepth = 128,
+    MaxTotalItems = 100_000,
+    PixelDataHandling = PixelDataHandling.LoadInMemory,
+    FailOnOrphanPrivateElements = true,
+    FailOnDuplicatePrivateSlots = true,
+    ValidationProfile = ValidationProfile.Strict,
+    CollectValidationIssues = true
 };
 ```
 
-**Lenient**:
+**Lenient** - accepts variations, validation with warnings:
 ```csharp
-public static readonly DicomReaderOptions Lenient = new()
+public static DicomReaderOptions Lenient { get; } = new()
 {
-    InvalidVR = InvalidVRHandling.MapToUN,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.AssumeExplicitLE,
     Preamble = FilePreambleHandling.Optional,
     FileMetaInfo = FileMetaInfoHandling.Optional,
-    UnknownCharacterSet = InvalidCharacterSetHandling.AssumeUtf8,
-    InvalidCharacters = InvalidCharacterHandling.Replace
+    InvalidVR = InvalidVRHandling.MapToUN,
+    MaxSequenceDepth = 128,
+    MaxTotalItems = 100_000,
+    PixelDataHandling = PixelDataHandling.LoadInMemory,
+    ValidationProfile = ValidationProfile.Lenient,
+    CollectValidationIssues = true
 };
 ```
 
-**Permissive**:
+**Permissive** - maximum compatibility, no validation:
 ```csharp
-public static readonly DicomReaderOptions Permissive = new()
+public static DicomReaderOptions Permissive { get; } = new()
 {
-    InvalidVR = InvalidVRHandling.Preserve,
-    UnknownTransferSyntax = UnknownTransferSyntaxHandling.TryParse,
     Preamble = FilePreambleHandling.Ignore,
     FileMetaInfo = FileMetaInfoHandling.Ignore,
-    UnknownCharacterSet = InvalidCharacterSetHandling.AssumeUtf8,
-    InvalidCharacters = InvalidCharacterHandling.Replace
+    InvalidVR = InvalidVRHandling.Preserve,
+    MaxSequenceDepth = 256,
+    MaxTotalItems = 500_000,
+    PixelDataHandling = PixelDataHandling.LoadInMemory,
+    ValidationProfile = ValidationProfile.Permissive,
+    CollectValidationIssues = false  // Performance optimization
+};
+```
+
+**Default** - lenient parsing without validation (backward compatible):
+```csharp
+public static DicomReaderOptions Default { get; } = new()
+{
+    Preamble = FilePreambleHandling.Optional,
+    FileMetaInfo = FileMetaInfoHandling.Optional,
+    InvalidVR = InvalidVRHandling.MapToUN,
+    MaxSequenceDepth = 128,
+    MaxTotalItems = 100_000,
+    PixelDataHandling = PixelDataHandling.LoadInMemory,
+    ValidationProfile = null  // No validation by default
 };
 ```
 
@@ -139,11 +179,11 @@ public enum FileMetaInfoHandling
     Ignore      // Permissive: skip to dataset, assume Implicit VR LE
 }
 
-public enum UnknownTransferSyntaxHandling
+public enum InvalidVRHandling
 {
-    Throw,            // Strict: reject file
-    AssumeExplicitLE, // Lenient: assume Explicit VR Little Endian
-    TryParse          // Permissive: attempt to detect from data
+    Throw,      // Strict: throw DicomDataException
+    MapToUN,    // Lenient: treat as UN, continue
+    Preserve    // Permissive: keep original bytes, best-effort
 }
 ```
 
@@ -215,58 +255,26 @@ public readonly struct PixelDataContext
 }
 ```
 
-## Element Callback System
+## Validation System
 
-Unified callback mechanism for validation, de-identification, and custom processing.
-
-**Callback filter** controls which elements are passed:
+Validation is handled via `ValidationProfile` and callbacks:
 
 ```csharp
-public enum CallbackFilter
+// Enable validation during parsing
+var options = new DicomReaderOptions
 {
-    None,        // No callback - fastest path
-    InvalidOnly, // Only elements with validation issues
-    All          // Every element
-}
+    ValidationProfile = ValidationProfile.Strict,
+    ValidationCallback = issue =>
+    {
+        Console.WriteLine($"Issue: {issue}");
+        return true;  // Continue parsing (return false to abort)
+    },
+    CollectValidationIssues = true
+};
+
+var file = DicomFile.Open(path, options);
+// Access collected issues via file.ValidationResult
 ```
-
-**Callback result** (static instances for common cases, no allocation):
-
-```csharp
-public readonly struct ElementCallbackResult
-{
-    public ElementAction Action { get; }
-    public ReadOnlyMemory<byte> ModifiedValue { get; }
-    public DicomVR? ModifiedVR { get; }
-    public string? RejectReason { get; }
-
-    // Static instances - no allocation, no method call
-    public static readonly ElementCallbackResult Keep;
-    public static readonly ElementCallbackResult KeepWithWarning;
-    public static readonly ElementCallbackResult Remove;
-
-    // Methods only when data needed
-    public static ElementCallbackResult Reject(string reason);
-    public static ElementCallbackResult Modify(ReadOnlyMemory<byte> value, DicomVR? vr = null);
-}
-
-public enum ElementAction { Keep, KeepWithWarning, Modify, Remove, Reject }
-```
-
-**Standard callbacks provided**:
-- `StandardCallbacks.StrictReject` - Reject any validation issue
-- `StandardCallbacks.Lenient` - Accept with warnings
-- `StandardCallbacks.StripPrivate` - Remove all private tags
-- `StandardCallbacks.BasicDeidentify` - PS3.15 basic profile
-
-**Composable** via `CallbackComposers.Chain(...)` for combining behaviors.
-
-## Validation
-
-Handled via callback system:
-- `CallbackFilter.InvalidOnly` + `StandardCallbacks.StrictReject` = strict mode
-- `CallbackFilter.InvalidOnly` + `StandardCallbacks.Lenient` = lenient mode
-- `CallbackFilter.None` = permissive (no validation)
 
 **Validation issues detected**:
 

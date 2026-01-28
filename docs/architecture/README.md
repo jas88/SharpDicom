@@ -15,9 +15,10 @@ SharpDicom is a complete DICOM toolkit for .NET built from scratch with no exter
 SharpDicom/
 ├── Data/           # DICOM data model (Dataset, Tags, VRs, UIDs)
 ├── IO/             # File reading/writing (Part 10 format)
-├── Network/        # DIMSE services, association, PDUs
 ├── Codecs/         # Pixel data compression/decompression
-└── Internal/       # Polyfills, helpers
+├── Validation/     # Element validation rules and profiles
+├── Internal/       # Polyfills, helpers
+└── Network/        # (Planned) DIMSE services, association, PDUs
 ```
 
 ## Documentation
@@ -26,7 +27,7 @@ SharpDicom/
 |----------|-------------|
 | [Data Model](data-model.md) | DicomTag, DicomVR, DicomElement, DicomDataset, DicomUID, exceptions |
 | [File I/O](io.md) | Part 10 file format, reading, writing, streaming, codecs |
-| [Network](network.md) | Part 8 networking, PDUs, DIMSE services, association |
+| [Network](network.md) | Part 8 networking, PDUs, DIMSE services (planned) |
 | [Character Encoding](encoding.md) | Character sets, DicomEncoding, zero-copy string access |
 | [Design Principles](design-principles.md) | Span<T>-first, streaming, async, minimal allocations |
 
