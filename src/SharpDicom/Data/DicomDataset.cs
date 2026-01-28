@@ -1,11 +1,8 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SharpDicom.Data.Exceptions;
-
-#if NETSTANDARD2_0 || NETFRAMEWORK
-using SharpDicom.Internal;
-#endif
 
 namespace SharpDicom.Data;
 
@@ -283,6 +280,7 @@ public sealed partial class DicomDataset : IEnumerable<IDicomElement>
         return null;
     }
 
+#if NET6_0_OR_GREATER
     /// <summary>
     /// Get date value for the specified tag (DA VR).
     /// </summary>
@@ -294,6 +292,26 @@ public sealed partial class DicomDataset : IEnumerable<IDicomElement>
     /// </summary>
     public TimeOnly? GetTime(DicomTag tag)
         => (this[tag] as DicomStringElement)?.GetTime();
+#else
+    /// <summary>
+    /// Get date value for the specified tag (DA VR).
+    /// </summary>
+    /// <remarks>
+    /// On .NET Standard 2.0, returns DateTime instead of DateOnly.
+    /// The time component is always midnight (00:00:00).
+    /// </remarks>
+    public DateTime? GetDate(DicomTag tag)
+        => (this[tag] as DicomStringElement)?.GetDate();
+
+    /// <summary>
+    /// Get time value for the specified tag (TM VR).
+    /// </summary>
+    /// <remarks>
+    /// On .NET Standard 2.0, returns TimeSpan instead of TimeOnly.
+    /// </remarks>
+    public TimeSpan? GetTime(DicomTag tag)
+        => (this[tag] as DicomStringElement)?.GetTime();
+#endif
 
     /// <summary>
     /// Get UID value for the specified tag.

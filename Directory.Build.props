@@ -21,10 +21,14 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
-  <!-- Tests: multi-target for broader coverage -->
+  <!-- Tests: latest TFM, references matching library build -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests'">
-    <!-- net8.0 (LTS), net9.0, net10.0 (latest) -->
-    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!-- Polyfill Tests: net10.0 runtime but forces netstandard2.0 library reference -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests.Polyfills'">
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
   <!-- Import shared build standards -->

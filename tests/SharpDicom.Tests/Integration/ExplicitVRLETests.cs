@@ -63,7 +63,13 @@ public class ExplicitVRLETests
         Assert.That(studyDateElement, Is.Not.Null);
 
         var date = studyDateElement!.GetDate();
+#if TESTING_NETSTANDARD_POLYFILLS
+        // netstandard2.0 returns DateTime
+        Assert.That(date, Is.EqualTo(new DateTime(2024, 1, 15)));
+#else
+        // net6.0+ returns DateOnly
         Assert.That(date, Is.EqualTo(new DateOnly(2024, 1, 15)));
+#endif
     }
 
     [Test]
@@ -78,7 +84,13 @@ public class ExplicitVRLETests
         Assert.That(studyTimeElement, Is.Not.Null);
 
         var time = studyTimeElement!.GetTime();
+#if TESTING_NETSTANDARD_POLYFILLS
+        // netstandard2.0 returns TimeSpan
+        Assert.That(time, Is.EqualTo(new TimeSpan(14, 30, 0)));
+#else
+        // net6.0+ returns TimeOnly
         Assert.That(time, Is.EqualTo(new TimeOnly(14, 30, 00)));
+#endif
     }
 
     #endregion

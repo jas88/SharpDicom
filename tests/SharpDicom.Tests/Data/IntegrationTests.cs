@@ -73,7 +73,13 @@ public class IntegrationTests
 
         // Verify data retrieval
         Assert.That(dataset.GetString(new DicomTag(0x0010, 0x0020)), Is.EqualTo("PATIENT001"));
+#if TESTING_NETSTANDARD_POLYFILLS
+        // netstandard2.0 returns DateTime
+        Assert.That(dataset.GetDate(new DicomTag(0x0008, 0x0020)), Is.EqualTo(new DateTime(2024, 1, 15)));
+#else
+        // net6.0+ returns DateOnly
         Assert.That(dataset.GetDate(new DicomTag(0x0008, 0x0020)), Is.EqualTo(new DateOnly(2024, 1, 15)));
+#endif
         Assert.That(dataset.Count, Is.EqualTo(4));
 
         // Verify ToOwned creates independent copy
