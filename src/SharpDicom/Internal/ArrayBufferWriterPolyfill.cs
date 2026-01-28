@@ -5,7 +5,7 @@
 using System;
 using System.Buffers;
 
-namespace System.Buffers
+namespace SharpDicom.Internal
 {
     /// <summary>
     /// Represents a heap-based, array-backed output sink for <typeparamref name="T"/>.
@@ -13,9 +13,11 @@ namespace System.Buffers
     /// <remarks>
     /// This is a polyfill for netstandard2.0 which doesn't have ArrayBufferWriter.
     /// It provides the same API as the .NET Core version.
+    /// We use SharpDicom.Internal namespace to avoid conflicts with System.Buffers.ArrayBufferWriter
+    /// when the test project references both.
     /// </remarks>
     /// <typeparam name="T">The type of the elements in the buffer.</typeparam>
-    internal sealed class ArrayBufferWriter<T> : IBufferWriter<T>
+    internal sealed class ArrayBufferWriterPolyfill<T> : IBufferWriter<T>
     {
         private T[] _buffer;
         private int _index;
@@ -24,9 +26,9 @@ namespace System.Buffers
         private const int MaxArrayLength = 0x7FFFFFC7; // Same as Array.MaxLength
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ArrayBufferWriter{T}"/> class.
+        /// Initializes a new instance of the <see cref="ArrayBufferWriterPolyfill{T}"/> class.
         /// </summary>
-        public ArrayBufferWriter()
+        public ArrayBufferWriterPolyfill()
         {
             _buffer = Array.Empty<T>();
             _index = 0;
@@ -36,7 +38,7 @@ namespace System.Buffers
         /// Initializes a new instance with the specified initial capacity.
         /// </summary>
         /// <param name="initialCapacity">The minimum capacity to allocate.</param>
-        public ArrayBufferWriter(int initialCapacity)
+        public ArrayBufferWriterPolyfill(int initialCapacity)
         {
             if (initialCapacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(initialCapacity));

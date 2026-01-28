@@ -14,6 +14,12 @@ using SharpDicom.Network.Association;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
 
+#if NETSTANDARD2_0
+using BufferWriter = SharpDicom.Internal.ArrayBufferWriterPolyfill<byte>;
+#else
+using BufferWriter = System.Buffers.ArrayBufferWriter<byte>;
+#endif
+
 namespace SharpDicom.Network
 {
     /// <summary>
@@ -578,7 +584,7 @@ namespace SharpDicom.Network
             IReadOnlyList<PresentationContext> acceptedContexts,
             CancellationToken ct)
         {
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
             writer.WriteAssociateAccept(
                 calledAE,
@@ -599,7 +605,7 @@ namespace SharpDicom.Network
             AssociationRequestResult result,
             CancellationToken ct)
         {
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
             writer.WriteAssociateReject(result.RejectResult, result.RejectSource, result.RejectReason);
 
@@ -613,7 +619,7 @@ namespace SharpDicom.Network
 
         private static async Task SendReleaseResponseAsync(NetworkStream stream, CancellationToken ct)
         {
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
             writer.WriteReleaseResponse();
 
@@ -636,7 +642,7 @@ namespace SharpDicom.Network
             var commandData = BuildCEchoResponseCommand(messageId, status);
 
             // Wrap in P-DATA-TF
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
 
             var pdv = new PresentationDataValue(
@@ -721,7 +727,7 @@ namespace SharpDicom.Network
             // - CommandDataSetType (0000,0800) = 0x0101 (no dataset)
             // - Status (0000,0900)
 
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = new BufferWriter();
 
             // Verification SOP Class UID: 1.2.840.10008.1.1
             var verificationUid = Encoding.ASCII.GetBytes("1.2.840.10008.1.1");
@@ -747,7 +753,7 @@ namespace SharpDicom.Network
             return buffer.WrittenSpan.ToArray();
         }
 
-        private static void WriteElement(ArrayBufferWriter<byte> buffer, ushort group, ushort element, byte[] value, int length)
+        private static void WriteElement(BufferWriter buffer, ushort group, ushort element, byte[] value, int length)
         {
             var span = buffer.GetSpan(8 + length);
             BinaryPrimitives.WriteUInt16LittleEndian(span, group);
@@ -762,7 +768,7 @@ namespace SharpDicom.Network
             buffer.Advance(8 + length);
         }
 
-        private static void WriteElementUS(ArrayBufferWriter<byte> buffer, ushort group, ushort element, ushort value)
+        private static void WriteElementUS(BufferWriter buffer, ushort group, ushort element, ushort value)
         {
             var span = buffer.GetSpan(10);
             BinaryPrimitives.WriteUInt16LittleEndian(span, group);
