@@ -9,13 +9,13 @@
 |----|-------------|----------|--------|
 | FR-10.1 | PDU parsing and building (A-ASSOCIATE, P-DATA, A-RELEASE, A-ABORT) | Must | Research |
 | FR-10.2 | Association negotiation with presentation contexts | Must | Research |
-| FR-10.3 | C-ECHO SCU (verify connectivity) | Must | User |
-| FR-10.4 | C-ECHO SCP (respond to verification) | Must | User |
-| FR-10.5 | C-STORE SCU (send DICOM files) | Must | User |
-| FR-10.6 | C-STORE SCP with streaming support | Must | User |
-| FR-10.7 | C-FIND SCU (query remote PACS) | Must | User |
-| FR-10.8 | C-MOVE SCU (retrieve from PACS) | Must | User |
-| FR-10.9 | C-GET SCU (retrieve without sub-operations) | Must | User |
+| FR-10.3 | C-ECHO SCU (verify connectivity) | Must | DICOM Standard |
+| FR-10.4 | C-ECHO SCP (respond to verification) | Must | DICOM Standard |
+| FR-10.5 | C-STORE SCU (send DICOM files) | Must | DICOM Standard |
+| FR-10.6 | C-STORE SCP with streaming support | Must | DICOM Standard |
+| FR-10.7 | C-FIND SCU (query remote PACS) | Must | DICOM Standard |
+| FR-10.8 | C-MOVE SCU (retrieve from PACS) | Must | DICOM Standard |
+| FR-10.9 | C-GET SCU (retrieve via C-STORE sub-ops) | Must | DICOM Standard |
 | FR-10.10 | DicomClient class with async API | Must | CLAUDE.md |
 | FR-10.11 | DicomServer class with event-based handlers | Must | CLAUDE.md |
 | FR-10.12 | Zero-copy PDU parsing via System.IO.Pipelines | Should | Research |
@@ -50,6 +50,8 @@
 | FR-13.5 | Integration with existing element callback system | Must | Architecture |
 | FR-13.6 | DicomDeidentifier class with fluent configuration | Should | Research |
 
+---
+
 ### Non-Functional Requirements
 
 #### NFR-04: Networking Performance
@@ -70,7 +72,7 @@
 
 | Feature | Reason |
 |---------|--------|
-| TLS support | Orthogonal to core networking |
+| TLS support | Orthogonal to core networking; v2 focuses on unencrypted connections |
 | Modality Worklist (MWL) | Niche RIS integration |
 | DIMSE-N services | Normalized objects are <5% of use cases |
 | C-FIND SCP / C-MOVE SCP | Most users are SCU; SCP is complex |
@@ -87,14 +89,14 @@
 | FR-10.2 | Phase 10 | Pending |
 | FR-10.3 | Phase 10 | Pending |
 | FR-10.4 | Phase 10 | Pending |
-| FR-10.5 | Phase 10 | Pending |
-| FR-10.6 | Phase 10 | Pending |
+| FR-10.5 | Phase 11 | Pending |
+| FR-10.6 | Phase 11 | Pending |
 | FR-10.7 | Phase 11 | Pending |
 | FR-10.8 | Phase 11 | Pending |
 | FR-10.9 | Phase 11 | Pending |
 | FR-10.10 | Phase 10 | Pending |
 | FR-10.11 | Phase 10 | Pending |
-| FR-10.12 | Phase 10 | Pending |
+| FR-10.12 | Phase 11 | Pending |
 | FR-11.1 | Phase 12 | Pending |
 | FR-11.2 | Phase 12 | Pending |
 | FR-11.3 | Phase 12 | Pending |

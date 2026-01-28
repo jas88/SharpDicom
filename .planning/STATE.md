@@ -79,17 +79,17 @@
 
 ## v1.0.0 Phase Progress (Complete)
 
-| Phase | Status | Plans | Started | Completed |
-|-------|--------|-------|---------|-----------|
-| 1. Core Data Model & Dictionary | COMPLETE | 7/7 | 2026-01-27 | 2026-01-26 |
-| 2. Basic File Reading | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
-| 3. Implicit VR & Sequences | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
-| 4. Character Encoding | COMPLETE | 2/2 | 2026-01-26 | 2026-01-27 |
-| 5. Pixel Data & Lazy Loading | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 6. Private Tags | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
-| 7. File Writing | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 8. Validation & Strictness | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 9. RLE Codec | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
+| Phase | Name | Status | Plans | Started | Completed |
+|-------|------|--------|-------|---------|-----------|
+| 1 | Core Data Model & Dictionary | COMPLETE | 7/7 | 2026-01-27 | 2026-01-26 |
+| 2 | Basic File Reading | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
+| 3 | Implicit VR & Sequences | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
+| 4 | Character Encoding | COMPLETE | 2/2 | 2026-01-26 | 2026-01-27 |
+| 5 | Pixel Data & Lazy Loading | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 6 | Private Tags | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
+| 7 | File Writing | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 8 | Validation & Strictness | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 9 | RLE Codec | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
 
 ## Key Decisions Log
 
@@ -210,7 +210,7 @@ If resuming after a break:
    - **Phase 12**: Pure C# Codecs (JPEG, J2K)
    - **Phase 13**: Native Codecs Package (libjpeg-turbo, OpenJPEG)
    - **Phase 14**: De-identification (PS3.15, UID remapping, date shifting)
-5. **Test coverage**: 2070 tests passing (1035 x 2 assemblies), 0 failed, 0 skipped
+5. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage

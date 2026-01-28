@@ -58,7 +58,7 @@
 
 **Dependencies**: Phase 4 (character encoding for DIMSE text VRs), Phase 7 (dataset serialization for command sets)
 
-**Research Needed**: Partial (C-MOVE sub-operations may need deeper investigation during planning)
+**Research Needed**: No (foundation layer; C-MOVE investigation deferred to Phase 11)
 
 **Success Criteria**:
 - [ ] Can establish association with DCMTK storescp
@@ -129,9 +129,9 @@
 **Research Needed**: No (well-documented JPEG/J2K specs, reference implementations available)
 
 **Success Criteria**:
-- [ ] Decode JPEG Baseline test files from NEMA WG-04
-- [ ] Decode JPEG Lossless test files correctly
-- [ ] Decode JPEG 2000 lossless files (bit-perfect roundtrip)
+- [ ] Decode JPEG Baseline test files from NEMA WG-04 conformance suite
+- [ ] Decode JPEG Lossless test files from NEMA WG-04 conformance suite
+- [ ] Decode JPEG 2000 test files from NEMA WG-04 conformance suite (bit-perfect roundtrip)
 - [ ] Encode to all supported transfer syntaxes
 - [ ] Codecs discoverable via CodecRegistry.GetCodec(TransferSyntax)
 - [ ] Passes AOT compilation test (no trimming warnings)
@@ -166,7 +166,7 @@
 - [ ] Native codecs auto-register when package referenced
 - [ ] Native codecs override pure C# registrations
 - [ ] Decode/encode works on Windows, Linux, macOS
-- [ ] Performance benchmark shows 2-6x improvement over pure C#
+- [ ] Performance benchmark shows 2-6x improvement over pure C# (note: NFR-05.2's 10-50x range is for specific workloads; typical improvement is 2-6x)
 - [ ] Package does not bloat core SharpDicom library
 
 ---
@@ -217,17 +217,20 @@ Phase 10 (Network Foundation)
          v
 Phase 11 (DIMSE Services)
          |
-         +----------------+----------------+
-         |                |                |
-         v                v                v
-Phase 12 (Pure Codecs)  Phase 13*    Phase 14 (De-id)
-         |                |                |
-         +----------------+----------------+
-                          |
-                          v
-                    v2.0.0 Release
+         +------------------------+
+         |                        |
+         v                        v
+Phase 12 (Pure Codecs)      Phase 14 (De-id)
+         |
+         v
+Phase 13 (Native Codecs)*
+         |
+         +------------------------+
+                                  |
+                                  v
+                            v2.0.0 Release
 
-* Phase 13 depends on Phase 12
+* Phase 13 depends on Phase 12 for codec interface patterns
 ```
 
 **Parallelization opportunities**:
