@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 10 - Network Foundation
-**Plan**: 02 of 7 complete
+**Plan**: 01 of 7 complete (re-executed)
 **Status**: In progress
-**Last activity**: 2026-01-28 - Completed 10-02-PLAN.md (PDU Sub-Items)
+**Last activity**: 2026-01-28 - Re-executed 10-01-PLAN.md (Network Types Foundation)
 
-**Progress**: ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/7 plans in Phase 10)
+**Progress**: █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/7 plans in Phase 10)
 
-**Test Status**: 2116 tests passing, 0 failed, 0 skipped
+**Test Status**: 1093 tests passing, 0 failed, 0 skipped
 
 ## Completed
 
@@ -72,7 +72,7 @@
 
 ## In Progress
 
-- Phase 10 - Network Foundation (Plan 02 complete, 5 remaining)
+- Phase 10 - Network Foundation (Plan 01 complete, 6 remaining)
 
 ## Blocked
 
@@ -82,7 +82,7 @@
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
-| 10 | Network Foundation | In Progress | 2/7 | 2026-01-28 | — |
+| 10 | Network Foundation | In Progress | 1/7 | 2026-01-28 | — |
 | 11 | DIMSE Services | Pending | ?/? | — | — |
 | 12 | Pure C# Codecs | Pending | ?/? | — | — |
 | 13 | Native Codecs Package | Pending | ?/? | — | — |
@@ -195,13 +195,16 @@
 | 2026-01-28 | 10-02 | UserInformation.Default uses fixed UID | 2.25.{uuid} for consistent implementation identification |
 | 2026-01-28 | 10-02 | PresentationDataValue as struct | Zero-allocation for high-throughput P-DATA handling |
 | 2026-01-28 | 10-02 | AE title validation | 1-16 ASCII printable chars, no leading/trailing spaces |
+| 2026-01-28 | 10-01 | RejectReason single enum with multi-source interpretation | Overlapping PS3.8 values handled via documentation |
+| 2026-01-28 | 10-01 | DicomStatus equality by code only | ErrorComment is informational, not identity |
+| 2026-01-28 | 10-01 | Exception Source property renamed | AbortSource/RejectSource avoid hiding Exception.Source |
 
 ## Session Continuity
 
 **Last session**: 2026-01-28
-**Stopped at**: Completed 10-02-PLAN.md (PDU Sub-Items)
+**Stopped at**: Completed 10-01-PLAN.md (Network Types Foundation)
 **Resume file**: None
-**Next step**: Execute 10-03-PLAN.md (PDU Parsing)
+**Next step**: Execute 10-02-PLAN.md (PDU Sub-Items)
 
 ## Context for Next Session
 
@@ -220,9 +223,8 @@ If resuming after a break:
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
 4. **v2.0.0 progress**:
-   - **Phase 10 Plan 01**: PDU types and constants (complete)
-   - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, AssociationOptions (complete)
-5. **Test coverage**: 2116 tests passing, 0 failed, 0 skipped
+   - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions (complete)
+5. **Test coverage**: 1093 tests passing, 0 failed, 0 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
