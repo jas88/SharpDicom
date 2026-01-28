@@ -10,7 +10,7 @@
 
 **Progress**: ██████████████████████████░░░░ (6/7 plans in Phase 10)
 
-**Test Status**: 1189 tests passing, 0 failed, 1 skipped
+**Test Status**: 1220 tests passing, 0 failed, 1 skipped
 
 ## Completed
 
@@ -66,7 +66,7 @@
 - [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
 - [x] Phase 10 Plan 03: PDU parsing (PduReader, PduWriter ref structs)
 - [x] Phase 10 Plan 04: Association state machine (13 states, DicomAssociation)
-- [x] Phase 10 Plan 05: DIMSE command infrastructure (CommandField, DicomCommand)
+- [x] Phase 10 Plan 05: DicomClient SCU with C-ECHO (CommandField, DicomCommand, DicomClient)
 - [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
 - [ ] Phase 10 Plan 07: Integration tests
 
@@ -210,6 +210,10 @@
 | 2026-01-28 | 10-06 | Inline C-ECHO parsing | Avoid dependency on full DIMSE infrastructure |
 | 2026-01-28 | 10-06 | Task-per-association model | SemaphoreSlim for MaxAssociations throttling |
 | 2026-01-28 | 10-06 | ARTIM timer via CancelAfter | Linked CTS for association timeout enforcement |
+| 2026-01-28 | 10-05 | Commands always Implicit VR Little Endian | DICOM PS3.7 requires command elements to use Implicit VR |
+| 2026-01-28 | 10-05 | Static VR lookup for command elements | Group 0000 elements have fixed VRs per PS3.7 |
+| 2026-01-28 | 10-05 | BufferWriter type alias pattern | ArrayBufferWriter polyfill for netstandard2.0 |
+| 2026-01-28 | 10-05 | IDicomElement for dataset iteration | DicomDataset implements IEnumerable<IDicomElement> |
 
 ## Session Continuity
 
@@ -239,9 +243,9 @@ If resuming after a break:
    - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
    - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
    - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
-   - **Phase 10 Plan 05**: DIMSE command infrastructure - CommandField, DicomCommand factory methods
+   - **Phase 10 Plan 05**: DicomClient SCU - CommandField, DicomCommand, DicomClient with CEchoAsync
    - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
-5. **Test coverage**: 1189 tests passing, 0 failed, 1 skipped
+5. **Test coverage**: 1220 tests passing, 0 failed, 1 skipped
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -250,14 +254,14 @@ If resuming after a break:
 |-------------|-------|--------|
 | FR-10.1 (PDU parsing) | Phase 10 | Complete (10-03) |
 | FR-10.2 (Association negotiation) | Phase 10 | Complete (10-04) |
-| FR-10.3 (C-ECHO SCU) | Phase 10 | Pending |
+| FR-10.3 (C-ECHO SCU) | Phase 10 | Complete (10-05) |
 | FR-10.4 (C-ECHO SCP) | Phase 10 | Complete (10-06) |
 | FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
 | FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
 | FR-10.7 (C-FIND SCU) | Phase 11 | Pending |
 | FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
 | FR-10.9 (C-GET SCU) | Phase 11 | Pending |
-| FR-10.10 (DicomClient async) | Phase 10 | Pending |
+| FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
 | FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
