@@ -19,16 +19,19 @@
   <!-- Source Generators: must target netstandard2.0 for Roslyn compatibility -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Generators'">
     <TargetFramework>netstandard2.0</TargetFramework>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <!-- Tests: latest TFM, references matching library build -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests'">
     <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <!-- Polyfill Tests: net10.0 runtime but forces netstandard2.0 library reference -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests.Polyfills'">
     <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <!-- Import shared build standards -->
