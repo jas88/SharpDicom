@@ -212,6 +212,19 @@ Plans:
 
 **Requirements**: FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6
 
+**Plans**: 8 plans in 4 waves
+
+Plans:
+- [ ] 14-01-PLAN.md — Source generator for action tables from part15.xml
+- [ ] 14-02-PLAN.md — Core types, action resolution, dummy value generation
+- [ ] 14-03-PLAN.md — UID remapping with SQLite persistence
+- [ ] 14-04-PLAN.md — Date/time shifting with configurable strategies
+- [ ] 14-05-PLAN.md — DicomDeidentifier with fluent API and element callback
+- [ ] 14-06-PLAN.md — JSON config format with $extends inheritance and presets
+- [ ] 14-07-PLAN.md — Clean Pixel Data Option with region redaction
+- [ ] 14-08-PLAN.md — Batch processing and integration tests
+
+
 **Must-haves**:
 - [ ] PS3.15 Basic Application Level Confidentiality Profile implementation
 - [ ] Source-generated action table from NEMA part15.xml (extends dictionary generator)
@@ -225,10 +238,12 @@ Plans:
 - [ ] BurnedInPHIDetector warning for high-risk modalities (US, ES, SC, XA)
 - [ ] Referenced SOP Instance UID updates in sequences (RT plans, presentation states)
 - [ ] Safe private tag registry (preserve known-safe vendor tags)
+- [ ] JSON config with $extends inheritance for org-specific profiles
+- [ ] Clean Pixel Data Option with region-based redaction
 
 **Dependencies**: Phase 4 (encoding for text element processing), Phase 7 (file writing for output)
 
-**Research Needed**: Partial (two-pass UID remapping validation)
+**Research Needed**: Yes - COMPLETE (14-RESEARCH.md)
 
 **Success Criteria**:
 - [ ] Basic Profile removes all required tags per PS3.15 Annex E
@@ -591,4 +606,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-01-28 (Phase 13 planned)*
+*Last updated: 2026-01-31 (Phase 14a merge conflicts resolved)*
