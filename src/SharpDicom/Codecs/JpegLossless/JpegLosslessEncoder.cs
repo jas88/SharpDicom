@@ -61,8 +61,11 @@ namespace SharpDicom.Codecs.JpegLossless
             // Read samples from input
             int[] samples = ReadSamplesFromInput(pixelData, width * height * components, bytesPerSample);
 
-            // Estimate output size (compressed should be smaller, but allow for worst case)
-            int estimatedSize = pixelData.Length + 1024;
+            // Estimate output size: in worst case (random data), output may exceed input
+            // For each sample: Huffman code (up to 16 bits) + category bits (up to 16 bits)
+            // So worst case is ~4 bytes per sample. Add header overhead.
+            int totalSamples = width * height * components;
+            int estimatedSize = (totalSamples * 4) + 1024;
             byte[] outputBuffer = ArrayPool<byte>.Shared.Rent(estimatedSize);
 
             try
