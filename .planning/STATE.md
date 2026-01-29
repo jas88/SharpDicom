@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 12 - Pure C# Codecs
-**Plan**: 02 of 7 complete
+**Plan**: 04 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 12-02-PLAN.md (DCT & Bit I/O)
+**Last activity**: 2026-01-29 - Completed 12-04-PLAN.md (JPEG Lossless Codec)
 
-**Progress**: ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/7 plans in Phase 12)
+**Progress**: ████░░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/7 plans in Phase 12)
 
 **Test Status**: 3064 tests passing, 0 failed, 54 skipped
 
@@ -79,10 +79,11 @@
 - [x] Phase 11 Plan 07: DIMSE integration tests (roundtrip, DCMTK interop, protocol verification)
 - [x] Phase 12 Plan 01: Codec infrastructure (IImageCodec, JPEG markers, color conversion)
 - [x] Phase 12 Plan 02: DCT & Bit I/O (DctTransform, BitReader, BitWriter, JpegCodecOptions)
+- [x] Phase 12 Plan 04: JPEG Lossless codec (Predictor, LosslessHuffman, JpegLosslessDecoder/Encoder/Codec)
 
 ## In Progress
 
-- Phase 12 - Pure C# Codecs (2/7 plans complete)
+- Phase 12 - Pure C# Codecs (4/7 plans complete)
 
 ## Blocked
 
@@ -94,7 +95,7 @@
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 12 | Pure C# Codecs | In progress | 2/7 | 2026-01-29 | - |
+| 12 | Pure C# Codecs | In progress | 4/7 | 2026-01-29 | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
@@ -254,13 +255,15 @@
 | 2026-01-29 | 12-02 | AVX2 SIMD with matrix transpose | Processes all 8 rows/columns in parallel using 256-bit vectors |
 | 2026-01-29 | 12-02 | 32-bit buffer for bit I/O | Allows reads/writes up to 25 bits at once |
 | 2026-01-29 | 12-02 | Quality 90 for MedicalImaging preset | Balances compression with diagnostic quality preservation |
+| 2026-01-29 | 12-04 | Extended Huffman table to categories 0-16 | 16-bit samples require category 16 for worst-case differences |
+| 2026-01-29 | 12-04 | Output buffer 4 bytes/sample + 1024 overhead | Random data may not compress; each sample needs up to 32 bits |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 12-02-PLAN.md (DCT & Bit I/O)
+**Stopped at**: Completed 12-04-PLAN.md (JPEG Lossless Codec)
 **Resume file**: None
-**Next step**: Execute 12-03-PLAN.md (Huffman Tables)
+**Next step**: Execute 12-05-PLAN.md (JPEG 2000 Codec)
 
 ## Context for Next Session
 
@@ -288,7 +291,8 @@ If resuming after a break:
    - **Phase 11 Plan 07**: DIMSE integration tests - roundtrip, DCMTK interop, protocol verification (35 new tests)
    - **Phase 12 Plan 01**: Codec infrastructure - IImageCodec, JPEG markers, color conversion
    - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
-5. **Test coverage**: 3064 tests passing (54 skipped)
+   - **Phase 12 Plan 04**: JPEG Lossless codec - Predictor (7 selection values), LosslessHuffman, JpegLosslessCodec (47 tests)
+5. **Test coverage**: 3111+ tests passing (54 skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -307,8 +311,8 @@ If resuming after a break:
 | FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
-| FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
-| FR-11.2 (JPEG Lossless) | Phase 12 | Pending |
+| FR-11.1 (JPEG Baseline) | Phase 12 | In Progress (12-03) |
+| FR-11.2 (JPEG Lossless) | Phase 12 | Complete (12-04) |
 | FR-11.3 (J2K Lossless) | Phase 12 | Pending |
 | FR-11.4 (J2K Lossy) | Phase 12 | Pending |
 | FR-11.5 (Pure C#) | Phase 12 | Pending |
@@ -329,4 +333,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (Phase 12 in progress - 12-02 complete)*
+*Last updated: 2026-01-29 (Phase 12 in progress - 12-04 complete)*
