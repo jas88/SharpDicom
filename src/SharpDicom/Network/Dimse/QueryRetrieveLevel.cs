@@ -152,5 +152,24 @@ namespace SharpDicom.Network.Dimse
                 _ => throw new ArgumentException($"Invalid command field for Q/R: 0x{commandField:X4}", nameof(commandField))
             };
         }
+
+        /// <summary>
+        /// Gets the Patient Root C-FIND SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Patient Root Query/Retrieve Find SOP Class UID.</returns>
+        public static DicomUID GetPatientRootFindSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.PatientRootQueryRetrieveFind;
+
+        /// <summary>
+        /// Gets the Study Root C-FIND SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Study Root Query/Retrieve Find SOP Class UID.</returns>
+        /// <remarks>
+        /// Note: Study Root does not support Patient level queries.
+        /// </remarks>
+        public static DicomUID GetStudyRootFindSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.StudyRootQueryRetrieveFind;
     }
 }
