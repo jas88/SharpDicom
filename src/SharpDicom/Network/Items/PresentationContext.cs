@@ -50,6 +50,29 @@ namespace SharpDicom.Network.Items
         public TransferSyntax? AcceptedTransferSyntax { get; }
 
         /// <summary>
+        /// Gets or sets whether SCU role is proposed/accepted for this context.
+        /// </summary>
+        /// <remarks>
+        /// Default is true (SCU). Set to true to request SCU role during negotiation.
+        /// </remarks>
+        public bool ScuRoleRequested { get; set; } = true;
+
+        /// <summary>
+        /// Gets or sets whether SCP role is proposed/accepted for this context.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Default is false. Set to true to request SCP role during negotiation.
+        /// </para>
+        /// <para>
+        /// Required for C-GET to receive C-STORE sub-operations. When using C-GET,
+        /// the SCU must accept the SCP role for Storage SOP Classes so the remote
+        /// SCP can send C-STORE sub-operations back on the same association.
+        /// </para>
+        /// </remarks>
+        public bool ScpRoleRequested { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of <see cref="PresentationContext"/> for a request.
         /// </summary>
         /// <param name="id">The presentation context ID (must be odd, 1-255).</param>
@@ -154,5 +177,42 @@ namespace SharpDicom.Network.Items
         /// <param name="id">The ID to validate.</param>
         /// <returns>true if the ID is odd and in the range 1-255; otherwise, false.</returns>
         public static bool IsValidId(byte id) => id >= 1 && id <= 255 && (id & 1) == 1;
+
+        /// <summary>
+        /// Configures this presentation context to accept SCP role.
+        /// </summary>
+        /// <returns>This instance for fluent chaining.</returns>
+        /// <remarks>
+        /// <para>
+        /// Call this for Storage SOP Classes when using C-GET to enable
+        /// receiving C-STORE sub-operations on the same association.
+        /// </para>
+        /// <para>
+        /// Per DICOM PS3.8 Section 9.3.1, the SCP/SCU Role Selection Sub-Item
+        /// allows the association requestor to propose role reversal. For C-GET,
+        /// the SCU needs to act as SCP for Storage operations.
+        /// </para>
+        /// </remarks>
+        public PresentationContext WithScpRole()
+        {
+            ScpRoleRequested = true;
+            return this;
+        }
+
+        /// <summary>
+        /// Configures this presentation context to accept both SCU and SCP roles.
+        /// </summary>
+        /// <returns>This instance for fluent chaining.</returns>
+        /// <remarks>
+        /// Useful when the same presentation context needs to support both
+        /// sending and receiving operations (e.g., C-STORE as SCU for sending
+        /// and SCP for receiving C-GET sub-operations).
+        /// </remarks>
+        public PresentationContext WithBothRoles()
+        {
+            ScuRoleRequested = true;
+            ScpRoleRequested = true;
+            return this;
+        }
     }
 }
