@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 11 - DIMSE Services
-**Plan**: 07 of ? complete
+**Plan**: 08 of ? complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 11-04-PLAN.md (C-STORE SCP)
+**Last activity**: 2026-01-29 - Completed 11-05-PLAN.md (C-MOVE SCU)
 
-**Progress**: ███████░░░░░░░░░░░░░░░░░░░░░░░ (7/? plans in Phase 11)
+**Progress**: ████████░░░░░░░░░░░░░░░░░░░░░░ (8/? plans in Phase 11)
 
-**Test Status**: 1476 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
+**Test Status**: 1516 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
 
 ## Completed
 
@@ -75,10 +75,11 @@
 - [x] Phase 11 Plan 03: C-FIND SCU (CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable)
 - [x] Phase 11 Plan 06: C-GET SCU (CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection)
 - [x] Phase 11 Plan 04: C-STORE SCP (ICStoreHandler, IStreamingCStoreHandler, CStoreHandlerMode, DicomServer integration)
+- [x] Phase 11 Plan 05: C-MOVE SCU (CMoveOptions, CMoveProgress, CMoveScu with IAsyncEnumerable progress)
 
 ## In Progress
 
-- Phase 11 - DIMSE Services (7 of ? plans complete)
+- Phase 11 - DIMSE Services (8 of ? plans complete)
 
 ## Blocked
 
@@ -89,7 +90,7 @@
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
-| 11 | DIMSE Services | In Progress | 7/? | 2026-01-29 | - |
+| 11 | DIMSE Services | In Progress | 8/? | 2026-01-29 | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
@@ -242,13 +243,16 @@
 | 2026-01-29 | 11-04 | Dual handler support (delegate + interface) | Delegate is simpler; interface allows testable implementations |
 | 2026-01-29 | 11-04 | Delegate precedence over interface | Allows quick override without replacing interface implementation |
 | 2026-01-29 | 11-04 | Streaming mode requires explicit handler | Fail-fast prevents runtime errors; streaming needs explicit implementation |
+| 2026-01-29 | 11-05 | C-MOVE SCU does not receive data | C-MOVE sends data to third-party destination; SCU only gets progress updates |
+| 2026-01-29 | 11-05 | Consistent patterns across Q/R SCU services | Follow CFindScu/CGetScu patterns for API consistency |
+| 2026-01-29 | 11-05 | Validate destinationAE early | Fail fast on empty destination rather than network error |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-04-PLAN.md (C-STORE SCP)
+**Stopped at**: Completed 11-05-PLAN.md (C-MOVE SCU)
 **Resume file**: None
-**Next step**: Execute Phase 11 Plan 05 (C-MOVE SCU) or next available plan
+**Next step**: Execute next Phase 11 plan or Phase 12
 
 ## Context for Next Session
 
@@ -272,7 +276,8 @@ If resuming after a break:
    - **Phase 11 Plan 02**: C-STORE SCU - CStoreOptions, CStoreResponse, CStoreScu with SendAsync overloads
    - **Phase 11 Plan 03**: C-FIND SCU - CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable results
    - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
-5. **Test coverage**: 2908 tests passing (10 DCMTK integration tests skipped)
+   - **Phase 11 Plan 05**: C-MOVE SCU - CMoveOptions, CMoveProgress, CMoveScu with third-party destination retrieval
+5. **Test coverage**: 1516 tests passing (5 DCMTK integration tests skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -286,7 +291,7 @@ If resuming after a break:
 | FR-10.5 (C-STORE SCU) | Phase 11 | Complete (11-02) |
 | FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
 | FR-10.7 (C-FIND SCU) | Phase 11 | Complete (11-03) |
-| FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
+| FR-10.8 (C-MOVE SCU) | Phase 11 | Complete (11-05) |
 | FR-10.9 (C-GET SCU) | Phase 11 | Complete (11-06) |
 | FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
@@ -313,4 +318,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (11-06 complete)*
+*Last updated: 2026-01-29 (11-05 complete)*
