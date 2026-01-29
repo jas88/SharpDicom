@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 11 - DIMSE Services
-**Plan**: 06 of ? complete
+**Plan**: 07 of ? complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 11-06-PLAN.md (C-GET SCU)
+**Last activity**: 2026-01-29 - Completed 11-04-PLAN.md (C-STORE SCP)
 
-**Progress**: ██████░░░░░░░░░░░░░░░░░░░░░░░░ (6/? plans in Phase 11)
+**Progress**: ███████░░░░░░░░░░░░░░░░░░░░░░░ (7/? plans in Phase 11)
 
-**Test Status**: 2908 tests passing, 0 failed, 10 skipped (DCMTK integration tests)
+**Test Status**: 1476 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
 
 ## Completed
 
@@ -74,10 +74,11 @@
 - [x] Phase 11 Plan 02: C-STORE SCU (CStoreOptions, CStoreResponse, CStoreScu service)
 - [x] Phase 11 Plan 03: C-FIND SCU (CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable)
 - [x] Phase 11 Plan 06: C-GET SCU (CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection)
+- [x] Phase 11 Plan 04: C-STORE SCP (ICStoreHandler, IStreamingCStoreHandler, CStoreHandlerMode, DicomServer integration)
 
 ## In Progress
 
-- Phase 11 - DIMSE Services (6 of ? plans complete)
+- Phase 11 - DIMSE Services (7 of ? plans complete)
 
 ## Blocked
 
@@ -88,7 +89,7 @@
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
-| 11 | DIMSE Services | In Progress | 6/? | 2026-01-29 | - |
+| 11 | DIMSE Services | In Progress | 7/? | 2026-01-29 | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
@@ -238,20 +239,23 @@
 | 2026-01-29 | 11-06 | PresentationContext SCP role as mutable properties | ScuRoleRequested/ScpRoleRequested enable fluent WithScpRole() without breaking constructors |
 | 2026-01-29 | 11-06 | CancellationBehavior.RejectInFlight default | Fail fast on cancel; CompleteInFlight option for data integrity |
 | 2026-01-29 | 11-06 | Store handler as async delegate | Flexible storage implementations with proper async support |
+| 2026-01-29 | 11-04 | Dual handler support (delegate + interface) | Delegate is simpler; interface allows testable implementations |
+| 2026-01-29 | 11-04 | Delegate precedence over interface | Allows quick override without replacing interface implementation |
+| 2026-01-29 | 11-04 | Streaming mode requires explicit handler | Fail-fast prevents runtime errors; streaming needs explicit implementation |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-06-PLAN.md (C-GET SCU)
+**Stopped at**: Completed 11-04-PLAN.md (C-STORE SCP)
 **Resume file**: None
-**Next step**: Execute Phase 11 Plan 07 or next available plan
+**Next step**: Execute Phase 11 Plan 05 (C-MOVE SCU) or next available plan
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 11 - DIMSE Services (6/? plans complete)
+2. **Current phase**: Phase 11 - DIMSE Services (7/? plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
