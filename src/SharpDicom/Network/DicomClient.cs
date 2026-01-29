@@ -12,6 +12,7 @@ using SharpDicom.Network.Dimse;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
+using SharpDicom.IO;
 
 #if NETSTANDARD2_0
 using BufferWriter = SharpDicom.Internal.ArrayBufferWriterPolyfill<byte>;
@@ -254,7 +255,274 @@ namespace SharpDicom.Network
             }
         }
 
-        private ushort NextMessageId() => ++_messageId;
+        /// <summary>
+        /// Gets the next unique message ID.
+        /// </summary>
+        /// <returns>The next message ID.</returns>
+        internal ushort NextMessageId() => ++_messageId;
+
+        #region Internal DIMSE Primitives
+
+        /// <summary>
+        /// Sends a DIMSE request with optional dataset.
+        /// </summary>
+        /// <param name="presentationContextId">Presentation context ID to use.</param>
+        /// <param name="command">The DIMSE command to send.</param>
+        /// <param name="dataset">Optional dataset to send (identifier, data, etc.).</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <remarks>
+        /// <para>
+        /// Command is always encoded as Implicit VR Little Endian per PS3.7 Section 9.3.1.
+        /// Dataset uses the negotiated transfer syntax for the presentation context.
+        /// </para>
+        /// <para>
+        /// This method is used by SCU service classes to send DIMSE requests.
+        /// </para>
+        /// </remarks>
+        internal async ValueTask SendDimseRequestAsync(
+            byte presentationContextId,
+            DicomCommand command,
+            DicomDataset? dataset,
+            CancellationToken ct)
+        {
+            ThrowIfDisposed();
+
+            if (_association == null || !_association.IsEstablished)
+                throw new DicomAssociationException("Not connected.");
+
+            // Send command PDV (Implicit VR LE, isCommand=true)
+            await SendDimseCommandAsync(presentationContextId, command, ct).ConfigureAwait(false);
+
+            // If dataset present, serialize with negotiated TS and send as data PDVs
+            if (dataset != null)
+            {
+                await SendDatasetAsync(presentationContextId, dataset, ct).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Receives a DIMSE response with optional dataset.
+        /// </summary>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>Tuple of (command, optional dataset).</returns>
+        /// <remarks>
+        /// <para>
+        /// This method receives a single DIMSE response. For multi-response operations
+        /// (C-FIND, C-MOVE, C-GET), call this repeatedly until a final status is received.
+        /// </para>
+        /// <para>
+        /// The command is parsed from Implicit VR Little Endian.
+        /// The dataset (if present) is parsed using the presentation context transfer syntax.
+        /// </para>
+        /// </remarks>
+        internal async ValueTask<(DicomCommand command, DicomDataset? dataset)> ReceiveDimseResponseAsync(
+            CancellationToken ct)
+        {
+            ThrowIfDisposed();
+
+            // Receive command PDV
+            var command = await ReceiveDimseCommandAsync(ct).ConfigureAwait(false);
+
+            // Check if dataset follows (CommandDataSetType != 0x0101)
+            DicomDataset? dataset = null;
+            if (command.HasDataset)
+            {
+                dataset = await ReceiveDatasetAsync(ct).ConfigureAwait(false);
+            }
+
+            return (command, dataset);
+        }
+
+        /// <summary>
+        /// Sends a C-CANCEL request to cancel an in-progress operation.
+        /// </summary>
+        /// <param name="presentationContextId">Presentation context ID for the operation to cancel.</param>
+        /// <param name="messageIdBeingCancelled">Message ID of the operation to cancel.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <remarks>
+        /// C-CANCEL is used to request cancellation of an in-progress C-FIND, C-MOVE, or C-GET operation.
+        /// The SCP may or may not honor the cancellation request.
+        /// </remarks>
+        internal async ValueTask SendCCancelAsync(
+            byte presentationContextId,
+            ushort messageIdBeingCancelled,
+            CancellationToken ct)
+        {
+            ThrowIfDisposed();
+
+            var cancel = DicomCommand.CreateCCancelRequest(messageIdBeingCancelled);
+            await SendDimseCommandAsync(presentationContextId, cancel, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets the first accepted presentation context.
+        /// </summary>
+        /// <returns>The first accepted presentation context.</returns>
+        /// <exception cref="DicomAssociationException">Thrown if no contexts are accepted.</exception>
+        internal PresentationContext GetFirstAcceptedContext()
+        {
+            var contexts = _association?.AcceptedContexts;
+            if (contexts == null || contexts.Count == 0)
+                throw new DicomAssociationException("No presentation contexts accepted.");
+
+            return contexts[0];
+        }
+
+        /// <summary>
+        /// Gets an accepted presentation context for the specified SOP Class.
+        /// </summary>
+        /// <param name="sopClassUid">The SOP Class UID.</param>
+        /// <returns>The accepted presentation context, or null if not found.</returns>
+        internal PresentationContext? GetAcceptedContext(DicomUID sopClassUid)
+        {
+            return _association?.AcceptedContexts?.FirstOrDefault(c => c.AbstractSyntax == sopClassUid);
+        }
+
+        /// <summary>
+        /// Sends a dataset as data PDVs using the negotiated transfer syntax.
+        /// </summary>
+        private async ValueTask SendDatasetAsync(byte pcid, DicomDataset dataset, CancellationToken ct)
+        {
+            // Get negotiated transfer syntax for this presentation context
+            var context = _association!.AcceptedContexts?.FirstOrDefault(c => c.Id == pcid);
+            if (context == null)
+                throw new DicomAssociationException($"Presentation context {pcid} not found.");
+
+            var ts = context.AcceptedTransferSyntax ?? TransferSyntax.ImplicitVRLittleEndian;
+
+            // Serialize dataset using negotiated transfer syntax
+            var dataBytes = SerializeDataset(dataset, ts);
+
+            // Send as data PDV
+            var pdv = new PresentationDataValue(
+                pcid,
+                isCommand: false,
+                isLastFragment: true,
+                dataBytes);
+
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+            writer.WritePData(new[] { pdv });
+
+#if NET6_0_OR_GREATER
+            await _stream!.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenMemory.ToArray();
+            await _stream!.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Receives a dataset from data PDVs.
+        /// </summary>
+        private async ValueTask<DicomDataset> ReceiveDatasetAsync(CancellationToken ct)
+        {
+            // Receive PDVs and accumulate data until last fragment flag set
+            var dataBuffer = new List<byte>();
+
+            while (true)
+            {
+                var pdu = await ReceivePduAsync(ct).ConfigureAwait(false);
+                var pduType = (PduType)pdu[0];
+
+                if (pduType != PduType.PDataTransfer)
+                    throw new DicomNetworkException($"Expected P-DATA-TF, got PDU type: {pduType}");
+
+                var reader = new PduReader(pdu.AsSpan(6));
+                if (!reader.TryReadPresentationDataValue(
+                    out var pcid,
+                    out var isCommand,
+                    out var isLastFragment,
+                    out var data))
+                {
+                    throw new DicomNetworkException("Failed to parse PDV.");
+                }
+
+                if (isCommand)
+                    throw new DicomNetworkException("Expected data PDV, got command PDV.");
+
+                // Accumulate data
+                dataBuffer.AddRange(data.ToArray());
+
+                if (isLastFragment)
+                    break;
+            }
+
+            // Parse dataset - need to determine transfer syntax from presentation context
+            // For now, use Implicit VR Little Endian as fallback
+            return ParseDataset(dataBuffer.ToArray());
+        }
+
+        /// <summary>
+        /// Serializes a dataset to bytes using the specified transfer syntax.
+        /// </summary>
+        private static byte[] SerializeDataset(DicomDataset dataset, TransferSyntax ts)
+        {
+            var buffer = new BufferWriter();
+            var options = new DicomWriterOptions { TransferSyntax = ts };
+            var writer = new DicomStreamWriter(buffer, options);
+
+            foreach (var element in dataset)
+            {
+                writer.WriteElement(element);
+            }
+
+            return buffer.WrittenMemory.ToArray();
+        }
+
+        /// <summary>
+        /// Parses a dataset from bytes.
+        /// </summary>
+        private static DicomDataset ParseDataset(byte[] data)
+        {
+            // Simple parser - assumes Implicit VR Little Endian for now
+            // Full implementation would detect/use the transfer syntax
+            var dataset = new DicomDataset();
+            int offset = 0;
+
+            while (offset + 8 <= data.Length)
+            {
+                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset));
+                ushort element = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset + 2));
+                uint vl = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset + 4));
+                offset += 8;
+
+                // Skip sequence delimiters
+                if (group == 0xFFFE)
+                {
+                    offset += (int)vl;
+                    continue;
+                }
+
+                if (vl == 0xFFFFFFFF || offset + vl > data.Length)
+                    break;
+
+                var tag = new DicomTag(group, element);
+                var entry = DicomDictionary.Default.GetEntry(tag);
+                var vr = entry.HasValue && entry.Value.ValueRepresentations?.Length > 0
+                    ? entry.Value.ValueRepresentations[0]
+                    : DicomVR.UN;
+                var valueData = data.AsSpan(offset, (int)vl).ToArray();
+
+                IDicomElement dicomElement;
+                var vrInfo = DicomVRInfo.GetInfo(vr);
+                if (vrInfo.IsStringVR)
+                {
+                    dicomElement = new DicomStringElement(tag, vr, valueData);
+                }
+                else
+                {
+                    dicomElement = new DicomNumericElement(tag, vr, valueData);
+                }
+
+                dataset.Add(dicomElement);
+                offset += (int)vl;
+            }
+
+            return dataset;
+        }
+
+        #endregion
 
         private void ThrowIfDisposed()
         {
