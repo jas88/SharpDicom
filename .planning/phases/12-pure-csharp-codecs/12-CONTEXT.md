@@ -213,8 +213,80 @@ Implement JPEG and JPEG 2000 codecs in pure C# for maximum portability and AOT c
 
 ### Multi-frame Handling
 
+#### Frame Decode Strategy
+- Sequential with cache: reuse DCT tables, Huffman trees, J2K tiles between frames
+- Exploit inter-frame redundancy for better decode performance
+
+#### Frame Access Patterns
+- Both modes: sequential default with optional random access API
+- Random access via offset table when available
+
+#### Partial Failure Handling
+- Configurable: strictness setting determines behavior
+- Strict mode: fail entire decode on any frame error
+- Lenient mode: return successful frames with error list for failed
+
+#### Parallelism
+- Configurable: MaxDegreeOfParallelism option
+- Default: single-threaded (caller controls parallelism)
+
+#### Memory Management
+- Both options: caller-provided buffers and codec-allocated from ArrayPool
+- Overloads for each pattern
+
+#### Progress Reporting
+- Configurable: optional IProgress<T> with frame count/total
+
+#### Cancellation
+- Immediate abort: check within frame decode
+- May leave partial state on cancellation
+
+#### Frame Metadata
+- Full extraction: include codec-specific metadata (J2K tile info, JPEG markers)
+
+#### Iteration API
+- Both patterns: IEnumerable<Frame> and IAsyncEnumerable<Frame>
+
+#### Frame Caching
+- No caching: each access re-decodes frame (caller manages caching)
+
+#### Range Decode
+- Index list: DecodeFrames(int[] indices) for arbitrary frame subsets
+
+#### Encode API
+- Both APIs: bulk all-at-once and streaming AddFrame() patterns
+
+#### Temporal Compression
+- Motion estimation: exploit temporal redundancy for better compression
+- Applicable to video-like sequences (cine, fluoroscopy)
+
+#### Frame Timing
+- Full timing API: FrameTimeVector, playback rate, temporal position
+
+#### Validation
+- Full validation: verify dimensions, bit depth, photometric consistent across frames
+- Verify actual frame count matches NumberOfFrames tag
+
+#### Functional Groups
+- Full support: merge shared + per-frame functional groups for each frame's context
+
+#### Per-frame Photometric
+- Auto-detect: infer from codec markers if metadata missing
+
+#### Frame Extraction
+- Extract single: ExtractFrame(index) returns standalone DICOM dataset
+
+#### Frame Concatenation
+- Append frames: AppendFrame() adds to existing multi-frame
+
+#### Thumbnails/Previews
+- Full preview API: DecodePreview(targetSize) with quality/speed tradeoff
+- Use J2K resolution levels when available
+
+#### Frame Analysis
+- Full analysis: motion vectors, change detection, similarity metrics
+
 ### Claude's Discretion
-- Multi-frame handling specifics (not discussed - implement per DICOM standard)
 - Exact SIMD instruction selection per platform
 - Internal buffer sizing and pooling strategies
 - Specific codec implementation algorithms (within spec compliance)
