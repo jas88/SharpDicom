@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 12 - Pure C# Codecs
-**Plan**: 05 of 7 complete
+**Plan**: 06 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 12-05-PLAN.md (JPEG 2000 Infrastructure)
+**Last activity**: 2026-01-29 - Completed 12-06-PLAN.md (JPEG 2000 Codec)
 
-**Progress**: █████░░░░░░░░░░░░░░░░░░░░░░░░░░ (5/7 plans in Phase 12)
+**Progress**: ██████░░░░░░░░░░░░░░░░░░░░░░░░░ (6/7 plans in Phase 12)
 
-**Test Status**: 3262 tests passing, 0 failed, 54 skipped
+**Test Status**: 1674 tests passing, 0 failed, 27 skipped
 
 ## Completed
 
@@ -82,10 +82,11 @@
 - [x] Phase 12 Plan 03: JPEG Baseline codec (JpegBaselineDecoder/Encoder/Codec, DCT-based lossy 8-bit)
 - [x] Phase 12 Plan 04: JPEG Lossless codec (Predictor, LosslessHuffman, JpegLosslessDecoder/Encoder/Codec)
 - [x] Phase 12 Plan 05: JPEG 2000 infrastructure (J2kCodestream, Dwt53, Dwt97, MqCoder)
+- [x] Phase 12 Plan 06: JPEG 2000 codec (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
 
 ## In Progress
 
-- Phase 12 - Pure C# Codecs (5/7 plans complete)
+- Phase 12 - Pure C# Codecs (6/7 plans complete)
 
 ## Blocked
 
@@ -97,7 +98,7 @@
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 12 | Pure C# Codecs | In progress | 5/7 | 2026-01-29 | - |
+| 12 | Pure C# Codecs | In progress | 6/7 | 2026-01-29 | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
@@ -265,20 +266,23 @@
 | 2026-01-29 | 12-05 | Float arithmetic for 9/7 | Standard coefficients from ITU-T T.800 Table F.4 |
 | 2026-01-29 | 12-05 | 47-state probability table for MQ | Standard MQ-coder state machine from ITU-T T.800 Table C.2 |
 | 2026-01-29 | 12-05 | 19 coding contexts | Supports full EBCOT bitplane coding |
+| 2026-01-29 | 12-06 | EBCOT context model per ITU-T T.800 | 19 contexts for significance, sign, refinement coding |
+| 2026-01-29 | 12-06 | Simplified tier-2 packet encoding | Medical imaging typically uses single-tile; full complexity deferred |
+| 2026-01-29 | 12-06 | BufferWriter alias for netstandard2.0 | Consistent with existing network code ArrayBufferWriter polyfill |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 12-05-PLAN.md (JPEG 2000 Infrastructure)
+**Stopped at**: Completed 12-06-PLAN.md (JPEG 2000 Codec)
 **Resume file**: None
-**Next step**: Execute 12-06-PLAN.md (JPEG 2000 Codec completion)
+**Next step**: Execute 12-07-PLAN.md (JPEG 2000 Integration)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 12 - Pure C# Codecs (5/7 complete)
+2. **Current phase**: Phase 12 - Pure C# Codecs (6/7 complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -301,7 +305,8 @@ If resuming after a break:
    - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
    - **Phase 12 Plan 04**: JPEG Lossless codec - Predictor (7 selection values), LosslessHuffman, JpegLosslessCodec (47 tests)
    - **Phase 12 Plan 05**: JPEG 2000 infrastructure - J2kCodestream parser, Dwt53/Dwt97 wavelet transforms, MqCoder arithmetic coding (17 new tests)
-5. **Test coverage**: 3262+ tests passing (54 skipped)
+   - **Phase 12 Plan 06**: JPEG 2000 codec - EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder (16 new tests)
+5. **Test coverage**: 1674+ tests passing (27 skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
