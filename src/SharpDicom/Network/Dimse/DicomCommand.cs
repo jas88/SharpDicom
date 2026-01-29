@@ -188,6 +188,69 @@ namespace SharpDicom.Network.Dimse
         /// </summary>
         public bool IsCGetResponse => CommandFieldValue == Dimse.CommandField.CGetResponse;
 
+        /// <summary>
+        /// Gets a value indicating whether this is a C-CANCEL request.
+        /// </summary>
+        public bool IsCCancelRequest => CommandFieldValue == Dimse.CommandField.CCancelRequest;
+
+        #region Sub-operation Properties
+
+        /// <summary>
+        /// Gets the Move Destination AE Title (0000,0600).
+        /// </summary>
+        public string? MoveDestination
+        {
+            get
+            {
+                var val = _dataset.GetString(DicomTag.MoveDestination);
+                return val?.TrimEnd('\0', ' ');
+            }
+        }
+
+        /// <summary>
+        /// Gets the Priority value (0000,0700).
+        /// </summary>
+        /// <remarks>
+        /// Priority: 0=MEDIUM, 1=HIGH, 2=LOW per DICOM PS3.7.
+        /// </remarks>
+        public ushort Priority => GetUInt16(DicomTag.Priority);
+
+        /// <summary>
+        /// Gets the Number of Remaining Sub-operations (0000,1020).
+        /// </summary>
+        public ushort NumberOfRemainingSuboperations => GetUInt16(DicomTag.NumberOfRemainingSuboperations);
+
+        /// <summary>
+        /// Gets the Number of Completed Sub-operations (0000,1021).
+        /// </summary>
+        public ushort NumberOfCompletedSuboperations => GetUInt16(DicomTag.NumberOfCompletedSuboperations);
+
+        /// <summary>
+        /// Gets the Number of Failed Sub-operations (0000,1022).
+        /// </summary>
+        public ushort NumberOfFailedSuboperations => GetUInt16(DicomTag.NumberOfFailedSuboperations);
+
+        /// <summary>
+        /// Gets the Number of Warning Sub-operations (0000,1023).
+        /// </summary>
+        public ushort NumberOfWarningSuboperations => GetUInt16(DicomTag.NumberOfWarningSuboperations);
+
+        /// <summary>
+        /// Gets the sub-operation progress from this command response.
+        /// </summary>
+        /// <returns>A <see cref="SubOperationProgress"/> containing all sub-operation counts.</returns>
+        /// <remarks>
+        /// This is useful for C-MOVE and C-GET responses which report progress
+        /// of sub-operations in Pending status messages.
+        /// </remarks>
+        public SubOperationProgress GetSubOperationProgress() => new(
+            NumberOfRemainingSuboperations,
+            NumberOfCompletedSuboperations,
+            NumberOfFailedSuboperations,
+            NumberOfWarningSuboperations);
+
+        #endregion
+
         #region Factory Methods
 
         /// <summary>
@@ -270,6 +333,191 @@ namespace SharpDicom.Network.Dimse
             return new DicomCommand(ds);
         }
 
+        /// <summary>
+        /// Creates a C-FIND request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="sopClassUid">The SOP Class UID (e.g., PatientRootQueryRetrieveFind).</param>
+        /// <param name="priority">The priority (0=MEDIUM, 1=HIGH, 2=LOW).</param>
+        /// <returns>A new C-FIND request command.</returns>
+        /// <remarks>
+        /// The caller must also send an identifier dataset specifying the query keys.
+        /// </remarks>
+        public static DicomCommand CreateCFindRequest(
+            ushort messageId,
+            DicomUID sopClassUid,
+            ushort priority = 0)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CFindRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.Priority, priority);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-FIND response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="sopClassUid">The SOP Class UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <returns>A new C-FIND response command.</returns>
+        /// <remarks>
+        /// For Pending status, the response includes a matching identifier dataset.
+        /// For Success/Failure status, no dataset is present.
+        /// </remarks>
+        public static DicomCommand CreateCFindResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            DicomStatus status)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CFindResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            // Pending responses have dataset (identifier), final responses don't
+            var hasDataset = status.IsPending;
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-MOVE request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="sopClassUid">The SOP Class UID (e.g., PatientRootQueryRetrieveMove).</param>
+        /// <param name="moveDestination">The AE title of the destination for the C-STORE sub-operations.</param>
+        /// <param name="priority">The priority (0=MEDIUM, 1=HIGH, 2=LOW).</param>
+        /// <returns>A new C-MOVE request command.</returns>
+        /// <remarks>
+        /// The caller must also send an identifier dataset specifying what to retrieve.
+        /// </remarks>
+        public static DicomCommand CreateCMoveRequest(
+            ushort messageId,
+            DicomUID sopClassUid,
+            string moveDestination,
+            ushort priority = 0)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CMoveRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.Priority, priority);
+            AddAEElement(ds, DicomTag.MoveDestination, moveDestination);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-MOVE response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="sopClassUid">The SOP Class UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="progress">The sub-operation progress counts.</param>
+        /// <returns>A new C-MOVE response command.</returns>
+        /// <remarks>
+        /// Sub-operation counts are included in Pending and final responses.
+        /// For failure status with failed sub-operations, a dataset may contain
+        /// the list of failed SOP Instance UIDs.
+        /// </remarks>
+        public static DicomCommand CreateCMoveResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            DicomStatus status,
+            SubOperationProgress progress)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CMoveResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUInt16Element(ds, DicomTag.NumberOfRemainingSuboperations, progress.Remaining);
+            AddUInt16Element(ds, DicomTag.NumberOfCompletedSuboperations, progress.Completed);
+            AddUInt16Element(ds, DicomTag.NumberOfFailedSuboperations, progress.Failed);
+            AddUInt16Element(ds, DicomTag.NumberOfWarningSuboperations, progress.Warning);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-GET request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="sopClassUid">The SOP Class UID (e.g., PatientRootQueryRetrieveGet).</param>
+        /// <param name="priority">The priority (0=MEDIUM, 1=HIGH, 2=LOW).</param>
+        /// <returns>A new C-GET request command.</returns>
+        /// <remarks>
+        /// The caller must also send an identifier dataset specifying what to retrieve.
+        /// Unlike C-MOVE, C-GET retrieves data over the same association via C-STORE sub-operations.
+        /// </remarks>
+        public static DicomCommand CreateCGetRequest(
+            ushort messageId,
+            DicomUID sopClassUid,
+            ushort priority = 0)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CGetRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.Priority, priority);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-GET response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="sopClassUid">The SOP Class UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="progress">The sub-operation progress counts.</param>
+        /// <returns>A new C-GET response command.</returns>
+        /// <remarks>
+        /// Sub-operation counts are included in Pending and final responses.
+        /// For failure status with failed sub-operations, a dataset may contain
+        /// the list of failed SOP Instance UIDs.
+        /// </remarks>
+        public static DicomCommand CreateCGetResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            DicomStatus status,
+            SubOperationProgress progress)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, sopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CGetResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUInt16Element(ds, DicomTag.NumberOfRemainingSuboperations, progress.Remaining);
+            AddUInt16Element(ds, DicomTag.NumberOfCompletedSuboperations, progress.Completed);
+            AddUInt16Element(ds, DicomTag.NumberOfFailedSuboperations, progress.Failed);
+            AddUInt16Element(ds, DicomTag.NumberOfWarningSuboperations, progress.Warning);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates a C-CANCEL request command.
+        /// </summary>
+        /// <param name="messageIdBeingCancelled">The message ID of the operation to cancel.</param>
+        /// <returns>A new C-CANCEL request command.</returns>
+        /// <remarks>
+        /// C-CANCEL is used to request cancellation of an in-progress C-FIND, C-MOVE, or C-GET operation.
+        /// The SCP may or may not honor the cancellation request.
+        /// </remarks>
+        public static DicomCommand CreateCCancelRequest(ushort messageIdBeingCancelled)
+        {
+            var ds = new DicomDataset();
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CCancelRequest);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingCancelled);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            return new DicomCommand(ds);
+        }
+
         #endregion
 
         #region Helper Methods
@@ -307,6 +555,20 @@ namespace SharpDicom.Network.Dimse
                 bytes = System.Text.Encoding.ASCII.GetBytes(uidStr);
             }
             ds.Add(new DicomStringElement(tag, DicomVR.UI, bytes));
+        }
+
+        private static void AddAEElement(DicomDataset ds, DicomTag tag, string value)
+        {
+            // AE is 16 bytes max, space padded to even length
+            var len = value.Length;
+            if (len % 2 != 0)
+                len++;
+            var bytes = new byte[len];
+            System.Text.Encoding.ASCII.GetBytes(value, 0, value.Length, bytes, 0);
+            // Pad with space if needed
+            if (len > value.Length)
+                bytes[len - 1] = (byte)' ';
+            ds.Add(new DicomStringElement(tag, DicomVR.AE, bytes));
         }
 
         #endregion
