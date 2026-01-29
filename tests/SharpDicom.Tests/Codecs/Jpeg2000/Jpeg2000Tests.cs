@@ -1,8 +1,10 @@
 using System;
 using NUnit.Framework;
+using SharpDicom.Codecs;
 using SharpDicom.Codecs.Jpeg2000;
 using SharpDicom.Codecs.Jpeg2000.Wavelet;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
+using SharpDicom.Codecs.Jpeg2000.Tier2;
 
 namespace SharpDicom.Tests.Codecs.Jpeg2000
 {
@@ -453,6 +455,256 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         public void MqCoder_NumContexts_IsCorrect()
         {
             Assert.That(MqCoder.NumContexts, Is.EqualTo(19));
+        }
+
+        #endregion
+
+        #region EBCOT Encoder/Decoder Tests
+
+        [Test]
+        public void EbcotEncoder_EncodesSimpleCodeBlock()
+        {
+            // Simple 8x8 code-block with varying values
+            int[] coefficients = new int[64];
+            for (int i = 0; i < 64; i++)
+            {
+                coefficients[i] = (i % 8) * 10 + (i / 8);
+            }
+
+            using var encoder = new EbcotEncoder();
+            var result = encoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+
+            Assert.That(result.NumPasses, Is.GreaterThan(0));
+            Assert.That(result.Data.Length, Is.GreaterThan(0));
+            Assert.That(result.MsbPosition, Is.GreaterThanOrEqualTo(0));
+        }
+
+        [Test]
+        public void EbcotEncoder_ZeroCoefficients_ReturnsEmpty()
+        {
+            int[] coefficients = new int[64]; // All zeros
+
+            using var encoder = new EbcotEncoder();
+            var result = encoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+
+            // Empty code-block should have no passes and no data
+            Assert.That(result.NumPasses, Is.EqualTo(0));
+            Assert.That(result.Data.IsEmpty, Is.True);
+        }
+
+        [Test]
+        public void EbcotEncoder_SingleNonZeroCoefficient_ProducesValidOutput()
+        {
+            int[] coefficients = new int[64];
+            coefficients[0] = 255; // Single non-zero value
+
+            using var encoder = new EbcotEncoder();
+            var result = encoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+
+            Assert.That(result.NumPasses, Is.GreaterThan(0));
+            Assert.That(result.Data.Length, Is.GreaterThan(0));
+            Assert.That(result.MsbPosition, Is.EqualTo(7)); // MSB of 255 is bit 7
+        }
+
+        [Test]
+        public void EbcotEncoder_NegativeCoefficients_ProducesValidOutput()
+        {
+            int[] coefficients = new int[64];
+            coefficients[0] = -128;
+            coefficients[1] = 127;
+
+            using var encoder = new EbcotEncoder();
+            var result = encoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+
+            Assert.That(result.NumPasses, Is.GreaterThan(0));
+            Assert.That(result.Data.Length, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void EbcotDecoder_EmptyData_ReturnsZeroCoefficients()
+        {
+            var decoder = new EbcotDecoder();
+            int[] result = decoder.DecodeCodeBlock(
+                ReadOnlySpan<byte>.Empty,
+                numPasses: 0,
+                width: 8, height: 8,
+                msbPosition: -1,
+                subbandType: 0);
+
+            Assert.That(result.Length, Is.EqualTo(64));
+            Assert.That(result, Is.All.EqualTo(0));
+        }
+
+        #endregion
+
+        #region Tier-2 Packet Tests
+
+        [Test]
+        public void PacketEncoder_EncodesSingleCodeBlock()
+        {
+            // Create a simple code-block data
+            using var ebcotEncoder = new EbcotEncoder();
+            int[] coefficients = new int[64];
+            coefficients[0] = 100;
+            coefficients[1] = 50;
+
+            var cbData = ebcotEncoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+            var codeBlocks = new CodeBlockData[] { cbData };
+
+            var packetEncoder = new PacketEncoder();
+            var packets = packetEncoder.EncodePackets(codeBlocks, 1, 1, numLayers: 1, ProgressionOrder.LRCP);
+
+            Assert.That(packets.Length, Is.EqualTo(1));
+            Assert.That(packets[0].Data.Length, Is.GreaterThan(0));
+            Assert.That(packets[0].Layer, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void PacketEncoder_MultipleCodeBlocks_ProducesValidPacket()
+        {
+            using var ebcotEncoder = new EbcotEncoder();
+
+            var codeBlocks = new CodeBlockData[4];
+            for (int i = 0; i < 4; i++)
+            {
+                int[] coefficients = new int[64];
+                coefficients[i] = 100 + i * 10;
+                codeBlocks[i] = ebcotEncoder.EncodeCodeBlock(coefficients, 8, 8, subbandType: 0);
+            }
+
+            var packetEncoder = new PacketEncoder();
+            var packets = packetEncoder.EncodePackets(codeBlocks, 2, 2, numLayers: 1, ProgressionOrder.LRCP);
+
+            Assert.That(packets.Length, Is.EqualTo(1));
+            Assert.That(packets[0].Data.Length, Is.GreaterThan(0));
+        }
+
+        [Test]
+        public void PacketDecoder_DecodesEmptyPacket()
+        {
+            var decoder = new PacketDecoder();
+            bool[] firstInclusion = new bool[] { true };
+
+            var segments = decoder.DecodePacket(ReadOnlySpan<byte>.Empty, 1, firstInclusion);
+
+            Assert.That(segments.Length, Is.EqualTo(1));
+            Assert.That(segments[0].NumNewPasses, Is.EqualTo(0));
+        }
+
+        #endregion
+
+        #region J2kEncoder Tests
+
+        [Test]
+        public void J2kEncoder_EncodesSmallGrayscaleImage()
+        {
+            // Create a simple 8x8 grayscale image
+            byte[] pixelData = new byte[64];
+            for (int i = 0; i < 64; i++)
+            {
+                pixelData[i] = (byte)((i % 8) * 32);
+            }
+
+            var info = PixelDataInfo.Grayscale8(8, 8);
+            var encoded = J2kEncoder.EncodeFrame(pixelData, info, lossless: true);
+
+            Assert.That(encoded.Length, Is.GreaterThan(0));
+
+            // Check SOC marker (0xFF4F)
+            Assert.That(encoded.Span[0], Is.EqualTo(0xFF));
+            Assert.That(encoded.Span[1], Is.EqualTo(0x4F));
+
+            // Check EOC marker at end (0xFFD9)
+            Assert.That(encoded.Span[encoded.Length - 2], Is.EqualTo(0xFF));
+            Assert.That(encoded.Span[encoded.Length - 1], Is.EqualTo(0xD9));
+        }
+
+        [Test]
+        public void J2kEncoder_EncodesSinglePixel()
+        {
+            byte[] pixelData = new byte[] { 128 };
+            var info = PixelDataInfo.Grayscale8(1, 1);
+
+            var encoded = J2kEncoder.EncodeFrame(pixelData, info, lossless: true);
+
+            Assert.That(encoded.Length, Is.GreaterThan(0));
+            Assert.That(encoded.Span[0], Is.EqualTo(0xFF));
+            Assert.That(encoded.Span[1], Is.EqualTo(0x4F));
+        }
+
+        [Test]
+        public void J2kEncoder_16BitImage_ProducesValidCodestream()
+        {
+            // 4x4 16-bit grayscale
+            byte[] pixelData = new byte[32]; // 4x4 * 2 bytes
+            for (int i = 0; i < 16; i++)
+            {
+                ushort value = (ushort)(i * 4096);
+                pixelData[i * 2] = (byte)(value & 0xFF);
+                pixelData[i * 2 + 1] = (byte)((value >> 8) & 0xFF);
+            }
+
+            var info = PixelDataInfo.Grayscale16(4, 4);
+            var encoded = J2kEncoder.EncodeFrame(pixelData, info, lossless: true);
+
+            Assert.That(encoded.Length, Is.GreaterThan(0));
+            Assert.That(encoded.Span[0], Is.EqualTo(0xFF));
+            Assert.That(encoded.Span[1], Is.EqualTo(0x4F));
+        }
+
+        [Test]
+        public void J2kEncoder_LossyMode_ProducesValidCodestream()
+        {
+            byte[] pixelData = new byte[64];
+            for (int i = 0; i < 64; i++)
+            {
+                pixelData[i] = (byte)(i * 4);
+            }
+
+            var info = PixelDataInfo.Grayscale8(8, 8);
+            var encoded = J2kEncoder.EncodeFrame(pixelData, info, lossless: false);
+
+            Assert.That(encoded.Length, Is.GreaterThan(0));
+            Assert.That(encoded.Span[0], Is.EqualTo(0xFF));
+            Assert.That(encoded.Span[1], Is.EqualTo(0x4F));
+        }
+
+        #endregion
+
+        #region J2kDecoder Tests
+
+        [Test]
+        public void J2kDecoder_IsJpeg2000_ValidHeader_ReturnsTrue()
+        {
+            byte[] data = new byte[] { 0xFF, 0x4F, 0xFF, 0x51 };
+            Assert.That(J2kDecoder.IsJpeg2000(data), Is.True);
+        }
+
+        [Test]
+        public void J2kDecoder_IsJpeg2000_InvalidHeader_ReturnsFalse()
+        {
+            byte[] data = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }; // JPEG
+            Assert.That(J2kDecoder.IsJpeg2000(data), Is.False);
+        }
+
+        [Test]
+        public void J2kDecoder_IsJpeg2000_TooShort_ReturnsFalse()
+        {
+            byte[] data = new byte[] { 0xFF };
+            Assert.That(J2kDecoder.IsJpeg2000(data), Is.False);
+        }
+
+        [Test]
+        public void J2kDecoder_DecodeFrame_InvalidHeader_ReturnsFail()
+        {
+            byte[] badData = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+            var info = PixelDataInfo.Grayscale8(8, 8);
+            byte[] output = new byte[64];
+
+            var result = J2kDecoder.DecodeFrame(badData, info, output, frameIndex: 0);
+
+            Assert.That(result.Success, Is.False);
+            Assert.That(result.Diagnostic, Is.Not.Null);
         }
 
         #endregion
