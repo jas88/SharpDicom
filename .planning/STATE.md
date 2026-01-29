@@ -79,6 +79,7 @@
 - [x] Phase 11 Plan 07: DIMSE integration tests (roundtrip, DCMTK interop, protocol verification)
 - [x] Phase 12 Plan 01: Codec infrastructure (IImageCodec, JPEG markers, color conversion)
 - [x] Phase 12 Plan 02: DCT & Bit I/O (DctTransform, BitReader, BitWriter, JpegCodecOptions)
+- [x] Phase 12 Plan 03: JPEG Baseline codec (JpegBaselineDecoder/Encoder/Codec, DCT-based lossy 8-bit)
 - [x] Phase 12 Plan 04: JPEG Lossless codec (Predictor, LosslessHuffman, JpegLosslessDecoder/Encoder/Codec)
 
 ## In Progress
@@ -257,6 +258,7 @@
 | 2026-01-29 | 12-02 | Quality 90 for MedicalImaging preset | Balances compression with diagnostic quality preservation |
 | 2026-01-29 | 12-04 | Extended Huffman table to categories 0-16 | 16-bit samples require category 16 for worst-case differences |
 | 2026-01-29 | 12-04 | Output buffer 4 bytes/sample + 1024 overhead | Random data may not compress; each sample needs up to 32 bits |
+| 2026-01-29 | 12-03 | PSNR-based quality verification for tests | Lossy codec requires statistical quality metrics instead of bit-perfect comparison |
 
 ## Session Continuity
 
@@ -311,7 +313,7 @@ If resuming after a break:
 | FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
-| FR-11.1 (JPEG Baseline) | Phase 12 | In Progress (12-03) |
+| FR-11.1 (JPEG Baseline) | Phase 12 | Complete (12-03) |
 | FR-11.2 (JPEG Lossless) | Phase 12 | Complete (12-04) |
 | FR-11.3 (J2K Lossless) | Phase 12 | Pending |
 | FR-11.4 (J2K Lossy) | Phase 12 | Pending |
