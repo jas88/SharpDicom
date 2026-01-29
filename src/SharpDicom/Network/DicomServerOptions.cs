@@ -1,6 +1,9 @@
 using System;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
+using SharpDicom.Data;
+using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Pdu;
 
 namespace SharpDicom.Network
@@ -113,8 +116,53 @@ namespace SharpDicom.Network
         /// </remarks>
         public Func<CEchoRequestContext, ValueTask<DicomStatus>>? OnCEcho { get; init; }
 
-        // Future handlers for Phase 11:
-        // public Func<CStoreRequestContext, ValueTask<DicomStatus>>? OnCStore { get; init; }
+        #region C-STORE SCP Configuration
+
+        /// <summary>
+        /// Gets or sets the C-STORE handler mode. Default is Buffered.
+        /// </summary>
+        public CStoreHandlerMode StoreHandlerMode { get; init; } = CStoreHandlerMode.Buffered;
+
+        /// <summary>
+        /// Gets or sets the C-STORE handler for buffered mode.
+        /// </summary>
+        /// <remarks>
+        /// Set this when <see cref="StoreHandlerMode"/> is <see cref="CStoreHandlerMode.Buffered"/>.
+        /// Receives complete DicomDataset including pixel data.
+        /// </remarks>
+        public ICStoreHandler? CStoreHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the C-STORE handler for streaming mode.
+        /// </summary>
+        /// <remarks>
+        /// Set this when <see cref="StoreHandlerMode"/> is <see cref="CStoreHandlerMode.Streaming"/>.
+        /// Receives metadata first, then pixel data via stream.
+        /// </remarks>
+        public IStreamingCStoreHandler? StreamingCStoreHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the C-STORE handler as a simple delegate (buffered mode shortcut).
+        /// </summary>
+        /// <remarks>
+        /// Alternative to implementing <see cref="ICStoreHandler"/>.
+        /// If both this and <see cref="CStoreHandler"/> are set, this delegate takes precedence.
+        /// </remarks>
+        public Func<CStoreRequestContext, DicomDataset, CancellationToken, ValueTask<DicomStatus>>? OnCStoreRequest { get; init; }
+
+        /// <summary>
+        /// Gets or sets the maximum size for buffered datasets. Default is 512 MB.
+        /// </summary>
+        /// <remarks>
+        /// Datasets larger than this will be rejected with status 0xA700 (Out of Resources)
+        /// if <see cref="StoreHandlerMode"/> is <see cref="CStoreHandlerMode.Buffered"/>.
+        /// Use <see cref="CStoreHandlerMode.Streaming"/> for larger datasets.
+        /// </remarks>
+        public long MaxBufferedDatasetSize { get; init; } = 512 * 1024 * 1024;
+
+        #endregion
+
+        // Future handlers:
         // public Func<CFindRequestContext, IAsyncEnumerable<DicomDataset>>? OnCFind { get; init; }
 
         /// <summary>
@@ -152,6 +200,30 @@ namespace SharpDicom.Network
 
             if (MaxPduLength < PduConstants.MinMaxPduLength)
                 throw new ArgumentOutOfRangeException(nameof(MaxPduLength), MaxPduLength, $"MaxPduLength must be at least {PduConstants.MinMaxPduLength}.");
+
+            // C-STORE handler consistency checks
+            if (StoreHandlerMode == CStoreHandlerMode.Streaming && StreamingCStoreHandler == null)
+                throw new ArgumentException(
+                    "StreamingCStoreHandler must be set when StoreHandlerMode is Streaming.",
+                    nameof(StreamingCStoreHandler));
+
+            if (MaxBufferedDatasetSize <= 0)
+                throw new ArgumentOutOfRangeException(
+                    nameof(MaxBufferedDatasetSize),
+                    MaxBufferedDatasetSize,
+                    "MaxBufferedDatasetSize must be positive.");
         }
+
+        /// <summary>
+        /// Gets a value indicating whether a C-STORE handler is configured.
+        /// </summary>
+        /// <remarks>
+        /// Returns true if any C-STORE handler is set (delegate, interface, or streaming handler).
+        /// When false, incoming C-STORE requests will be rejected with status 0xA900 (SOP Class Not Supported).
+        /// </remarks>
+        public bool HasCStoreHandler =>
+            OnCStoreRequest != null ||
+            CStoreHandler != null ||
+            StreamingCStoreHandler != null;
     }
 }
