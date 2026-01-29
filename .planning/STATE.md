@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 11 - DIMSE Services
-**Plan**: 07 of 7 complete (Phase 11 COMPLETE)
-**Status**: Phase 11 complete
-**Last activity**: 2026-01-29 - Completed 11-07-PLAN.md (DIMSE Integration Tests)
+**Phase**: 12 - Pure C# Codecs
+**Plan**: 02 of 7 complete
+**Status**: In progress
+**Last activity**: 2026-01-29 - Completed 12-02-PLAN.md (DCT & Bit I/O)
 
-**Progress**: ███████████████████████████████ (7/7 plans in Phase 11)
+**Progress**: ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/7 plans in Phase 12)
 
-**Test Status**: 1551 tests passing, 0 failed, 19 skipped (DCMTK integration tests)
+**Test Status**: 3064 tests passing, 0 failed, 54 skipped
 
 ## Completed
 
@@ -77,10 +77,12 @@
 - [x] Phase 11 Plan 04: C-STORE SCP (ICStoreHandler, IStreamingCStoreHandler, CStoreHandlerMode, DicomServer integration)
 - [x] Phase 11 Plan 05: C-MOVE SCU (CMoveOptions, CMoveProgress, CMoveScu with IAsyncEnumerable progress)
 - [x] Phase 11 Plan 07: DIMSE integration tests (roundtrip, DCMTK interop, protocol verification)
+- [x] Phase 12 Plan 01: Codec infrastructure (IImageCodec, JPEG markers, color conversion)
+- [x] Phase 12 Plan 02: DCT & Bit I/O (DctTransform, BitReader, BitWriter, JpegCodecOptions)
 
 ## In Progress
 
-- Phase 12 - Pure C# Codecs (ready to start)
+- Phase 12 - Pure C# Codecs (2/7 plans complete)
 
 ## Blocked
 
@@ -92,7 +94,7 @@
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 12 | Pure C# Codecs | Pending | ?/? | - | - |
+| 12 | Pure C# Codecs | In progress | 2/7 | 2026-01-29 | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
@@ -248,20 +250,24 @@
 | 2026-01-29 | 11-05 | Consistent patterns across Q/R SCU services | Follow CFindScu/CGetScu patterns for API consistency |
 | 2026-01-29 | 11-05 | Validate destinationAE early | Fail fast on empty destination rather than network error |
 | 2026-01-29 | 11-07 | Protocol verification test scope | Focus on testable protocol aspects without wire capture |
+| 2026-01-29 | 12-02 | Loeffler algorithm for 1D DCT | Uses theoretical minimum operations (11 muls, 29 adds) |
+| 2026-01-29 | 12-02 | AVX2 SIMD with matrix transpose | Processes all 8 rows/columns in parallel using 256-bit vectors |
+| 2026-01-29 | 12-02 | 32-bit buffer for bit I/O | Allows reads/writes up to 25 bits at once |
+| 2026-01-29 | 12-02 | Quality 90 for MedicalImaging preset | Balances compression with diagnostic quality preservation |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-07-PLAN.md (DIMSE Integration Tests) - Phase 11 COMPLETE
+**Stopped at**: Completed 12-02-PLAN.md (DCT & Bit I/O)
 **Resume file**: None
-**Next step**: Execute Phase 12 - Pure C# Codecs
+**Next step**: Execute 12-03-PLAN.md (Huffman Tables)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 12 - Pure C# Codecs (ready to start) - Phase 11 COMPLETE
+2. **Current phase**: Phase 12 - Pure C# Codecs (2/7 complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -280,7 +286,9 @@ If resuming after a break:
    - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
    - **Phase 11 Plan 05**: C-MOVE SCU - CMoveOptions, CMoveProgress, CMoveScu with third-party destination retrieval
    - **Phase 11 Plan 07**: DIMSE integration tests - roundtrip, DCMTK interop, protocol verification (35 new tests)
-5. **Test coverage**: 1551 tests passing (19 DCMTK integration tests skipped)
+   - **Phase 12 Plan 01**: Codec infrastructure - IImageCodec, JPEG markers, color conversion
+   - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
+5. **Test coverage**: 3064 tests passing (54 skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -321,4 +329,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (Phase 11 complete - 11-07)*
+*Last updated: 2026-01-29 (Phase 12 in progress - 12-02 complete)*
