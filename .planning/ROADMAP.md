@@ -167,6 +167,19 @@ Plans:
 
 **Requirements**: FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5
 
+**Plans**: 9 plans in 5 waves
+
+Plans:
+- [ ] 13-01-PLAN.md — Zig build system, C API header, version/feature detection, CI workflow
+- [ ] 13-02-PLAN.md — libjpeg-turbo wrapper for JPEG baseline/extended (8-bit, 12-bit)
+- [ ] 13-03-PLAN.md — OpenJPEG wrapper for JPEG 2000 with resolution level and ROI decode
+- [ ] 13-04-PLAN.md — CharLS wrapper for JPEG-LS and FFmpeg wrapper for video codecs
+- [ ] 13-05-PLAN.md — GPU acceleration with nvJPEG2000 and CPU fallback
+- [ ] 13-06-PLAN.md — Managed P/Invoke layer, NativeCodecs static class, exception types
+- [ ] 13-07-PLAN.md — IPixelDataCodec implementations and CodecRegistry priority integration
+- [ ] 13-08-PLAN.md — NuGet package structure (meta + runtime packages for 6 RIDs)
+- [ ] 13-09-PLAN.md — Test suite for native codec initialization and decode/encode operations
+
 **Must-haves**:
 - [ ] SharpDicom.Codecs NuGet package (separate from core)
 - [ ] Native JPEG codec wrapping libjpeg-turbo (2-6x faster than pure C#)
@@ -181,7 +194,7 @@ Plans:
 
 **Dependencies**: Phase 12 (establishes codec interface patterns)
 
-**Research Needed**: No (P/Invoke patterns established, libjpeg-turbo/OpenJPEG well-documented)
+**Research Needed**: Yes - COMPLETE (13-RESEARCH.md)
 
 **Success Criteria**:
 - [ ] SharpDicom.Codecs package installable via NuGet
@@ -578,4 +591,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-01-28 (Phase 10 complete)*
+*Last updated: 2026-01-28 (Phase 13 planned)*
