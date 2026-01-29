@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 11 - DIMSE Services
-**Plan**: 03 of ? complete
+**Plan**: 06 of ? complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 11-03-PLAN.md (C-FIND SCU)
+**Last activity**: 2026-01-29 - Completed 11-06-PLAN.md (C-GET SCU)
 
-**Progress**: ███░░░░░░░░░░░░░░░░░░░░░░░░░░░ (3/? plans in Phase 11)
+**Progress**: ██████░░░░░░░░░░░░░░░░░░░░░░░░ (6/? plans in Phase 11)
 
-**Test Status**: 1416 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
+**Test Status**: 2908 tests passing, 0 failed, 10 skipped (DCMTK integration tests)
 
 ## Completed
 
@@ -73,10 +73,11 @@
 - [x] Phase 11 Plan 01: Common DIMSE types (QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions)
 - [x] Phase 11 Plan 02: C-STORE SCU (CStoreOptions, CStoreResponse, CStoreScu service)
 - [x] Phase 11 Plan 03: C-FIND SCU (CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable)
+- [x] Phase 11 Plan 06: C-GET SCU (CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection)
 
 ## In Progress
 
-- Phase 11 - DIMSE Services (3 of ? plans complete)
+- Phase 11 - DIMSE Services (6 of ? plans complete)
 
 ## Blocked
 
@@ -87,7 +88,7 @@
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
-| 11 | DIMSE Services | In Progress | 3/? | 2026-01-29 | - |
+| 11 | DIMSE Services | In Progress | 6/? | 2026-01-29 | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
@@ -233,20 +234,24 @@
 | 2026-01-29 | 11-03 | IAsyncEnumerable for query results | Enables streaming of results as they arrive; efficient memory usage for large result sets |
 | 2026-01-29 | 11-03 | C-CANCEL on CancellationToken | Proper DICOM protocol compliance; gracefully stops remote enumeration |
 | 2026-01-29 | 11-03 | Convenience Find SOP Class UID methods | GetPatientRootFindSopClassUid() simpler than GetPatientRootSopClassUid(CommandField) |
+| 2026-01-29 | 11-06 | CGetProgress yields on both message types | Progress updates after C-STORE sub-ops (with dataset) and C-GET-RSP (with counts) |
+| 2026-01-29 | 11-06 | PresentationContext SCP role as mutable properties | ScuRoleRequested/ScpRoleRequested enable fluent WithScpRole() without breaking constructors |
+| 2026-01-29 | 11-06 | CancellationBehavior.RejectInFlight default | Fail fast on cancel; CompleteInFlight option for data integrity |
+| 2026-01-29 | 11-06 | Store handler as async delegate | Flexible storage implementations with proper async support |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-03-PLAN.md (C-FIND SCU)
+**Stopped at**: Completed 11-06-PLAN.md (C-GET SCU)
 **Resume file**: None
-**Next step**: Execute Phase 11 Plan 04 (C-MOVE SCU)
+**Next step**: Execute Phase 11 Plan 07 or next available plan
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 11 - DIMSE Services (3/? plans complete)
+2. **Current phase**: Phase 11 - DIMSE Services (6/? plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -262,7 +267,8 @@ If resuming after a break:
    - **Phase 11 Plan 01**: Common DIMSE types - QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions, DicomClient DIMSE primitives
    - **Phase 11 Plan 02**: C-STORE SCU - CStoreOptions, CStoreResponse, CStoreScu with SendAsync overloads
    - **Phase 11 Plan 03**: C-FIND SCU - CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable results
-5. **Test coverage**: 1416 tests passing (5 DCMTK integration tests skipped)
+   - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
+5. **Test coverage**: 2908 tests passing (10 DCMTK integration tests skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -277,7 +283,7 @@ If resuming after a break:
 | FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
 | FR-10.7 (C-FIND SCU) | Phase 11 | Complete (11-03) |
 | FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
-| FR-10.9 (C-GET SCU) | Phase 11 | Pending |
+| FR-10.9 (C-GET SCU) | Phase 11 | Complete (11-06) |
 | FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
@@ -303,4 +309,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (11-03 complete)*
+*Last updated: 2026-01-29 (11-06 complete)*
