@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DICOM PS3.15 - Security and System Management Profiles
+  Stub file for de-identification profile generation.
+
+  This file contains a minimal subset of Table E.1-1 for build testing.
+  The full part15.xml should be downloaded from NEMA for complete support.
+-->
+<book xmlns="http://docbook.org/ns/docbook"
+      xmlns:xml="http://www.w3.org/XML/1998/namespace"
+      version="5.0">
+  <chapter>
+    <table xml:id="table_E.1-1">
+      <caption>Application Level Confidentiality Profile Attributes</caption>
+      <thead>
+        <tr>
+          <th>Attribute Name</th>
+          <th>Tag</th>
+          <th>Retired</th>
+          <th>In Std. Composite IOD</th>
+          <th>Basic Profile</th>
+          <th>Retain Safe Private Option</th>
+          <th>Retain UIDs Option</th>
+          <th>Retain Device Identity Option</th>
+          <th>Retain Institution Identity Option</th>
+          <th>Retain Patient Characteristics Option</th>
+          <th>Retain Long. Full Dates Option</th>
+          <th>Retain Long. Modif. Dates Option</th>
+          <th>Clean Descriptors Option</th>
+          <th>Clean Structured Content Option</th>
+          <th>Clean Graphics Option</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><para>Patient's Name</para></td>
+          <td><para>(0010,0010)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Patient ID</para></td>
+          <td><para>(0010,0020)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Patient's Birth Date</para></td>
+          <td><para>(0010,0030)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para>C</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Patient's Sex</para></td>
+          <td><para>(0010,0040)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Patient's Age</para></td>
+          <td><para>(0010,1010)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Study Instance UID</para></td>
+          <td><para>(0020,000D)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>U</para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Series Instance UID</para></td>
+          <td><para>(0020,000E)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>U</para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>SOP Instance UID</para></td>
+          <td><para>(0008,0018)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>U</para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Study Date</para></td>
+          <td><para>(0008,0020)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para>C</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Study Time</para></td>
+          <td><para>(0008,0030)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para>C</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Accession Number</para></td>
+          <td><para>(0008,0050)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Institution Name</para></td>
+          <td><para>(0008,0080)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X/Z/D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Institution Address</para></td>
+          <td><para>(0008,0081)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Referring Physician's Name</para></td>
+          <td><para>(0008,0090)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>Z</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Station Name</para></td>
+          <td><para>(0008,1010)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X/Z/D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Study Description</para></td>
+          <td><para>(0008,1030)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>C</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Series Description</para></td>
+          <td><para>(0008,103E)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>C</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Performing Physician's Name</para></td>
+          <td><para>(0008,1050)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Operators' Name</para></td>
+          <td><para>(0008,1070)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X/Z/D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Manufacturer</para></td>
+          <td><para>(0008,0070)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X/Z/D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Modality</para></td>
+          <td><para>(0008,0060)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>SOP Class UID</para></td>
+          <td><para>(0008,0016)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>K</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>Burned In Annotation</para></td>
+          <td><para>(0028,0301)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>X/D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para>C</para></td>
+        </tr>
+        <tr>
+          <td><para>Patient Identity Removed</para></td>
+          <td><para>(0012,0062)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>De-identification Method</para></td>
+          <td><para>(0012,0063)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+        <tr>
+          <td><para>De-identification Method Code Sequence</para></td>
+          <td><para>(0012,0064)</para></td>
+          <td><para>N</para></td>
+          <td><para>Y</para></td>
+          <td><para>D</para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+          <td><para></para></td>
+        </tr>
+      </tbody>
+    </table>
+  </chapter>
+</book>
