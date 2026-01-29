@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 11 - DIMSE Services
-**Plan**: 01 of ? complete
+**Plan**: 02 of ? complete
 **Status**: In progress
-**Last activity**: 2026-01-29 - Completed 11-01-PLAN.md (Common DIMSE Types)
+**Last activity**: 2026-01-29 - Completed 11-02-PLAN.md (C-STORE SCU)
 
-**Progress**: █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/? plans in Phase 11)
+**Progress**: ██░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/? plans in Phase 11)
 
-**Test Status**: 1402 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
+**Test Status**: 1380 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
 
 ## Completed
 
@@ -71,10 +71,11 @@
 - [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
 - [x] Phase 10 Plan 07: Integration tests (CEchoTests, CEchoIntegrationTests, state machine bug fixes)
 - [x] Phase 11 Plan 01: Common DIMSE types (QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions)
+- [x] Phase 11 Plan 02: C-STORE SCU (CStoreOptions, CStoreResponse, CStoreScu service)
 
 ## In Progress
 
-- Phase 11 - DIMSE Services (1 of ? plans complete)
+- Phase 11 - DIMSE Services (2 of ? plans complete)
 
 ## Blocked
 
@@ -85,7 +86,7 @@
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
-| 11 | DIMSE Services | In Progress | 1/? | 2026-01-29 | - |
+| 11 | DIMSE Services | In Progress | 2/? | 2026-01-29 | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
@@ -223,20 +224,24 @@
 | 2026-01-29 | 11-01 | Extension methods for QueryRetrieveLevel | Enums cannot have methods; extensions provide fluent API |
 | 2026-01-29 | 11-01 | Internal visibility for DicomClient DIMSE primitives | SCU services in same assembly; public API is service classes |
 | 2026-01-29 | 11-01 | Existing well-known tags verified | All required command tags already present from Phase 10 |
+| 2026-01-29 | 11-02 | Removed incomplete pre-existing files | DicomQuery.cs, CFindOptions.cs, CFindScuTests.cs blocked build |
+| 2026-01-29 | 11-02 | CStoreOptions uses object initializer | Consistent with DicomClientOptions pattern |
+| 2026-01-29 | 11-02 | SendAsync(Stream) loads full file | True streaming optimization deferred |
+| 2026-01-29 | 11-02 | Retry only on 0xA7xx Out of Resources | Permanent failures returned immediately |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-01-PLAN.md (Common DIMSE Types)
+**Stopped at**: Completed 11-02-PLAN.md (C-STORE SCU)
 **Resume file**: None
-**Next step**: Execute Phase 11 Plan 02 (or create Phase 11 plans if not yet planned)
+**Next step**: Execute Phase 11 Plan 03 (C-FIND SCU)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 11 - DIMSE Services (1/? plans complete)
+2. **Current phase**: Phase 11 - DIMSE Services (2/? plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -250,7 +255,8 @@ If resuming after a break:
 4. **v2.0.0 progress**:
    - **Phase 10**: Network Foundation complete (7/7 plans) - PDU parsing, association, C-ECHO SCU/SCP
    - **Phase 11 Plan 01**: Common DIMSE types - QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions, DicomClient DIMSE primitives
-5. **Test coverage**: 1402 tests passing (5 DCMTK integration tests skipped)
+   - **Phase 11 Plan 02**: C-STORE SCU - CStoreOptions, CStoreResponse, CStoreScu with SendAsync overloads
+5. **Test coverage**: 1380 tests passing (5 DCMTK integration tests skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -261,7 +267,7 @@ If resuming after a break:
 | FR-10.2 (Association negotiation) | Phase 10 | Complete (10-04) |
 | FR-10.3 (C-ECHO SCU) | Phase 10 | Complete (10-05) |
 | FR-10.4 (C-ECHO SCP) | Phase 10 | Complete (10-06) |
-| FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
+| FR-10.5 (C-STORE SCU) | Phase 11 | Complete (11-02) |
 | FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
 | FR-10.7 (C-FIND SCU) | Phase 11 | Pending |
 | FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
@@ -291,4 +297,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29*
+*Last updated: 2026-01-29 (11-02 complete)*
