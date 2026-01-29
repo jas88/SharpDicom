@@ -171,5 +171,43 @@ namespace SharpDicom.Network.Dimse
         /// </remarks>
         public static DicomUID GetStudyRootFindSopClassUid(this QueryRetrieveLevel level)
             => DicomUID.StudyRootQueryRetrieveFind;
+
+        /// <summary>
+        /// Gets the Patient Root C-MOVE SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Patient Root Query/Retrieve Move SOP Class UID.</returns>
+        public static DicomUID GetPatientRootMoveSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.PatientRootQueryRetrieveMove;
+
+        /// <summary>
+        /// Gets the Study Root C-MOVE SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Study Root Query/Retrieve Move SOP Class UID.</returns>
+        /// <remarks>
+        /// Note: Study Root does not support Patient level operations.
+        /// </remarks>
+        public static DicomUID GetStudyRootMoveSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.StudyRootQueryRetrieveMove;
+
+        /// <summary>
+        /// Gets the Patient Root C-GET SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Patient Root Query/Retrieve Get SOP Class UID.</returns>
+        public static DicomUID GetPatientRootGetSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.PatientRootQueryRetrieveGet;
+
+        /// <summary>
+        /// Gets the Study Root C-GET SOP Class UID.
+        /// </summary>
+        /// <param name="level">The query/retrieve level (not used, provided for API consistency).</param>
+        /// <returns>The Study Root Query/Retrieve Get SOP Class UID.</returns>
+        /// <remarks>
+        /// Note: Study Root does not support Patient level operations.
+        /// </remarks>
+        public static DicomUID GetStudyRootGetSopClassUid(this QueryRetrieveLevel level)
+            => DicomUID.StudyRootQueryRetrieveGet;
     }
 }
