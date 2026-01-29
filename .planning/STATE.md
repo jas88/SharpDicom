@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 10 - Network Foundation
-**Plan**: 07 of 7 complete
-**Status**: Phase 10 COMPLETE
-**Last activity**: 2026-01-28 - Completed 10-07-PLAN.md (Integration Tests)
+**Phase**: 11 - DIMSE Services
+**Plan**: 01 of ? complete
+**Status**: In progress
+**Last activity**: 2026-01-29 - Completed 11-01-PLAN.md (Common DIMSE Types)
 
-**Progress**: ██████████████████████████████ (7/7 plans in Phase 10 - COMPLETE)
+**Progress**: █░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/? plans in Phase 11)
 
-**Test Status**: 2460 tests passing, 0 failed, 0 skipped (10 DCMTK integration tests skipped)
+**Test Status**: 1402 tests passing, 0 failed, 5 skipped (DCMTK integration tests)
 
 ## Completed
 
@@ -26,6 +26,7 @@
 - [x] v2.0.0 Requirements defined (REQUIREMENTS.md updated)
 - [x] v2.0.0 Roadmap created (Phases 10-14)
 - [x] Phase 10 plans created (7 plans)
+- [x] Phase 10 complete (7/7 plans)
 
 ### v1.0.0 Plans (Complete)
 
@@ -69,10 +70,11 @@
 - [x] Phase 10 Plan 05: DicomClient SCU with C-ECHO (CommandField, DicomCommand, DicomClient)
 - [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
 - [x] Phase 10 Plan 07: Integration tests (CEchoTests, CEchoIntegrationTests, state machine bug fixes)
+- [x] Phase 11 Plan 01: Common DIMSE types (QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions)
 
 ## In Progress
 
-- Phase 11 - DIMSE Services (planning needed)
+- Phase 11 - DIMSE Services (1 of ? plans complete)
 
 ## Blocked
 
@@ -83,7 +85,7 @@
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
-| 11 | DIMSE Services | Pending | ?/? | - | - |
+| 11 | DIMSE Services | In Progress | 1/? | 2026-01-29 | - |
 | 12 | Pure C# Codecs | Pending | ?/? | - | - |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
@@ -217,20 +219,24 @@
 | 2026-01-28 | 10-07 | Fix DicomClient state machine | Add AAssociateRequest before TransportConnectionConfirm per PS3.8 |
 | 2026-01-28 | 10-07 | Fix DicomServer AssociationOptions timing | Read A-ASSOCIATE-RQ before creating AssociationOptions |
 | 2026-01-28 | 10-07 | Integration test isolation | Use [Explicit] + [Category("Integration")] for DCMTK tests |
+| 2026-01-29 | 11-01 | Readonly record struct for progress types | Value semantics, immutable, zero-allocation for high-frequency reporting |
+| 2026-01-29 | 11-01 | Extension methods for QueryRetrieveLevel | Enums cannot have methods; extensions provide fluent API |
+| 2026-01-29 | 11-01 | Internal visibility for DicomClient DIMSE primitives | SCU services in same assembly; public API is service classes |
+| 2026-01-29 | 11-01 | Existing well-known tags verified | All required command tags already present from Phase 10 |
 
 ## Session Continuity
 
-**Last session**: 2026-01-28
-**Stopped at**: Completed 10-07-PLAN.md (Integration Tests) - Phase 10 Complete
+**Last session**: 2026-01-29
+**Stopped at**: Completed 11-01-PLAN.md (Common DIMSE Types)
 **Resume file**: None
-**Next step**: Plan Phase 11 (DIMSE Services)
+**Next step**: Execute Phase 11 Plan 02 (or create Phase 11 plans if not yet planned)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 10 - Network Foundation (7/7 plans complete - PHASE COMPLETE)
+2. **Current phase**: Phase 11 - DIMSE Services (1/? plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -242,14 +248,9 @@ If resuming after a break:
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
 4. **v2.0.0 progress**:
-   - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions
-   - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
-   - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
-   - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
-   - **Phase 10 Plan 05**: DicomClient SCU - CommandField, DicomCommand, DicomClient with CEchoAsync
-   - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
-   - **Phase 10 Plan 07**: Integration tests - CEchoTests (11 roundtrip tests), CEchoIntegrationTests (DCMTK)
-5. **Test coverage**: 2460 tests passing (10 DCMTK integration tests skipped)
+   - **Phase 10**: Network Foundation complete (7/7 plans) - PDU parsing, association, C-ECHO SCU/SCP
+   - **Phase 11 Plan 01**: Common DIMSE types - QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions, DicomClient DIMSE primitives
+5. **Test coverage**: 1402 tests passing (5 DCMTK integration tests skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -290,4 +291,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-28*
+*Last updated: 2026-01-29*
