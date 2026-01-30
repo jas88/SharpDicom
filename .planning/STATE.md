@@ -2,25 +2,33 @@
 
 ## Current Status
 
-**Milestone**: v1.0.0 - Core DICOM Toolkit
-**Phase**: 9 of 9 (RLE Codec)
-**Plan**: 2 of 2 COMPLETE
-**Status**: ALL PHASES COMPLETE
-**Last activity**: 2026-01-27 - Milestone complete
+**Milestone**: v2.0.0 - Network, Codecs & De-identification
+**Phase**: 10 - Network Foundation
+**Plan**: 07 of 7 complete
+**Status**: Phase 10 COMPLETE
+**Last activity**: 2026-01-28 - Completed 10-07-PLAN.md (Integration Tests)
 
-**Progress**: ██████████████████████████████ (30/30 plans complete, 100% of roadmap)
+**Progress**: ██████████████████████████████ (7/7 plans in Phase 10 - COMPLETE)
 
-**Test Status**: 2070 tests passing, 0 failed, 0 skipped
+**Test Status**: 2460 tests passing, 0 failed, 10 skipped (DCMTK integration tests)
 
 ## Completed
 
 - [x] Project initialization
 - [x] PROJECT.md created
 - [x] GSD workflow configured (YOLO mode)
-- [x] Research completed (Stack, Features, Architecture, Pitfalls)
-- [x] Research synthesized (SUMMARY.md)
-- [x] Requirements defined (REQUIREMENTS.md)
-- [x] Roadmap created (ROADMAP.md)
+- [x] v1.0.0 Research completed (Stack, Features, Architecture, Pitfalls)
+- [x] v1.0.0 Research synthesized (SUMMARY.md)
+- [x] v1.0.0 Requirements defined (REQUIREMENTS.md)
+- [x] v1.0.0 Roadmap created (ROADMAP.md)
+- [x] v1.0.0 ALL 9 PHASES COMPLETE (30/30 plans executed)
+- [x] v2.0.0 Research completed (SUMMARY.md updated)
+- [x] v2.0.0 Requirements defined (REQUIREMENTS.md updated)
+- [x] v2.0.0 Roadmap created (Phases 10-14)
+- [x] Phase 10 plans created (7 plans)
+
+### v1.0.0 Plans (Complete)
+
 - [x] Phase 1 Plan 01: Core primitive types (DicomTag, DicomVR, DicomVRInfo, DicomMaskedTag, ValueMultiplicity)
 - [x] Phase 1 Plan 02: Source generator infrastructure and NEMA XML cache
 - [x] Phase 1 Plan 03: DicomUID and TransferSyntax types
@@ -52,27 +60,47 @@
 - [x] Phase 9 Plan 02: RLE codec with PackBits compression, SIMD optimization, MSB-first interleaving
 - [x] Phase 7 Plan 03: Sequence length handling, sequence writing, roundtrip integration tests
 
+### v2.0.0 Plans (In Progress)
+
+- [x] Phase 10 Plan 01: PDU types and constants
+- [x] Phase 10 Plan 02: PDU sub-items (PresentationContext, UserInformation, AssociationOptions)
+- [x] Phase 10 Plan 03: PDU parsing (PduReader, PduWriter ref structs)
+- [x] Phase 10 Plan 04: Association state machine (13 states, DicomAssociation)
+- [x] Phase 10 Plan 05: DicomClient SCU with C-ECHO (CommandField, DicomCommand, DicomClient)
+- [x] Phase 10 Plan 06: DicomServer C-ECHO SCP (DicomServer, DicomServerOptions, handlers)
+- [x] Phase 10 Plan 07: Integration tests (CEchoTests, CEchoIntegrationTests, state machine bug fixes)
+
 ## In Progress
 
-*None - ALL PHASES COMPLETE*
+- Phase 11 - DIMSE Services (planning needed)
 
 ## Blocked
 
 *None*
 
-## Phase Progress
+## v2.0.0 Phase Progress
 
-| Phase | Status | Plans | Started | Completed |
-|-------|--------|-------|---------|-----------|
-| 1. Core Data Model & Dictionary | COMPLETE | 7/7 | 2026-01-27 | 2026-01-26 |
-| 2. Basic File Reading | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
-| 3. Implicit VR & Sequences | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
-| 4. Character Encoding | COMPLETE | 2/2 | 2026-01-26 | 2026-01-27 |
-| 5. Pixel Data & Lazy Loading | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 6. Private Tags | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
-| 7. File Writing | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 8. Validation & Strictness | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
-| 9. RLE Codec | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
+| Phase | Name | Status | Plans | Started | Completed |
+|-------|------|--------|-------|---------|-----------|
+| 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
+| 11 | DIMSE Services | Pending | ?/? | - | - |
+| 12 | Pure C# Codecs | Pending | ?/? | - | - |
+| 13 | Native Codecs Package | Pending | ?/? | - | - |
+| 14 | De-identification | Pending | ?/? | - | - |
+
+## v1.0.0 Phase Progress (Complete)
+
+| Phase | Name | Status | Plans | Started | Completed |
+|-------|------|--------|-------|---------|-----------|
+| 1 | Core Data Model & Dictionary | COMPLETE | 7/7 | 2026-01-27 | 2026-01-26 |
+| 2 | Basic File Reading | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
+| 3 | Implicit VR & Sequences | COMPLETE | 4/4 | 2026-01-27 | 2026-01-27 |
+| 4 | Character Encoding | COMPLETE | 2/2 | 2026-01-26 | 2026-01-27 |
+| 5 | Pixel Data & Lazy Loading | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 6 | Private Tags | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
+| 7 | File Writing | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 8 | Validation & Strictness | COMPLETE | 3/3 | 2026-01-27 | 2026-01-27 |
+| 9 | RLE Codec | COMPLETE | 2/2 | 2026-01-27 | 2026-01-27 |
 
 ## Key Decisions Log
 
@@ -163,20 +191,47 @@
 | 2026-01-27 | 07-03 | Two-pass length calculation | SequenceLengthCalculator computes lengths recursively |
 | 2026-01-27 | 07-03 | Overflow protection for defined length | Return UndefinedLength (0xFFFFFFFF) on overflow, fall back to delimiter mode |
 | 2026-01-27 | 07-03 | Skip undefined-length roundtrip tests | Pre-existing reader bug in FindSequenceDelimiter, writer is correct |
+| 2026-01-28 | 10-02 | PresentationContext ID validation | Must be odd integer 1-255 per DICOM PS3.8 |
+| 2026-01-28 | 10-02 | UserInformation.Default uses fixed UID | 2.25.{uuid} for consistent implementation identification |
+| 2026-01-28 | 10-02 | PresentationDataValue as struct | Zero-allocation for high-throughput P-DATA handling |
+| 2026-01-28 | 10-02 | AE title validation | 1-16 ASCII printable chars, no leading/trailing spaces |
+| 2026-01-28 | 10-01 | RejectReason single enum with multi-source interpretation | Overlapping PS3.8 values handled via documentation |
+| 2026-01-28 | 10-01 | DicomStatus equality by code only | ErrorComment is informational, not identity |
+| 2026-01-28 | 10-01 | Exception Source property renamed | AbortSource/RejectSource avoid hiding Exception.Source |
+| 2026-01-28 | 10-03 | PduReader as ref struct | Zero-copy PDU parsing following DicomStreamReader pattern |
+| 2026-01-28 | 10-03 | PduWriter as ref struct | Efficient PDU building with IBufferWriter<byte> pattern |
+| 2026-01-28 | 10-03 | TryRead returns false on insufficient data | TCP fragmentation handling without exceptions |
+| 2026-01-28 | 10-03 | Big-Endian for all PDU lengths | DICOM PS3.8 requirement for network byte order |
+| 2026-01-28 | 10-04 | 13 states with Sta1-Sta13 numbering | Match PS3.8 Section 9.2 for cross-reference |
+| 2026-01-28 | 10-04 | Event-based ARTIM timer | Timer start/stop via events, caller integrates |
+| 2026-01-28 | 10-04 | Switch expression for state table | (current, event) => (next, action) pattern |
+| 2026-01-28 | 10-04 | Release collision states Sta9-Sta12 | Full edge case handling for simultaneous release |
+| 2026-01-28 | 10-06 | ArrayBufferWriter polyfill | netstandard2.0 compatibility for PDU building |
+| 2026-01-28 | 10-06 | Inline C-ECHO parsing | Avoid dependency on full DIMSE infrastructure |
+| 2026-01-28 | 10-06 | Task-per-association model | SemaphoreSlim for MaxAssociations throttling |
+| 2026-01-28 | 10-06 | ARTIM timer via CancelAfter | Linked CTS for association timeout enforcement |
+| 2026-01-28 | 10-05 | Commands always Implicit VR Little Endian | DICOM PS3.7 requires command elements to use Implicit VR |
+| 2026-01-28 | 10-05 | Static VR lookup for command elements | Group 0000 elements have fixed VRs per PS3.7 |
+| 2026-01-28 | 10-05 | BufferWriter type alias pattern | ArrayBufferWriter polyfill for netstandard2.0 |
+| 2026-01-28 | 10-05 | IDicomElement for dataset iteration | DicomDataset implements IEnumerable<IDicomElement> |
+| 2026-01-28 | 10-07 | Fix DicomClient state machine | Add AAssociateRequest before TransportConnectionConfirm per PS3.8 |
+| 2026-01-28 | 10-07 | Fix DicomServer AssociationOptions timing | Read A-ASSOCIATE-RQ before creating AssociationOptions |
+| 2026-01-28 | 10-07 | Integration test isolation | Use [Explicit] + [Category("Integration")] for DCMTK tests |
 
 ## Session Continuity
 
-**Last session**: 2026-01-27
-**Stopped at**: v1.0.0 milestone complete - 30/30 plans executed, 2070 tests passing
+**Last session**: 2026-01-28
+**Stopped at**: Completed 10-07-PLAN.md (Integration Tests) - Phase 10 Complete
 **Resume file**: None
-**Next plan**: None - v1.0.0 complete, future work in Potential Future Work section
+**Next step**: Plan Phase 11 (DIMSE Services)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: ALL 9 PHASES COMPLETE
-2. **Project accomplishments**:
+1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
+2. **Current phase**: Phase 10 - Network Foundation (7/7 plans complete - PHASE COMPLETE)
+3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
    - **Phase 3**: Implicit VR and sequence parsing with depth guards
@@ -186,16 +241,53 @@ If resuming after a break:
    - **Phase 7**: File writing with sequence support (both length modes)
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
-3. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
-4. **Known issues**: None
+4. **v2.0.0 progress**:
+   - **Phase 10 Plan 01**: Network types foundation - PDU types, status codes, exceptions
+   - **Phase 10 Plan 02**: PDU sub-items - PresentationContext, UserInformation, PresentationDataValue
+   - **Phase 10 Plan 03**: PDU parsing - PduReader and PduWriter ref structs
+   - **Phase 10 Plan 04**: Association state machine - 13 states, DicomAssociation, ARTIM events
+   - **Phase 10 Plan 05**: DicomClient SCU - CommandField, DicomCommand, DicomClient with CEchoAsync
+   - **Phase 10 Plan 06**: DicomServer C-ECHO SCP - task-per-association, ARTIM timer, handlers
+   - **Phase 10 Plan 07**: Integration tests - CEchoTests (11 roundtrip tests), CEchoIntegrationTests (DCMTK)
+5. **Test coverage**: 2460 tests passing (10 DCMTK integration tests skipped)
+6. **Known issues**: None
 
-## Potential Future Work
+## v2.0.0 Requirements Coverage
 
-- Manual DCMTK validation of written files
-- Performance benchmarking vs fo-dicom
-- Additional codec implementations (JPEG, JPEG 2000, JPEG-LS)
-- DIMSE network services (C-ECHO, C-STORE, C-FIND, C-MOVE)
-- De-identification using PS3.15 confidentiality profiles
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FR-10.1 (PDU parsing) | Phase 10 | Complete (10-03) |
+| FR-10.2 (Association negotiation) | Phase 10 | Complete (10-04) |
+| FR-10.3 (C-ECHO SCU) | Phase 10 | Complete (10-05) |
+| FR-10.4 (C-ECHO SCP) | Phase 10 | Complete (10-06) |
+| FR-10.5 (C-STORE SCU) | Phase 11 | Pending |
+| FR-10.6 (C-STORE SCP streaming) | Phase 11 | Pending |
+| FR-10.7 (C-FIND SCU) | Phase 11 | Pending |
+| FR-10.8 (C-MOVE SCU) | Phase 11 | Pending |
+| FR-10.9 (C-GET SCU) | Phase 11 | Pending |
+| FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
+| FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
+| FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
+| FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
+| FR-11.2 (JPEG Lossless) | Phase 12 | Pending |
+| FR-11.3 (J2K Lossless) | Phase 12 | Pending |
+| FR-11.4 (J2K Lossy) | Phase 12 | Pending |
+| FR-11.5 (Pure C#) | Phase 12 | Pending |
+| FR-11.6 (Trim/AOT) | Phase 12 | Pending |
+| FR-11.7 (IPixelDataCodec) | Phase 12 | Pending |
+| FR-12.1 (SharpDicom.Codecs) | Phase 13 | Pending |
+| FR-12.2 (libjpeg-turbo) | Phase 13 | Pending |
+| FR-12.3 (OpenJPEG) | Phase 13 | Pending |
+| FR-12.4 (Override registration) | Phase 13 | Pending |
+| FR-12.5 (Cross-platform) | Phase 13 | Pending |
+| FR-13.1 (PS3.15 Basic) | Phase 14 | Pending |
+| FR-13.2 (Source-generated) | Phase 14 | Pending |
+| FR-13.3 (UID remapping) | Phase 14 | Pending |
+| FR-13.4 (Date shifting) | Phase 14 | Pending |
+| FR-13.5 (Callback integration) | Phase 14 | Pending |
+| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending |
+
+**Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-27*
+*Last updated: 2026-01-28*

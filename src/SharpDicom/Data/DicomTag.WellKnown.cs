@@ -5,6 +5,107 @@ namespace SharpDicom.Data
     /// </summary>
     public readonly partial struct DicomTag
     {
+        // Command tags (Group 0000) - DIMSE per PS3.7
+
+        /// <summary>(0000,0000) Command Group Length</summary>
+        /// <remarks>UL VR. Total length of the Command Group.</remarks>
+        public static readonly DicomTag CommandGroupLength = new(0x0000, 0x0000);
+
+        /// <summary>(0000,0002) Affected SOP Class UID</summary>
+        /// <remarks>UI VR. SOP Class UID of the affected SOP Instance.</remarks>
+        public static readonly DicomTag AffectedSOPClassUID = new(0x0000, 0x0002);
+
+        /// <summary>(0000,0003) Requested SOP Class UID</summary>
+        /// <remarks>UI VR. Used in N-CREATE operations.</remarks>
+        public static readonly DicomTag RequestedSOPClassUID = new(0x0000, 0x0003);
+
+        /// <summary>(0000,0100) Command Field</summary>
+        /// <remarks>US VR. Identifies the DIMSE command type (C-STORE, C-FIND, etc.).</remarks>
+        public static readonly DicomTag CommandField = new(0x0000, 0x0100);
+
+        /// <summary>(0000,0110) Message ID</summary>
+        /// <remarks>US VR. Unique identifier for the message.</remarks>
+        public static readonly DicomTag MessageID = new(0x0000, 0x0110);
+
+        /// <summary>(0000,0120) Message ID Being Responded To</summary>
+        /// <remarks>US VR. Message ID of the request this response corresponds to.</remarks>
+        public static readonly DicomTag MessageIDBeingRespondedTo = new(0x0000, 0x0120);
+
+        /// <summary>(0000,0600) Move Destination</summary>
+        /// <remarks>AE VR. Destination AE for C-MOVE operations.</remarks>
+        public static readonly DicomTag MoveDestination = new(0x0000, 0x0600);
+
+        /// <summary>(0000,0700) Priority</summary>
+        /// <remarks>US VR. Priority of the operation (LOW=2, MEDIUM=0, HIGH=1).</remarks>
+        public static readonly DicomTag Priority = new(0x0000, 0x0700);
+
+        /// <summary>(0000,0800) Command Data Set Type</summary>
+        /// <remarks>
+        /// US VR. Indicates presence of Data Set.
+        /// 0x0101 = No Data Set present, any other value = Data Set present.
+        /// </remarks>
+        public static readonly DicomTag CommandDataSetType = new(0x0000, 0x0800);
+
+        /// <summary>(0000,0900) Status</summary>
+        /// <remarks>US VR. Response status code.</remarks>
+        public static readonly DicomTag Status = new(0x0000, 0x0900);
+
+        /// <summary>(0000,0901) Offending Element</summary>
+        /// <remarks>AT VR. Tag of the element causing an error.</remarks>
+        public static readonly DicomTag OffendingElement = new(0x0000, 0x0901);
+
+        /// <summary>(0000,0902) Error Comment</summary>
+        /// <remarks>LO VR. Additional description of the error.</remarks>
+        public static readonly DicomTag ErrorComment = new(0x0000, 0x0902);
+
+        /// <summary>(0000,0903) Error ID</summary>
+        /// <remarks>US VR. Implementation-specific error code.</remarks>
+        public static readonly DicomTag ErrorID = new(0x0000, 0x0903);
+
+        /// <summary>(0000,1000) Affected SOP Instance UID</summary>
+        /// <remarks>UI VR. SOP Instance UID of the affected object.</remarks>
+        public static readonly DicomTag AffectedSOPInstanceUID = new(0x0000, 0x1000);
+
+        /// <summary>(0000,1001) Requested SOP Instance UID</summary>
+        /// <remarks>UI VR. Used in N-CREATE operations.</remarks>
+        public static readonly DicomTag RequestedSOPInstanceUID = new(0x0000, 0x1001);
+
+        /// <summary>(0000,1002) Event Type ID</summary>
+        /// <remarks>US VR. Used in N-EVENT-REPORT operations.</remarks>
+        public static readonly DicomTag EventTypeID = new(0x0000, 0x1002);
+
+        /// <summary>(0000,1005) Attribute Identifier List</summary>
+        /// <remarks>AT VR. Used in N-GET operations.</remarks>
+        public static readonly DicomTag AttributeIdentifierList = new(0x0000, 0x1005);
+
+        /// <summary>(0000,1008) Action Type ID</summary>
+        /// <remarks>US VR. Used in N-ACTION operations.</remarks>
+        public static readonly DicomTag ActionTypeID = new(0x0000, 0x1008);
+
+        /// <summary>(0000,1020) Number of Remaining Sub-operations</summary>
+        /// <remarks>US VR. Used in C-MOVE/C-GET responses.</remarks>
+        public static readonly DicomTag NumberOfRemainingSuboperations = new(0x0000, 0x1020);
+
+        /// <summary>(0000,1021) Number of Completed Sub-operations</summary>
+        /// <remarks>US VR. Used in C-MOVE/C-GET responses.</remarks>
+        public static readonly DicomTag NumberOfCompletedSuboperations = new(0x0000, 0x1021);
+
+        /// <summary>(0000,1022) Number of Failed Sub-operations</summary>
+        /// <remarks>US VR. Used in C-MOVE/C-GET responses.</remarks>
+        public static readonly DicomTag NumberOfFailedSuboperations = new(0x0000, 0x1022);
+
+        /// <summary>(0000,1023) Number of Warning Sub-operations</summary>
+        /// <remarks>US VR. Used in C-MOVE/C-GET responses.</remarks>
+        public static readonly DicomTag NumberOfWarningSuboperations = new(0x0000, 0x1023);
+
+        /// <summary>(0000,1030) Move Originator Application Entity Title</summary>
+        /// <remarks>AE VR. AE that initiated the C-MOVE.</remarks>
+        public static readonly DicomTag MoveOriginatorApplicationEntityTitle = new(0x0000, 0x1030);
+
+        /// <summary>(0000,1031) Move Originator Message ID</summary>
+        /// <remarks>US VR. Message ID from the C-MOVE request.</remarks>
+        public static readonly DicomTag MoveOriginatorMessageID = new(0x0000, 0x1031);
+
         // File Meta Information tags (Group 0002)
 
         /// <summary>(0002,0000) File Meta Information Group Length</summary>
