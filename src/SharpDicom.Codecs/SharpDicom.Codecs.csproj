@@ -18,6 +18,7 @@
     <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <!-- AOT/Trim compatibility -->
     <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
@@ -46,5 +47,23 @@
   <ItemGroup>
     <None Include="build\**\*" Pack="true" PackagePath="build" Condition="Exists('build')" />
     <None Include="buildTransitive\**\*" Pack="true" PackagePath="buildTransitive" Condition="Exists('buildTransitive')" />
+  </ItemGroup>
+
+  <!-- Include README in package -->
+  <ItemGroup>
+    <None Include="..\..\nuget\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\nuget\README.md')" />
+  </ItemGroup>
+
+  <!--
+    Runtime package references: NuGet selects the correct one based on RuntimeIdentifier.
+    These packages contain the platform-specific native libraries.
+  -->
+  <ItemGroup>
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-arm64'" PrivateAssets="none" />
   </ItemGroup>
 </Project>
