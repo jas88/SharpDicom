@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 6 of 6 complete
-**Status**: Phase complete
-**Last activity**: 2026-01-30 - Completed 14-06 JSON configuration
+**Plan**: 7 of 8 complete
+**Status**: In progress
+**Last activity**: 2026-01-29 - Completed 14-07 Pixel Data Redaction
 
-**Progress**: ████████████████████████████████████████ (6/6 plans in Phase 14)
+**Progress**: ████████████████████████████████████░░░░ (7/8 plans in Phase 14)
 
 **Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
 
@@ -90,6 +90,7 @@
 - [x] Phase 14 Plan 04: Date shifting module (DateShifter, DateShiftConfig, IDateOffsetStore, DateShiftResult)
 - [x] Phase 14 Plan 05: DicomDeidentifier main class (DicomDeidentifierBuilder, DicomDeidentifier, streaming integration)
 - [x] Phase 14 Plan 06: JSON configuration (DeidentificationConfig, DeidentificationConfigLoader, presets)
+- [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
 
 ## In Progress
 
@@ -107,7 +108,7 @@
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | COMPLETE | 6/6 | 2026-01-29 | 2026-01-30 |
+| 14 | De-identification | IN PROGRESS | 7/8 | 2026-01-29 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -313,13 +314,16 @@
 | 2026-01-30 | 14-06 | System.Text.Json for config | Built-in, AOT-friendly with RequiresUnreferencedCode attributes |
 | 2026-01-30 | 14-06 | $extends inheritance pattern | Config composition via preset name or file path resolution |
 | 2026-01-30 | 14-06 | Built-in presets (4) | basic-profile, research, clinical-trial, teaching for common use cases |
+| 2026-01-29 | 14-07 | Static PixelDataRedactor API | No instance state needed; simpler API |
+| 2026-01-29 | 14-07 | Modality risk categorization | High (US, ES, SC), Moderate (XA, MG), Low (CT, MR) for burned-in annotation assessment |
+| 2026-01-29 | 14-07 | Region-based redaction | Rectangular regions with optional frame-specific targeting |
 
 ## Session Continuity
 
-**Last session**: 2026-01-30
-**Stopped at**: Phase 14-06 complete
+**Last session**: 2026-01-29
+**Stopped at**: Phase 14-07 complete
 **Resume file**: None
-**Next step**: Phase 14 complete - all de-identification plans done
+**Next step**: Execute 14-08 (Integration and Documentation)
 
 ## Context for Next Session
 
