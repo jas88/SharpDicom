@@ -508,16 +508,10 @@ namespace SharpDicom.Network
                     : DicomVR.UN;
                 var valueData = data.AsSpan(offset, (int)vl).ToArray();
 
-                IDicomElement dicomElement;
                 var vrInfo = DicomVRInfo.GetInfo(vr);
-                if (vrInfo.IsStringVR)
-                {
-                    dicomElement = new DicomStringElement(tag, vr, valueData);
-                }
-                else
-                {
-                    dicomElement = new DicomNumericElement(tag, vr, valueData);
-                }
+                IDicomElement dicomElement = vrInfo.IsStringVR
+                    ? new DicomStringElement(tag, vr, valueData)
+                    : new DicomNumericElement(tag, vr, valueData);
 
                 dataset.Add(dicomElement);
                 offset += (int)vl;

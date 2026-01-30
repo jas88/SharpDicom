@@ -314,7 +314,7 @@ public class DimseRoundtripTests : IDisposable
         // The exact behavior depends on when cancellation occurs
         try
         {
-            var response = await sendTask;
+            _ = await sendTask;
             // If we got here, the send completed before cancellation took effect
             // This is acceptable - cancellation is cooperative
             Assert.Pass("Send completed before cancellation");
