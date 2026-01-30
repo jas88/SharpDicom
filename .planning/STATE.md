@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 03 of 5 complete
+**Plan**: 04 of 5 complete
 **Status**: Phase in progress
-**Last activity**: 2026-01-30 - Completed 13-03-PLAN.md (JPEG 2000 OpenJPEG Wrapper)
+**Last activity**: 2026-01-30 - Completed 13-04-PLAN.md (CharLS and FFmpeg Wrappers)
 
-**Progress**: ████████████████████████████████░░░░░ (3/5 plans in Phase 13)
+**Progress**: ████████████████████████████████████░░ (4/5 plans in Phase 13)
 
 **Test Status**: 3404 tests passing, 0 failed, 54 skipped
 
@@ -87,6 +87,7 @@
 - [x] Phase 13 Plan 01: Native build infrastructure (Zig cross-compilation, C API header, CI workflow)
 - [x] Phase 13 Plan 02: libjpeg-turbo wrapper (jpeg_decode, jpeg_encode, 8-bit/12-bit, TurboJPEG API)
 - [x] Phase 13 Plan 03: JPEG 2000 wrapper (OpenJPEG integration, resolution levels, ROI decode, tiled encode)
+- [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
 
 ## In Progress
 
@@ -103,7 +104,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 3/5 | 2026-01-29 | - |
+| 13 | Native Codecs Package | In progress | 4/5 | 2026-01-29 | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -288,13 +289,17 @@
 | 2026-01-30 | 13-02 | Thread-local handles | Avoid handle creation overhead per call |
 | 2026-01-30 | 13-02 | TJFLAG_ACCURATEDCT | Medical imaging requires highest quality DCT |
 | 2026-01-30 | 13-02 | 12-bit stub | Most distributions don't build with -DWITH_12BIT |
+| 2026-01-30 | 13-04 | Handle-based video decoder | Multi-frame DICOM video requires stateful decoder |
+| 2026-01-30 | 13-04 | Parameter struct pattern | Cleaner API for encode/decode options |
+| 2026-01-30 | 13-04 | CharLS 2.4.2 | ~2x faster than HP reference for JPEG-LS |
+| 2026-01-30 | 13-04 | FFmpeg libavcodec only | Decode-only, no encoding needed for DICOM video |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Completed 13-03-PLAN.md (JPEG 2000 OpenJPEG Wrapper)
+**Stopped at**: Completed 13-04-PLAN.md (CharLS and FFmpeg Wrappers)
 **Resume file**: None
-**Next step**: Continue Phase 13 plans (13-04: CharLS/JPEG-LS, 13-05: NuGet packaging)
+**Next step**: Complete Phase 13 (13-05: Managed wrapper and NuGet packaging)
 
 ## Context for Next Session
 
@@ -328,6 +333,7 @@ If resuming after a break:
    - **Phase 12 Plan 07**: JPEG 2000 integration - Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, 5 codecs registered (55 new tests)
    - **Phase 13 Plan 01**: Native build infrastructure - Zig build system, C API header, CI workflow for 6 platforms
    - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
+   - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
 5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
@@ -369,4 +375,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 13 in progress - 13-03 done)*
+*Last updated: 2026-01-30 (Phase 13 in progress - 13-04 done)*
