@@ -29,7 +29,7 @@
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 10 | Network Foundation | FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11 | **Complete** |
-| 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | **Complete** |
+| 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | Pending |
 | 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | Pending |
 | 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | Pending |
 | 14 | De-identification | FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6 | Pending |
@@ -90,25 +90,25 @@ Plans:
 **Plans**: 7 plans in 4 waves
 
 Plans:
-- [x] 11-01-PLAN.md — Common DIMSE types (QueryRetrieveLevel, progress structs, DicomCommand extensions)
-- [x] 11-02-PLAN.md — CStoreScu service with streaming send and progress reporting
-- [x] 11-03-PLAN.md — CFindScu service with IAsyncEnumerable and DicomQuery builder
-- [x] 11-04-PLAN.md — C-STORE SCP handler support in DicomServer (buffered and streaming modes)
-- [x] 11-05-PLAN.md — CMoveScu service for third-party retrieval
-- [x] 11-06-PLAN.md — CGetScu service with inline C-STORE sub-operation handling
-- [x] 11-07-PLAN.md — Integration tests (roundtrip and DCMTK interoperability)
+- [ ] 11-01-PLAN.md — Common DIMSE types (QueryRetrieveLevel, progress structs, DicomCommand extensions)
+- [ ] 11-02-PLAN.md — CStoreScu service with streaming send and progress reporting
+- [ ] 11-03-PLAN.md — CFindScu service with IAsyncEnumerable and DicomQuery builder
+- [ ] 11-04-PLAN.md — C-STORE SCP handler support in DicomServer (buffered and streaming modes)
+- [ ] 11-05-PLAN.md — CMoveScu service for third-party retrieval
+- [ ] 11-06-PLAN.md — CGetScu service with inline C-STORE sub-operation handling
+- [ ] 11-07-PLAN.md — Integration tests (roundtrip and DCMTK interoperability)
 
 **Must-haves**:
-- [x] C-STORE SCU (send DICOM files to remote AE)
-- [x] C-STORE SCP with streaming support (receive without full buffering)
-- [x] C-FIND SCU (query PACS/RIS for studies/series/instances)
-- [x] C-MOVE SCU (retrieve from PACS via sub-operations)
-- [x] C-GET SCU (retrieve via C-STORE sub-ops on same association)
-- [x] IAsyncEnumerable for C-FIND/C-MOVE/C-GET responses
+- [ ] C-STORE SCU (send DICOM files to remote AE)
+- [ ] C-STORE SCP with streaming support (receive without full buffering)
+- [ ] C-FIND SCU (query PACS/RIS for studies/series/instances)
+- [ ] C-MOVE SCU (retrieve from PACS via sub-operations)
+- [ ] C-GET SCU (retrieve via C-STORE sub-ops on same association)
+- [ ] IAsyncEnumerable for C-FIND/C-MOVE/C-GET responses
 
 **Should-haves**:
 - [ ] Zero-copy PDU parsing via System.IO.Pipelines
-- [x] Streaming C-STORE SCP handler with CopyToAsync pattern
+- [ ] Streaming C-STORE SCP handler with CopyToAsync pattern
 - [ ] Element callback during network receive (validate/transform on arrival)
 - [ ] Transfer syntax negotiation with transcoding capability
 
@@ -117,12 +117,12 @@ Plans:
 **Research Needed**: Yes (C-MOVE third-party destination coordination, streaming receive patterns) - COMPLETE (11-RESEARCH.md)
 
 **Success Criteria**:
-- [x] Can send DICOM file to DCMTK storescp
-- [x] Can receive DICOM file from DCMTK storescu
-- [x] C-FIND returns matching studies from test PACS
-- [x] C-MOVE triggers sub-operations to third-party destination
-- [x] C-GET retrieves instances directly
-- [x] Streaming receive does not buffer entire file in memory
+- [ ] Can send DICOM file to DCMTK storescp
+- [ ] Can receive DICOM file from DCMTK storescu
+- [ ] C-FIND returns matching studies from test PACS
+- [ ] C-MOVE triggers sub-operations to third-party destination
+- [ ] C-GET retrieves instances directly
+- [ ] Streaming receive does not buffer entire file in memory
 - [ ] Association marked corrupted after PDU timeout (prevents data interleaving)
 
 ---
@@ -132,17 +132,6 @@ Plans:
 **Goal**: JPEG and JPEG 2000 codecs implemented in pure C# for maximum portability and AOT compatibility
 
 **Requirements**: FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7
-
-**Plans**: 7 plans in 4 waves
-
-Plans:
-- [ ] 12-01-PLAN.md — Infrastructure (TransferSyntax additions, JpegMarkers, HuffmanTable, QuantizationTable, ColorConversion)
-- [ ] 12-02-PLAN.md — JPEG primitives (DctTransform, BitReader, BitWriter, JpegCodecOptions)
-- [ ] 12-03-PLAN.md — JPEG Baseline codec (decoder, encoder, codec class, tests)
-- [ ] 12-04-PLAN.md — JPEG Lossless codec (Predictor, LosslessHuffman, codec class, tests)
-- [ ] 12-05-PLAN.md — JPEG 2000 infrastructure (J2kCodestream, DWT transforms, MqCoder)
-- [ ] 12-06-PLAN.md — JPEG 2000 coding (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
-- [ ] 12-07-PLAN.md — Integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, integration tests)
 
 **Must-haves**:
 - [ ] JPEG Baseline codec (8-bit lossy, Process 1 - TS 1.2.840.10008.1.2.4.50)
@@ -159,7 +148,7 @@ Plans:
 
 **Dependencies**: Phase 9 (IPixelDataCodec interface and CodecRegistry)
 
-**Research Needed**: No - COMPLETE (12-CONTEXT.md, 12-RESEARCH.md)
+**Research Needed**: No (well-documented JPEG/J2K specs, reference implementations available)
 
 **Success Criteria**:
 - [ ] Decode JPEG Baseline test files from NEMA WG-04 conformance suite
@@ -178,6 +167,19 @@ Plans:
 
 **Requirements**: FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5
 
+**Plans**: 9 plans in 5 waves
+
+Plans:
+- [ ] 13-01-PLAN.md — Zig build system, C API header, version/feature detection, CI workflow
+- [ ] 13-02-PLAN.md — libjpeg-turbo wrapper for JPEG baseline/extended (8-bit, 12-bit)
+- [ ] 13-03-PLAN.md — OpenJPEG wrapper for JPEG 2000 with resolution level and ROI decode
+- [ ] 13-04-PLAN.md — CharLS wrapper for JPEG-LS and FFmpeg wrapper for video codecs
+- [ ] 13-05-PLAN.md — GPU acceleration with nvJPEG2000 and CPU fallback
+- [ ] 13-06-PLAN.md — Managed P/Invoke layer, NativeCodecs static class, exception types
+- [ ] 13-07-PLAN.md — IPixelDataCodec implementations and CodecRegistry priority integration
+- [ ] 13-08-PLAN.md — NuGet package structure (meta + runtime packages for 6 RIDs)
+- [ ] 13-09-PLAN.md — Test suite for native codec initialization and decode/encode operations
+
 **Must-haves**:
 - [ ] SharpDicom.Codecs NuGet package (separate from core)
 - [ ] Native JPEG codec wrapping libjpeg-turbo (2-6x faster than pure C#)
@@ -192,7 +194,7 @@ Plans:
 
 **Dependencies**: Phase 12 (establishes codec interface patterns)
 
-**Research Needed**: No (P/Invoke patterns established, libjpeg-turbo/OpenJPEG well-documented)
+**Research Needed**: Yes - COMPLETE (13-RESEARCH.md)
 
 **Success Criteria**:
 - [ ] SharpDicom.Codecs package installable via NuGet
@@ -589,4 +591,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-01-29 (Phase 11 complete)*
+*Last updated: 2026-01-28 (Phase 13 planned)*

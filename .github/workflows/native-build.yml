@@ -1,0 +1,268 @@
+name: Native Codecs Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-build.yml'
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-build.yml'
+
+env:
+  ZIG_VERSION: '0.13.0'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-linux-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-linux-
+
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
+          mkdir -p native/vendor/libjpeg-turbo/src
+          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
+          rm libjpeg-turbo.tar.gz
+
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          mkdir -p native/vendor/openjpeg/src
+          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
+          rm openjpeg.tar.gz
+
+      - name: Build all targets
+        working-directory: native
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload linux-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-x64
+          path: native/zig-out/linux-x64/
+          if-no-files-found: warn
+
+      - name: Upload linux-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-arm64
+          path: native/zig-out/linux-arm64/
+          if-no-files-found: warn
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-windows-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-windows-
+
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.zip -OutFile libjpeg-turbo.zip
+          New-Item -ItemType Directory -Path native/vendor/libjpeg-turbo/src -Force
+          Expand-Archive -Path libjpeg-turbo.zip -DestinationPath native/vendor/libjpeg-turbo/temp
+          Move-Item -Path native/vendor/libjpeg-turbo/temp/libjpeg-turbo-3.0.4/* -Destination native/vendor/libjpeg-turbo/src
+          Remove-Item -Recurse -Force native/vendor/libjpeg-turbo/temp
+          Remove-Item libjpeg-turbo.zip
+
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.zip -OutFile openjpeg.zip
+          New-Item -ItemType Directory -Path native/vendor/openjpeg/src -Force
+          Expand-Archive -Path openjpeg.zip -DestinationPath native/vendor/openjpeg/temp
+          Move-Item -Path native/vendor/openjpeg/temp/openjpeg-2.5.3/* -Destination native/vendor/openjpeg/src
+          Remove-Item -Recurse -Force native/vendor/openjpeg/temp
+          Remove-Item openjpeg.zip
+
+      - name: Build Windows targets
+        working-directory: native
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload win-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: native/zig-out/win-x64/
+          if-no-files-found: warn
+
+      - name: Upload win-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-arm64
+          path: native/zig-out/win-arm64/
+          if-no-files-found: warn
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-macos-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-macos-
+
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
+          mkdir -p native/vendor/libjpeg-turbo/src
+          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
+          rm libjpeg-turbo.tar.gz
+
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          mkdir -p native/vendor/openjpeg/src
+          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
+          rm openjpeg.tar.gz
+
+      - name: Build macOS targets
+        working-directory: native
+        run: zig build -Doptimize=ReleaseFast
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload osx-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-x64
+          path: native/zig-out/osx-x64/
+          if-no-files-found: warn
+
+      - name: Upload osx-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-arm64
+          path: native/zig-out/osx-arm64/
+          if-no-files-found: warn
+
+  # Combine all artifacts for release
+  combine-artifacts:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts
+          merge-multiple: false
+
+      - name: Create combined archive
+        run: |
+          mkdir -p combined/runtimes
+          for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-x64 osx-arm64; do
+            mkdir -p "combined/runtimes/${rid}/native"
+            if [ -d "artifacts/native-${rid}" ]; then
+              cp -r "artifacts/native-${rid}/"* "combined/runtimes/${rid}/native/" || true
+            fi
+          done
+          cd combined && tar -czvf ../native-codecs-${GITHUB_REF_NAME}.tar.gz .
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-codecs-all-platforms
+          path: native-codecs-*.tar.gz
