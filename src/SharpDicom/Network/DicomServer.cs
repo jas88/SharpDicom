@@ -10,7 +10,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.IO;
 using SharpDicom.Network.Association;
+using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
@@ -317,7 +319,7 @@ namespace SharpDicom.Network
         {
             // Parse P-DATA-TF to extract PDVs (must complete before any await)
             // Each PDV contains: 4-byte length, 1-byte context ID, 1-byte message control header, data
-            var pendingEchoRequests = ExtractCEchoRequests(pduBody);
+            var (pendingEchoRequests, pendingStoreRequests) = ExtractDimseRequests(pduBody);
 
             // Now process extracted requests (can await)
             foreach (var (contextId, messageId) in pendingEchoRequests)
@@ -325,11 +327,21 @@ namespace SharpDicom.Network
                 await HandleCEchoAsync(stream, association, contextId, messageId, ct)
                     .ConfigureAwait(false);
             }
+
+            // Handle C-STORE requests (command was in this PDU, dataset follows)
+            foreach (var storeCmd in pendingStoreRequests)
+            {
+                await HandleCStoreAsync(stream, association, storeCmd, ct)
+                    .ConfigureAwait(false);
+            }
         }
 
-        private static List<(byte ContextId, ushort MessageId)> ExtractCEchoRequests(byte[] pduBody)
+        private static (List<(byte ContextId, ushort MessageId)> EchoRequests,
+                 List<CStoreCommandInfo> StoreRequests)
+            ExtractDimseRequests(byte[] pduBody)
         {
-            var requests = new List<(byte, ushort)>();
+            var echoRequests = new List<(byte, ushort)>();
+            var storeRequests = new List<CStoreCommandInfo>();
             var reader = new PduReader(pduBody);
 
             while (reader.TryReadPresentationDataValue(
@@ -338,8 +350,6 @@ namespace SharpDicom.Network
                 out bool isLastFragment,
                 out var data))
             {
-                // For now, handle C-ECHO only (identified by command field = 0x0030)
-                // Full DIMSE parsing requires DicomCommand from plan 10-05
                 if (isCommand && isLastFragment)
                 {
                     // Parse command dataset to check what operation this is
@@ -348,13 +358,17 @@ namespace SharpDicom.Network
                     if (commandField == CommandFields.CEchoRequest)
                     {
                         var messageId = ParseMessageId(data);
-                        requests.Add((contextId, messageId));
+                        echoRequests.Add((contextId, messageId));
                     }
-                    // Other DIMSE operations will be handled after plan 10-05
+                    else if (commandField == CommandFields.CStoreRequest)
+                    {
+                        var commandInfo = ParseCStoreCommand(data, contextId);
+                        storeRequests.Add(commandInfo);
+                    }
                 }
             }
 
-            return requests;
+            return (echoRequests, storeRequests);
         }
 
         private async Task HandleCEchoAsync(
@@ -373,6 +387,206 @@ namespace SharpDicom.Network
             // Build C-ECHO-RSP command dataset and send as P-DATA-TF
             await SendCEchoResponseAsync(stream, presentationContextId, messageId, status, ct)
                 .ConfigureAwait(false);
+        }
+
+        private async Task HandleCStoreAsync(
+            NetworkStream stream,
+            DicomAssociation association,
+            CStoreCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            var requestContext = new CStoreRequestContext(
+                callingAE,
+                calledAE,
+                command.SOPClassUID,
+                command.SOPInstanceUID,
+                command.MessageID,
+                command.PresentationContextId);
+
+            DicomStatus status;
+
+            // Check if we have a handler configured
+            if (!_options.HasCStoreHandler)
+            {
+                // No handler - reject with SOP Class Not Supported
+                status = DicomStatus.NoSuchSOPClass;
+
+                // Still need to read and discard the dataset if present
+                if (command.HasDataset)
+                {
+                    await ReadAndDiscardDatasetAsync(stream, ct).ConfigureAwait(false);
+                }
+            }
+            else if (command.HasDataset)
+            {
+                // Read the dataset from subsequent P-DATA PDUs
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+
+                    // Check size for buffered mode
+                    if (_options.StoreHandlerMode == CStoreHandlerMode.Buffered &&
+                        datasetBytes.Length > _options.MaxBufferedDatasetSize)
+                    {
+                        status = DicomStatus.OutOfResources;
+                    }
+                    else
+                    {
+                        // Parse the dataset
+                        var dataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+
+                        // Call the appropriate handler
+                        status = await InvokeCStoreHandlerAsync(requestContext, dataset, ct)
+                            .ConfigureAwait(false);
+                    }
+                }
+                catch (Exception)
+                {
+                    status = DicomStatus.ProcessingFailure;
+                }
+            }
+            else
+            {
+                // No dataset - unusual for C-STORE but handle gracefully
+                status = DicomStatus.ProcessingFailure;
+            }
+
+            // Send C-STORE-RSP
+            await SendCStoreResponseAsync(
+                stream,
+                command.PresentationContextId,
+                command.MessageID,
+                command.SOPClassUID,
+                command.SOPInstanceUID,
+                status,
+                ct).ConfigureAwait(false);
+        }
+
+        private async ValueTask<DicomStatus> InvokeCStoreHandlerAsync(
+            CStoreRequestContext context,
+            DicomDataset dataset,
+            CancellationToken ct)
+        {
+            try
+            {
+                // Delegate takes precedence over interface
+                if (_options.OnCStoreRequest != null)
+                {
+                    return await _options.OnCStoreRequest(context, dataset, ct).ConfigureAwait(false);
+                }
+
+                if (_options.CStoreHandler != null)
+                {
+                    return await _options.CStoreHandler.OnCStoreAsync(context, dataset, ct)
+                        .ConfigureAwait(false);
+                }
+
+                // No handler - should not reach here if HasCStoreHandler was true
+                return DicomStatus.NoSuchSOPClass;
+            }
+            catch (Exception)
+            {
+                return DicomStatus.ProcessingFailure;
+            }
+        }
+
+        private static async Task<byte[]> ReadDatasetAsync(NetworkStream stream, CancellationToken ct)
+        {
+            // Read P-DATA PDUs until we get the last fragment
+            using var ms = new MemoryStream();
+            bool lastFragment = false;
+
+            while (!lastFragment)
+            {
+                var (pduType, pduBody) = await ReadPduAsync(stream, ct).ConfigureAwait(false);
+
+                if (pduType != PduType.PDataTransfer)
+                {
+                    throw new InvalidOperationException($"Expected P-DATA-TF, got {pduType}");
+                }
+
+                var reader = new PduReader(pduBody);
+
+                while (reader.TryReadPresentationDataValue(
+                    out _,  // contextId
+                    out bool isCommand,
+                    out bool isLast,
+                    out var data))
+                {
+                    if (!isCommand)
+                    {
+                        // This is dataset data
+                        ms.Write(data.ToArray(), 0, data.Length);
+                        lastFragment = isLast;
+                    }
+                }
+            }
+
+            return ms.ToArray();
+        }
+
+        private static async Task ReadAndDiscardDatasetAsync(NetworkStream stream, CancellationToken ct)
+        {
+            // Read and discard P-DATA PDUs until we get the last fragment
+            bool lastFragment = false;
+
+            while (!lastFragment)
+            {
+                var (pduType, pduBody) = await ReadPduAsync(stream, ct).ConfigureAwait(false);
+
+                if (pduType != PduType.PDataTransfer)
+                {
+                    break; // Unexpected PDU, stop reading
+                }
+
+                var reader = new PduReader(pduBody);
+
+                while (reader.TryReadPresentationDataValue(
+                    out _,  // contextId
+                    out bool isCommand,
+                    out bool isLast,
+                    out _)) // data - discarded
+                {
+                    if (!isCommand)
+                    {
+                        lastFragment = isLast;
+                    }
+                }
+            }
+        }
+
+        private static DicomDataset ParseDataset(byte[] data, DicomAssociation association, byte contextId)
+        {
+            // Get the accepted transfer syntax for this presentation context
+            var context = association.GetPresentationContext(contextId);
+            var transferSyntax = context?.AcceptedTransferSyntax ?? TransferSyntax.ImplicitVRLittleEndian;
+
+            // Parse the dataset using DicomStreamReader
+            var dataset = new DicomDataset();
+            var span = data.AsSpan();
+            var reader = new DicomStreamReader(span, transferSyntax.IsExplicitVR, transferSyntax.IsLittleEndian);
+
+            while (reader.TryReadElementHeader(out var tag, out var vr, out var valueLength))
+            {
+                if (valueLength == 0xFFFFFFFF)
+                {
+                    // Undefined length - skip for now (sequences/pixel data)
+                    // A full implementation would parse sequences here
+                    break;
+                }
+
+                if (!reader.TryReadValue(valueLength, out var value))
+                    break;
+
+                // Create element based on VR
+                var element = new DicomBinaryElement(tag, vr, value.ToArray());
+                dataset.Add(element);
+            }
+
+            return dataset;
         }
 
         /// <summary>
@@ -680,6 +894,42 @@ namespace SharpDicom.Network
 #endif
         }
 
+        private static async Task SendCStoreResponseAsync(
+            NetworkStream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status,
+            CancellationToken ct)
+        {
+            // Build C-STORE-RSP command dataset
+            var commandData = BuildCStoreResponseCommand(
+                messageIdBeingRespondedTo,
+                affectedSopClassUid,
+                affectedSopInstanceUid,
+                status);
+
+            // Wrap in P-DATA-TF
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var pdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            writer.WritePData(new[] { pdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
         #endregion
 
         #region DIMSE Command Parsing/Building
@@ -730,6 +980,105 @@ namespace SharpDicom.Network
             }
 
             return 0; // Not found
+        }
+
+        private static byte[] BuildCStoreResponseCommand(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status)
+        {
+            // Build command dataset in Implicit VR Little Endian
+            // Required elements for C-STORE-RSP:
+            // - AffectedSOPClassUID (0000,0002)
+            // - CommandField (0000,0100) = 0x8001
+            // - MessageIDBeingRespondedTo (0000,0120)
+            // - CommandDataSetType (0000,0800) = 0x0101 (no dataset)
+            // - Status (0000,0900)
+            // - AffectedSOPInstanceUID (0000,1000)
+
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(affectedSopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // SOP Instance UID
+            var sopInstanceUidBytes = Encoding.ASCII.GetBytes(affectedSopInstanceUid.ToString());
+            var sopInstanceUidLength = sopInstanceUidBytes.Length;
+            if (sopInstanceUidLength % 2 != 0) sopInstanceUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField = 0x8001 (C-STORE-RSP)
+            WriteElementUS(buffer, 0x0000, 0x0100, CommandFields.CStoreResponse);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType = 0x0101 (no dataset)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0101);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, status.Code);
+
+            // (0000,1000) AffectedSOPInstanceUID
+            WriteElement(buffer, 0x0000, 0x1000, sopInstanceUidBytes, sopInstanceUidLength);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static CStoreCommandInfo ParseCStoreCommand(ReadOnlySpan<byte> commandData, byte contextId)
+        {
+            ushort messageId = 0;
+            string? sopClassUid = null;
+            string? sopInstanceUid = null;
+            ushort dataSetType = 0x0101; // Default: no dataset
+
+            int offset = 0;
+            while (offset + 8 <= commandData.Length)
+            {
+                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset));
+                ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
+                uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
+
+                if (offset + 8 + length > commandData.Length)
+                    break;
+
+                var valueSpan = commandData.Slice(offset + 8, (int)length);
+
+                if (group == 0x0000)
+                {
+                    switch (element)
+                    {
+                        case 0x0002: // AffectedSOPClassUID
+                            sopClassUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x0110: // MessageID
+                            if (length >= 2)
+                                messageId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x0800: // CommandDataSetType
+                            if (length >= 2)
+                                dataSetType = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x1000: // AffectedSOPInstanceUID
+                            sopInstanceUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                    }
+                }
+
+                offset += 8 + (int)length;
+            }
+
+            return new CStoreCommandInfo(
+                contextId,
+                messageId,
+                new DicomUID(sopClassUid ?? string.Empty),
+                new DicomUID(sopInstanceUid ?? string.Empty),
+                hasDataset: dataSetType != 0x0101);
         }
 
         private static byte[] BuildCEchoResponseCommand(ushort messageIdBeingRespondedTo, DicomStatus status)
@@ -803,8 +1152,36 @@ namespace SharpDicom.Network
         /// </remarks>
         private static class CommandFields
         {
+            public const ushort CStoreRequest = 0x0001;
+            public const ushort CStoreResponse = 0x8001;
             public const ushort CEchoRequest = 0x0030;
             public const ushort CEchoResponse = 0x8030;
+        }
+
+        /// <summary>
+        /// Parsed C-STORE command information.
+        /// </summary>
+        private readonly struct CStoreCommandInfo
+        {
+            public CStoreCommandInfo(
+                byte presentationContextId,
+                ushort messageId,
+                DicomUID sopClassUid,
+                DicomUID sopInstanceUid,
+                bool hasDataset)
+            {
+                PresentationContextId = presentationContextId;
+                MessageID = messageId;
+                SOPClassUID = sopClassUid;
+                SOPInstanceUID = sopInstanceUid;
+                HasDataset = hasDataset;
+            }
+
+            public byte PresentationContextId { get; }
+            public ushort MessageID { get; }
+            public DicomUID SOPClassUID { get; }
+            public DicomUID SOPInstanceUID { get; }
+            public bool HasDataset { get; }
         }
     }
 }
