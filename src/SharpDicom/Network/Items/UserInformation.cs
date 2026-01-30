@@ -13,7 +13,9 @@ namespace SharpDicom.Network.Items
     public sealed class UserInformation
     {
         private static readonly Lazy<UserInformation> s_default = new(CreateDefault);
-        private static readonly Regex s_uidPattern = new(@"^[0-9]+(\.[0-9]+)*$", RegexOptions.Compiled);
+        // Per DICOM PS3.5 section 9.1, UID components must not have leading zeros (except "0" itself)
+        // Pattern: component is either "0" or a non-zero digit followed by any digits
+        private static readonly Regex s_uidPattern = new(@"^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))*$", RegexOptions.Compiled);
 
         /// <summary>
         /// Gets the maximum PDU length that the entity can receive.

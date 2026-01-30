@@ -34,12 +34,20 @@ namespace SharpDicom.Network.Association
         AAssociateRequest,
 
         /// <summary>
-        /// A-ASSOCIATE response from the local user (SCP accepting/rejecting).
+        /// A-ASSOCIATE accept response from the local user (SCP accepting).
         /// </summary>
         /// <remarks>
-        /// Triggers: Sta3 -> Sta6 (accept) or Sta3 -> Sta13 (reject)
+        /// Triggers: Sta3 -> Sta6 (association established)
         /// </remarks>
         AAssociateResponse,
+
+        /// <summary>
+        /// A-ASSOCIATE reject response from the local user (SCP rejecting).
+        /// </summary>
+        /// <remarks>
+        /// Triggers: Sta3 -> Sta13 (send A-ASSOCIATE-RJ, close transport)
+        /// </remarks>
+        AAssociateRejectResponse,
 
         /// <summary>
         /// A-RELEASE request from the local user (initiate graceful release).

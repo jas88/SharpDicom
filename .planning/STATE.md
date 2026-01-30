@@ -10,7 +10,7 @@
 
 **Progress**: ██████████████████████████████ (7/7 plans in Phase 10 - COMPLETE)
 
-**Test Status**: 2460 tests passing, 0 failed, 0 skipped (10 DCMTK integration tests skipped)
+**Test Status**: 2460 tests passing, 0 failed, 10 skipped (DCMTK integration tests)
 
 ## Completed
 

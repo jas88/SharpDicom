@@ -141,6 +141,13 @@ namespace SharpDicom.Network
             if (AETitle.Length > 0 && (AETitle[0] == ' ' || AETitle[AETitle.Length - 1] == ' '))
                 throw new ArgumentException("AETitle must not have leading or trailing spaces.", nameof(AETitle));
 
+            // Per DICOM PS3.5 section 6.2, AE titles must contain only ASCII printable characters (0x20-0x7E)
+            foreach (char c in AETitle)
+            {
+                if (c < 0x20 || c > 0x7E)
+                    throw new ArgumentException($"AETitle contains invalid character (0x{(int)c:X2}). Only ASCII printable characters (0x20-0x7E) are allowed.", nameof(AETitle));
+            }
+
             if (MaxAssociations < 1)
                 throw new ArgumentOutOfRangeException(nameof(MaxAssociations), MaxAssociations, "MaxAssociations must be at least 1.");
 

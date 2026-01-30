@@ -452,14 +452,14 @@ namespace SharpDicom.Tests.Network
             // Act & Assert
             await client.ConnectAsync(contexts);
 
-            // Give server time to register the association
-            await Task.Delay(100);
+            // Wait for server to register the association (with timeout)
+            await WaitUntilAsync(() => server.ActiveAssociations == 1, TimeSpan.FromSeconds(5));
             Assert.That(server.ActiveAssociations, Is.EqualTo(1));
 
             await client.ReleaseAsync();
 
-            // Give server time to clean up
-            await Task.Delay(100);
+            // Wait for server to clean up (with timeout)
+            await WaitUntilAsync(() => server.ActiveAssociations == 0, TimeSpan.FromSeconds(5));
             Assert.That(server.ActiveAssociations, Is.EqualTo(0));
         }
 
@@ -475,6 +475,15 @@ namespace SharpDicom.Tests.Network
             var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
             listener.Stop();
             return port;
+        }
+
+        private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+        {
+            var deadline = DateTime.UtcNow + timeout;
+            while (!condition() && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10);
+            }
         }
 
         #endregion

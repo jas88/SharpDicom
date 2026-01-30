@@ -15,6 +15,28 @@ namespace SharpDicom.Network
         public const uint MinMaxPduLength = 4096;
 
         /// <summary>
+        /// The absolute maximum allowed PDU length to prevent denial-of-service attacks.
+        /// </summary>
+        /// <remarks>
+        /// This limit (128 MB) prevents malicious peers from causing memory exhaustion
+        /// by sending PDUs with extremely large length fields. This is a security safeguard
+        /// independent of the negotiated MaxPduLength, which typically limits data transfer PDUs.
+        /// Association PDUs (A-ASSOCIATE-RQ/AC/RJ) are further limited to <see cref="MaxAssociationPduLength"/>.
+        /// </remarks>
+        public const uint AbsoluteMaxPduLength = 128 * 1024 * 1024; // 128 MB
+
+        /// <summary>
+        /// The maximum allowed length for association PDUs (A-ASSOCIATE-RQ/AC/RJ).
+        /// </summary>
+        /// <remarks>
+        /// Association PDUs contain presentation contexts and user information.
+        /// Even with hundreds of presentation contexts, 1 MB is more than sufficient.
+        /// This limit prevents memory exhaustion during association negotiation
+        /// before a MaxPduLength has been negotiated.
+        /// </remarks>
+        public const uint MaxAssociationPduLength = 1 * 1024 * 1024; // 1 MB
+
+        /// <summary>
         /// The default maximum PDU length.
         /// </summary>
         /// <remarks>

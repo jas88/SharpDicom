@@ -660,8 +660,25 @@ namespace SharpDicom.Network
             }
 #endif
 
-            // Parse length
+            // Parse PDU type and length
+            var pduType = (Pdu.PduType)header[0];
             uint pduLength = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(2));
+
+            // Validate PDU length to prevent denial-of-service attacks
+            // Association PDUs (types 1-3) have stricter limits than data transfer PDUs
+            uint maxLength = pduType switch
+            {
+                Pdu.PduType.AssociateRequest or Pdu.PduType.AssociateAccept or Pdu.PduType.AssociateReject
+                    => PduConstants.MaxAssociationPduLength,
+                _ => Math.Min(_options.MaxPduLength, PduConstants.AbsoluteMaxPduLength)
+            };
+
+            if (pduLength > maxLength)
+            {
+                throw new DicomNetworkException(
+                    $"PDU length {pduLength} exceeds maximum allowed length {maxLength}. " +
+                    "This may indicate a malformed PDU or denial-of-service attack.");
+            }
 
             // Read PDU body
             var pdu = new byte[6 + pduLength];

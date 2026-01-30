@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
 using SharpDicom.Network.Association;
+using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
 
@@ -542,12 +543,33 @@ namespace SharpDicom.Network
 
         private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(NetworkStream stream, CancellationToken ct)
         {
+            return await ReadPduAsync(stream, PduConstants.AbsoluteMaxPduLength, ct).ConfigureAwait(false);
+        }
+
+        private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(NetworkStream stream, uint maxLength, CancellationToken ct)
+        {
             // Read 6-byte PDU header
             var header = new byte[Pdu.PduConstants.HeaderLength];
             await ReadExactlyAsync(stream, header, ct).ConfigureAwait(false);
 
             var pduType = (PduType)header[0];
             var length = BinaryPrimitives.ReadUInt32BigEndian(header.AsSpan(2));
+
+            // Validate PDU length to prevent denial-of-service attacks
+            // Association PDUs (types 1-3) have stricter limits than data transfer PDUs
+            uint effectiveMaxLength = pduType switch
+            {
+                PduType.AssociateRequest or PduType.AssociateAccept or PduType.AssociateReject
+                    => Math.Min(maxLength, PduConstants.MaxAssociationPduLength),
+                _ => Math.Min(maxLength, PduConstants.AbsoluteMaxPduLength)
+            };
+
+            if (length > effectiveMaxLength)
+            {
+                throw new DicomNetworkException(
+                    $"PDU length {length} exceeds maximum allowed length {effectiveMaxLength}. " +
+                    "This may indicate a malformed PDU or denial-of-service attack.");
+            }
 
             // Read PDU body
             var body = new byte[length];

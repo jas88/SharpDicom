@@ -231,6 +231,8 @@ namespace SharpDicom.Network.Association
                 // =======================================================================
                 (AssociationState.AwaitingLocalAssociateResponse, AssociationEvent.AAssociateResponse) =>
                     (AssociationState.AssociationEstablished, null),
+                (AssociationState.AwaitingLocalAssociateResponse, AssociationEvent.AAssociateRejectResponse) =>
+                    (AssociationState.Idle, CloseTransport),
 
                 // =======================================================================
                 // Sta4: Awaiting transport connection (SCU side)
