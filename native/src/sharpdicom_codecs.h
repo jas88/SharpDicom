@@ -126,6 +126,51 @@ SHARPDICOM_API const char* sharpdicom_last_error(void);
  */
 SHARPDICOM_API void sharpdicom_clear_error(void);
 
+/*============================================================================
+ * GPU acceleration functions
+ *============================================================================*/
+
+/** GPU type constants */
+#define SHARPDICOM_GPU_NONE     0
+#define SHARPDICOM_GPU_NVIDIA   1
+#define SHARPDICOM_GPU_OPENCL   2
+
+/**
+ * Check if GPU acceleration is available.
+ *
+ * @return 1 if GPU is available, 0 if not
+ */
+SHARPDICOM_API int sharpdicom_gpu_available(void);
+
+/**
+ * Get the type of GPU acceleration available.
+ *
+ * @return SHARPDICOM_GPU_NONE, SHARPDICOM_GPU_NVIDIA, or SHARPDICOM_GPU_OPENCL
+ */
+SHARPDICOM_API int sharpdicom_gpu_type(void);
+
+/**
+ * Decode JPEG 2000 using GPU if available, falling back to CPU.
+ *
+ * @param input       Input compressed data
+ * @param input_len   Length of input data in bytes
+ * @param output      Output buffer for decoded pixels
+ * @param output_len  Size of output buffer in bytes
+ * @param width       Output: image width
+ * @param height      Output: image height
+ * @param components  Output: number of components
+ * @return SHARPDICOM_OK on success, error code on failure
+ */
+SHARPDICOM_API int sharpdicom_gpu_j2k_decode(
+    const uint8_t* input,
+    size_t input_len,
+    uint8_t* output,
+    size_t output_len,
+    int* width,
+    int* height,
+    int* components
+);
+
 #ifdef __cplusplus
 }
 #endif

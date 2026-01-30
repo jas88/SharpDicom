@@ -204,6 +204,21 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Add gpu_wrapper for tests
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/gpu_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Link -ldl on Linux for dynamic library loading
+    if (native_target.result.os.tag == .linux) {
+        test_exe.linkSystemLibrary("dl");
+    }
+
     const test_install = b.addInstallArtifact(test_exe, .{});
 
     // Test step
@@ -272,7 +287,18 @@ pub fn build(b: *std.Build) void {
         });
     }
 
+    // GPU wrapper for native build
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/gpu_wrapper.c"),
+        .flags = native_flags,
+    });
+
     native_lib.addIncludePath(b.path("src"));
+
+    // Link -ldl on Linux for dynamic library loading
+    if (native_target.result.os.tag == .linux) {
+        native_lib.linkSystemLibrary("dl");
+    }
 
     const native_install = b.addInstallArtifact(native_lib, .{});
     single_step.dependOn(&native_install.step);

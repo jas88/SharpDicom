@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 01 of ? in progress
+**Plan**: 03 of 5 complete
 **Status**: Phase in progress
-**Last activity**: 2026-01-29 - Completed 13-01-PLAN.md (Native Build Infrastructure)
+**Last activity**: 2026-01-30 - Completed 13-03-PLAN.md (JPEG 2000 OpenJPEG Wrapper)
 
-**Progress**: ████████████████████████████████░░░░░ (1/? plans in Phase 13)
+**Progress**: ████████████████████████████████░░░░░ (3/5 plans in Phase 13)
 
 **Test Status**: 3404 tests passing, 0 failed, 54 skipped
 
@@ -85,6 +85,7 @@
 - [x] Phase 12 Plan 06: JPEG 2000 codec (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
 - [x] Phase 12 Plan 07: JPEG 2000 integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer)
 - [x] Phase 13 Plan 01: Native build infrastructure (Zig cross-compilation, C API header, CI workflow)
+- [x] Phase 13 Plan 03: JPEG 2000 wrapper (OpenJPEG integration, resolution levels, ROI decode, tiled encode)
 
 ## In Progress
 
@@ -101,7 +102,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 1/? | 2026-01-29 | - |
+| 13 | Native Codecs Package | In progress | 3/5 | 2026-01-29 | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -278,13 +279,17 @@
 | 2026-01-29 | 13-01 | musl for Linux builds | Zero runtime dependencies |
 | 2026-01-29 | 13-01 | CPUID-based SIMD detection | Runtime feature detection (SSE2-AVX512, NEON) |
 | 2026-01-29 | 13-01 | Thread-local error storage | 256 bytes per thread for concurrent safety |
+| 2026-01-30 | 13-03 | J2K format auto-detection | Detect J2K vs JP2 from magic bytes for transparent API |
+| 2026-01-30 | 13-03 | Memory stream callbacks for OpenJPEG | In-memory buffers without file I/O |
+| 2026-01-30 | 13-03 | Stub compilation pattern | Return UNSUPPORTED when vendor lib not present |
+| 2026-01-30 | 13-03 | Resolution levels via cp_reduce | Efficient thumbnail generation at 1/2, 1/4, etc. |
 
 ## Session Continuity
 
-**Last session**: 2026-01-29
-**Stopped at**: Completed 13-01-PLAN.md (Native Build Infrastructure)
+**Last session**: 2026-01-30
+**Stopped at**: Completed 13-03-PLAN.md (JPEG 2000 OpenJPEG Wrapper)
 **Resume file**: None
-**Next step**: Continue Phase 13 plans (13-02 through 13-05+)
+**Next step**: Continue Phase 13 plans (13-04: CharLS/JPEG-LS, 13-05: NuGet packaging)
 
 ## Context for Next Session
 
@@ -317,6 +322,7 @@ If resuming after a break:
    - **Phase 12 Plan 06**: JPEG 2000 codec - EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder (16 new tests)
    - **Phase 12 Plan 07**: JPEG 2000 integration - Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, 5 codecs registered (55 new tests)
    - **Phase 13 Plan 01**: Native build infrastructure - Zig build system, C API header, CI workflow for 6 platforms
+   - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
 5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
@@ -358,4 +364,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (Phase 13 started - 13-01 done)*
+*Last updated: 2026-01-30 (Phase 13 in progress - 13-03 done)*
