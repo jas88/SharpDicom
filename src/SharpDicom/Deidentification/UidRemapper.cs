@@ -7,10 +7,20 @@ namespace SharpDicom.Deidentification
     /// <summary>
     /// Remaps UIDs consistently across a de-identification session.
     /// </summary>
+    /// <remarks>
+    /// Preserves standard DICOM UIDs (Transfer Syntax, SOP Class, etc.) while
+    /// remapping instance-specific UIDs (Study, Series, SOP Instance, etc.).
+    /// </remarks>
     public sealed class UidRemapper : IDisposable
     {
         private readonly IUidStore _store;
         private readonly bool _ownsStore;
+        private readonly HashSet<string> _additionalStandardUids = new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The root prefix for all DICOM-defined UIDs that should never be remapped.
+        /// </summary>
+        public const string DicomRoot = "1.2.840.10008.";
 
         /// <summary>
         /// Creates a UID remapper with a new in-memory store.
@@ -37,11 +47,47 @@ namespace SharpDicom.Deidentification
         public IUidStore Store => _store;
 
         /// <summary>
+        /// Adds a UID to the list of standard UIDs that should never be remapped.
+        /// </summary>
+        /// <param name="uid">The UID to preserve.</param>
+        public void AddStandardUid(string uid)
+        {
+            if (!string.IsNullOrWhiteSpace(uid))
+            {
+                _additionalStandardUids.Add(uid.Trim());
+            }
+        }
+
+        /// <summary>
+        /// Checks if a UID is a standard DICOM UID that should not be remapped.
+        /// </summary>
+        /// <param name="uid">The UID to check.</param>
+        /// <returns>True if the UID is a standard UID that should be preserved.</returns>
+        public bool IsStandardUid(string uid)
+        {
+            if (string.IsNullOrWhiteSpace(uid))
+            {
+                return false;
+            }
+
+            var trimmed = uid.Trim();
+
+            // Check DICOM-defined UID root (Transfer Syntax, SOP Class, etc.)
+            if (trimmed.StartsWith(DicomRoot, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            // Check additional standard UIDs added by user
+            return _additionalStandardUids.Contains(trimmed);
+        }
+
+        /// <summary>
         /// Remaps a UID to a new consistent value.
         /// </summary>
         /// <param name="originalUid">The original UID.</param>
         /// <param name="context">Optional context for consistent mapping (e.g., patient ID).</param>
-        /// <returns>The remapped UID.</returns>
+        /// <returns>The remapped UID, or the original if it's a standard UID.</returns>
         public string Remap(string originalUid, string? context = null)
         {
             if (string.IsNullOrWhiteSpace(originalUid))
@@ -49,7 +95,15 @@ namespace SharpDicom.Deidentification
                 return originalUid;
             }
 
-            return _store.GetOrCreateMapping(originalUid.Trim(), context);
+            var trimmed = originalUid.Trim();
+
+            // Never remap standard UIDs
+            if (IsStandardUid(trimmed))
+            {
+                return trimmed;
+            }
+
+            return _store.GetOrCreateMapping(trimmed, context);
         }
 
         /// <summary>
@@ -96,6 +150,13 @@ namespace SharpDicom.Deidentification
                     if (!string.IsNullOrWhiteSpace(originalUid))
                     {
                         var trimmedUid = originalUid!.Trim();
+
+                        // Skip standard UIDs
+                        if (IsStandardUid(trimmedUid))
+                        {
+                            continue;
+                        }
+
                         var newUid = Remap(trimmedUid, context);
 
                         if (newUid != trimmedUid)
