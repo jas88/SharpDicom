@@ -26,7 +26,7 @@ namespace SharpDicom.Codecs
     /// </remarks>
     public static class CodecInitializer
     {
-        private static volatile bool _initialized;
+        private static bool _initialized;
         private static readonly object _lock = new();
 
         /// <summary>
@@ -90,8 +90,9 @@ namespace SharpDicom.Codecs
             lock (_lock)
             {
                 _initialized = false;
-                CodecRegistry.Reset();
             }
+
+            CodecRegistry.Reset();
         }
     }
 }

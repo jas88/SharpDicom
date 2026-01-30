@@ -71,7 +71,7 @@ namespace SharpDicom.Codecs.Jpeg
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteBits(int value, int count)
         {
-            if (count < 1 || count > 25)
+            if ((uint)count > 25)
             {
                 throw new ArgumentOutOfRangeException(nameof(count), "Bit count must be between 1 and 25.");
             }

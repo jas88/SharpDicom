@@ -120,22 +120,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 return Array.Empty<PacketData>();
             }
 
-            // Validate parameters
-            if (numLayers < 1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(numLayers), "Number of layers must be at least 1.");
-            }
-
-            if (numResolutions < 1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(numResolutions), "Number of resolutions must be at least 1.");
-            }
-
-            if ((int)progression < 0 || (int)progression > 4)
-            {
-                throw new ArgumentOutOfRangeException(nameof(progression), "Invalid progression order.");
-            }
-
             int numCodeBlocks = codeBlocksWide * codeBlocksHigh;
             if (codeBlocks.Length < numCodeBlocks)
             {
@@ -225,9 +209,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 }
 
                 // Calculate new passes for this layer
-                // Allow zero passes when target has already been met
-                int targetNew = targetPassesThisLayer - alreadyIncluded;
-                int newPasses = targetNew > 0 ? Math.Min(remaining, targetNew) : 0;
+                int newPasses = Math.Min(remaining, Math.Max(1, targetPassesThisLayer - alreadyIncluded));
+                if (newPasses <= 0)
+                {
+                    newPasses = 0;
+                }
 
                 // Calculate data length
                 int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
@@ -269,8 +255,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
 
             // Check if packet is empty
-            // Note: Using foreach with early exit instead of LINQ .Any() for performance.
-            // This avoids delegate allocation overhead in the encoding hot path.
             bool hasContributions = false;
             foreach (var contrib in contributions)
             {
@@ -446,92 +430,37 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Writes number of coding passes using ITU-T T.800 Table B.4 encoding.
-        /// Must match PacketDecoder.ReadNumPasses exactly.
+        /// Writes number of coding passes.
         /// </summary>
         private void WriteNumPasses(int passes)
         {
             // ITU-T T.800 Table B.4: Variable-length coding for number of passes
-            // Encoding must match ReadNumPasses in PacketDecoder
             if (passes == 1)
             {
-                // 0
                 WriteBit(0);
             }
             else if (passes == 2)
             {
-                // 10
                 WriteBit(1);
                 WriteBit(0);
             }
             else if (passes <= 5)
             {
-                // 11xx where xx = passes - 3 (00, 01, 10 for passes 3, 4, 5)
+                // 11 + 2-bit suffix
                 WriteBit(1);
                 WriteBit(1);
                 int suffix = passes - 3;
                 WriteBit((suffix >> 1) & 1);
                 WriteBit(suffix & 1);
             }
-            else if (passes <= 21)
+            else if (passes <= 36)
             {
-                // 1111 0xxxx (prefix 11110, then 4-bit suffix for 6-21)
+                // 1111 + 5-bit suffix
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
-                WriteBit(0);
                 int suffix = passes - 6;
-                WriteBit((suffix >> 3) & 1);
-                WriteBit((suffix >> 2) & 1);
-                WriteBit((suffix >> 1) & 1);
-                WriteBit(suffix & 1);
-            }
-            else if (passes <= 37)
-            {
-                // 1111 10xxxx (prefix 111110, then 4-bit suffix for 22-37)
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(0);
-                int suffix = passes - 22;
-                WriteBit((suffix >> 3) & 1);
-                WriteBit((suffix >> 2) & 1);
-                WriteBit((suffix >> 1) & 1);
-                WriteBit(suffix & 1);
-            }
-            else if (passes <= 69)
-            {
-                // 1111 110xxxxx (prefix 1111110, then 5-bit suffix for 38-69)
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(0);
-                int suffix = passes - 38;
-                WriteBit((suffix >> 4) & 1);
-                WriteBit((suffix >> 3) & 1);
-                WriteBit((suffix >> 2) & 1);
-                WriteBit((suffix >> 1) & 1);
-                WriteBit(suffix & 1);
-            }
-            else if (passes <= 133)
-            {
-                // 1111 1110xxxxxx (prefix 11111110, then 6-bit suffix for 70-133)
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(0);
-                int suffix = passes - 70;
-                WriteBit((suffix >> 5) & 1);
                 WriteBit((suffix >> 4) & 1);
                 WriteBit((suffix >> 3) & 1);
                 WriteBit((suffix >> 2) & 1);
@@ -540,12 +469,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else
             {
-                // 1111 1111xxxxxxx (prefix 11111111, then 7-bit suffix for 134+)
+                // 1111 1111 + 7-bit suffix
                 for (int i = 0; i < 8; i++)
                 {
                     WriteBit(1);
                 }
-                int suffix = passes - 134;
+                int suffix = passes - 37;
                 WriteBit((suffix >> 6) & 1);
                 WriteBit((suffix >> 5) & 1);
                 WriteBit((suffix >> 4) & 1);
@@ -561,21 +490,36 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// </summary>
         private void WriteLength(int length)
         {
-            // Prefix-free coding scheme (must match PacketDecoder.ReadLength):
-            // 0 + 4 bits  = short (0-15)
-            // 10 + 8 bits = medium (0-255)
-            // 11 + 16 bits = long (0-65535)
+            // Use Golomb coding or simple binary representation
+            // Simplified: determine number of bits needed, write that count, then value
 
-            if (length <= 15)
+            if (length == 0)
             {
-                // Short length: 0 + 4 bits (handles 0-15)
+                // Special case: zero length
+                WriteBit(0);
+                return;
+            }
+
+            // Find number of bits needed
+            int bits = 1;
+            int temp = length;
+            while ((temp >> bits) != 0)
+            {
+                bits++;
+            }
+
+            // Write number of additional bits as unary + binary value
+            // Simplified scheme: prefix-free coding
+            if (bits <= 4)
+            {
+                // Short length: 0 + 4 bits
                 WriteBit(0);
                 WriteBit((length >> 3) & 1);
                 WriteBit((length >> 2) & 1);
                 WriteBit((length >> 1) & 1);
                 WriteBit(length & 1);
             }
-            else if (length <= 255)
+            else if (bits <= 8)
             {
                 // Medium: 10 + 8 bits
                 WriteBit(1);

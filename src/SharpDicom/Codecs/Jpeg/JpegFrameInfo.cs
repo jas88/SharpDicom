@@ -138,24 +138,10 @@ namespace SharpDicom.Codecs.Jpeg
                 byte samplingFactors = data[offset + 1];
                 byte quantTableId = data[offset + 2];
 
-                // Validate sampling factors (1-4 per JPEG spec)
-                byte hSampling = (byte)(samplingFactors >> 4);
-                byte vSampling = (byte)(samplingFactors & 0x0F);
-                if (hSampling < 1 || hSampling > 4 || vSampling < 1 || vSampling > 4)
-                {
-                    return false;
-                }
-
-                // Validate quantization table ID (0-3)
-                if (quantTableId > 3)
-                {
-                    return false;
-                }
-
                 components[i] = new JpegComponentInfo(
                     componentId,
-                    hSampling,
-                    vSampling,
+                    (byte)(samplingFactors >> 4),   // Horizontal sampling factor (high nibble)
+                    (byte)(samplingFactors & 0x0F), // Vertical sampling factor (low nibble)
                     quantTableId);
 
                 offset += 3;

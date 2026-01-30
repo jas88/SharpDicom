@@ -35,8 +35,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
                 throw new ArgumentException("Width and height must be positive.");
             }
 
-            // Use long multiplication to avoid overflow before comparing
-            if (data.Length < (long)width * height)
+            if (data.Length < width * height)
             {
                 throw new ArgumentException("Data buffer is too small for the specified dimensions.");
             }
@@ -87,8 +86,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
                 throw new ArgumentException("Width and height must be positive.");
             }
 
-            // Use long multiplication to avoid overflow before comparing
-            if (data.Length < (long)width * height)
+            if (data.Length < width * height)
             {
                 throw new ArgumentException("Data buffer is too small for the specified dimensions.");
             }

@@ -299,7 +299,7 @@ namespace SharpDicom.Codecs
                 throw new ArgumentException("Output RGB buffer must be at least 3x the input length.", nameof(rgb));
             }
 
-            int halfRange = (maxValue + 1) / 2;
+            int halfRange = maxValue / 2;
 
             for (int i = 0; i < y.Length; i++)
             {

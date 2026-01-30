@@ -34,10 +34,6 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <summary>Gets or sets the progression order.</summary>
         public ProgressionOrder Progression { get; set; } = ProgressionOrder.LRCP;
 
-        /// <summary>Gets or sets the target compression ratio for lossy encoding (e.g., 10 = 10:1).</summary>
-        /// <remarks>Only used for lossy encoding. Higher values = more compression, lower quality.</remarks>
-        public int CompressionRatio { get; set; } = 10;
-
         /// <summary>
         /// Gets the default options for lossless encoding.
         /// </summary>
@@ -116,6 +112,9 @@ namespace SharpDicom.Codecs.Jpeg2000
             int width = info.Columns;
             int height = info.Rows;
             int components = info.SamplesPerPixel;
+            int bitsPerSample = info.BitsStored;
+            bool isSigned = info.IsSigned;
+            int bytesPerSample = info.BytesPerSample;
 
             // Convert pixel data to integer array for processing
             int[][] componentData = ExtractComponents(pixelData, info);
@@ -232,21 +231,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             else
             {
                 uint value = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset));
-                if (isSigned)
-                {
-                    // Interpret bit pattern as signed int32
-                    return unchecked((int)value);
-                }
-                else
-                {
-                    // Unsigned 32-bit values > int.MaxValue cannot be represented
-                    if (value > int.MaxValue)
-                    {
-                        throw new NotSupportedException(
-                            $"Unsigned 32-bit sample value {value} exceeds maximum supported value.");
-                    }
-                    return (int)value;
-                }
+                return isSigned ? (int)value : (int)value;
             }
         }
 
@@ -393,10 +378,7 @@ namespace SharpDicom.Codecs.Jpeg2000
         private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info)
         {
             int components = info.SamplesPerPixel;
-            // SIZ segment: Lsiz(2) + Rsiz(2) + Xsiz(4) + Ysiz(4) + XOsiz(4) + YOsiz(4)
-            //            + XTsiz(4) + YTsiz(4) + XTOsiz(4) + YTOsiz(4) + Csiz(2) = 38 bytes
-            //            + Ssiz/XRsiz/YRsiz(3) per component
-            int segmentLength = 38 + components * 3;
+            int segmentLength = 38 + components * 3 + 2; // +2 for length itself
 
             WriteMarker(buffer, J2kMarkers.SIZ);
 
@@ -492,10 +474,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             span[offset++] = (byte)(GetExponent(options.CodeBlockHeight) - 2);
 
             // Code-block style
-            span[offset] = 0x00;
+            span[offset++] = 0x00;
 
             // Wavelet transform: 0 = 9/7, 1 = 5/3
-            span[offset + 1] = lossless ? (byte)1 : (byte)0;
+            span[offset++] = lossless ? (byte)1 : (byte)0;
 
             buffer.Advance(segmentLength);
         }
@@ -518,8 +500,8 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             // Sqcd: quantization style
             // For lossless: no quantization (style 0)
-            // For lossy: scalar derived (style 1) - mantissa/exponent pairs for each subband
-            span[offset++] = lossless ? (byte)0x00 : (byte)0x01;
+            // For lossy: scalar derived (style 1) or scalar expounded (style 2)
+            span[offset++] = lossless ? (byte)0x00 : (byte)0x00;
 
             // SPqcd: step sizes
             // For lossless, just write 8 (exponent = 8, mantissa = 0)
@@ -579,10 +561,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             offset += 4;
 
             // Tile-part index
-            sotSpan[offset] = 0;
+            sotSpan[offset++] = 0;
 
             // Number of tile-parts
-            sotSpan[offset + 1] = 1;
+            sotSpan[offset++] = 1;
 
             buffer.Advance(10);
 
@@ -593,6 +575,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             if (tileData.Count > 0)
             {
                 Span<byte> dataSpan = buffer.GetSpan(tileData.Count);
+                tileData.CopyTo(dataSpan.ToArray());
                 for (int i = 0; i < tileData.Count; i++)
                 {
                     dataSpan[i] = tileData[i];

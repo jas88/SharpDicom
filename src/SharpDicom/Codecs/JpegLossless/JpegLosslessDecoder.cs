@@ -87,13 +87,6 @@ namespace SharpDicom.Codecs.JpegLossless
                 }
 
                 int segmentLength = BinaryPrimitives.ReadUInt16BigEndian(compressedFrame.Slice(position));
-
-                // Validate segment length doesn't exceed remaining data
-                if (segmentLength < 2 || position + segmentLength > compressedFrame.Length)
-                {
-                    return DecodeResult.Fail(frameIndex, position, $"Invalid segment length: {segmentLength}");
-                }
-
                 var segment = compressedFrame.Slice(position, segmentLength);
                 position += segmentLength;
 
@@ -131,11 +124,6 @@ namespace SharpDicom.Codecs.JpegLossless
                 return DecodeResult.Fail(frameIndex, 0, "Missing frame information (SOF3)");
             }
 
-            if (scanDataStart == 0)
-            {
-                return DecodeResult.Fail(frameIndex, 0, "Missing scan data (SOS marker not found)");
-            }
-
             // Use default Huffman table if none provided
             huffmanTable ??= LosslessHuffman.Default;
 
@@ -164,7 +152,6 @@ namespace SharpDicom.Codecs.JpegLossless
                 precision,
                 selectionValue,
                 pointTransform,
-                info,
                 output,
                 frameIndex);
         }
@@ -240,19 +227,11 @@ namespace SharpDicom.Codecs.JpegLossless
             int precision,
             int selectionValue,
             int pointTransform,
-            PixelDataInfo info,
             Span<byte> output,
             int frameIndex)
         {
             // Allocate temporary buffer for decoded samples
-            // Use long arithmetic to avoid overflow for large images
-            long totalSamplesLong = (long)width * height * components;
-            if (totalSamplesLong > int.MaxValue)
-            {
-                return DecodeResult.Fail(frameIndex, 0,
-                    $"Image too large: {width}x{height}x{components} exceeds maximum sample count");
-            }
-            int totalSamples = (int)totalSamplesLong;
+            int totalSamples = width * height * components;
             int[] samples = new int[totalSamples];
 
             // Default prediction value: 2^(P-Pt-1)
@@ -307,63 +286,30 @@ namespace SharpDicom.Codecs.JpegLossless
                 return DecodeResult.Fail(frameIndex, reader.BytePosition, ex.Message);
             }
 
-            // Write samples to output buffer (respecting planar configuration)
+            // Write samples to output buffer
             int bytesPerSample = (precision + 7) / 8;
-            int bytesWritten = WriteSamplesToOutput(samples, output, width, height, components, bytesPerSample, info.IsPlanar);
+            int bytesWritten = WriteSamplesToOutput(samples, output, bytesPerSample);
 
             return DecodeResult.Ok(bytesWritten);
         }
 
-        private static int WriteSamplesToOutput(
-            int[] samples,
-            Span<byte> output,
-            int width,
-            int height,
-            int components,
-            int bytesPerSample,
-            bool isPlanar)
+        private static int WriteSamplesToOutput(int[] samples, Span<byte> output, int bytesPerSample)
         {
-            int pixelCount = width * height;
             int outputIndex = 0;
 
-            if (isPlanar || components == 1)
+            for (int i = 0; i < samples.Length; i++)
             {
-                // Planar output: samples are already in planar format, just copy
-                for (int i = 0; i < samples.Length; i++)
-                {
-                    int sample = samples[i];
+                int sample = samples[i];
 
-                    if (bytesPerSample == 1)
-                    {
-                        output[outputIndex++] = (byte)sample;
-                    }
-                    else
-                    {
-                        // Little-endian 16-bit output (DICOM native format)
-                        output[outputIndex++] = (byte)(sample & 0xFF);
-                        output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
-                    }
+                if (bytesPerSample == 1)
+                {
+                    output[outputIndex++] = (byte)sample;
                 }
-            }
-            else
-            {
-                // Interleaved output: convert from planar (RRR... GGG... BBB...) to interleaved (RGB RGB RGB...)
-                for (int p = 0; p < pixelCount; p++)
+                else
                 {
-                    for (int c = 0; c < components; c++)
-                    {
-                        int sample = samples[c * pixelCount + p];
-
-                        if (bytesPerSample == 1)
-                        {
-                            output[outputIndex++] = (byte)sample;
-                        }
-                        else
-                        {
-                            output[outputIndex++] = (byte)(sample & 0xFF);
-                            output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
-                        }
-                    }
+                    // Little-endian 16-bit output (DICOM native format)
+                    output[outputIndex++] = (byte)(sample & 0xFF);
+                    output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
                 }
             }
 
