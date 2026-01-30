@@ -1,16 +1,80 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using SharpDicom.Data;
 
 namespace SharpDicom.Deidentification
 {
+    /// <summary>
+    /// Interface for storing and retrieving date offsets per patient.
+    /// </summary>
+    public interface IDateOffsetStore
+    {
+        /// <summary>
+        /// Gets or creates a date offset for the given patient ID.
+        /// </summary>
+        /// <param name="patientId">The patient identifier.</param>
+        /// <param name="minOffset">Minimum offset range.</param>
+        /// <param name="maxOffset">Maximum offset range.</param>
+        /// <param name="seed">Optional seed for reproducibility.</param>
+        /// <returns>The time offset to apply.</returns>
+        TimeSpan GetOrCreateOffset(string patientId, TimeSpan minOffset, TimeSpan maxOffset, int? seed);
+
+        /// <summary>
+        /// Tries to get existing offset for patient.
+        /// </summary>
+        /// <param name="patientId">The patient identifier.</param>
+        /// <param name="offset">The offset if found.</param>
+        /// <returns>True if found, false otherwise.</returns>
+        bool TryGetOffset(string patientId, out TimeSpan offset);
+    }
+
+    /// <summary>
+    /// In-memory implementation of <see cref="IDateOffsetStore"/>.
+    /// </summary>
+    public sealed class InMemoryDateOffsetStore : IDateOffsetStore
+    {
+        private readonly ConcurrentDictionary<string, TimeSpan> _offsets = new();
+        private readonly Random _random;
+        private readonly object _lock = new();
+
+        /// <summary>
+        /// Creates a new in-memory date offset store.
+        /// </summary>
+        /// <param name="seed">Optional seed for reproducibility.</param>
+        public InMemoryDateOffsetStore(int? seed = null)
+        {
+            _random = seed.HasValue ? new Random(seed.Value) : new Random();
+        }
+
+        /// <inheritdoc/>
+        public TimeSpan GetOrCreateOffset(string patientId, TimeSpan minOffset, TimeSpan maxOffset, int? seed)
+        {
+            return _offsets.GetOrAdd(patientId, _ =>
+            {
+                lock (_lock)
+                {
+                    var range = (maxOffset - minOffset).TotalDays;
+                    var offsetDays = minOffset.TotalDays + (_random.NextDouble() * range);
+                    return TimeSpan.FromDays(Math.Round(offsetDays));
+                }
+            });
+        }
+
+        /// <inheritdoc/>
+        public bool TryGetOffset(string patientId, out TimeSpan offset)
+            => _offsets.TryGetValue(patientId, out offset);
+    }
+
     /// <summary>
     /// Shifts dates consistently for de-identification while preserving temporal relationships.
     /// </summary>
     public sealed class DateShifter
     {
         private readonly DateShiftConfig _config;
+        private readonly IDateOffsetStore? _offsetStore;
         private readonly Dictionary<string, TimeSpan> _patientOffsets = new();
         private readonly object _lock = new();
         private readonly Random? _random;
@@ -19,11 +83,13 @@ namespace SharpDicom.Deidentification
         /// Creates a date shifter with the specified configuration.
         /// </summary>
         /// <param name="config">The date shift configuration.</param>
-        public DateShifter(DateShiftConfig config)
+        /// <param name="offsetStore">Optional offset store for persisting patient offsets.</param>
+        public DateShifter(DateShiftConfig config, IDateOffsetStore? offsetStore = null)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
+            _offsetStore = offsetStore;
 
-            if (_config.Strategy == DateShiftStrategy.RandomPerPatient)
+            if (_config.Strategy == DateShiftStrategy.RandomPerPatient && _offsetStore == null)
             {
                 _random = _config.RandomSeed.HasValue
                     ? new Random(_config.RandomSeed.Value)
@@ -43,12 +109,24 @@ namespace SharpDicom.Deidentification
                 DateShiftStrategy.None => TimeSpan.Zero,
                 DateShiftStrategy.Fixed => _config.FixedOffset,
                 DateShiftStrategy.RandomPerPatient => GetOrCreatePatientOffset(patientId ?? "UNKNOWN"),
+                DateShiftStrategy.RemoveTime => TimeSpan.Zero,
+                DateShiftStrategy.Remove => TimeSpan.Zero,
                 _ => TimeSpan.Zero
             };
         }
 
         private TimeSpan GetOrCreatePatientOffset(string patientId)
         {
+            // Try external offset store first
+            if (_offsetStore != null)
+            {
+                return _offsetStore.GetOrCreateOffset(
+                    patientId,
+                    TimeSpan.FromDays(_config.MinOffsetDays),
+                    TimeSpan.FromDays(_config.MaxOffsetDays),
+                    _config.RandomSeed);
+            }
+
             lock (_lock)
             {
                 if (_patientOffsets.TryGetValue(patientId, out var existing))
@@ -80,6 +158,12 @@ namespace SharpDicom.Deidentification
                 return string.Empty;
             }
 
+            // Handle Remove strategy - replace with dummy date
+            if (_config.Strategy == DateShiftStrategy.Remove)
+            {
+                return DummyDate;
+            }
+
             if (dateString!.Length < 8)
             {
                 return dateString; // Invalid format, return as-is
@@ -96,28 +180,41 @@ namespace SharpDicom.Deidentification
             return shifted.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         }
 
+        // Dummy values for Remove strategy
+        private const string DummyDate = "19000101";
+        private const string DummyTime = "000000.000000";
+        private const string DummyDateTime = "19000101000000.000000";
+
         /// <summary>
         /// Shifts a DICOM time string.
         /// </summary>
         /// <param name="timeString">The time string in HHMMSS.FFFFFF format.</param>
         /// <param name="patientId">The patient ID (not used for time-only shifting).</param>
         /// <returns>The time string (unchanged unless config specifies time shifting).</returns>
-#pragma warning disable CA1822 // Mark members as static - kept instance for API consistency
         public string ShiftTime(string? timeString, string? patientId)
-#pragma warning restore CA1822
         {
             // Suppress unused parameter warning - parameter kept for API consistency
             _ = patientId;
+
+            // Handle Remove or RemoveTime strategy - remove time component
+            if (_config.Strategy == DateShiftStrategy.Remove ||
+                _config.Strategy == DateShiftStrategy.RemoveTime)
+            {
+                return DummyTime;
+            }
 
             // Time shifting is generally not needed for de-identification
             // Preserve as-is
             return timeString ?? string.Empty;
         }
 
+        // Regex for extracting timezone from DT VR: &ZZXX or +ZZXX or -ZZXX at end
+        private static readonly Regex TimezonePattern = new Regex(@"([&+-]\d{4})$", RegexOptions.Compiled);
+
         /// <summary>
         /// Shifts a DICOM datetime string.
         /// </summary>
-        /// <param name="dateTimeString">The datetime string.</param>
+        /// <param name="dateTimeString">The datetime string in YYYYMMDDHHMMSS.FFFFFF&amp;ZZXX format.</param>
         /// <param name="patientId">The patient ID for consistent shifting.</param>
         /// <returns>The shifted datetime string.</returns>
         public string ShiftDateTime(string? dateTimeString, string? patientId)
@@ -127,17 +224,40 @@ namespace SharpDicom.Deidentification
                 return string.Empty;
             }
 
+            // Handle Remove strategy - replace with dummy datetime
+            if (_config.Strategy == DateShiftStrategy.Remove)
+            {
+                return DummyDateTime;
+            }
+
             if (dateTimeString!.Length < 8)
             {
                 return dateTimeString; // Invalid format
             }
 
+            // Extract timezone suffix if present (preserve it)
+            string timezone = string.Empty;
+            string dtWithoutTz = dateTimeString!;
+            var tzMatch = TimezonePattern.Match(dateTimeString!);
+            if (tzMatch.Success)
+            {
+                timezone = tzMatch.Groups[1].Value;
+                dtWithoutTz = dateTimeString!.Substring(0, dateTimeString.Length - timezone.Length);
+            }
+
             // Extract date part and shift it
-            var datePart = dateTimeString!.Substring(0, 8);
-            var timePart = dateTimeString!.Length > 8 ? dateTimeString!.Substring(8) : "";
+            var datePart = dtWithoutTz.Substring(0, 8);
+            var timePart = dtWithoutTz.Length > 8 ? dtWithoutTz.Substring(8) : "";
+
+            // Handle RemoveTime strategy - keep shifted date, remove time
+            if (_config.Strategy == DateShiftStrategy.RemoveTime)
+            {
+                var shiftedDateOnly = ShiftDate(datePart, patientId);
+                return shiftedDateOnly + "000000.000000" + timezone;
+            }
 
             var shiftedDate = ShiftDate(datePart, patientId);
-            return shiftedDate + timePart;
+            return shiftedDate + timePart + timezone;
         }
 
         /// <summary>
@@ -148,21 +268,35 @@ namespace SharpDicom.Deidentification
         /// <returns>Number of dates shifted.</returns>
         public int ShiftDates(DicomDataset dataset, string? patientId = null)
         {
+            var result = ShiftDatesWithResult(dataset, patientId);
+            return result.TotalShifted;
+        }
+
+        /// <summary>
+        /// Shifts all date/time elements in a dataset and returns detailed result.
+        /// </summary>
+        /// <param name="dataset">The dataset to process.</param>
+        /// <param name="patientId">The patient ID for consistent shifting.</param>
+        /// <returns>Detailed result of the shifting operation.</returns>
+        public DateShiftResult ShiftDatesWithResult(DicomDataset dataset, string? patientId = null)
+        {
             // Try to get patient ID from dataset if not provided
             if (string.IsNullOrEmpty(patientId))
             {
                 patientId = dataset.GetString(DicomTag.PatientID);
             }
 
-            int count = 0;
-            count += ShiftDatesInternal(dataset, patientId);
-            return count;
+            var result = new DateShiftResult
+            {
+                AppliedOffset = GetOffset(patientId)
+            };
+
+            ShiftDatesInternal(dataset, patientId, result);
+            return result;
         }
 
-        private int ShiftDatesInternal(DicomDataset dataset, string? patientId)
+        private void ShiftDatesInternal(DicomDataset dataset, string? patientId, DateShiftResult result)
         {
-            int count = 0;
-
             // Collect tags to process
             var tagsToProcess = new List<DicomTag>();
             foreach (var element in dataset)
@@ -180,7 +314,7 @@ namespace SharpDicom.Deidentification
                 {
                     foreach (var item in seq.Items)
                     {
-                        count += ShiftDatesInternal(item, patientId);
+                        ShiftDatesInternal(item, patientId, result);
                     }
                     continue;
                 }
@@ -194,10 +328,26 @@ namespace SharpDicom.Deidentification
                     if (element.VR == DicomVR.DA)
                     {
                         newValue = ShiftDate(originalValue, patientId);
+                        if (newValue != null && newValue != originalValue)
+                        {
+                            result.DatesShifted++;
+                        }
+                    }
+                    else if (element.VR == DicomVR.TM)
+                    {
+                        newValue = ShiftTime(originalValue, patientId);
+                        if (newValue != null && newValue != originalValue)
+                        {
+                            result.TimesShifted++;
+                        }
                     }
                     else if (element.VR == DicomVR.DT)
                     {
                         newValue = ShiftDateTime(originalValue, patientId);
+                        if (newValue != null && newValue != originalValue)
+                        {
+                            result.DateTimesShifted++;
+                        }
                     }
 
                     if (newValue != null && newValue != originalValue)
@@ -205,12 +355,9 @@ namespace SharpDicom.Deidentification
                         var bytes = System.Text.Encoding.ASCII.GetBytes(newValue);
                         var newElement = new DicomStringElement(tag, element.VR, bytes);
                         dataset.Add(newElement);
-                        count++;
                     }
                 }
             }
-
-            return count;
         }
 
         private static bool TryParseDate(string dateString, out DateTime date)
@@ -264,6 +411,25 @@ namespace SharpDicom.Deidentification
         /// Configuration with no date shifting.
         /// </summary>
         public static DateShiftConfig None { get; } = new() { Strategy = DateShiftStrategy.None };
+
+        /// <summary>
+        /// Research preset with random offset per patient.
+        /// </summary>
+        public static DateShiftConfig Research { get; } = new()
+        {
+            Strategy = DateShiftStrategy.RandomPerPatient,
+            MinOffsetDays = -365,
+            MaxOffsetDays = 365
+        };
+
+        /// <summary>
+        /// Clinical trial preset - shifts dates, removes time component.
+        /// </summary>
+        public static DateShiftConfig ClinicalTrial { get; } = new()
+        {
+            Strategy = DateShiftStrategy.RemoveTime,
+            FixedOffset = TimeSpan.FromDays(-100)
+        };
     }
 
     /// <summary>
@@ -278,6 +444,48 @@ namespace SharpDicom.Deidentification
         Fixed,
 
         /// <summary>Apply a random but consistent offset per patient.</summary>
-        RandomPerPatient
+        RandomPerPatient,
+
+        /// <summary>Remove time component, keep date shifted.</summary>
+        RemoveTime,
+
+        /// <summary>Remove date entirely (replace with dummy value).</summary>
+        Remove
+    }
+
+    /// <summary>
+    /// Result of date shifting operation containing statistics.
+    /// </summary>
+    public sealed class DateShiftResult
+    {
+        /// <summary>
+        /// Gets or sets the offset that was applied.
+        /// </summary>
+        public TimeSpan AppliedOffset { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of DA (date) values shifted.
+        /// </summary>
+        public int DatesShifted { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of TM (time) values shifted.
+        /// </summary>
+        public int TimesShifted { get; set; }
+
+        /// <summary>
+        /// Gets or sets the number of DT (datetime) values shifted.
+        /// </summary>
+        public int DateTimesShifted { get; set; }
+
+        /// <summary>
+        /// Gets the list of warnings encountered during shifting.
+        /// </summary>
+        public List<string> Warnings { get; } = new();
+
+        /// <summary>
+        /// Gets the total number of values shifted.
+        /// </summary>
+        public int TotalShifted => DatesShifted + TimesShifted + DateTimesShifted;
     }
 }
