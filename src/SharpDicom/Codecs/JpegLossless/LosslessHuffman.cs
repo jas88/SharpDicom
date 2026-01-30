@@ -32,9 +32,10 @@ namespace SharpDicom.Codecs.JpegLossless
         // Default Huffman table for lossless JPEG (extended to support 16-bit samples)
         // Based on ITU-T T.81 Annex K Table K.3 (Luminance DC) with additions for categories 12-16
         // BITS: number of codes of each length (1-16 bits)
-        // Categories 0-16 are assigned codes of varying lengths
+        // Categories 0-16 are assigned codes of varying lengths (17 categories total)
+        // BITS sum must equal VALUES count: 0+1+5+1+1+1+1+1+1+1+1+1+1+1+0+0 = 17
         private static readonly byte[] DefaultBits =
-            { 0, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+            { 0, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0 };
         private static readonly byte[] DefaultValues =
             { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
 

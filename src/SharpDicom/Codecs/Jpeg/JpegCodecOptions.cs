@@ -142,7 +142,7 @@ namespace SharpDicom.Codecs.Jpeg
         public bool ProgressiveEncoding { get; set; }
 
         /// <summary>
-        /// Default options for medical imaging (quality 90, no subsampling).
+        /// Creates default options for medical imaging (quality 90, no subsampling).
         /// </summary>
         /// <remarks>
         /// <para>
@@ -152,8 +152,11 @@ namespace SharpDicom.Codecs.Jpeg
         /// - No chroma subsampling preserves color accuracy
         /// - Standard Huffman tables for maximum compatibility
         /// </para>
+        /// <para>
+        /// Returns a new instance each time to prevent accidental modification of shared state.
+        /// </para>
         /// </remarks>
-        public static JpegCodecOptions MedicalImaging { get; } = new()
+        public static JpegCodecOptions MedicalImaging => new()
         {
             Quality = 90,
             Subsampling = ChromaSubsampling.None,
@@ -162,7 +165,7 @@ namespace SharpDicom.Codecs.Jpeg
         };
 
         /// <summary>
-        /// Default options (quality 75, no subsampling).
+        /// Creates default options (quality 75, no subsampling).
         /// </summary>
         /// <remarks>
         /// <para>
@@ -170,19 +173,25 @@ namespace SharpDicom.Codecs.Jpeg
         /// - Quality 75 provides good balance of size and quality
         /// - No chroma subsampling by default
         /// </para>
+        /// <para>
+        /// Returns a new instance each time to prevent accidental modification of shared state.
+        /// </para>
         /// </remarks>
-        public static JpegCodecOptions Default { get; } = new();
+        public static JpegCodecOptions Default => new();
 
         /// <summary>
-        /// High compression options (quality 50, 4:2:0 subsampling).
+        /// Creates high compression options (quality 50, 4:2:0 subsampling).
         /// </summary>
         /// <remarks>
         /// <para>
         /// Use with caution for medical imaging. This preset prioritizes
         /// file size over quality and may introduce visible artifacts.
         /// </para>
+        /// <para>
+        /// Returns a new instance each time to prevent accidental modification of shared state.
+        /// </para>
         /// </remarks>
-        public static JpegCodecOptions HighCompression { get; } = new()
+        public static JpegCodecOptions HighCompression => new()
         {
             Quality = 50,
             Subsampling = ChromaSubsampling.Both,

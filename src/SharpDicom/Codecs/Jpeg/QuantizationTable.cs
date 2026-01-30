@@ -255,9 +255,10 @@ namespace SharpDicom.Codecs.Jpeg
 
             for (int i = 0; i < 64; i++)
             {
-                // Scale and clamp to 1-255 (8-bit) or 1-65535 (16-bit)
-                int scaled = (baseValues[i] * scale + 50) / 100;
-                values[i] = Math.Max(1, Math.Min(255, scaled));
+                // Scale and clamp to 1-255 for 8-bit precision
+                // Use long arithmetic to avoid overflow with extreme scale values
+                long scaled = ((long)baseValues[i] * scale + 50) / 100;
+                values[i] = (int)Math.Max(1, Math.Min(255, scaled));
             }
 
             return new QuantizationTable(values, 8, tableId);

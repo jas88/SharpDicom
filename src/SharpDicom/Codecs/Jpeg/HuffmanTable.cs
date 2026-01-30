@@ -392,7 +392,9 @@ namespace SharpDicom.Codecs.Jpeg
             if (_bitPosition == 0)
             {
                 FetchByte();
-                if (_bytePosition > _data.Length || _hasMarker)
+                // After FetchByte, _bitPosition should be 8 if successful.
+                // If still 0, we're at end-of-data or hit a marker.
+                if (_bitPosition == 0 || _hasMarker)
                 {
                     bit = 0;
                     return false;

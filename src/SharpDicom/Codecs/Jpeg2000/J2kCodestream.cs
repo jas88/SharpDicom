@@ -627,6 +627,15 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             byte cbWidthExp = data[offset++];
             byte cbHeightExp = data[offset++];
+
+            // JPEG 2000 spec: code block exponents must be in range 0-8 (sizes 4-1024)
+            // Also: width_exp + height_exp + 4 <= 12 (max 4096 samples per code block)
+            if (cbWidthExp > 8 || cbHeightExp > 8)
+            {
+                error = $"Invalid code-block exponents: width={cbWidthExp}, height={cbHeightExp}";
+                return false;
+            }
+
             codeBlockWidth = 1 << (cbWidthExp + 2);
             codeBlockHeight = 1 << (cbHeightExp + 2);
 

@@ -231,7 +231,21 @@ namespace SharpDicom.Codecs.Jpeg2000
             else
             {
                 uint value = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(offset));
-                return isSigned ? (int)value : (int)value;
+                if (isSigned)
+                {
+                    // Interpret bit pattern as signed int32
+                    return unchecked((int)value);
+                }
+                else
+                {
+                    // Unsigned 32-bit values > int.MaxValue cannot be represented
+                    if (value > int.MaxValue)
+                    {
+                        throw new NotSupportedException(
+                            $"Unsigned 32-bit sample value {value} exceeds maximum supported value.");
+                    }
+                    return (int)value;
+                }
             }
         }
 

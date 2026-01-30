@@ -159,6 +159,13 @@ namespace SharpDicom.Codecs.Jpeg
                         break;
 
                     case JpegMarkers.SOS:
+                        // Validate SOF was parsed before SOS
+                        if (context.FrameInfo.Width == 0 || context.FrameInfo.Height == 0)
+                        {
+                            return DecodeResult.Fail(frameIndex, position,
+                                "SOS marker found before SOF (frame header missing)");
+                        }
+
                         // Parse SOS header
                         if (!ParseSosHeader(segmentPayload, context, out var sosError))
                         {

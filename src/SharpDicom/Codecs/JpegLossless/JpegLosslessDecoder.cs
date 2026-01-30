@@ -87,6 +87,13 @@ namespace SharpDicom.Codecs.JpegLossless
                 }
 
                 int segmentLength = BinaryPrimitives.ReadUInt16BigEndian(compressedFrame.Slice(position));
+
+                // Validate segment length doesn't exceed remaining data
+                if (segmentLength < 2 || position + segmentLength > compressedFrame.Length)
+                {
+                    return DecodeResult.Fail(frameIndex, position, $"Invalid segment length: {segmentLength}");
+                }
+
                 var segment = compressedFrame.Slice(position, segmentLength);
                 position += segmentLength;
 
@@ -122,6 +129,11 @@ namespace SharpDicom.Codecs.JpegLossless
             if (width == 0 || height == 0 || precision == 0)
             {
                 return DecodeResult.Fail(frameIndex, 0, "Missing frame information (SOF3)");
+            }
+
+            if (scanDataStart == 0)
+            {
+                return DecodeResult.Fail(frameIndex, 0, "Missing scan data (SOS marker not found)");
             }
 
             // Use default Huffman table if none provided
