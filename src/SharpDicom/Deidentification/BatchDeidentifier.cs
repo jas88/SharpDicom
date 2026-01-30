@@ -55,8 +55,10 @@ namespace SharpDicom.Deidentification
 #else
             var builder = new DicomDeidentifierBuilder().WithBasicProfile();
 #endif
+            // SOPClassUID must be preserved for file writing
             _deidentifier = builder
                 .WithUidRemapper(_context.UidRemapper)
+                .WithOverride(Data.DicomTag.SOPClassUID, DeidentificationAction.Keep)
                 .Build();
         }
 
