@@ -369,6 +369,13 @@ namespace SharpDicom.Codecs.Native
                 ActiveSimdFeatures = SimdFeatures.None;
                 _nativeVersion = 0;
                 _availableFeatures = NativeFeatures.None;
+
+                // Reset configuration options to defaults
+                PreferCpu = false;
+                EnableJpeg = true;
+                EnableJpeg2000 = true;
+                EnableJpegLs = true;
+                EnableVideo = true;
             }
         }
 

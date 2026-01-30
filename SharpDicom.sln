@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Tests.Polyfills"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Codecs", "src\SharpDicom.Codecs\SharpDicom.Codecs.csproj", "{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Codecs.Tests", "tests\SharpDicom.Codecs.Tests\SharpDicom.Codecs.Tests.csproj", "{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,18 @@ Global
 		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x64.Build.0 = Release|Any CPU
 		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x86.ActiveCfg = Release|Any CPU
 		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x86.Build.0 = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|x64.Build.0 = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Debug|x86.Build.0 = Debug|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|x64.ActiveCfg = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|x64.Build.0 = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|x86.ActiveCfg = Release|Any CPU
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -97,5 +111,6 @@ Global
 		{A8BF56CB-9083-4955-BFBB-F48538726935} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{0353FBBC-0823-4449-A4AB-22A290C91412} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{1C3F14BD-1116-41B9-866B-0AFCDEC10A5A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
