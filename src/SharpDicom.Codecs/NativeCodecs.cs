@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native.Interop;
 #if NET5_0_OR_GREATER
 using System.Runtime.CompilerServices;
@@ -499,8 +500,6 @@ namespace SharpDicom.Codecs.Native
         /// Native codecs are registered with priority 100, which is higher than
         /// pure C# implementations (priority 50). This means native codecs will
         /// be preferred when available.
-        ///
-        /// Actual codec implementations are created in Plan 07.
         /// </remarks>
         private static void RegisterCodecs()
         {
@@ -510,30 +509,28 @@ namespace SharpDicom.Codecs.Native
             // JPEG codec registration
             if (HasFeature(NativeCodecFeature.Jpeg))
             {
-                // Codec class created in Plan 07
-                // CodecRegistry.Register(new NativeJpegCodec(), priority: 100);
+                CodecRegistry.Register(new NativeJpegCodec(), CodecRegistry.PriorityNative);
             }
 
             // JPEG 2000 codec registration
             if (HasFeature(NativeCodecFeature.Jpeg2000))
             {
-                // Codec class created in Plan 07
-                // CodecRegistry.Register(new NativeJpeg2000Codec(), priority: 100);
+                CodecRegistry.Register(NativeJpeg2000Codec.Lossless, CodecRegistry.PriorityNative);
+                CodecRegistry.Register(NativeJpeg2000Codec.Lossy, CodecRegistry.PriorityNative);
             }
 
             // JPEG-LS codec registration
             if (HasFeature(NativeCodecFeature.JpegLs))
             {
-                // Codec class created in Plan 07
-                // CodecRegistry.Register(new NativeJpegLsCodec(), priority: 100);
+                CodecRegistry.Register(NativeJpegLsCodec.Lossless, CodecRegistry.PriorityNative);
+                CodecRegistry.Register(NativeJpegLsCodec.NearLossless, CodecRegistry.PriorityNative);
             }
 
-            // Video codec registration
-            if (HasFeature(NativeCodecFeature.Video))
-            {
-                // Codec class created in Plan 07
-                // CodecRegistry.Register(new NativeVideoCodec(), priority: 100);
-            }
+            // Video codec registration - to be implemented in future plan
+            // if (HasFeature(NativeCodecFeature.Video))
+            // {
+            //     CodecRegistry.Register(new NativeVideoCodec(), CodecRegistry.PriorityNative);
+            // }
         }
     }
 
