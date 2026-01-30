@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    SharpDicom.Codecs NuGet package transitive MSBuild targets
+
+    This file is imported by projects that transitively depend on SharpDicom.Codecs.
+    It imports the main targets file to ensure native libraries are copied.
+  -->
+
+  <Import Project="$(MSBuildThisFileDirectory)..\build\SharpDicom.Codecs.targets" />
+
+</Project>
