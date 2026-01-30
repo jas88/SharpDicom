@@ -85,6 +85,7 @@
 - [x] Phase 12 Plan 06: JPEG 2000 codec (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
 - [x] Phase 12 Plan 07: JPEG 2000 integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer)
 - [x] Phase 13 Plan 01: Native build infrastructure (Zig cross-compilation, C API header, CI workflow)
+- [x] Phase 13 Plan 02: libjpeg-turbo wrapper (jpeg_decode, jpeg_encode, 8-bit/12-bit, TurboJPEG API)
 - [x] Phase 13 Plan 03: JPEG 2000 wrapper (OpenJPEG integration, resolution levels, ROI decode, tiled encode)
 
 ## In Progress
@@ -283,6 +284,10 @@
 | 2026-01-30 | 13-03 | Memory stream callbacks for OpenJPEG | In-memory buffers without file I/O |
 | 2026-01-30 | 13-03 | Stub compilation pattern | Return UNSUPPORTED when vendor lib not present |
 | 2026-01-30 | 13-03 | Resolution levels via cp_reduce | Efficient thumbnail generation at 1/2, 1/4, etc. |
+| 2026-01-30 | 13-02 | TurboJPEG API | Simplified high-performance access vs raw libjpeg |
+| 2026-01-30 | 13-02 | Thread-local handles | Avoid handle creation overhead per call |
+| 2026-01-30 | 13-02 | TJFLAG_ACCURATEDCT | Medical imaging requires highest quality DCT |
+| 2026-01-30 | 13-02 | 12-bit stub | Most distributions don't build with -DWITH_12BIT |
 
 ## Session Continuity
 
