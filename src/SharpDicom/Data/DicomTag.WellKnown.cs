@@ -143,11 +143,37 @@ namespace SharpDicom.Data
         /// <summary>(0008,0018) SOP Instance UID</summary>
         public static readonly DicomTag SOPInstanceUID = new(0x0008, 0x0018);
 
+        /// <summary>(0008,0020) Study Date</summary>
+        public static readonly DicomTag StudyDate = new(0x0008, 0x0020);
+
+        /// <summary>(0008,0050) Accession Number</summary>
+        public static readonly DicomTag AccessionNumber = new(0x0008, 0x0050);
+
+        /// <summary>(0008,0052) Query/Retrieve Level</summary>
+        /// <remarks>CS VR. Indicates the level of the query (PATIENT, STUDY, SERIES, IMAGE).</remarks>
+        public static readonly DicomTag QueryRetrieveLevel = new(0x0008, 0x0052);
+
+        /// <summary>(0008,0060) Modality</summary>
+        /// <remarks>CS VR. Type of equipment that acquired the data (CT, MR, US, etc.).</remarks>
+        public static readonly DicomTag Modality = new(0x0008, 0x0060);
+
+        /// <summary>(0008,0061) Modalities in Study</summary>
+        /// <remarks>CS VR. All modalities present in the study.</remarks>
+        public static readonly DicomTag ModalitiesInStudy = new(0x0008, 0x0061);
+
         /// <summary>(0010,0010) Patient Name</summary>
         public static readonly DicomTag PatientName = new(0x0010, 0x0010);
 
         /// <summary>(0010,0020) Patient ID</summary>
         public static readonly DicomTag PatientID = new(0x0010, 0x0020);
+
+        // Study/Series/Instance UIDs for Q/R operations
+
+        /// <summary>(0020,000D) Study Instance UID</summary>
+        public static readonly DicomTag StudyInstanceUID = new(0x0020, 0x000D);
+
+        /// <summary>(0020,000E) Series Instance UID</summary>
+        public static readonly DicomTag SeriesInstanceUID = new(0x0020, 0x000E);
 
         /// <summary>(7FE0,0001) Extended Offset Table</summary>
         public static readonly DicomTag ExtendedOffsetTable = new(0x7FE0, 0x0001);
