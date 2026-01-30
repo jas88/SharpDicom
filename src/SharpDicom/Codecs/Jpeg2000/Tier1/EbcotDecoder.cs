@@ -513,7 +513,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetSignContext(int x, int y, int width, int height)
         {
-            // Suppress unused parameter warnings - full implementation would use these
+            // TODO: Full implementation per ITU-T T.800 Table D.3 would compute
+            // context from neighbor sign contributions (H = left+right, V = top+bottom)
+            // and return context 9-13 based on the sign pattern. Current simplified
+            // version uses base context for all signs.
             _ = x;
             _ = y;
             _ = width;

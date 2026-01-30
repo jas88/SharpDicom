@@ -26,7 +26,7 @@ namespace SharpDicom.Codecs
     /// </remarks>
     public static class CodecInitializer
     {
-        private static bool _initialized;
+        private static volatile bool _initialized;
         private static readonly object _lock = new();
 
         /// <summary>

@@ -374,6 +374,7 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             int position = 0;
             int currentTile = -1;
+            bool inTargetTile = false;
 
             while (position + 2 <= data.Length)
             {
@@ -383,6 +384,17 @@ namespace SharpDicom.Codecs.Jpeg2000
                 if (marker == J2kMarkers.EOC)
                 {
                     break;
+                }
+
+                // SOD has no segment - if we're in the target tile, we found it
+                if (marker == J2kMarkers.SOD)
+                {
+                    if (inTargetTile)
+                    {
+                        return position; // Return position after SOD marker
+                    }
+                    // Skip to next marker by searching for 0xFF followed by non-0xFF
+                    continue;
                 }
 
                 if (!J2kMarkers.HasSegment(marker))
@@ -409,24 +421,11 @@ namespace SharpDicom.Codecs.Jpeg2000
                     if (position + 4 <= data.Length)
                     {
                         currentTile = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
+                        inTargetTile = (currentTile == tileIndex);
                     }
                 }
-                // Note: SOD marker is handled separately via HasSegment check above
 
                 position += segmentLength - 2;
-
-                // Check for SOD immediately after SOT segment
-                if (marker == J2kMarkers.SOT && position + 2 <= data.Length)
-                {
-                    ushort nextMarker = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
-                    if (nextMarker == J2kMarkers.SOD)
-                    {
-                        if (currentTile == tileIndex)
-                        {
-                            return position + 2; // Return position after SOD marker
-                        }
-                    }
-                }
             }
 
             return -1;

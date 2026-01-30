@@ -43,9 +43,17 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
         /// <param name="width">Width to process.</param>
         /// <param name="height">Height to process.</param>
         /// <remarks>
+        /// <para>
         /// The integer data is converted to float internally for processing,
         /// then converted back to integer. This matches the JPEG 2000 workflow
         /// where 9/7 transform results in integer coefficients after quantization.
+        /// </para>
+        /// <para>
+        /// Note: This implementation rounds horizontal transform results to integers
+        /// before the vertical transform. A higher-precision implementation would
+        /// maintain float values throughout both transforms, only rounding at the end.
+        /// The current approach sacrifices some precision for memory efficiency.
+        /// </para>
         /// </remarks>
         public static void Forward2D(Span<int> data, int stride, int width, int height)
         {

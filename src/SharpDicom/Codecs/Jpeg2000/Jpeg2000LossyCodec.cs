@@ -92,11 +92,20 @@ namespace SharpDicom.Codecs.Jpeg2000
             int frameCount = pixelData.Length / frameSize;
             var fragments = new List<ReadOnlyMemory<byte>>(frameCount);
 
+            // Map codec options to encoder options
+            var encoderOptions = new J2kEncoderOptions
+            {
+                DecompositionLevels = j2kOptions.DecompositionLevels,
+                CodeBlockWidth = j2kOptions.CodeBlockSize,
+                CodeBlockHeight = j2kOptions.CodeBlockSize,
+                NumberOfLayers = j2kOptions.QualityLayers
+            };
+
             for (int i = 0; i < frameCount; i++)
             {
                 var frameData = pixelData.Slice(i * frameSize, frameSize);
                 // Use lossy encoding (9/7 wavelet)
-                var encoded = J2kEncoder.EncodeFrame(frameData, info, lossless: false);
+                var encoded = J2kEncoder.EncodeFrame(frameData, info, encoderOptions, lossless: false);
                 fragments.Add(encoded);
             }
 

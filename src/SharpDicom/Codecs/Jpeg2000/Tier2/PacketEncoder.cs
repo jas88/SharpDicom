@@ -209,11 +209,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 }
 
                 // Calculate new passes for this layer
-                int newPasses = Math.Min(remaining, Math.Max(1, targetPassesThisLayer - alreadyIncluded));
-                if (newPasses <= 0)
-                {
-                    newPasses = 0;
-                }
+                // Allow zero passes when target has already been met
+                int targetNew = targetPassesThisLayer - alreadyIncluded;
+                int newPasses = targetNew > 0 ? Math.Min(remaining, targetNew) : 0;
 
                 // Calculate data length
                 int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
@@ -490,36 +488,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// </summary>
         private void WriteLength(int length)
         {
-            // Use Golomb coding or simple binary representation
-            // Simplified: determine number of bits needed, write that count, then value
+            // Prefix-free coding scheme (must match PacketDecoder.ReadLength):
+            // 0 + 4 bits  = short (0-15)
+            // 10 + 8 bits = medium (0-255)
+            // 11 + 16 bits = long (0-65535)
 
-            if (length == 0)
+            if (length <= 15)
             {
-                // Special case: zero length
-                WriteBit(0);
-                return;
-            }
-
-            // Find number of bits needed
-            int bits = 1;
-            int temp = length;
-            while ((temp >> bits) != 0)
-            {
-                bits++;
-            }
-
-            // Write number of additional bits as unary + binary value
-            // Simplified scheme: prefix-free coding
-            if (bits <= 4)
-            {
-                // Short length: 0 + 4 bits
+                // Short length: 0 + 4 bits (handles 0-15)
                 WriteBit(0);
                 WriteBit((length >> 3) & 1);
                 WriteBit((length >> 2) & 1);
                 WriteBit((length >> 1) & 1);
                 WriteBit(length & 1);
             }
-            else if (bits <= 8)
+            else if (length <= 255)
             {
                 // Medium: 10 + 8 bits
                 WriteBit(1);

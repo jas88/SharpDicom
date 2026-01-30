@@ -93,9 +93,9 @@ namespace SharpDicom.Codecs.JpegLossless
         /// Per ITU-T.81 Section H.1.1, boundary conditions are:
         /// </para>
         /// <list type="bullet">
-        /// <item>First row: Ra = default value; Rb and Rc = 0 (except first sample uses Ra = default)</item>
-        /// <item>First column: Ra = Rc = Rb (prediction uses vertical predictor behavior)</item>
-        /// <item>First sample (0,0): prediction = 2^(P-Pt-1) where P is precision, Pt is point transform</item>
+        /// <item>First row: Ra = left neighbor; Rb and Rc = default value (except first sample uses Ra = default)</item>
+        /// <item>First column: Ra = Rc = Rb = above neighbor (prediction uses vertical predictor behavior)</item>
+        /// <item>First sample (0,0): all neighbors = default value, prediction = 2^(P-Pt-1)</item>
         /// </list>
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

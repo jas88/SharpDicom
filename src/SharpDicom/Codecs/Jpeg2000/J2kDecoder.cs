@@ -119,6 +119,9 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             // For each component, decode its packets and code-blocks
             // This is a simplified single-tile, single-layer decoder
+            // TODO: For multi-component images with interleaved packets (LRCP progression),
+            // proper packet boundary parsing is required. This simplified approach works
+            // for single-component images or when components are stored in separate tiles.
             int dataOffset = 0;
 
             for (int c = 0; c < components; c++)

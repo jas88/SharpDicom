@@ -389,7 +389,10 @@ namespace SharpDicom.Codecs.Jpeg2000
         private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info)
         {
             int components = info.SamplesPerPixel;
-            int segmentLength = 38 + components * 3 + 2; // +2 for length itself
+            // SIZ segment: Lsiz(2) + Rsiz(2) + Xsiz(4) + Ysiz(4) + XOsiz(4) + YOsiz(4)
+            //            + XTsiz(4) + YTsiz(4) + XTOsiz(4) + YTOsiz(4) + Csiz(2) = 38 bytes
+            //            + Ssiz/XRsiz/YRsiz(3) per component
+            int segmentLength = 38 + components * 3;
 
             WriteMarker(buffer, J2kMarkers.SIZ);
 

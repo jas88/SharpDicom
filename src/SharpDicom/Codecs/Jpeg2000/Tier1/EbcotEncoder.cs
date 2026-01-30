@@ -76,6 +76,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         // State arrays (lazily allocated per code-block size)
         private byte[]? _significanceState;
         private byte[]? _signState;
+        private byte[]? _visitedInSigProp; // Tracks samples processed in significance propagation
         private int _currentWidth;
         private int _currentHeight;
         private bool _disposed;
@@ -128,6 +129,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             EnsureStateArrays(width, height);
             Array.Clear(_significanceState!, 0, _significanceState!.Length);
             Array.Clear(_signState!, 0, _signState!.Length);
+            Array.Clear(_visitedInSigProp!, 0, _visitedInSigProp!.Length);
             _currentWidth = width;
             _currentHeight = height;
 
@@ -229,6 +231,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             {
                 _significanceState = new byte[size];
                 _signState = new byte[size];
+                _visitedInSigProp = new byte[size];
             }
         }
 
@@ -241,6 +244,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int bitplane,
             int subbandType)
         {
+            // Clear visited flags for this bitplane
+            Array.Clear(_visitedInSigProp!, 0, width * height);
+
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
@@ -258,6 +264,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     {
                         continue;
                     }
+
+                    // Mark as visited in significance propagation pass
+                    _visitedInSigProp![idx] = 1;
 
                     // This sample is in the significance propagation pass
                     int value = coefficients[idx];
@@ -341,7 +350,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 {
                     // Check if we can use run-length coding
                     bool allInsignificant = true;
-                    bool allNoSignificantNeighbors = true;
+                    bool noneVisitedInSigProp = true;
 
                     for (int dy = 0; dy < stripeHeight && allInsignificant; dy++)
                     {
@@ -352,13 +361,14 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                         {
                             allInsignificant = false;
                         }
-                        else if (HasSignificantNeighbor(x, y, width, height))
+                        else if (_visitedInSigProp![idx] != 0)
                         {
-                            allNoSignificantNeighbors = false;
+                            // Was processed in significance propagation pass
+                            noneVisitedInSigProp = false;
                         }
                     }
 
-                    if (allInsignificant && allNoSignificantNeighbors && stripeHeight == 4)
+                    if (allInsignificant && noneVisitedInSigProp && stripeHeight == 4)
                     {
                         // Try run-length coding
                         EncodeRunLengthMode(coefficients, width, x, stripeY, bitplane, subbandType);
@@ -460,8 +470,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return;
             }
 
-            // Skip if processed by significance propagation (has significant neighbor)
-            if (HasSignificantNeighbor(x, y, width, height))
+            // Skip if processed by significance propagation pass
+            // (we use the visited flag, not HasSignificantNeighbor, because neighbors
+            // may have become significant during the cleanup pass itself)
+            if (_visitedInSigProp![idx] != 0)
             {
                 return;
             }
@@ -639,11 +651,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetSignContext(int x, int y, int width, int height)
         {
-            // Suppress unused parameter warnings - parameters reserved for future context calculation
+            // TODO: Full implementation per ITU-T T.800 Table D.3 would compute
+            // context from neighbor sign contributions (H = left+right, V = top+bottom)
+            // and return context 9-13 based on the sign pattern. Current simplified
+            // version uses base context for all signs.
             _ = (x, y, width, height);
-
-            // Map to context 9-13 based on neighbor contributions
-            // Simplified - using base sign context
             return CtxSign;
         }
 
