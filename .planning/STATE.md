@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 06 of 6 complete
-**Status**: Phase IN PROGRESS
-**Last activity**: 2026-01-30 - Completed 13-06-PLAN.md (Managed P/Invoke Layer)
+**Plan**: 07 of 7 complete
+**Status**: Phase COMPLETE
+**Last activity**: 2026-01-30 - Completed 13-07-PLAN.md (IPixelDataCodec Wrappers)
 
-**Progress**: ████████████████████████████████████████ (6/6 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (7/7 plans in Phase 13)
 
-**Test Status**: 3404 tests passing, 0 failed, 54 skipped
+**Test Status**: 3402 tests passing, 0 failed, 54 skipped
 
 ## Completed
 
@@ -90,6 +90,7 @@
 - [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
+- [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
 
 ## In Progress
 
