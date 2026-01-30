@@ -194,6 +194,11 @@ SHARPDICOM_API int sharpdicom_features(void) {
     features |= SHARPDICOM_HAS_JLS;
 #endif
 
+    /* Set Video flag when FFmpeg is linked */
+#ifdef SHARPDICOM_WITH_MPEG
+    features |= SHARPDICOM_HAS_VIDEO;
+#endif
+
     /* Check GPU availability at runtime */
     if (gpu_available()) {
         features |= SHARPDICOM_HAS_GPU;
@@ -254,5 +259,10 @@ SHARPDICOM_API int sharpdicom_gpu_j2k_decode(
  *
  * JPEG wrapper: implemented in jpeg_wrapper.c (13-02)
  * J2K wrapper: implemented in j2k_wrapper.c (13-03)
- * JLS wrapper: to be implemented (future plan)
+ * JLS wrapper: implemented in jls_wrapper.c (13-04)
+ * Video wrapper: implemented in video_wrapper.c (13-04)
  *============================================================================*/
+
+/* Include wrapper headers - these are compiled as separate translation units */
+#include "jls_wrapper.h"
+#include "video_wrapper.h"

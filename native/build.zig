@@ -121,7 +121,7 @@ pub fn build(b: *std.Build) void {
             });
 
             // Add OpenJPEG include path
-            lib.addIncludePath(b.path("vendor/openjpeg-src/src/lib/openjp2"));
+            lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
 
             // Add OpenJPEG source files needed for compilation
             addOpenJpegSources(lib, b, common_flags);
@@ -133,8 +133,19 @@ pub fn build(b: *std.Build) void {
             });
         }
 
+        // GPU wrapper (dynamically loads nvJPEG2000)
+        lib.addCSourceFile(.{
+            .file = b.path("src/gpu_wrapper.c"),
+            .flags = common_flags,
+        });
+
         // Include paths
         lib.addIncludePath(b.path("src"));
+
+        // Link -ldl for dynamic library loading on Linux
+        if (target_query.os_tag == .linux) {
+            lib.linkSystemLibrary("dl");
+        }
 
         // Install the library to zig-out with platform-specific naming
         const rid = getRuntimeId(target_query);
@@ -166,6 +177,16 @@ pub fn build(b: *std.Build) void {
     // Link against the native platform's library
     test_exe.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add jpeg_wrapper stub for tests (without libjpeg-turbo for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/jpeg_wrapper.c"),
         .flags = &.{
             "-std=c11",
             "-Wall",
@@ -208,10 +229,30 @@ pub fn build(b: *std.Build) void {
         "-Werror",
     };
 
+    // Native flags with JPEG enabled
+    const native_jpeg_flags = native_flags ++ &[_][]const u8{
+        "-DSHARPDICOM_WITH_JPEG",
+    };
+
     native_lib.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
-        .flags = native_flags,
+        .flags = native_jpeg_flags,
     });
+
+    // JPEG wrapper for native build
+    if (have_libjpeg) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jpeg_wrapper.c"),
+            .flags = native_jpeg_flags,
+        });
+        native_lib.addIncludePath(b.path(libjpeg_path));
+        native_lib.linkSystemLibrary("turbojpeg");
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jpeg_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
 
     // J2K wrapper for native build
     if (have_openjpeg) {
@@ -222,7 +263,7 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_J2K",
             },
         });
-        native_lib.addIncludePath(b.path("vendor/openjpeg-src/src/lib/openjp2"));
+        native_lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
         addOpenJpegSources(native_lib, b, native_flags);
     } else {
         native_lib.addCSourceFile(.{
@@ -272,7 +313,7 @@ fn detectVendorLibrary(path: []const u8) bool {
 
 /// Add OpenJPEG source files to compilation
 fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, common_flags: []const []const u8) void {
-    const opj_base = "vendor/openjpeg-src/src/lib/openjp2";
+    const opj_base = "vendor/openjpeg/src/src/lib/openjp2";
 
     // OpenJPEG core source files
     const opj_sources = [_][]const u8{
