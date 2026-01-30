@@ -6,18 +6,30 @@ const std = @import("std");
 /// Vendor libraries:
 /// - libjpeg-turbo: vendor/libjpeg-turbo/src (downloaded in CI)
 /// - OpenJPEG: vendor/openjpeg/src (downloaded in CI)
+/// - CharLS: vendor/charls/src (downloaded in CI)
+/// - FFmpeg: vendor/ffmpeg/src (downloaded in CI)
 pub fn build(b: *std.Build) void {
     // Check for vendor library sources
     const libjpeg_path = "vendor/libjpeg-turbo/src";
     const openjpeg_path = "vendor/openjpeg/src";
+    const charls_path = "vendor/charls/src";
+    const ffmpeg_path = "vendor/ffmpeg/src";
     const have_libjpeg = detectVendorLibrary(libjpeg_path);
     const have_openjpeg = detectVendorLibrary(openjpeg_path);
+    const have_charls = detectVendorLibrary(charls_path);
+    const have_ffmpeg = detectVendorLibrary(ffmpeg_path);
 
     if (have_libjpeg) {
         std.debug.print("Found libjpeg-turbo at {s}\n", .{libjpeg_path});
     }
     if (have_openjpeg) {
         std.debug.print("Found OpenJPEG at {s}\n", .{openjpeg_path});
+    }
+    if (have_charls) {
+        std.debug.print("Found CharLS at {s}\n", .{charls_path});
+    }
+    if (have_ffmpeg) {
+        std.debug.print("Found FFmpeg at {s}\n", .{ffmpeg_path});
     }
     // Target configurations for all supported platforms
     const targets = [_]std.Target.Query{
@@ -139,6 +151,51 @@ pub fn build(b: *std.Build) void {
             .flags = common_flags,
         });
 
+        // JLS wrapper (CharLS)
+        if (have_charls) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/jls_wrapper.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_HAS_CHARLS",
+                    "-DSHARPDICOM_WITH_JLS",
+                },
+            });
+            // Add CharLS include path
+            lib.addIncludePath(b.path(charls_path));
+            lib.addIncludePath(b.path("vendor/charls/src/include"));
+            // Link against CharLS library
+            lib.linkSystemLibrary("charls");
+        } else {
+            // Build stub version (JLS functions will error at runtime)
+            lib.addCSourceFile(.{
+                .file = b.path("src/jls_wrapper.c"),
+                .flags = common_flags,
+            });
+        }
+
+        // Video wrapper (FFmpeg)
+        if (have_ffmpeg) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/video_wrapper.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_HAS_FFMPEG",
+                    "-DSHARPDICOM_WITH_MPEG",
+                },
+            });
+            // Add FFmpeg include paths
+            lib.addIncludePath(b.path(ffmpeg_path));
+            // Link against FFmpeg libraries
+            lib.linkSystemLibrary("avcodec");
+            lib.linkSystemLibrary("avutil");
+            lib.linkSystemLibrary("swscale");
+        } else {
+            // Build stub version (video functions will error at runtime)
+            lib.addCSourceFile(.{
+                .file = b.path("src/video_wrapper.c"),
+                .flags = common_flags,
+            });
+        }
+
         // Include paths
         lib.addIncludePath(b.path("src"));
 
@@ -207,6 +264,26 @@ pub fn build(b: *std.Build) void {
     // Add gpu_wrapper for tests
     test_exe.addCSourceFile(.{
         .file = b.path("src/gpu_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add jls_wrapper stub for tests (without CharLS for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/jls_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add video_wrapper stub for tests (without FFmpeg for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/video_wrapper.c"),
         .flags = &.{
             "-std=c11",
             "-Wall",
@@ -292,6 +369,45 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/gpu_wrapper.c"),
         .flags = native_flags,
     });
+
+    // JLS wrapper for native build
+    if (have_charls) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jls_wrapper.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_HAS_CHARLS",
+                "-DSHARPDICOM_WITH_JLS",
+            },
+        });
+        native_lib.addIncludePath(b.path(charls_path));
+        native_lib.addIncludePath(b.path("vendor/charls/src/include"));
+        native_lib.linkSystemLibrary("charls");
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jls_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
+
+    // Video wrapper for native build
+    if (have_ffmpeg) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/video_wrapper.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_HAS_FFMPEG",
+                "-DSHARPDICOM_WITH_MPEG",
+            },
+        });
+        native_lib.addIncludePath(b.path(ffmpeg_path));
+        native_lib.linkSystemLibrary("avcodec");
+        native_lib.linkSystemLibrary("avutil");
+        native_lib.linkSystemLibrary("swscale");
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/video_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
 
     native_lib.addIncludePath(b.path("src"));
 
