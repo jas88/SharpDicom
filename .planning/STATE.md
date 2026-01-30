@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 13 - Native Codecs Package VERIFIED COMPLETE
-**Plan**: 9 of 9 complete
-**Status**: Phase VERIFIED - Ready for Phase 14
-**Last activity**: 2026-01-30 - Phase 13 verification passed, all must-haves verified
+**Phase**: 14 - De-identification IN PROGRESS
+**Plan**: 2 of 6 complete
+**Status**: Phase in progress
+**Last activity**: 2026-01-30 - Completed 14-02 core de-identification types
 
-**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 13)
+**Progress**: ██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/6 plans in Phase 14)
 
-**Test Status**: 3504 tests passing, 0 failed, 126 skipped (external service tests)
+**Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
 
 ## Completed
 
@@ -93,10 +93,15 @@
 - [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
 - [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
 - [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
+- [x] Phase 14 Plan 01: PS3.15 source generator (Part15Parser, DeidentificationEmitter, ~600 tags)
+- [x] Phase 14 Plan 02: Core de-identification types (ActionResolver, DeidentificationOptions, DummyValueGenerator)
 
 ## In Progress
 
-*None*
+- [ ] Phase 14 Plan 03: UID remapping infrastructure
+- [ ] Phase 14 Plan 04: Date shifting module
+- [ ] Phase 14 Plan 05: DicomDeidentifier main class
+- [ ] Phase 14 Plan 06: Tests and verification
 
 ## Blocked
 
@@ -110,7 +115,7 @@
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | Pending | ?/? | - | - |
+| 14 | De-identification | In Progress | 2/6 | 2026-01-29 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -308,13 +313,18 @@
 | 2026-01-30 | 13-08 | RID-conditional runtime package references | Separate packages per platform reduces download size |
 | 2026-01-30 | 13-08 | MSBuild auto-detect platform RID | Convenience for development without explicit RuntimeIdentifier |
 | 2026-01-30 | 13-08 | Matrix strategy for native builds | Parallel compilation across 6 platforms |
+| 2026-01-29 | 14-01 | DocBook 5.0 parsing for part15.xml | Same approach as part06.xml, XNamespace for proper handling |
+| 2026-01-29 | 14-01 | Deduplication by tag value | Same tag can appear multiple times (retired variants) |
+| 2026-01-29 | 14-02 | Separate enums for action and resolution | DeidentificationAction (PS3.15 codes) vs ResolvedAction (runtime operations) |
+| 2026-01-29 | 14-02 | DicomAttributeType for compound resolution | Type1/2/3 determines Z/D vs X/Z vs X/D resolution |
+| 2026-01-29 | 14-02 | Profile option flags pattern | DeidentificationOptions.ToProfileOptions() for generated code |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Phase 13 verification passed
+**Stopped at**: Phase 14-02 summary completed
 **Resume file**: None
-**Next step**: Continue to Phase 14 (De-identification)
+**Next step**: Continue to Phase 14-03 (UID remapping)
 
 ## Context for Next Session
 
@@ -384,14 +394,14 @@ If resuming after a break:
 | FR-12.3 (OpenJPEG) | Phase 13 | Complete (13-03, 13-07) |
 | FR-12.4 (Override registration) | Phase 13 | Complete (13-07) |
 | FR-12.5 (Cross-platform) | Phase 13 | Complete (13-01, 13-08) |
-| FR-13.1 (PS3.15 Basic) | Phase 14 | Pending |
-| FR-13.2 (Source-generated) | Phase 14 | Pending |
-| FR-13.3 (UID remapping) | Phase 14 | Pending |
-| FR-13.4 (Date shifting) | Phase 14 | Pending |
+| FR-13.1 (PS3.15 Basic) | Phase 14 | In Progress (14-01, 14-02) |
+| FR-13.2 (Source-generated) | Phase 14 | Complete (14-01) |
+| FR-13.3 (UID remapping) | Phase 14 | Pending (14-03) |
+| FR-13.4 (Date shifting) | Phase 14 | Pending (14-04) |
 | FR-13.5 (Callback integration) | Phase 14 | Pending |
-| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending |
+| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending (14-05) |
 
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 13 complete - 13-08 done)*
+*Last updated: 2026-01-30 (Phase 14 in progress - 14-02 complete)*
