@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 4 of 6 complete
+**Plan**: 2 of 6 complete
 **Status**: Phase in progress
-**Last activity**: 2026-01-30 - Completed 14-04 date shifting module
+**Last activity**: 2026-01-30 - Completed 14-02 core de-identification types
 
-**Progress**: █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/6 plans in Phase 14)
+**Progress**: ██████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (2/6 plans in Phase 14)
 
 **Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
 
@@ -86,10 +86,11 @@
 - [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
 - [x] Phase 14 Plan 01: PS3.15 source generator (Part15Parser, DeidentificationEmitter, ~600 tags)
 - [x] Phase 14 Plan 02: Core de-identification types (ActionResolver, DeidentificationOptions, DummyValueGenerator)
-- [x] Phase 14 Plan 03: UID remapping infrastructure (IUidStore, UidGenerator, UidRemapper, InMemoryUidStore, SqliteUidStore)
-- [x] Phase 14 Plan 04: Date shifting module (DateShifter, DateShiftConfig, IDateOffsetStore, DateShiftResult)
 
 ## In Progress
+
+- [ ] Phase 14 Plan 03: UID remapping infrastructure
+- [ ] Phase 14 Plan 04: Date shifting module
 - [ ] Phase 14 Plan 05: DicomDeidentifier main class
 - [ ] Phase 14 Plan 06: Tests and verification
 
@@ -105,7 +106,7 @@
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | In Progress | 4/6 | 2026-01-29 | - |
+| 14 | De-identification | In Progress | 2/6 | 2026-01-29 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
