@@ -2,15 +2,15 @@
 
 ## Current Status
 
-**Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 7 of 8 complete
-**Status**: In progress
-**Last activity**: 2026-01-29 - Completed 14-07 Pixel Data Redaction
+**Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
+**Phase**: 14 - De-identification COMPLETE
+**Plan**: 8 of 8 complete
+**Status**: Phase complete
+**Last activity**: 2026-01-30 - Completed 14-08 Batch Processing & Integration Tests
 
-**Progress**: ████████████████████████████████████░░░░ (7/8 plans in Phase 14)
+**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 14)
 
-**Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
+**Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
 
 ## Completed
 
@@ -100,6 +100,7 @@
 - [x] Phase 14 Plan 05: DicomDeidentifier main class (DicomDeidentifierBuilder, DicomDeidentifier, streaming integration)
 - [x] Phase 14 Plan 06: JSON configuration (DeidentificationConfig, DeidentificationConfigLoader, presets)
 - [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
+- [x] Phase 14 Plan 08: Batch Processing & Integration Tests (BatchDeidentifier, 74 new tests)
 
 ## In Progress
 
@@ -116,8 +117,8 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | IN PROGRESS | 7/8 | 2026-01-29 | - |
+| 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-30 |
+| 14 | De-identification | COMPLETE | 8/8 | 2026-01-29 | 2026-01-30 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -326,13 +327,16 @@
 | 2026-01-29 | 14-07 | Static PixelDataRedactor API | No instance state needed; simpler API |
 | 2026-01-29 | 14-07 | Modality risk categorization | High (US, ES, SC), Moderate (XA, MG), Low (CT, MR) for burned-in annotation assessment |
 | 2026-01-29 | 14-07 | Region-based redaction | Rectangular regions with optional frame-specific targeting |
+| 2026-01-30 | 14-08 | SOPClassUID preserved in BatchDeidentifier | Required for writing valid DICOM files after de-identification |
+| 2026-01-30 | 14-08 | SemaphoreSlim for parallel throttling | Better control than TPL parallelism |
+| 2026-01-30 | 14-08 | Progress reported per-file | Simpler than incremental in-file progress |
 
 ## Session Continuity
 
-**Last session**: 2026-01-29
-**Stopped at**: Phase 14-07 complete
+**Last session**: 2026-01-30
+**Stopped at**: Phase 14-08 complete - v2.0.0 COMPLETE
 **Resume file**: None
-**Next step**: Execute 14-08 (Integration and Documentation)
+**Next step**: Milestone v2.0.0 complete - ready for release
 
 ## Context for Next Session
 
