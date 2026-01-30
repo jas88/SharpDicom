@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -322,6 +323,223 @@ public class CStoreIntegrationTests : IDisposable
         {
             Console.WriteLine("Timeout - test requires manual interaction.");
         }
+    }
+
+    #endregion
+
+    #region Orthanc Integration Tests (CI)
+
+    /// <summary>
+    /// Gets the Orthanc host from environment variable.
+    /// </summary>
+    private static string? OrthancHost => Environment.GetEnvironmentVariable("ORTHANC_HOST");
+
+    /// <summary>
+    /// Gets the Orthanc DICOM port from environment variable.
+    /// </summary>
+    private static int OrthancPort => int.TryParse(
+        Environment.GetEnvironmentVariable("ORTHANC_DICOM_PORT"), out var port) ? port : 4242;
+
+    /// <summary>
+    /// Gets the Orthanc AE title from environment variable.
+    /// </summary>
+    private static string OrthancAeTitle =>
+        Environment.GetEnvironmentVariable("ORTHANC_AE_TITLE") ?? "ORTHANC";
+
+    /// <summary>
+    /// Tests C-STORE to Orthanc PACS in CI environment.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CStoreScu_SendToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var sopClassUid = DicomUID.CTImageStorage;
+        var sopInstanceUid = new DicomUID($"1.2.826.0.1.3680043.8.1055.1.{DateTime.UtcNow.Ticks}");
+        var dataset = CreateTestDataset(sopClassUid, sopInstanceUid, "OrthancTest");
+
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, sopClassUid, TransferSyntax.ImplicitVRLittleEndian)
+        };
+
+        // Act
+        await client.ConnectAsync(contexts);
+        var storeScu = new CStoreScu(client);
+        var response = await storeScu.SendAsync(dataset, null);
+        await client.ReleaseAsync();
+
+        // Assert
+        Assert.That(response.IsSuccess, Is.True,
+            $"C-STORE to Orthanc should succeed, got status: 0x{response.Status.Code:X4}");
+    }
+
+    /// <summary>
+    /// Tests C-STORE with Explicit VR Little Endian to Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CStoreScu_ExplicitVR_ToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var sopClassUid = DicomUID.CTImageStorage;
+        var sopInstanceUid = new DicomUID($"1.2.826.0.1.3680043.8.1055.2.{DateTime.UtcNow.Ticks}");
+        var dataset = CreateTestDataset(sopClassUid, sopInstanceUid, "OrthancExplicitVR");
+
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, sopClassUid, TransferSyntax.ExplicitVRLittleEndian)
+        };
+
+        // Act
+        await client.ConnectAsync(contexts);
+        var storeScu = new CStoreScu(client);
+        var response = await storeScu.SendAsync(dataset, null);
+        await client.ReleaseAsync();
+
+        // Assert
+        Assert.That(response.IsSuccess, Is.True,
+            "C-STORE with Explicit VR LE to Orthanc should succeed");
+    }
+
+    /// <summary>
+    /// Tests sending multiple files on the same association to Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CStoreScu_MultipleFiles_ToOrthanc_AllSucceed()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var sopClassUid = DicomUID.CTImageStorage;
+        const int fileCount = 5;
+
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, sopClassUid, TransferSyntax.ImplicitVRLittleEndian)
+        };
+
+        await client.ConnectAsync(contexts);
+        var storeScu = new CStoreScu(client);
+
+        // Act - send multiple files on same association
+        for (int i = 0; i < fileCount; i++)
+        {
+            var sopInstanceUid = new DicomUID($"1.2.826.0.1.3680043.8.1055.3.{i}.{DateTime.UtcNow.Ticks}");
+            var dataset = CreateTestDataset(sopClassUid, sopInstanceUid, $"OrthancPatient{i}");
+
+            var response = await storeScu.SendAsync(dataset, null);
+
+            // Assert each file
+            Assert.That(response.IsSuccess, Is.True, $"File {i} should succeed");
+        }
+
+        await client.ReleaseAsync();
+    }
+
+    /// <summary>
+    /// Tests sending different SOP Classes to Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CStoreScu_DifferentSopClasses_ToOrthanc_AllSucceed()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange - multiple SOP classes
+        var sopClasses = new[]
+        {
+            DicomUID.CTImageStorage,
+            DicomUID.MRImageStorage,
+            DicomUID.SecondaryCaptureImageStorage
+        };
+
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        // Create presentation contexts for all SOP classes
+        var contexts = new List<PresentationContext>();
+        for (int i = 0; i < sopClasses.Length; i++)
+        {
+            contexts.Add(new PresentationContext((byte)(i * 2 + 1), sopClasses[i],
+                TransferSyntax.ImplicitVRLittleEndian));
+        }
+
+        await client.ConnectAsync(contexts.ToArray());
+        var storeScu = new CStoreScu(client);
+
+        // Act - send one instance of each SOP class
+        for (int i = 0; i < sopClasses.Length; i++)
+        {
+            var sopInstanceUid = new DicomUID($"1.2.826.0.1.3680043.8.1055.4.{i}.{DateTime.UtcNow.Ticks}");
+            var dataset = CreateTestDataset(sopClasses[i], sopInstanceUid, $"MultiSOPPatient{i}");
+
+            var response = await storeScu.SendAsync(dataset, null);
+
+            // Assert each SOP class
+            Assert.That(response.IsSuccess, Is.True,
+                $"SOP Class {sopClasses[i]} should succeed");
+        }
+
+        await client.ReleaseAsync();
     }
 
     #endregion

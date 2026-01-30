@@ -42,6 +42,264 @@ public class CFindIntegrationTests
     private const string ServerAE = "FINDSCP";
     private const string ClientAE = "SHARPDICOM";
 
+    #region Orthanc Integration Tests (CI)
+
+    /// <summary>
+    /// Gets the Orthanc host from environment variable.
+    /// </summary>
+    private static string? OrthancHost => Environment.GetEnvironmentVariable("ORTHANC_HOST");
+
+    /// <summary>
+    /// Gets the Orthanc DICOM port from environment variable.
+    /// </summary>
+    private static int OrthancPort => int.TryParse(
+        Environment.GetEnvironmentVariable("ORTHANC_DICOM_PORT"), out var port) ? port : 4242;
+
+    /// <summary>
+    /// Gets the Orthanc AE title from environment variable.
+    /// </summary>
+    private static string OrthancAeTitle =>
+        Environment.GetEnvironmentVariable("ORTHANC_AE_TITLE") ?? "ORTHANC";
+
+    /// <summary>
+    /// Tests C-FIND patient-level query against Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CFindScu_PatientQuery_ToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, DicomUID.PatientRootQueryRetrieveFind,
+                TransferSyntax.ImplicitVRLittleEndian)
+        };
+
+        // Act
+        await client.ConnectAsync(contexts);
+
+        var findScu = new CFindScu(client);
+        var query = DicomQuery.ForPatients().WithPatientName("*");
+
+        var results = new List<DicomDataset>();
+        await foreach (var result in findScu.QueryAsync(query))
+        {
+            results.Add(result);
+        }
+
+        await client.ReleaseAsync();
+
+        // Assert - Orthanc should accept the query (may return empty if no data stored)
+        // The key assertion is that the query completes without error
+        Console.WriteLine($"Received {results.Count} patient records from Orthanc");
+    }
+
+    /// <summary>
+    /// Tests C-FIND study-level query against Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CFindScu_StudyQuery_ToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, DicomUID.StudyRootQueryRetrieveFind,
+                TransferSyntax.ImplicitVRLittleEndian)
+        };
+
+        // Act
+        await client.ConnectAsync(contexts);
+
+        var findScu = new CFindScu(client, new CFindOptions { UsePatientRoot = false });
+        var query = DicomQuery.ForStudies().WithPatientName("*");
+
+        var results = new List<DicomDataset>();
+        await foreach (var result in findScu.QueryAsync(query))
+        {
+            results.Add(result);
+        }
+
+        await client.ReleaseAsync();
+
+        // Assert
+        Console.WriteLine($"Received {results.Count} study records from Orthanc");
+    }
+
+    /// <summary>
+    /// Tests C-FIND with Explicit VR transfer syntax against Orthanc.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CFindScu_ExplicitVR_ToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange
+        var clientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var client = new DicomClient(clientOptions);
+
+        var contexts = new[]
+        {
+            new PresentationContext(1, DicomUID.PatientRootQueryRetrieveFind,
+                TransferSyntax.ExplicitVRLittleEndian)
+        };
+
+        // Act
+        await client.ConnectAsync(contexts);
+
+        var findScu = new CFindScu(client);
+        var query = DicomQuery.ForPatients().WithPatientName("*");
+
+        var results = new List<DicomDataset>();
+        await foreach (var result in findScu.QueryAsync(query))
+        {
+            results.Add(result);
+        }
+
+        await client.ReleaseAsync();
+
+        // Assert
+        Console.WriteLine($"Received {results.Count} patient records with Explicit VR from Orthanc");
+    }
+
+    /// <summary>
+    /// Tests C-STORE followed by C-FIND to verify round-trip.
+    /// </summary>
+    [Test]
+    [Category("Orthanc")]
+    public async Task CStoreAndCFind_RoundTrip_ToOrthanc_Succeeds()
+    {
+        if (string.IsNullOrEmpty(OrthancHost))
+        {
+            Assert.Ignore("ORTHANC_HOST not set - skipping Orthanc test");
+            return;
+        }
+
+        // Arrange - create a unique patient name for this test
+        var uniquePatientName = $"ORTHANCTEST^{DateTime.UtcNow.Ticks}";
+        var sopClassUid = DicomUID.CTImageStorage;
+        var sopInstanceUid = new DicomUID($"1.2.826.0.1.3680043.8.1055.9.{DateTime.UtcNow.Ticks}");
+
+        // First, store an image
+        var storeClientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using (var storeClient = new DicomClient(storeClientOptions))
+        {
+            var storeContexts = new[]
+            {
+                new PresentationContext(1, sopClassUid, TransferSyntax.ImplicitVRLittleEndian)
+            };
+
+            await storeClient.ConnectAsync(storeContexts);
+
+            var dataset = new DicomDataset();
+            dataset.Add(new DicomStringElement(DicomTag.SOPClassUID, DicomVR.UI,
+                System.Text.Encoding.ASCII.GetBytes(sopClassUid.ToString())));
+            dataset.Add(new DicomStringElement(DicomTag.SOPInstanceUID, DicomVR.UI,
+                System.Text.Encoding.ASCII.GetBytes(sopInstanceUid.ToString())));
+            dataset.Add(new DicomStringElement(DicomTag.PatientName, DicomVR.PN,
+                System.Text.Encoding.ASCII.GetBytes(uniquePatientName)));
+            dataset.Add(new DicomStringElement(DicomTag.PatientID, DicomVR.LO,
+                System.Text.Encoding.ASCII.GetBytes("TESTID001")));
+            dataset.Add(new DicomStringElement(DicomTag.StudyInstanceUID, DicomVR.UI,
+                System.Text.Encoding.ASCII.GetBytes($"1.2.3.4.5.{DateTime.UtcNow.Ticks}")));
+            dataset.Add(new DicomStringElement(DicomTag.SeriesInstanceUID, DicomVR.UI,
+                System.Text.Encoding.ASCII.GetBytes($"1.2.3.4.5.1.{DateTime.UtcNow.Ticks}")));
+
+            var storeScu = new CStoreScu(storeClient);
+            var storeResponse = await storeScu.SendAsync(dataset, null);
+            await storeClient.ReleaseAsync();
+
+            Assert.That(storeResponse.IsSuccess, Is.True, "C-STORE should succeed");
+        }
+
+        // Now query for the stored patient
+        var findClientOptions = new DicomClientOptions
+        {
+            Host = OrthancHost,
+            Port = OrthancPort,
+            CalledAE = OrthancAeTitle,
+            CallingAE = ClientAE
+        };
+
+        await using var findClient = new DicomClient(findClientOptions);
+
+        var findContexts = new[]
+        {
+            new PresentationContext(1, DicomUID.PatientRootQueryRetrieveFind,
+                TransferSyntax.ImplicitVRLittleEndian)
+        };
+
+        await findClient.ConnectAsync(findContexts);
+
+        var findScu = new CFindScu(findClient);
+        var query = DicomQuery.ForPatients().WithPatientName(uniquePatientName);
+
+        var results = new List<DicomDataset>();
+        await foreach (var result in findScu.QueryAsync(query))
+        {
+            results.Add(result);
+        }
+
+        await findClient.ReleaseAsync();
+
+        // Assert - should find the patient we stored
+        Assert.That(results.Count, Is.GreaterThan(0),
+            $"Should find patient '{uniquePatientName}' that was just stored");
+    }
+
+    #endregion
+
     #region SharpDicom SCU -> DCMTK findscp
 
     /// <summary>

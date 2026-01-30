@@ -32,7 +32,7 @@
   <!-- Share test source files from main test project, excluding obj/bin and NET6+ only tests -->
   <ItemGroup>
     <Compile Include="..\SharpDicom.Tests\**\*.cs"
-             Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs"
+             Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs"
              LinkBase="Tests" />
   </ItemGroup>
 </Project>
