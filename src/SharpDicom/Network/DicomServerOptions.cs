@@ -137,8 +137,15 @@ namespace SharpDicom.Network
         /// Gets or sets the C-STORE handler for streaming mode.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Set this when <see cref="StoreHandlerMode"/> is <see cref="CStoreHandlerMode.Streaming"/>.
         /// Receives metadata first, then pixel data via stream.
+        /// </para>
+        /// <para>
+        /// <b>Note:</b> Streaming mode is not yet fully implemented. Setting this property
+        /// will cause validation to pass but the handler will not be invoked. Use buffered
+        /// mode with <see cref="CStoreHandler"/> or <see cref="OnCStoreRequest"/> instead.
+        /// </para>
         /// </remarks>
         public IStreamingCStoreHandler? StreamingCStoreHandler { get; init; }
 
@@ -223,12 +230,12 @@ namespace SharpDicom.Network
         /// Gets a value indicating whether a C-STORE handler is configured.
         /// </summary>
         /// <remarks>
-        /// Returns true if any C-STORE handler is set (delegate, interface, or streaming handler).
+        /// Returns true if a buffered C-STORE handler is set (delegate or interface).
         /// When false, incoming C-STORE requests will be rejected with status 0xA900 (SOP Class Not Supported).
+        /// Note: StreamingCStoreHandler is not checked as streaming mode is not yet implemented.
         /// </remarks>
         public bool HasCStoreHandler =>
             OnCStoreRequest != null ||
-            CStoreHandler != null ||
-            StreamingCStoreHandler != null;
+            CStoreHandler != null;
     }
 }

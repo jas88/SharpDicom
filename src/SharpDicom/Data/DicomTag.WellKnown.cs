@@ -153,6 +153,10 @@ namespace SharpDicom.Data
         /// <remarks>CS VR. Indicates the level of the query (PATIENT, STUDY, SERIES, IMAGE).</remarks>
         public static readonly DicomTag QueryRetrieveLevel = new(0x0008, 0x0052);
 
+        /// <summary>(0008,0060) Modality</summary>
+        /// <remarks>CS VR. Type of equipment that acquired the data (CT, MR, US, etc.).</remarks>
+        public static readonly DicomTag Modality = new(0x0008, 0x0060);
+
         /// <summary>(0008,0061) Modalities in Study</summary>
         /// <remarks>CS VR. All modalities present in the study.</remarks>
         public static readonly DicomTag ModalitiesInStudy = new(0x0008, 0x0061);

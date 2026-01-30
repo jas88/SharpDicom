@@ -171,14 +171,17 @@ public sealed class CStoreScu
             throw new ArgumentNullException(nameof(dataset));
 #endif
 
+        // Separate pixel source is not yet implemented
+        if (pixels != null)
+        {
+            throw new NotImplementedException(
+                "Separate pixel data source is not yet supported. " +
+                "Include pixel data in the dataset, or pass null for the pixels parameter.");
+        }
+
         // Extract SOP Class and Instance UIDs from dataset
         var sopClassUid = GetSOPClassUIDFromDataset(dataset);
         var sopInstanceUid = GetSOPInstanceUIDFromDataset(dataset);
-
-        // If pixels provided, we'd need to merge with dataset
-        // For now, send the dataset as-is (pixels are part of dataset if present)
-        // Future enhancement: support transcoding with separate pixel source
-        _ = pixels; // TODO: implement pixel data integration
 
         return await SendCoreAsync(
             sopClassUid,

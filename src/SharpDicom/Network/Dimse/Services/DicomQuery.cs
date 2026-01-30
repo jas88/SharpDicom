@@ -125,12 +125,18 @@ namespace SharpDicom.Network.Dimse.Services
         /// <param name="modalities">One or more modality codes (e.g., "CT", "MR", "US").</param>
         /// <returns>This query for fluent chaining.</returns>
         /// <remarks>
-        /// Uses ModalitiesInStudy (0008,0061) for study-level queries.
+        /// Uses ModalitiesInStudy (0008,0061) for patient/study-level queries,
+        /// and Modality (0008,0060) for series/image-level queries.
         /// Multiple modalities are separated by backslash.
         /// </remarks>
         public DicomQuery WithModality(params string[] modalities)
         {
-            AddString(DicomTag.ModalitiesInStudy, string.Join("\\", modalities), DicomVR.CS);
+            // For series and image level, use Modality (0008,0060)
+            // For patient and study level, use ModalitiesInStudy (0008,0061)
+            var tag = _level == QueryRetrieveLevel.Series || _level == QueryRetrieveLevel.Image
+                ? DicomTag.Modality
+                : DicomTag.ModalitiesInStudy;
+            AddString(tag, string.Join("\\", modalities), DicomVR.CS);
             return this;
         }
 

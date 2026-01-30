@@ -131,8 +131,8 @@ namespace SharpDicom.Network.Dimse.Services
                 // Check for cancellation before each receive
                 if (ct.IsCancellationRequested && !cancelSent)
                 {
-                    // Send C-CANCEL before throwing
-                    await SendCCancelAsync(context.Id, messageId, ct).ConfigureAwait(false);
+                    // Send C-CANCEL before throwing (use None since ct is already cancelled)
+                    await SendCCancelAsync(context.Id, messageId, CancellationToken.None).ConfigureAwait(false);
                     cancelSent = true;
                 }
 

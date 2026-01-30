@@ -76,13 +76,12 @@ namespace SharpDicom.Network.Dimse.Services
         /// Gets a value indicating whether this is the final C-GET response.
         /// </summary>
         /// <remarks>
-        /// True when either:
-        /// <list type="bullet">
-        ///   <item><description>All sub-operations have completed (Remaining = 0)</description></item>
-        ///   <item><description>The status is not Pending (final response received)</description></item>
-        /// </list>
+        /// True only when the DIMSE status is not Pending, indicating the final
+        /// C-GET-RSP has been received. Note that progress updates for C-STORE
+        /// sub-operations use placeholder sub-operation counts and should not
+        /// be considered final.
         /// </remarks>
-        public bool IsFinal => SubOperations.IsFinal || !Status.IsPending;
+        public bool IsFinal => !Status.IsPending;
 
         /// <summary>
         /// Gets a value indicating whether the overall operation completed successfully.
