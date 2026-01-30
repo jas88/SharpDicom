@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 05 of 5 complete
-**Status**: Phase COMPLETE
-**Last activity**: 2026-01-30 - Completed 13-05-PLAN.md (GPU Acceleration nvJPEG2000)
+**Plan**: 06 of 6 complete
+**Status**: Phase IN PROGRESS
+**Last activity**: 2026-01-30 - Completed 13-06-PLAN.md (Managed P/Invoke Layer)
 
-**Progress**: ████████████████████████████████████████ (5/5 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (6/6 plans in Phase 13)
 
 **Test Status**: 3404 tests passing, 0 failed, 54 skipped
 
@@ -89,6 +89,7 @@
 - [x] Phase 13 Plan 03: JPEG 2000 wrapper (OpenJPEG integration, resolution levels, ROI decode, tiled encode)
 - [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
+- [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
 
 ## In Progress
 
@@ -105,7 +106,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | COMPLETE | 5/5 | 2026-01-29 | 2026-01-30 |
+| 13 | Native Codecs Package | IN PROGRESS | 6/7 | 2026-01-29 | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -298,13 +299,16 @@
 | 2026-01-30 | 13-05 | Dynamic nvJPEG2000 loading | dlopen/LoadLibrary avoids CUDA dependency |
 | 2026-01-30 | 13-05 | Thread-local prefer_cpu flag | Enables testing fallback without disabling GPU |
 | 2026-01-30 | 13-05 | Optional CI cuda-build job | GPU builds don't block CI (continue-on-error: true) |
+| 2026-01-30 | 13-06 | LibraryImport (NET7+) vs DllImport | Source-generated marshalling for AOT; DllImport for netstandard2.0 |
+| 2026-01-30 | 13-06 | ModuleInitializer with AppContext switch | Auto-init convenience with opt-out via DisableAutoInit |
+| 2026-01-30 | 13-06 | SafeHandle for native resources | Ensures proper cleanup even with exceptions |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Completed 13-05-PLAN.md (GPU Acceleration nvJPEG2000)
+**Stopped at**: Completed 13-06-PLAN.md (Managed P/Invoke Layer)
 **Resume file**: None
-**Next step**: Start Phase 14 (De-identification)
+**Next step**: Execute 13-07-PLAN.md (Native Codec Wrappers)
 
 ## Context for Next Session
 
@@ -340,6 +344,7 @@ If resuming after a break:
    - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
    - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
    - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
+   - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods (LibraryImport/DllImport), NativeCodecs, SafeHandles
 5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
@@ -381,4 +386,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 13 in progress - 13-04 done)*
+*Last updated: 2026-01-30 (Phase 13 in progress - 13-06 done)*
