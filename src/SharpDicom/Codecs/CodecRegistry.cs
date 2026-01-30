@@ -28,11 +28,31 @@ namespace SharpDicom.Codecs
     /// Thread-safety: Registration is protected by locks. Lookups are lock-free
     /// after the registry is frozen (which happens automatically on first lookup).
     /// </para>
+    /// <para>
+    /// Priority levels: 0 = fallback, 50 = pure C# (default), 100 = native, 200 = user override.
+    /// Higher priority codecs override lower priority ones.
+    /// </para>
     /// </remarks>
     public static class CodecRegistry
     {
+        /// <summary>
+        /// Default priority for pure C# codec implementations.
+        /// </summary>
+        public const int PriorityDefault = 50;
+
+        /// <summary>
+        /// Priority for native codec implementations.
+        /// </summary>
+        public const int PriorityNative = 100;
+
+        /// <summary>
+        /// Priority for user-specified overrides.
+        /// </summary>
+        public const int PriorityUserOverride = 200;
+
         private static readonly object _lock = new();
         private static Dictionary<TransferSyntax, IPixelDataCodec> _mutableRegistry = new();
+        private static Dictionary<TransferSyntax, int> _priorities = new();
         private static bool _isFrozen;
 
 #if NET8_0_OR_GREATER
@@ -42,17 +62,46 @@ namespace SharpDicom.Codecs
 #endif
 
         /// <summary>
-        /// Registers a codec instance with the registry.
+        /// Registers a codec instance with the registry using default priority.
         /// </summary>
         /// <param name="codec">The codec to register.</param>
         /// <exception cref="ArgumentNullException"><paramref name="codec"/> is null.</exception>
         public static void Register(IPixelDataCodec codec)
         {
+            Register(codec, PriorityDefault);
+        }
+
+        /// <summary>
+        /// Registers a codec instance with the registry with a specified priority.
+        /// </summary>
+        /// <param name="codec">The codec to register.</param>
+        /// <param name="priority">
+        /// Priority level (0=fallback, 50=pure C#, 100=native, 200=user override).
+        /// Higher priority codecs override lower priority ones.
+        /// </param>
+        /// <exception cref="ArgumentNullException"><paramref name="codec"/> is null.</exception>
+        /// <remarks>
+        /// If a codec with equal or higher priority is already registered for the
+        /// same transfer syntax, the new codec is ignored.
+        /// </remarks>
+        public static void Register(IPixelDataCodec codec, int priority)
+        {
             ThrowHelpers.ThrowIfNull(codec, nameof(codec));
 
             lock (_lock)
             {
-                _mutableRegistry[codec.TransferSyntax] = codec;
+                var key = codec.TransferSyntax;
+
+                // Check if a higher or equal priority codec is already registered
+                if (_priorities.TryGetValue(key, out var existingPriority) && existingPriority >= priority)
+                {
+                    // Higher or equal priority already registered, skip
+                    return;
+                }
+
+                _mutableRegistry[key] = codec;
+                _priorities[key] = priority;
+
                 // Invalidate frozen cache if it exists
                 if (_isFrozen)
                 {
@@ -202,8 +251,47 @@ namespace SharpDicom.Codecs
             lock (_lock)
             {
                 _mutableRegistry = new Dictionary<TransferSyntax, IPixelDataCodec>();
+                _priorities = new Dictionary<TransferSyntax, int>();
                 _frozenRegistry = null;
                 _isFrozen = false;
+            }
+        }
+
+        /// <summary>
+        /// Gets information about the registered codec for a transfer syntax.
+        /// </summary>
+        /// <param name="syntax">The transfer syntax to look up.</param>
+        /// <returns>Information about the registered codec, or null if not found.</returns>
+        public static CodecInfo? GetCodecInfo(TransferSyntax syntax)
+        {
+            var codec = GetCodec(syntax);
+            if (codec == null)
+            {
+                return null;
+            }
+
+            lock (_lock)
+            {
+                _priorities.TryGetValue(syntax, out var priority);
+                var assemblyName = codec.GetType().Assembly.GetName().Name;
+                return new CodecInfo(codec.Name, priority, assemblyName);
+            }
+        }
+
+        /// <summary>
+        /// Gets the priority of the registered codec for a transfer syntax.
+        /// </summary>
+        /// <param name="syntax">The transfer syntax to look up.</param>
+        /// <returns>The priority level, or null if no codec is registered.</returns>
+        public static int? GetPriority(TransferSyntax syntax)
+        {
+            lock (_lock)
+            {
+                if (_priorities.TryGetValue(syntax, out var priority))
+                {
+                    return priority;
+                }
+                return null;
             }
         }
 
@@ -230,4 +318,12 @@ namespace SharpDicom.Codecs
             }
         }
     }
+
+    /// <summary>
+    /// Information about a registered codec.
+    /// </summary>
+    /// <param name="Name">The display name of the codec.</param>
+    /// <param name="Priority">The priority level at which the codec is registered.</param>
+    /// <param name="Assembly">The name of the assembly containing the codec.</param>
+    public readonly record struct CodecInfo(string Name, int Priority, string? Assembly);
 }
