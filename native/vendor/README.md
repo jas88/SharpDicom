@@ -51,16 +51,49 @@ JPEG 2000 codec library providing:
 - Configure with `-DOPJ_USE_THREAD=ON` for multi-threaded operations
 - Configure with `-DBUILD_SHARED_LIBS=OFF` for static build
 
-### CharLS (Future)
+### CharLS
 
-**Version:** 2.4.x
+**Version:** 2.4.2
 **Source:** https://github.com/team-charls/charls
 **License:** BSD-3-Clause
 
-JPEG-LS codec library providing:
-- Lossless JPEG-LS compression
-- Near-lossless JPEG-LS compression
-- Header-only C++ library option
+JPEG-LS codec library (ISO 14495-1) providing:
+- Lossless JPEG-LS encoding/decoding
+- Near-lossless JPEG-LS encoding/decoding
+- Support for interleaved and non-interleaved color modes
+- 2-16 bits per sample precision
+
+**Performance Notes:**
+- Approximately 2x faster than HP reference implementation
+- Pure C implementation with optional C++ API
+- Thread-safe design for concurrent encode/decode
+
+**Build Notes:**
+- Static library linked into sharpdicom_codecs
+- Configure with `-DBUILD_SHARED_LIBS=OFF` for static build
+- C API used via `charls/charls.h`
+
+### FFmpeg (libavcodec, libavutil)
+
+**Version:** 7.1
+**Source:** https://github.com/FFmpeg/FFmpeg
+**License:** GPL-2.0-or-later (with GPL codecs)
+
+Video codec library providing:
+- MPEG-2 Video decode (DICOM MPEG2 Main Profile @ Main Level)
+- MPEG-4 Part 10 / H.264 decode (DICOM MPEG-4 AVC/H.264)
+- HEVC / H.265 decode (DICOM MPEG-4 HEVC/H.265)
+- Frame-level extraction for DICOM multi-frame images
+
+**License Notes:**
+- SharpDicom is GPL-licensed, compatible with GPL FFmpeg
+- Only libavcodec and libavutil components are used
+- No external codec libraries (x264/x265) needed for decode-only
+
+**Build Notes:**
+- Static library linked into sharpdicom_codecs
+- Configure with `--disable-programs --disable-doc --enable-static`
+- Only decoding codecs enabled to minimize binary size
 
 ## Local Development
 
@@ -82,6 +115,14 @@ For local development, you can either:
    # OpenJPEG
    curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
    mv openjpeg-2.5.3 openjpeg-src
+
+   # CharLS
+   curl -L https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz | tar xz
+   mv charls-2.4.2 charls-src
+
+   # FFmpeg (decode-only components)
+   curl -L https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz | tar xz
+   mv FFmpeg-n7.1 ffmpeg-src
    ```
 
 The build system will detect system headers if vendored sources are not present.
@@ -137,8 +178,9 @@ vendor/
 All vendored libraries must be BSD-compatible with SharpDicom's license.
 License texts are aggregated into `THIRD_PARTY_LICENSES.txt` during build.
 
-| Library        | License                              | BSD Compatible |
+| Library        | License                              | GPL Compatible |
 |----------------|--------------------------------------|----------------|
 | libjpeg-turbo  | IJG / BSD-3-Clause / zlib            | Yes            |
 | OpenJPEG       | BSD-2-Clause                         | Yes            |
 | CharLS         | BSD-3-Clause                         | Yes            |
+| FFmpeg         | GPL-2.0-or-later                     | Yes            |

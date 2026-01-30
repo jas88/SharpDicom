@@ -36,6 +36,21 @@ jobs:
           restore-keys: |
             zig-cache-linux-
 
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
+          mkdir -p native/vendor/libjpeg-turbo/src
+          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
+          rm libjpeg-turbo.tar.gz
+
       - name: Cache OpenJPEG source
         uses: actions/cache@v4
         id: cache-openjpeg
@@ -91,6 +106,24 @@ jobs:
           key: zig-cache-windows-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
           restore-keys: |
             zig-cache-windows-
+
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.zip -OutFile libjpeg-turbo.zip
+          New-Item -ItemType Directory -Path native/vendor/libjpeg-turbo/src -Force
+          Expand-Archive -Path libjpeg-turbo.zip -DestinationPath native/vendor/libjpeg-turbo/temp
+          Move-Item -Path native/vendor/libjpeg-turbo/temp/libjpeg-turbo-3.0.4/* -Destination native/vendor/libjpeg-turbo/src
+          Remove-Item -Recurse -Force native/vendor/libjpeg-turbo/temp
+          Remove-Item libjpeg-turbo.zip
 
       - name: Cache OpenJPEG source
         uses: actions/cache@v4
@@ -150,6 +183,21 @@ jobs:
           key: zig-cache-macos-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
           restore-keys: |
             zig-cache-macos-
+
+      - name: Cache libjpeg-turbo source
+        uses: actions/cache@v4
+        id: cache-libjpeg-turbo
+        with:
+          path: native/vendor/libjpeg-turbo/src
+          key: libjpeg-turbo-3.0.4
+
+      - name: Download libjpeg-turbo
+        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
+          mkdir -p native/vendor/libjpeg-turbo/src
+          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
+          rm libjpeg-turbo.tar.gz
 
       - name: Cache OpenJPEG source
         uses: actions/cache@v4
