@@ -10,7 +10,7 @@
 
 **Progress**: ████████████████████████████████████████ (8/8 plans in Phase 14)
 
-**Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
+**Test Status**: 3870 tests passing (518 deidentification tests), 0 failed, 126 skipped (external service tests)
 
 ## Completed
 
@@ -375,7 +375,7 @@ If resuming after a break:
    - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods (LibraryImport/DllImport), NativeCodecs, SafeHandles
    - **Phase 13 Plan 07**: IPixelDataCodec wrappers - NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration
    - **Phase 13 Plan 08**: NuGet package structure - MSBuild targets, 6 runtime packages, release workflow
-5. **Test coverage**: 3504 tests passing (126 skipped)
+5. **Test coverage**: 3870 tests passing (126 skipped)
 6. **Known issues**: None
 
 ## v2.0.0 Requirements Coverage
@@ -406,14 +406,14 @@ If resuming after a break:
 | FR-12.3 (OpenJPEG) | Phase 13 | Complete (13-03, 13-07) |
 | FR-12.4 (Override registration) | Phase 13 | Complete (13-07) |
 | FR-12.5 (Cross-platform) | Phase 13 | Complete (13-01, 13-08) |
-| FR-13.1 (PS3.15 Basic) | Phase 14 | In Progress (14-01, 14-02) |
+| FR-13.1 (PS3.15 Basic) | Phase 14 | Complete (14-01 to 14-08) |
 | FR-13.2 (Source-generated) | Phase 14 | Complete (14-01) |
-| FR-13.3 (UID remapping) | Phase 14 | Pending (14-03) |
-| FR-13.4 (Date shifting) | Phase 14 | Pending (14-04) |
-| FR-13.5 (Callback integration) | Phase 14 | Pending |
-| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending (14-05) |
+| FR-13.3 (UID remapping) | Phase 14 | Complete (14-03) |
+| FR-13.4 (Date shifting) | Phase 14 | Complete (14-04) |
+| FR-13.5 (Callback integration) | Phase 14 | Complete (14-05) |
+| FR-13.6 (DicomDeidentifier) | Phase 14 | Complete (14-05, 14-08) |
 
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 14 in progress - 14-02 complete)*
+*Last updated: 2026-01-30 (Phase 14 complete - v2.0.0 COMPLETE)*
