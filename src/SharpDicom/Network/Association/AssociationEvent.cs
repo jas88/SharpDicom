@@ -45,7 +45,7 @@ namespace SharpDicom.Network.Association
         /// A-ASSOCIATE reject response from the local user (SCP rejecting).
         /// </summary>
         /// <remarks>
-        /// Triggers: Sta3 -> Sta13 (send A-ASSOCIATE-RJ, close transport)
+        /// Triggers: Sta3 -> Sta1 (send A-ASSOCIATE-RJ, close transport, return to idle)
         /// </remarks>
         AAssociateRejectResponse,
 
