@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 07 of 7 complete
+**Plan**: 08 of 8 complete
 **Status**: Phase COMPLETE
-**Last activity**: 2026-01-30 - Completed 13-07-PLAN.md (IPixelDataCodec Wrappers)
+**Last activity**: 2026-01-30 - Completed 13-08-PLAN.md (NuGet Package Structure)
 
-**Progress**: ████████████████████████████████████████ (7/7 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 13)
 
 **Test Status**: 3402 tests passing, 0 failed, 54 skipped
 
@@ -91,6 +91,7 @@
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
 - [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
+- [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
 
 ## In Progress
 
@@ -107,7 +108,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | IN PROGRESS | 6/7 | 2026-01-29 | - |
+| 13 | Native Codecs Package | COMPLETE | 8/8 | 2026-01-29 | 2026-01-30 |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -303,20 +304,23 @@
 | 2026-01-30 | 13-06 | LibraryImport (NET7+) vs DllImport | Source-generated marshalling for AOT; DllImport for netstandard2.0 |
 | 2026-01-30 | 13-06 | ModuleInitializer with AppContext switch | Auto-init convenience with opt-out via DisableAutoInit |
 | 2026-01-30 | 13-06 | SafeHandle for native resources | Ensures proper cleanup even with exceptions |
+| 2026-01-30 | 13-08 | RID-conditional runtime package references | Separate packages per platform reduces download size |
+| 2026-01-30 | 13-08 | MSBuild auto-detect platform RID | Convenience for development without explicit RuntimeIdentifier |
+| 2026-01-30 | 13-08 | Matrix strategy for native builds | Parallel compilation across 6 platforms |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Completed 13-06-PLAN.md (Managed P/Invoke Layer)
+**Stopped at**: Completed 13-08-PLAN.md (NuGet Package Structure)
 **Resume file**: None
-**Next step**: Execute 13-07-PLAN.md (Native Codec Wrappers)
+**Next step**: Phase 13 complete - Continue to Phase 14 (De-identification)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 13 - Native Codecs Package COMPLETE (5/5 plans)
+2. **Current phase**: Phase 13 - Native Codecs Package COMPLETE (8/8 plans)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -346,6 +350,8 @@ If resuming after a break:
    - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
    - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
    - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods (LibraryImport/DllImport), NativeCodecs, SafeHandles
+   - **Phase 13 Plan 07**: IPixelDataCodec wrappers - NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration
+   - **Phase 13 Plan 08**: NuGet package structure - MSBuild targets, 6 runtime packages, release workflow
 5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
@@ -372,11 +378,11 @@ If resuming after a break:
 | FR-11.5 (Pure C#) | Phase 12 | Complete (12-01 to 12-07) |
 | FR-11.6 (Trim/AOT) | Phase 12 | Complete (12-07) |
 | FR-11.7 (IPixelDataCodec) | Phase 12 | Complete (12-07) |
-| FR-12.1 (SharpDicom.Codecs) | Phase 13 | Pending |
-| FR-12.2 (libjpeg-turbo) | Phase 13 | Pending |
-| FR-12.3 (OpenJPEG) | Phase 13 | Pending |
-| FR-12.4 (Override registration) | Phase 13 | Pending |
-| FR-12.5 (Cross-platform) | Phase 13 | Pending |
+| FR-12.1 (SharpDicom.Codecs) | Phase 13 | Complete (13-06, 13-08) |
+| FR-12.2 (libjpeg-turbo) | Phase 13 | Complete (13-02, 13-07) |
+| FR-12.3 (OpenJPEG) | Phase 13 | Complete (13-03, 13-07) |
+| FR-12.4 (Override registration) | Phase 13 | Complete (13-07) |
+| FR-12.5 (Cross-platform) | Phase 13 | Complete (13-01, 13-08) |
 | FR-13.1 (PS3.15 Basic) | Phase 14 | Pending |
 | FR-13.2 (Source-generated) | Phase 14 | Pending |
 | FR-13.3 (UID remapping) | Phase 14 | Pending |
@@ -387,4 +393,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 13 in progress - 13-06 done)*
+*Last updated: 2026-01-30 (Phase 13 complete - 13-08 done)*
