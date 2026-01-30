@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 04 of 5 complete
-**Status**: Phase in progress
-**Last activity**: 2026-01-30 - Completed 13-04-PLAN.md (CharLS and FFmpeg Wrappers)
+**Plan**: 05 of 5 complete
+**Status**: Phase COMPLETE
+**Last activity**: 2026-01-30 - Completed 13-05-PLAN.md (GPU Acceleration nvJPEG2000)
 
-**Progress**: ████████████████████████████████████░░ (4/5 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (5/5 plans in Phase 13)
 
 **Test Status**: 3404 tests passing, 0 failed, 54 skipped
 
@@ -88,6 +88,7 @@
 - [x] Phase 13 Plan 02: libjpeg-turbo wrapper (jpeg_decode, jpeg_encode, 8-bit/12-bit, TurboJPEG API)
 - [x] Phase 13 Plan 03: JPEG 2000 wrapper (OpenJPEG integration, resolution levels, ROI decode, tiled encode)
 - [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
+- [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 
 ## In Progress
 
@@ -104,7 +105,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 4/5 | 2026-01-29 | - |
+| 13 | Native Codecs Package | COMPLETE | 5/5 | 2026-01-29 | 2026-01-30 |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -293,20 +294,24 @@
 | 2026-01-30 | 13-04 | Parameter struct pattern | Cleaner API for encode/decode options |
 | 2026-01-30 | 13-04 | CharLS 2.4.2 | ~2x faster than HP reference for JPEG-LS |
 | 2026-01-30 | 13-04 | FFmpeg libavcodec only | Decode-only, no encoding needed for DICOM video |
+| 2026-01-30 | 13-05 | Compute capability 5.0+ minimum | Maxwell GPUs (GTX 750 Ti, 2014) oldest supported |
+| 2026-01-30 | 13-05 | Dynamic nvJPEG2000 loading | dlopen/LoadLibrary avoids CUDA dependency |
+| 2026-01-30 | 13-05 | Thread-local prefer_cpu flag | Enables testing fallback without disabling GPU |
+| 2026-01-30 | 13-05 | Optional CI cuda-build job | GPU builds don't block CI (continue-on-error: true) |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Completed 13-04-PLAN.md (CharLS and FFmpeg Wrappers)
+**Stopped at**: Completed 13-05-PLAN.md (GPU Acceleration nvJPEG2000)
 **Resume file**: None
-**Next step**: Complete Phase 13 (13-05: Managed wrapper and NuGet packaging)
+**Next step**: Start Phase 14 (De-identification)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 13 - Native Codecs Package (In progress - 1/?)
+2. **Current phase**: Phase 13 - Native Codecs Package COMPLETE (5/5 plans)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -334,6 +339,7 @@ If resuming after a break:
    - **Phase 13 Plan 01**: Native build infrastructure - Zig build system, C API header, CI workflow for 6 platforms
    - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
    - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
+   - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
 5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
