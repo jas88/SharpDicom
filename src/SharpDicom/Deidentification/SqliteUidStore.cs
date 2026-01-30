@@ -15,7 +15,7 @@ namespace SharpDicom.Deidentification
     /// Uses WAL mode for better concurrency and thread-safe read/write.
     /// Supports bidirectional lookup and JSON export for auditing.
     /// </remarks>
-    public sealed class SqliteUidStore : IUidMappingStore
+    public sealed class SqliteUidStore : IUidStore, IUidMappingStore
     {
         private readonly string _connectionString;
         private readonly object _lock = new();
@@ -105,8 +105,30 @@ namespace SharpDicom.Deidentification
             }
         }
 
-        /// <inheritdoc/>
-        public string GetOrCreateMapping(string originalUid, string scope)
+        /// <inheritdoc cref="IUidMappingStore.GetOrCreateMapping"/>
+        string IUidMappingStore.GetOrCreateMapping(string originalUid, string scope)
+        {
+            return GetOrCreateMappingInternal(originalUid, scope);
+        }
+
+        /// <inheritdoc cref="IUidStore.GetOrCreateMapping"/>
+        string IUidStore.GetOrCreateMapping(string originalUid, string? context)
+        {
+            return GetOrCreateMappingInternal(originalUid, context ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Gets or creates a UID mapping.
+        /// </summary>
+        /// <param name="originalUid">The original UID to map.</param>
+        /// <param name="scope">Optional scope for grouping mappings.</param>
+        /// <returns>The mapped UID.</returns>
+        public string GetOrCreateMapping(string originalUid, string? scope = null)
+        {
+            return GetOrCreateMappingInternal(originalUid, scope ?? string.Empty);
+        }
+
+        private string GetOrCreateMappingInternal(string originalUid, string scope)
         {
             ThrowIfDisposed();
 #if NET6_0_OR_GREATER
@@ -156,7 +178,7 @@ namespace SharpDicom.Deidentification
             }
         }
 
-        /// <inheritdoc/>
+        /// <inheritdoc cref="IUidMappingStore.TryGetMapping"/>
         public bool TryGetMapping(string originalUid, out string? remappedUid)
         {
             ThrowIfDisposed();
@@ -179,8 +201,40 @@ namespace SharpDicom.Deidentification
             }
         }
 
-        /// <inheritdoc/>
+        /// <inheritdoc cref="IUidStore.TryGetMapped"/>
+        public bool TryGetMapped(string originalUid, out string mappedUid)
+        {
+            var found = TryGetMapping(originalUid, out var result);
+            mappedUid = result ?? null!;
+            return found;
+        }
+
+        /// <inheritdoc cref="IUidMappingStore.TryGetOriginal"/>
+        bool IUidMappingStore.TryGetOriginal(string remappedUid, out string? originalUid)
+        {
+            return TryGetOriginalInternal(remappedUid, out originalUid);
+        }
+
+        /// <inheritdoc cref="IUidStore.TryGetOriginal"/>
+        bool IUidStore.TryGetOriginal(string mappedUid, out string originalUid)
+        {
+            var found = TryGetOriginalInternal(mappedUid, out var result);
+            originalUid = result ?? null!;
+            return found;
+        }
+
+        /// <summary>
+        /// Tries to get the original UID from a remapped UID.
+        /// </summary>
+        /// <param name="remappedUid">The remapped UID.</param>
+        /// <param name="originalUid">The original UID if found.</param>
+        /// <returns>True if the mapping was found, false otherwise.</returns>
         public bool TryGetOriginal(string remappedUid, out string? originalUid)
+        {
+            return TryGetOriginalInternal(remappedUid, out originalUid);
+        }
+
+        private bool TryGetOriginalInternal(string remappedUid, out string? originalUid)
         {
             ThrowIfDisposed();
             lock (_lock)
