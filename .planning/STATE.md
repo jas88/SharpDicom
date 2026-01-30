@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 08 of 8 complete
+**Plan**: 09 of 9 complete
 **Status**: Phase COMPLETE
-**Last activity**: 2026-01-30 - Completed 13-08-PLAN.md (NuGet Package Structure)
+**Last activity**: 2026-01-30 - Completed 13-09-PLAN.md (Native Codecs Test Suite)
 
-**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 13)
 
-**Test Status**: 3402 tests passing, 0 failed, 54 skipped
+**Test Status**: 3500+ tests passing, 0 failed, 126+ skipped (native tests skip when libs unavailable)
 
 ## Completed
 
@@ -92,6 +92,7 @@
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
 - [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
 - [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
+- [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
 
 ## In Progress
 
