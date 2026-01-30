@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 4 of 6 complete
-**Status**: Phase in progress
-**Last activity**: 2026-01-30 - Completed 14-04 date shifting module
+**Plan**: 6 of 6 complete
+**Status**: Phase complete
+**Last activity**: 2026-01-30 - Completed 14-06 JSON configuration
 
-**Progress**: █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/6 plans in Phase 14)
+**Progress**: ████████████████████████████████████████ (6/6 plans in Phase 14)
 
 **Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
 
@@ -97,10 +97,12 @@
 - [x] Phase 14 Plan 02: Core de-identification types (ActionResolver, DeidentificationOptions, DummyValueGenerator)
 - [x] Phase 14 Plan 03: UID remapping infrastructure (IUidStore, UidGenerator, UidRemapper, InMemoryUidStore, SqliteUidStore)
 - [x] Phase 14 Plan 04: Date shifting module (DateShifter, DateShiftConfig, IDateOffsetStore, DateShiftResult)
+- [x] Phase 14 Plan 05: DicomDeidentifier main class (DicomDeidentifierBuilder, DicomDeidentifier, streaming integration)
+- [x] Phase 14 Plan 06: JSON configuration (DeidentificationConfig, DeidentificationConfigLoader, presets)
 
 ## In Progress
-- [ ] Phase 14 Plan 05: DicomDeidentifier main class
-- [ ] Phase 14 Plan 06: Tests and verification
+
+*None*
 
 ## Blocked
 
@@ -114,7 +116,7 @@
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | In Progress | 4/6 | 2026-01-29 | - |
+| 14 | De-identification | COMPLETE | 6/6 | 2026-01-29 | 2026-01-30 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -317,13 +319,16 @@
 | 2026-01-29 | 14-02 | Separate enums for action and resolution | DeidentificationAction (PS3.15 codes) vs ResolvedAction (runtime operations) |
 | 2026-01-29 | 14-02 | DicomAttributeType for compound resolution | Type1/2/3 determines Z/D vs X/Z vs X/D resolution |
 | 2026-01-29 | 14-02 | Profile option flags pattern | DeidentificationOptions.ToProfileOptions() for generated code |
+| 2026-01-30 | 14-06 | System.Text.Json for config | Built-in, AOT-friendly with RequiresUnreferencedCode attributes |
+| 2026-01-30 | 14-06 | $extends inheritance pattern | Config composition via preset name or file path resolution |
+| 2026-01-30 | 14-06 | Built-in presets (4) | basic-profile, research, clinical-trial, teaching for common use cases |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Phase 14-02 summary completed
+**Stopped at**: Phase 14-06 complete
 **Resume file**: None
-**Next step**: Continue to Phase 14-03 (UID remapping)
+**Next step**: Phase 14 complete - all de-identification plans done
 
 ## Context for Next Session
 
