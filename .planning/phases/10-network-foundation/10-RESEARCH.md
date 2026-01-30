@@ -261,12 +261,11 @@ public sealed class DicomServer : IAsyncDisposable
         _listener.Stop();
 
         // Wait for active associations with timeout
-        var completedTask = await Task.WhenAny(
-            Task.WhenAll(_activeTasks.ToArray()),
-            Task.Delay(timeout));
+        var allTasksComplete = Task.WhenAll(_activeTasks.ToArray());
+        var completedTask = await Task.WhenAny(allTasksComplete, Task.Delay(timeout));
 
         // Abort remaining if timeout
-        if (completedTask != Task.WhenAll(_activeTasks.ToArray()))
+        if (completedTask != allTasksComplete)
         {
             _logger.LogWarning("Forcing abort of {Count} associations", _activeTasks.Count);
             // Send A-ABORT to remaining
