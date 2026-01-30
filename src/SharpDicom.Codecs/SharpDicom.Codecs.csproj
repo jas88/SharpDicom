@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0</TargetFrameworks>
+    <RootNamespace>SharpDicom.Codecs.Native</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package metadata -->
+    <PackageId>SharpDicom.Codecs</PackageId>
+    <Description>High-performance native codec wrappers for SharpDicom (JPEG, JPEG 2000, JPEG-LS)</Description>
+    <PackageTags>DICOM;medical;imaging;codec;jpeg;jpeg2000;jpegls;native</PackageTags>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- AOT/Trim compatibility -->
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
+    <IsTrimmable Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</IsTrimmable>
+    <EnableTrimAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</EnableAotAnalyzer>
+
+    <!-- Suppress analyzer warnings that don't apply to this library -->
+    <NoWarn>$(NoWarn);CS1591;CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+
+  <!-- Include native libraries based on RID -->
+  <ItemGroup>
+    <None Include="runtimes\**\*" Pack="true" PackagePath="runtimes" Condition="Exists('runtimes')" />
+  </ItemGroup>
+
+  <!-- Include build targets for consumers -->
+  <ItemGroup>
+    <None Include="build\**\*" Pack="true" PackagePath="build" Condition="Exists('build')" />
+    <None Include="buildTransitive\**\*" Pack="true" PackagePath="buildTransitive" Condition="Exists('buildTransitive')" />
+  </ItemGroup>
+</Project>

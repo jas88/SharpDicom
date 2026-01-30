@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Tests", "tests\S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Tests.Polyfills", "tests\SharpDicom.Tests.Polyfills\SharpDicom.Tests.Polyfills.csproj", "{0353FBBC-0823-4449-A4AB-22A290C91412}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpDicom.Codecs", "src\SharpDicom.Codecs\SharpDicom.Codecs.csproj", "{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{0353FBBC-0823-4449-A4AB-22A290C91412}.Release|x64.Build.0 = Release|Any CPU
 		{0353FBBC-0823-4449-A4AB-22A290C91412}.Release|x86.ActiveCfg = Release|Any CPU
 		{0353FBBC-0823-4449-A4AB-22A290C91412}.Release|x86.Build.0 = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|x64.Build.0 = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Debug|x86.Build.0 = Debug|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x64.ActiveCfg = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x64.Build.0 = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x86.ActiveCfg = Release|Any CPU
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{C3A7E9F1-5D4B-4E8C-9A1D-8B2F3C4E5F6A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{A8BF56CB-9083-4955-BFBB-F48538726935} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{0353FBBC-0823-4449-A4AB-22A290C91412} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{66FC8DED-16FB-48BB-B0DE-903E4EFD8F46} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
