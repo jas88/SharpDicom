@@ -30,8 +30,8 @@
 |-------|------|--------------|--------|
 | 10 | Network Foundation | FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11 | **Complete** |
 | 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | **Complete** |
-| 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | Pending |
-| 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | Pending |
+| 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | **Complete** |
+| 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | **Complete** |
 | 14 | De-identification | FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6 | Pending |
 
 ---
@@ -136,39 +136,39 @@ Plans:
 **Plans**: 7 plans in 4 waves
 
 Plans:
-- [ ] 12-01-PLAN.md — Infrastructure (TransferSyntax additions, JpegMarkers, HuffmanTable, QuantizationTable, ColorConversion)
-- [ ] 12-02-PLAN.md — JPEG primitives (DctTransform, BitReader, BitWriter, JpegCodecOptions)
-- [ ] 12-03-PLAN.md — JPEG Baseline codec (decoder, encoder, codec class, tests)
-- [ ] 12-04-PLAN.md — JPEG Lossless codec (Predictor, LosslessHuffman, codec class, tests)
-- [ ] 12-05-PLAN.md — JPEG 2000 infrastructure (J2kCodestream, DWT transforms, MqCoder)
-- [ ] 12-06-PLAN.md — JPEG 2000 coding (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
-- [ ] 12-07-PLAN.md — Integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, integration tests)
+- [x] 12-01-PLAN.md — Infrastructure (TransferSyntax additions, JpegMarkers, HuffmanTable, QuantizationTable, ColorConversion)
+- [x] 12-02-PLAN.md — JPEG primitives (DctTransform, BitReader, BitWriter, JpegCodecOptions)
+- [x] 12-03-PLAN.md — JPEG Baseline codec (decoder, encoder, codec class, tests)
+- [x] 12-04-PLAN.md — JPEG Lossless codec (Predictor, LosslessHuffman, codec class, tests)
+- [x] 12-05-PLAN.md — JPEG 2000 infrastructure (J2kCodestream, DWT transforms, MqCoder)
+- [x] 12-06-PLAN.md — JPEG 2000 coding (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
+- [x] 12-07-PLAN.md — Integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, integration tests)
 
 **Must-haves**:
-- [ ] JPEG Baseline codec (8-bit lossy, Process 1 - TS 1.2.840.10008.1.2.4.50)
-- [ ] JPEG Lossless codec (Process 14 SV1 - TS 1.2.840.10008.1.2.4.70)
-- [ ] JPEG 2000 Lossless codec (TS 1.2.840.10008.1.2.4.90)
-- [ ] Pure C# implementations with no native dependencies
-- [ ] Trim/AOT compatible (no reflection, no dynamic code)
-- [ ] Register via existing IPixelDataCodec interface and CodecRegistry
+- [x] JPEG Baseline codec (8-bit lossy, Process 1 - TS 1.2.840.10008.1.2.4.50)
+- [x] JPEG Lossless codec (Process 14 SV1 - TS 1.2.840.10008.1.2.4.70)
+- [x] JPEG 2000 Lossless codec (TS 1.2.840.10008.1.2.4.90)
+- [x] Pure C# implementations with no native dependencies
+- [x] Trim/AOT compatible (no reflection, no dynamic code)
+- [x] Register via existing IPixelDataCodec interface and CodecRegistry
 
 **Should-haves**:
-- [ ] JPEG 2000 Lossy codec (TS 1.2.840.10008.1.2.4.91)
-- [ ] Photometric interpretation handling (RGB/YBR conversion with metadata update)
-- [ ] Multi-frame support with frame-level decode
+- [x] JPEG 2000 Lossy codec (TS 1.2.840.10008.1.2.4.91)
+- [x] Photometric interpretation handling (RGB/YBR conversion with metadata update)
+- [x] Multi-frame support with frame-level decode
 
 **Dependencies**: Phase 9 (IPixelDataCodec interface and CodecRegistry)
 
 **Research Needed**: No - COMPLETE (12-CONTEXT.md, 12-RESEARCH.md)
 
 **Success Criteria**:
-- [ ] Decode JPEG Baseline test files from NEMA WG-04 conformance suite
-- [ ] Decode JPEG Lossless test files from NEMA WG-04 conformance suite
-- [ ] Decode JPEG 2000 test files from NEMA WG-04 conformance suite (bit-perfect roundtrip)
-- [ ] Encode to all supported transfer syntaxes
-- [ ] Codecs discoverable via CodecRegistry.GetCodec(TransferSyntax)
-- [ ] Passes AOT compilation test (no trimming warnings)
-- [ ] Photometric Interpretation tag matches actual pixel data after encode
+- [x] Decode JPEG Baseline test files from NEMA WG-04 conformance suite
+- [x] Decode JPEG Lossless test files from NEMA WG-04 conformance suite
+- [x] Decode JPEG 2000 test files from NEMA WG-04 conformance suite (bit-perfect roundtrip)
+- [x] Encode to all supported transfer syntaxes
+- [x] Codecs discoverable via CodecRegistry.GetCodec(TransferSyntax)
+- [x] Passes AOT compilation test (no trimming warnings)
+- [x] Photometric Interpretation tag matches actual pixel data after encode
 
 ---
 
@@ -181,39 +181,39 @@ Plans:
 **Plans**: 9 plans in 5 waves
 
 Plans:
-- [ ] 13-01-PLAN.md — Zig build system, C API header, version/feature detection, CI workflow
-- [ ] 13-02-PLAN.md — libjpeg-turbo wrapper for JPEG baseline/extended (8-bit, 12-bit)
-- [ ] 13-03-PLAN.md — OpenJPEG wrapper for JPEG 2000 with resolution level and ROI decode
-- [ ] 13-04-PLAN.md — CharLS wrapper for JPEG-LS and FFmpeg wrapper for video codecs
-- [ ] 13-05-PLAN.md — GPU acceleration with nvJPEG2000 and CPU fallback
-- [ ] 13-06-PLAN.md — Managed P/Invoke layer, NativeCodecs static class, exception types
-- [ ] 13-07-PLAN.md — IPixelDataCodec implementations and CodecRegistry priority integration
-- [ ] 13-08-PLAN.md — NuGet package structure (meta + runtime packages for 6 RIDs)
-- [ ] 13-09-PLAN.md — Test suite for native codec initialization and decode/encode operations
+- [x] 13-01-PLAN.md — Zig build system, C API header, version/feature detection, CI workflow
+- [x] 13-02-PLAN.md — libjpeg-turbo wrapper for JPEG baseline/extended (8-bit, 12-bit)
+- [x] 13-03-PLAN.md — OpenJPEG wrapper for JPEG 2000 with resolution level and ROI decode
+- [x] 13-04-PLAN.md — CharLS wrapper for JPEG-LS and FFmpeg wrapper for video codecs
+- [x] 13-05-PLAN.md — GPU acceleration with nvJPEG2000 and CPU fallback
+- [x] 13-06-PLAN.md — Managed P/Invoke layer, NativeCodecs static class, exception types
+- [x] 13-07-PLAN.md — IPixelDataCodec implementations and CodecRegistry priority integration
+- [x] 13-08-PLAN.md — NuGet package structure (meta + runtime packages for 6 RIDs)
+- [x] 13-09-PLAN.md — Test suite for native codec initialization and decode/encode operations
 
 **Must-haves**:
-- [ ] SharpDicom.Codecs NuGet package (separate from core)
-- [ ] Native JPEG codec wrapping libjpeg-turbo (2-6x faster than pure C#)
-- [ ] Native JPEG 2000 codec wrapping OpenJPEG
-- [ ] Override registration that replaces pure C# codecs when loaded
-- [ ] Cross-platform native binaries (win-x64, linux-x64, osx-arm64)
+- [x] SharpDicom.Codecs NuGet package (separate from core)
+- [x] Native JPEG codec wrapping libjpeg-turbo (2-6x faster than pure C#)
+- [x] Native JPEG 2000 codec wrapping OpenJPEG
+- [x] Override registration that replaces pure C# codecs when loaded
+- [x] Cross-platform native binaries (win-x64, linux-x64, osx-arm64)
 
 **Should-haves**:
-- [ ] ModuleInitializer auto-registration on assembly load
-- [ ] Fallback to pure C# if native load fails
-- [ ] Native library version detection and logging
+- [x] ModuleInitializer auto-registration on assembly load
+- [x] Fallback to pure C# if native load fails
+- [x] Native library version detection and logging
 
 **Dependencies**: Phase 12 (establishes codec interface patterns)
 
 **Research Needed**: Yes - COMPLETE (13-RESEARCH.md)
 
 **Success Criteria**:
-- [ ] SharpDicom.Codecs package installable via NuGet
-- [ ] Native codecs auto-register when package referenced
-- [ ] Native codecs override pure C# registrations
-- [ ] Decode/encode works on Windows, Linux, macOS
-- [ ] Performance benchmark shows 2-6x improvement over pure C# (note: NFR-05.2's 10-50x range is for specific workloads; typical improvement is 2-6x)
-- [ ] Package does not bloat core SharpDicom library
+- [x] SharpDicom.Codecs package installable via NuGet
+- [x] Native codecs auto-register when package referenced
+- [x] Native codecs override pure C# registrations
+- [x] Decode/encode works on Windows, Linux, macOS
+- [x] Performance benchmark shows 2-6x improvement over pure C# (note: NFR-05.2's 10-50x range is for specific workloads; typical improvement is 2-6x)
+- [x] Package does not bloat core SharpDicom library
 
 ---
 
