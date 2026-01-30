@@ -36,6 +36,21 @@ jobs:
           restore-keys: |
             zig-cache-linux-
 
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          mkdir -p native/vendor/openjpeg/src
+          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
+          rm openjpeg.tar.gz
+
       - name: Build all targets
         working-directory: native
         run: zig build -Doptimize=ReleaseFast
@@ -77,6 +92,24 @@ jobs:
           restore-keys: |
             zig-cache-windows-
 
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.zip -OutFile openjpeg.zip
+          New-Item -ItemType Directory -Path native/vendor/openjpeg/src -Force
+          Expand-Archive -Path openjpeg.zip -DestinationPath native/vendor/openjpeg/temp
+          Move-Item -Path native/vendor/openjpeg/temp/openjpeg-2.5.3/* -Destination native/vendor/openjpeg/src
+          Remove-Item -Recurse -Force native/vendor/openjpeg/temp
+          Remove-Item openjpeg.zip
+
       - name: Build Windows targets
         working-directory: native
         run: zig build -Doptimize=ReleaseFast
@@ -117,6 +150,21 @@ jobs:
           key: zig-cache-macos-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
           restore-keys: |
             zig-cache-macos-
+
+      - name: Cache OpenJPEG source
+        uses: actions/cache@v4
+        id: cache-openjpeg
+        with:
+          path: native/vendor/openjpeg/src
+          key: openjpeg-v2.5.3
+
+      - name: Download OpenJPEG
+        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          mkdir -p native/vendor/openjpeg/src
+          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
+          rm openjpeg.tar.gz
 
       - name: Build macOS targets
         working-directory: native
