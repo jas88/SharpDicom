@@ -2,11 +2,12 @@
  * SharpDicom Native Codecs - Core Implementation
  *
  * Provides version detection, feature detection, SIMD capability detection,
- * and thread-local error message handling.
+ * GPU dispatch, and thread-local error message handling.
  */
 
 #define SHARPDICOM_CODECS_EXPORTS
 #include "sharpdicom_codecs.h"
+#include "gpu_wrapper.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -35,13 +36,13 @@
 static THREAD_LOCAL char tls_error_message[256] = {0};
 
 /**
- * Internal: Set the thread-local error message.
+ * Set the thread-local error message.
  * Used by codec wrappers to report errors.
+ * Visible to other compilation units (e.g., jpeg_wrapper.c).
  *
  * @param message Error message to store
  */
-__attribute__((unused))
-static void set_error(const char* message) {
+void set_error(const char* message) {
     if (message != NULL) {
         size_t len = strlen(message);
         if (len >= sizeof(tls_error_message)) {
@@ -54,7 +55,26 @@ static void set_error(const char* message) {
     }
 }
 
-/* set_error_fmt will be added when codec wrappers need formatted errors */
+#include <stdarg.h>
+
+/**
+ * Set the thread-local error message with printf-style formatting.
+ * Used by codec wrappers to report errors with context.
+ * Visible to other compilation units.
+ *
+ * @param fmt Format string
+ * @param ... Format arguments
+ */
+void set_error_fmt(const char* fmt, ...) {
+    if (fmt != NULL) {
+        va_list args;
+        va_start(args, fmt);
+        vsnprintf(tls_error_message, sizeof(tls_error_message), fmt, args);
+        va_end(args);
+    } else {
+        tls_error_message[0] = '\0';
+    }
+}
 
 /*============================================================================
  * SIMD detection
@@ -157,14 +177,29 @@ SHARPDICOM_API int sharpdicom_version(void) {
 }
 
 SHARPDICOM_API int sharpdicom_features(void) {
-    /* Currently no codecs are linked - returns 0
-     * Future plans will add:
-     * - SHARPDICOM_HAS_JPEG when libjpeg-turbo is linked
-     * - SHARPDICOM_HAS_J2K when OpenJPEG is linked
-     * - SHARPDICOM_HAS_JLS when CharLS is linked
-     * - etc.
-     */
-    return 0;
+    int features = 0;
+
+    /* Set JPEG flag when libjpeg-turbo is linked */
+#ifdef SHARPDICOM_WITH_JPEG
+    features |= SHARPDICOM_HAS_JPEG;
+#endif
+
+    /* Set J2K flag when OpenJPEG is linked */
+#ifdef SHARPDICOM_WITH_J2K
+    features |= SHARPDICOM_HAS_J2K;
+#endif
+
+    /* Set JLS flag when CharLS is linked */
+#ifdef SHARPDICOM_WITH_JLS
+    features |= SHARPDICOM_HAS_JLS;
+#endif
+
+    /* Check GPU availability at runtime */
+    if (gpu_available()) {
+        features |= SHARPDICOM_HAS_GPU;
+    }
+
+    return features;
 }
 
 SHARPDICOM_API int sharpdicom_simd_features(void) {
@@ -180,32 +215,44 @@ SHARPDICOM_API void sharpdicom_clear_error(void) {
 }
 
 /*============================================================================
- * Placeholder codec functions (to be implemented in future plans)
+ * GPU dispatch exports
+ *
+ * These re-export the gpu_wrapper functions for the managed code.
  *============================================================================*/
 
-/* These will be added in plans 13-02 through 13-05:
+SHARPDICOM_API int sharpdicom_gpu_available(void) {
+    return gpu_available();
+}
+
+SHARPDICOM_API int sharpdicom_gpu_type(void) {
+    return (int)gpu_get_type();
+}
+
+SHARPDICOM_API int sharpdicom_gpu_j2k_decode(
+    const uint8_t* input,
+    size_t input_len,
+    uint8_t* output,
+    size_t output_len,
+    int* width,
+    int* height,
+    int* components
+) {
+    gpu_decode_result_t result;
+    int status = gpu_j2k_decode(input, input_len, output, output_len, &result);
+
+    if (status == GPU_OK) {
+        if (width) *width = result.width;
+        if (height) *height = result.height;
+        if (components) *components = result.num_components;
+    }
+
+    return status;
+}
+
+/*============================================================================
+ * Codec functions
  *
- * int jpeg_decode(const uint8_t* input, size_t input_len,
- *                 uint8_t* output, size_t output_len,
- *                 int* width, int* height, int* components, int colorspace);
- *
- * int jpeg_encode(const uint8_t* input, size_t input_len,
- *                 uint8_t* output, size_t output_len,
- *                 int width, int height, int components, int quality);
- *
- * int j2k_decode(const uint8_t* input, size_t input_len,
- *                uint8_t* output, size_t output_len,
- *                int* width, int* height, int* components);
- *
- * int j2k_encode(const uint8_t* input, size_t input_len,
- *                uint8_t* output, size_t output_len,
- *                int width, int height, int components, int lossless, float quality);
- *
- * int jls_decode(const uint8_t* input, size_t input_len,
- *                uint8_t* output, size_t output_len,
- *                int* width, int* height, int* components, int* bits_per_sample);
- *
- * int jls_encode(const uint8_t* input, size_t input_len,
- *                uint8_t* output, size_t output_len,
- *                int width, int height, int components, int bits_per_sample, int near_lossless);
- */
+ * JPEG wrapper: implemented in jpeg_wrapper.c (13-02)
+ * J2K wrapper: implemented in j2k_wrapper.c (13-03)
+ * JLS wrapper: to be implemented (future plan)
+ *============================================================================*/
