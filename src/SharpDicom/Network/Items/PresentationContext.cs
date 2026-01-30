@@ -153,6 +153,6 @@ namespace SharpDicom.Network.Items
         /// </summary>
         /// <param name="id">The ID to validate.</param>
         /// <returns>true if the ID is odd and in the range 1-255; otherwise, false.</returns>
-        public static bool IsValidId(byte id) => id >= 1 && id <= 255 && (id & 1) == 1;
+        public static bool IsValidId(byte id) => (id & 1) == 1;
     }
 }

@@ -529,11 +529,8 @@ namespace SharpDicom.Network
             var elements = new List<(DicomTag tag, DicomVR vr, byte[] data)>();
             uint dataLength = 0;
 
-            foreach (var element in command.Dataset)
+            foreach (var element in command.Dataset.Where(e => e.Tag.Group == 0x0000))
             {
-                if (element.Tag.Group != 0x0000)
-                    continue;
-
                 var vr = GetCommandVR(element.Tag.Element);
                 var valueBytes = element.RawValue.ToArray();
 
@@ -602,14 +599,9 @@ namespace SharpDicom.Network
                 var valueData = data.Slice(offset, (int)vl).ToArray();
 
                 IDicomElement dicomElement;
-                if (vr == DicomVR.US || vr == DicomVR.UL)
-                {
-                    dicomElement = new DicomNumericElement(tag, vr, valueData);
-                }
-                else
-                {
-                    dicomElement = new DicomStringElement(tag, vr, valueData);
-                }
+                dicomElement = (vr == DicomVR.US || vr == DicomVR.UL)
+                    ? new DicomNumericElement(tag, vr, valueData)
+                    : new DicomStringElement(tag, vr, valueData);
 
                 dataset.Add(dicomElement);
                 offset += (int)vl;

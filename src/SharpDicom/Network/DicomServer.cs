@@ -265,15 +265,12 @@ namespace SharpDicom.Network
         {
             // Accept all contexts with their first proposed transfer syntax
             var accepted = new List<PresentationContext>(requested.Count);
-            foreach (var ctx in requested)
+            foreach (var ctx in requested.Where(c => c.TransferSyntaxes.Count > 0))
             {
-                if (ctx.TransferSyntaxes.Count > 0)
-                {
-                    accepted.Add(PresentationContext.CreateAccepted(
-                        ctx.Id,
-                        ctx.AbstractSyntax,
-                        ctx.TransferSyntaxes[0]));
-                }
+                accepted.Add(PresentationContext.CreateAccepted(
+                    ctx.Id,
+                    ctx.AbstractSyntax,
+                    ctx.TransferSyntaxes[0]));
             }
             return AssociationRequestResult.Accepted(accepted);
         }
@@ -679,12 +676,10 @@ namespace SharpDicom.Network
                 ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
                 uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
 
-                if (group == 0x0000 && element == 0x0100) // CommandField tag
+                if (group == 0x0000 && element == 0x0100 && // CommandField tag
+                    length >= 2 && offset + 8 + length <= commandData.Length)
                 {
-                    if (length >= 2 && offset + 8 + length <= commandData.Length)
-                    {
-                        return BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 8));
-                    }
+                    return BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 8));
                 }
 
                 offset += 8 + (int)length;
@@ -703,12 +698,10 @@ namespace SharpDicom.Network
                 ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
                 uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
 
-                if (group == 0x0000 && element == 0x0110) // MessageID tag
+                if (group == 0x0000 && element == 0x0110 && // MessageID tag
+                    length >= 2 && offset + 8 + length <= commandData.Length)
                 {
-                    if (length >= 2 && offset + 8 + length <= commandData.Length)
-                    {
-                        return BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 8));
-                    }
+                    return BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 8));
                 }
 
                 offset += 8 + (int)length;
