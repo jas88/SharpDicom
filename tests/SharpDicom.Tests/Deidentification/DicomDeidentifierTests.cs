@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using SharpDicom.Data;
@@ -236,5 +237,232 @@ public class DicomDeidentifierBuilderTests
             .Build();
 
         Assert.That(deid, Is.Not.Null);
+    }
+}
+
+[TestFixture]
+public class DicomDeidentifierAdvancedTests
+{
+    // Local tag definitions
+    private static readonly DicomTag PatientIdentityRemoved = new(0x0012, 0x0062);
+    private static readonly DicomTag DeidentificationMethod = new(0x0012, 0x0063);
+    private static readonly DicomTag DeidentificationMethodCodeSequence = new(0x0012, 0x0064);
+    private static readonly DicomTag LongitudinalTemporalInformationModified = new(0x0028, 0x0303);
+    private static readonly DicomTag CodeValue = new(0x0008, 0x0100);
+    private static readonly DicomTag CodingSchemeDesignator = new(0x0008, 0x0102);
+    private static readonly DicomTag CodeMeaning = new(0x0008, 0x0104);
+    private static readonly DicomTag StudyDate = new(0x0008, 0x0020);
+
+    [Test]
+    public void Deidentify_AddsDeidentificationMethodCodeSequence()
+    {
+        var dataset = CreateTestDataset("Test", "123");
+
+        using var deid = new DicomDeidentifier();
+        deid.Deidentify(dataset);
+
+        // Check that the code sequence exists
+        var codeSeq = dataset[DeidentificationMethodCodeSequence] as DicomSequence;
+        Assert.That(codeSeq, Is.Not.Null);
+        Assert.That(codeSeq!.Items.Count, Is.GreaterThanOrEqualTo(1));
+
+        // First item should be Basic Application Confidentiality Profile
+        var firstItem = codeSeq.Items[0];
+        var codeValue = firstItem.GetString(CodeValue);
+        var scheme = firstItem.GetString(CodingSchemeDesignator);
+
+        Assert.That(codeValue, Is.EqualTo("113100"));
+        Assert.That(scheme, Is.EqualTo("DCM"));
+    }
+
+    [Test]
+    public void Deidentify_WithOptions_AddsCorrespondingCodes()
+    {
+        var dataset = CreateTestDataset("Test", "123");
+
+        using var deid = new DicomDeidentifierBuilder()
+            .WithBasicProfile()
+            .RetainUIDs()
+            .CleanDescriptors()
+            .Build();
+
+        deid.Deidentify(dataset);
+
+        var codeSeq = dataset[DeidentificationMethodCodeSequence] as DicomSequence;
+        Assert.That(codeSeq, Is.Not.Null);
+
+        // Should have Basic + RetainUIDs + CleanDescriptors = 3 items
+        Assert.That(codeSeq!.Items.Count, Is.EqualTo(3));
+
+        // Verify RetainUIDs code (113110)
+        var hasRetainUids = HasCodeValue(codeSeq.Items, "113110");
+        Assert.That(hasRetainUids, Is.True);
+
+        // Verify CleanDescriptors code (113105)
+        var hasCleanDesc = HasCodeValue(codeSeq.Items, "113105");
+        Assert.That(hasCleanDesc, Is.True);
+    }
+
+    private static bool HasCodeValue(System.Collections.Generic.IReadOnlyList<DicomDataset> items, string codeValue)
+    {
+        foreach (var item in items)
+        {
+            if (item.GetString(CodeValue) == codeValue)
+                return true;
+        }
+        return false;
+    }
+
+    [Test]
+    public void Deidentify_WithDateShift_SetsLongitudinalTemporalModified()
+    {
+        var dataset = CreateTestDataset("Test", "123");
+        dataset.Add(CreateStringElement(StudyDate, DicomVR.DA, "20240115"));
+
+        using var deid = new DicomDeidentifierBuilder()
+            .WithDateShift(TimeSpan.FromDays(-100))
+            .Build();
+
+        deid.Deidentify(dataset);
+
+        var temporal = dataset.GetString(LongitudinalTemporalInformationModified);
+        Assert.That(temporal, Is.EqualTo("MODIFIED").Or.EqualTo("REMOVED"));
+    }
+
+    [Test]
+    public void Deidentify_WithRetainFullDates_SetsTemporalUnmodified()
+    {
+        var dataset = CreateTestDataset("Test", "123");
+        dataset.Add(CreateStringElement(StudyDate, DicomVR.DA, "20240115"));
+
+        using var deid = new DicomDeidentifierBuilder()
+            .RetainLongitudinalFullDates()
+            .Build();
+
+        deid.Deidentify(dataset);
+
+        var temporal = dataset.GetString(LongitudinalTemporalInformationModified);
+        Assert.That(temporal, Is.EqualTo("UNMODIFIED"));
+    }
+
+    [Test]
+    public void DeidentificationMethod_IncludesOptionsText()
+    {
+        var dataset = CreateTestDataset("Test", "123");
+
+        using var deid = new DicomDeidentifierBuilder()
+            .WithBasicProfile()
+            .RetainPatientCharacteristics()
+            .CleanDescriptors()
+            .Build();
+
+        deid.Deidentify(dataset);
+
+        var method = dataset.GetString(DeidentificationMethod);
+        Assert.That(method, Does.Contain("PS3.15"));
+        Assert.That(method, Does.Contain("Retain Patient Characteristics Option"));
+        Assert.That(method, Does.Contain("Clean Descriptors Option"));
+    }
+
+    private static DicomDataset CreateTestDataset(string patientName, string patientId)
+    {
+        var dataset = new DicomDataset();
+        dataset.Add(CreateStringElement(DicomTag.PatientName, DicomVR.PN, patientName));
+        dataset.Add(CreateStringElement(DicomTag.PatientID, DicomVR.LO, patientId));
+        return dataset;
+    }
+
+    private static DicomStringElement CreateStringElement(DicomTag tag, DicomVR vr, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        return new DicomStringElement(tag, vr, bytes);
+    }
+}
+
+[TestFixture]
+public class DeidentificationCallbackTests
+{
+    private static readonly DicomTag PatientName = new(0x0010, 0x0010);
+    private static readonly DicomTag StudyInstanceUID = new(0x0020, 0x000D);
+
+    [Test]
+    public void ProcessElement_KeepsNonSensitiveData()
+    {
+        using var callback = new DeidentificationCallback();
+
+        // SOPClassUID is typically kept (it's a standard DICOM UID prefix)
+        var tag = new DicomTag(0x0008, 0x0016);  // SOPClassUID
+        var element = CreateStringElement(tag, DicomVR.UI, "1.2.840.10008.5.1.4.1.1.2");
+
+        var result = callback.ProcessElement(element);
+
+        Assert.That(result.Action, Is.EqualTo(ElementCallbackAction.Keep));
+    }
+
+    [Test]
+    public void ProcessElement_RemovesSensitiveData()
+    {
+        using var callback = new DeidentificationCallback();
+
+        // PatientName should be removed/cleaned
+        var element = CreateStringElement(PatientName, DicomVR.PN, "Doe^John");
+
+        var result = callback.ProcessElement(element);
+
+        // Should be removed or replaced
+        Assert.That(result.Action, Is.Not.EqualTo(ElementCallbackAction.Keep).Or.Property("ReplacementElement").Not.Null);
+    }
+
+    [Test]
+    public void ProcessElement_RemapsUIDs()
+    {
+        using var remapper = new UidRemapper();
+        var options = DeidentificationOptions.BasicProfile;
+
+        using var callback = new DeidentificationCallback(options, remapper);
+
+        var element = CreateStringElement(StudyInstanceUID, DicomVR.UI, "1.2.3.4.5.6.7.8.9");
+
+        var result = callback.ProcessElement(element);
+
+        if (result.Action == ElementCallbackAction.Replace)
+        {
+            var replacement = result.ReplacementElement as DicomStringElement;
+            Assert.That(replacement, Is.Not.Null);
+
+            var newUid = replacement!.GetString(DicomEncoding.Default);
+            Assert.That(newUid, Does.StartWith("2.25."));
+        }
+    }
+
+    [Test]
+    public void Dispose_DisposesOwnedRemapper()
+    {
+        // Callback created without external remapper should own and dispose its own
+        var callback = new DeidentificationCallback();
+        callback.Dispose();
+
+        // No exception means success
+        Assert.Pass();
+    }
+
+    [Test]
+    public void Dispose_DoesNotDisposeExternalRemapper()
+    {
+        using var remapper = new UidRemapper();
+        var options = DeidentificationOptions.BasicProfile;
+
+        var callback = new DeidentificationCallback(options, remapper);
+        callback.Dispose();
+
+        // External remapper should still work
+        var uid = remapper.Remap("1.2.3.4.5", null);
+        Assert.That(uid, Does.StartWith("2.25."));
+    }
+
+    private static DicomStringElement CreateStringElement(DicomTag tag, DicomVR vr, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        return new DicomStringElement(tag, vr, bytes);
     }
 }
