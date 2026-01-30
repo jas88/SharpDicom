@@ -109,7 +109,7 @@ namespace SharpDicom.Deidentification
                 DateShiftStrategy.None => TimeSpan.Zero,
                 DateShiftStrategy.Fixed => _config.FixedOffset,
                 DateShiftStrategy.RandomPerPatient => GetOrCreatePatientOffset(patientId ?? "UNKNOWN"),
-                DateShiftStrategy.RemoveTime => TimeSpan.Zero,
+                DateShiftStrategy.RemoveTime => _config.FixedOffset, // Apply date shift, remove time
                 DateShiftStrategy.Remove => TimeSpan.Zero,
                 _ => TimeSpan.Zero
             };
