@@ -60,8 +60,12 @@ namespace SharpDicom.Data
                 return ExplicitVRBigEndian;
             if (uid == JPEGBaseline.UID)
                 return JPEGBaseline;
+            if (uid == JPEGLossless.UID)
+                return JPEGLossless;
             if (uid == JPEG2000Lossless.UID)
                 return JPEG2000Lossless;
+            if (uid == JPEG2000Lossy.UID)
+                return JPEG2000Lossy;
             if (uid == RLELossless.UID)
                 return RLELossless;
             if (uid == DeflatedExplicitVRLittleEndian.UID)
@@ -181,6 +185,41 @@ namespace SharpDicom.Data
             IsEncapsulated = false,  // Deflate is at stream level, not pixel data encapsulation
             IsLossy = false,
             Compression = CompressionType.None,  // No pixel-level compression
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// JPEG Lossless, Non-Hierarchical, First-Order Prediction (Process 14, Selection Value 1) (1.2.840.10008.1.2.4.70).
+        /// </summary>
+        /// <remarks>
+        /// This is the default DICOM lossless JPEG transfer syntax using horizontal prediction (predictor 1).
+        /// Supports 2-16 bit samples.
+        /// </remarks>
+        public static readonly TransferSyntax JPEGLossless = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.70"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = false,
+            Compression = CompressionType.JPEGLossless,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// JPEG 2000 Image Compression (1.2.840.10008.1.2.4.91).
+        /// </summary>
+        /// <remarks>
+        /// JPEG 2000 lossy compression using irreversible wavelet transform (9/7 filter) and ICT color transform.
+        /// </remarks>
+        public static readonly TransferSyntax JPEG2000Lossy = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.91"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.JPEG2000Lossy,
             IsKnown = true
         };
     }
