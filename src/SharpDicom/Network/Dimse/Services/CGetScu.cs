@@ -157,7 +157,12 @@ namespace SharpDicom.Network.Dimse.Services
                     // CompleteInFlight: continue processing until final response
                 }
 
-                var (command, dataset) = await _client.ReceiveDimseResponseAsync(ct).ConfigureAwait(false);
+                // When in CompleteInFlight mode after cancellation, don't pass the cancelled token
+                // as it would throw OperationCanceledException before we can drain remaining responses
+                var receiveToken = cancelled && _options.CancellationBehavior == CGetCancellationBehavior.CompleteInFlight
+                    ? CancellationToken.None
+                    : ct;
+                var (command, dataset) = await _client.ReceiveDimseResponseAsync(receiveToken).ConfigureAwait(false);
 
                 if (command.IsCStoreRequest)
                 {
@@ -171,8 +176,8 @@ namespace SharpDicom.Network.Dimse.Services
                     }
                     else
                     {
-                        // Delegate to handler
-                        storeStatus = await _storeHandler(command.Dataset, dataset, ct).ConfigureAwait(false);
+                        // Delegate to handler (use receiveToken to allow completion in CompleteInFlight mode)
+                        storeStatus = await _storeHandler(command.Dataset, dataset, receiveToken).ConfigureAwait(false);
 
                         // Yield progress with received dataset
                         // SubOperations will be placeholder (0,0,0,0) - actual counts come in C-GET-RSP
@@ -182,13 +187,13 @@ namespace SharpDicom.Network.Dimse.Services
                             dataset);
                     }
 
-                    // Send C-STORE-RSP
+                    // Send C-STORE-RSP (use receiveToken to allow completion in CompleteInFlight mode)
                     await SendCStoreResponseAsync(
                         command.MessageID,
                         command.AffectedSOPClassUID,
                         command.AffectedSOPInstanceUID,
                         storeStatus,
-                        ct).ConfigureAwait(false);
+                        receiveToken).ConfigureAwait(false);
                 }
                 else if (command.IsCGetResponse)
                 {

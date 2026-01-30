@@ -425,23 +425,25 @@ namespace SharpDicom.Network
                 // Read the dataset from subsequent P-DATA PDUs
                 try
                 {
-                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    // For buffered mode, check size incrementally during reading to prevent memory exhaustion
+                    var maxSize = _options.StoreHandlerMode == CStoreHandlerMode.Buffered
+                        ? _options.MaxBufferedDatasetSize
+                        : long.MaxValue;
 
-                    // Check size for buffered mode
-                    if (_options.StoreHandlerMode == CStoreHandlerMode.Buffered &&
-                        datasetBytes.Length > _options.MaxBufferedDatasetSize)
-                    {
-                        status = DicomStatus.OutOfResources;
-                    }
-                    else
-                    {
-                        // Parse the dataset
-                        var dataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                    var datasetBytes = await ReadDatasetAsync(stream, maxSize, ct).ConfigureAwait(false);
 
-                        // Call the appropriate handler
-                        status = await InvokeCStoreHandlerAsync(requestContext, dataset, ct)
-                            .ConfigureAwait(false);
-                    }
+                    // Parse the dataset
+                    var dataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+
+                    // Call the appropriate handler
+                    status = await InvokeCStoreHandlerAsync(requestContext, dataset, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex) when (ex.Message.Contains("exceeds maximum"))
+                {
+                    // Size limit exceeded - need to discard remaining data and return error
+                    await ReadAndDiscardDatasetAsync(stream, ct).ConfigureAwait(false);
+                    status = DicomStatus.OutOfResources;
                 }
                 catch (Exception)
                 {
@@ -493,7 +495,12 @@ namespace SharpDicom.Network
             }
         }
 
-        private static async Task<byte[]> ReadDatasetAsync(NetworkStream stream, CancellationToken ct)
+        private static Task<byte[]> ReadDatasetAsync(NetworkStream stream, CancellationToken ct)
+        {
+            return ReadDatasetAsync(stream, long.MaxValue, ct);
+        }
+
+        private static async Task<byte[]> ReadDatasetAsync(NetworkStream stream, long maxSize, CancellationToken ct)
         {
             // Read P-DATA PDUs until we get the last fragment
             using var ms = new MemoryStream();
@@ -518,6 +525,14 @@ namespace SharpDicom.Network
                 {
                     if (!isCommand)
                     {
+                        // Check size incrementally to prevent memory exhaustion
+                        if (ms.Length + data.Length > maxSize)
+                        {
+                            throw new InvalidOperationException(
+                                $"Dataset size exceeds maximum allowed ({maxSize} bytes). " +
+                                "Consider using streaming mode for large datasets.");
+                        }
+
                         // This is dataset data
                         ms.Write(data.ToArray(), 0, data.Length);
                         lastFragment = isLast;
@@ -573,9 +588,18 @@ namespace SharpDicom.Network
             {
                 if (valueLength == 0xFFFFFFFF)
                 {
-                    // Undefined length - skip for now (sequences/pixel data)
-                    // A full implementation would parse sequences here
-                    break;
+                    // Undefined length element (sequences or encapsulated pixel data)
+                    if (tag == DicomTag.PixelData && reader.Remaining > 0)
+                    {
+                        // For pixel data with undefined length, store all remaining bytes
+                        // This handles encapsulated pixel data (fragments)
+                        var remainingData = reader.ReadBytes(reader.Remaining);
+                        var pixelElement = new DicomBinaryElement(tag, vr, remainingData.ToArray());
+                        dataset.Add(pixelElement);
+                    }
+                    // For sequences, skip for now - a full implementation would parse them
+                    // Continue parsing after undefined-length elements that aren't pixel data
+                    continue;
                 }
 
                 if (!reader.TryReadValue(valueLength, out var value))

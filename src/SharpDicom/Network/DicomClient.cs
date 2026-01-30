@@ -490,11 +490,15 @@ namespace SharpDicom.Network
                 // Skip sequence delimiters
                 if (group == 0xFFFE)
                 {
+                    // Bounds check: vl must fit in remaining buffer and not overflow int
+                    if (vl > int.MaxValue || offset + (int)vl > data.Length)
+                        break;
                     offset += (int)vl;
                     continue;
                 }
 
-                if (vl == 0xFFFFFFFF || offset + vl > data.Length)
+                // Check for undefined length or value exceeding buffer
+                if (vl == 0xFFFFFFFF || vl > int.MaxValue || offset + (int)vl > data.Length)
                     break;
 
                 var tag = new DicomTag(group, element);
