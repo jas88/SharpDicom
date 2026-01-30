@@ -389,8 +389,6 @@ namespace SharpDicom.Codecs.Jpeg
             JpegCodecOptions options,
             QuantizationTable[] quantTables)
         {
-            int width = info.Columns;
-            int height = info.Rows;
             int componentCount = info.SamplesPerPixel;
 
             // Write SOS header

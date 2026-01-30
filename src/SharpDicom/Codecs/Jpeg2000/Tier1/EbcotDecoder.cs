@@ -248,8 +248,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int bitplane,
             int subbandType)
         {
-            int bitMask = 1 << bitplane;
-
             // Process in vertical stripes of 4 rows
             for (int stripeY = 0; stripeY < height; stripeY += 4)
             {

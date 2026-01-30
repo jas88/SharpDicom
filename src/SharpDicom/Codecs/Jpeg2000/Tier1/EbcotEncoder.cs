@@ -136,8 +136,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _passLengths.Clear();
 
             // Process each bitplane from MSB down to 0
-            int numBitplanes = msbPosition + 1;
-
             for (int bitplane = msbPosition; bitplane >= 0; bitplane--)
             {
                 // Pass 1: Significance Propagation
@@ -243,8 +241,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int bitplane,
             int subbandType)
         {
-            int bitMask = 1 << bitplane;
-
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
@@ -295,8 +291,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int width, int height,
             int bitplane)
         {
-            int bitMask = 1 << bitplane;
-
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
@@ -643,15 +637,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// Gets sign coding context based on neighbor signs (ITU-T T.800 Table D.3).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int GetSignContext(int x, int y, int width, int height)
+        private static int GetSignContext(int x, int y, int width, int height)
         {
-            // Get horizontal and vertical neighbor contributions
-            int hContrib = GetSignContribution(x - 1, y, width, height) +
-                          GetSignContribution(x + 1, y, width, height);
-            int vContrib = GetSignContribution(x, y - 1, width, height) +
-                          GetSignContribution(x, y + 1, width, height);
+            // Suppress unused parameter warnings - parameters reserved for future context calculation
+            _ = (x, y, width, height);
 
-            // Map to context 9-13 based on contributions
+            // Map to context 9-13 based on neighbor contributions
             // Simplified - using base sign context
             return CtxSign;
         }

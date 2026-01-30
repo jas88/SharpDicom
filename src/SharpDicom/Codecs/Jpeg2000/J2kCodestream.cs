@@ -411,15 +411,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                         currentTile = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
                     }
                 }
-                else if (marker == J2kMarkers.SOD)
-                {
-                    // This shouldn't happen as SOD has no segment, but handle it
-                    // The position after SOD marker is the tile data
-                    if (currentTile == tileIndex)
-                    {
-                        return position - 2; // Return position of SOD marker
-                    }
-                }
+                // Note: SOD marker is handled separately via HasSegment check above
 
                 position += segmentLength - 2;
 
@@ -655,7 +647,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                 return false;
             }
 
-            byte wavelet = data[offset++];
+            byte wavelet = data[offset];
             // 0 = 9/7 irreversible, 1 = 5/3 reversible
             usesReversibleTransform = wavelet == 1;
 

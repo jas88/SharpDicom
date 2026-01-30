@@ -140,8 +140,6 @@ namespace SharpDicom.Codecs.Jpeg2000
                     firstInclusion);
 
                 // Decode code-blocks using EBCOT
-                int[] cbBuffer = new int[cbWidth * cbHeight];
-
                 for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
                 {
                     var (data, totalPasses, zeroBitPlanes) = segments[cbIdx];

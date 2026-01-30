@@ -112,9 +112,6 @@ namespace SharpDicom.Codecs.Jpeg2000
             int width = info.Columns;
             int height = info.Rows;
             int components = info.SamplesPerPixel;
-            int bitsPerSample = info.BitsStored;
-            bool isSigned = info.IsSigned;
-            int bytesPerSample = info.BytesPerSample;
 
             // Convert pixel data to integer array for processing
             int[][] componentData = ExtractComponents(pixelData, info);
@@ -488,10 +485,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             span[offset++] = (byte)(GetExponent(options.CodeBlockHeight) - 2);
 
             // Code-block style
-            span[offset++] = 0x00;
+            span[offset] = 0x00;
 
             // Wavelet transform: 0 = 9/7, 1 = 5/3
-            span[offset++] = lossless ? (byte)1 : (byte)0;
+            span[offset + 1] = lossless ? (byte)1 : (byte)0;
 
             buffer.Advance(segmentLength);
         }
@@ -575,10 +572,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             offset += 4;
 
             // Tile-part index
-            sotSpan[offset++] = 0;
+            sotSpan[offset] = 0;
 
             // Number of tile-parts
-            sotSpan[offset++] = 1;
+            sotSpan[offset + 1] = 1;
 
             buffer.Advance(10);
 

@@ -233,24 +233,12 @@ namespace SharpDicom.Codecs.Jpeg
             r2 = s3 * A5 + r2;
             r6 = r6 * A5 - s2 * (A4 - A5);
 
-            // Odd part using rotation
+            // Odd part using standard IDCT rotation
             float z1 = t4 + t7;
             float z2 = t5 + t6;
             float z3 = t4 + t6;
             float z4 = t5 + t7;
-            float z5 = (z3 + z4) * A3;
-
-            float r1 = t7 * S7 + z1 * (-S7 + A3) + z5;
-            float r3 = t5 * S3 + z2 * (-S3 + A3) + z5;
-            float r5 = t6 * S5 + z2 * (-S5 - A3) - z5 + z4 * (A3 + A3);
-            float r7 = t4 * S1 + z1 * (-S1 - A3) - z5 + z3 * (A3 + A3);
-
-            // Corrected odd-part calculation using standard rotation
-            z1 = t4 + t7;
-            z2 = t5 + t6;
-            z3 = t4 + t6;
-            z4 = t5 + t7;
-            z5 = (z3 + z4) * 1.175875602f;  // sqrt(2) * c3
+            float z5 = (z3 + z4) * 1.175875602f;  // sqrt(2) * c3
 
             float tmp0 = t4 * 0.298631336f;  // sqrt(2) * (-c1+c3+c5-c7)
             float tmp1 = t5 * 2.053119869f;  // sqrt(2) * ( c1+c3-c5+c7)
@@ -265,10 +253,10 @@ namespace SharpDicom.Codecs.Jpeg
             z11 += z5;
             z12 += z5;
 
-            r1 = tmp3 + z13 + z12;
-            r3 = tmp2 + z14 + z11;
-            r5 = tmp1 + z14 + z12;
-            r7 = tmp0 + z13 + z11;
+            float r1 = tmp3 + z13 + z12;
+            float r3 = tmp2 + z14 + z11;
+            float r5 = tmp1 + z14 + z12;
+            float r7 = tmp0 + z13 + z11;
 
             data[0] = r0;
             data[1] = r1;

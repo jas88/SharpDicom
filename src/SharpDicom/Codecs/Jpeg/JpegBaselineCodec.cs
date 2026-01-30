@@ -215,7 +215,7 @@ namespace SharpDicom.Codecs.Jpeg
                             }
                         }
                     }
-                    else if (JpegMarkers.IsSOF(marker) && marker != JpegMarkers.SOF0)
+                    else if (JpegMarkers.IsSOF(marker))
                     {
                         // Non-baseline SOF marker
                         issues.Add(new CodecDiagnostic(

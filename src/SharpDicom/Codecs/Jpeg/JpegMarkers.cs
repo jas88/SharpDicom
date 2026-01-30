@@ -202,7 +202,7 @@ namespace SharpDicom.Codecs.Jpeg
         public static bool IsArithmetic(byte marker)
         {
             // SOF9-SOF11, SOF13-SOF15 use arithmetic coding
-            return marker >= SOF9 && marker <= SOF11 || marker >= SOF13 && marker <= SOF15;
+            return (marker >= SOF9 && marker <= SOF11) || (marker >= SOF13 && marker <= SOF15);
         }
     }
 }

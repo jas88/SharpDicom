@@ -337,7 +337,6 @@ namespace SharpDicom.Codecs.Jpeg
 
             int mcuCountX = (width + mcuWidth - 1) / mcuWidth;
             int mcuCountY = (height + mcuHeight - 1) / mcuHeight;
-            int totalMcus = mcuCountX * mcuCountY;
 
             // Allocate temporary buffers for decoded components
             int pixelCount = width * height;
@@ -473,7 +472,7 @@ namespace SharpDicom.Codecs.Jpeg
                                     for (int i = 0; i < 64; i++)
                                     {
                                         int zigzagIndex = QuantizationTable.ZigZagOrder[i];
-                                        dctBlock[zigzagIndex] = quantizedBlock[i] * quantTable[i];
+                                        dctBlock[zigzagIndex] = (float)quantizedBlock[i] * quantTable[i];
                                     }
 
                                     // Inverse DCT
