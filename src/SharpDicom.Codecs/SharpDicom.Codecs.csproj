@@ -20,6 +20,11 @@
     <EnableAotAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</EnableAotAnalyzer>
   </PropertyGroup>
 
+  <!-- Allow test project to access internal members -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharpDicom.Codecs.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
   </ItemGroup>
