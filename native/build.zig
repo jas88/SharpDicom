@@ -210,6 +210,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Link libc for standard library headers
+    test_exe.linkLibC();
+
     test_exe.addCSourceFile(.{
         .file = b.path("test/test_version.c"),
         .flags = &.{
