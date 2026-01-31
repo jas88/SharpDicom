@@ -2,13 +2,13 @@
 
 ## Current Status
 
-**Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
-**Phase**: 14 - De-identification COMPLETE
-**Plan**: 8 of 8 complete
-**Status**: Phase complete
-**Last activity**: 2026-01-30 - Completed 14-08 Batch Processing & Integration Tests
+**Milestone**: v2.0.0 - Network, Codecs & De-identification
+**Phase**: 13 - Native Codecs Package
+**Plan**: 06 of 9 complete
+**Status**: In progress
+**Last activity**: 2026-01-31 - Completed 13-06-PLAN.md (Managed P/Invoke Layer)
 
-**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 14)
+**Progress**: ██████████████████████████░░░░░░░░░░░░░░ (6/9 plans in Phase 13)
 
 **Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
 
@@ -81,21 +81,10 @@
 - [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
-- [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
-- [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
-- [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
-- [x] Phase 14 Plan 01: PS3.15 source generator (Part15Parser, DeidentificationEmitter, ~600 tags)
-- [x] Phase 14 Plan 02: Core de-identification types (ActionResolver, DeidentificationOptions, DummyValueGenerator)
-- [x] Phase 14 Plan 03: UID remapping infrastructure (IUidStore, UidGenerator, UidRemapper, InMemoryUidStore, SqliteUidStore)
-- [x] Phase 14 Plan 04: Date shifting module (DateShifter, DateShiftConfig, IDateOffsetStore, DateShiftResult)
-- [x] Phase 14 Plan 05: DicomDeidentifier main class (DicomDeidentifierBuilder, DicomDeidentifier, streaming integration)
-- [x] Phase 14 Plan 06: JSON configuration (DeidentificationConfig, DeidentificationConfigLoader, presets)
-- [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
-- [x] Phase 14 Plan 08: Batch Processing & Integration Tests (BatchDeidentifier, 74 new tests)
 
 ## In Progress
 
-*None*
+- [ ] Phase 13 Plans 07-09: Codec implementations and NuGet packaging
 
 ## Blocked
 
@@ -108,8 +97,8 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | COMPLETE | 8/8 | 2026-01-29 | 2026-01-30 |
+| 13 | Native Codecs Package | In progress | 6/9 | 2026-01-29 | - |
+| 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -301,40 +290,25 @@
 | 2026-01-30 | 13-05 | Dynamic nvJPEG2000 loading | dlopen/LoadLibrary avoids CUDA dependency |
 | 2026-01-30 | 13-05 | Thread-local prefer_cpu flag | Enables testing fallback without disabling GPU |
 | 2026-01-30 | 13-05 | Optional CI cuda-build job | GPU builds don't block CI (continue-on-error: true) |
-| 2026-01-30 | 13-06 | LibraryImport (NET7+) vs DllImport | Source-generated marshalling for AOT; DllImport for netstandard2.0 |
-| 2026-01-30 | 13-06 | ModuleInitializer with AppContext switch | Auto-init convenience with opt-out via DisableAutoInit |
-| 2026-01-30 | 13-06 | SafeHandle for native resources | Ensures proper cleanup even with exceptions |
-| 2026-01-30 | 13-08 | RID-conditional runtime package references | Separate packages per platform reduces download size |
-| 2026-01-30 | 13-08 | MSBuild auto-detect platform RID | Convenience for development without explicit RuntimeIdentifier |
-| 2026-01-30 | 13-08 | Matrix strategy for native builds | Parallel compilation across 6 platforms |
-| 2026-01-29 | 14-01 | DocBook 5.0 parsing for part15.xml | Same approach as part06.xml, XNamespace for proper handling |
-| 2026-01-29 | 14-01 | Deduplication by tag value | Same tag can appear multiple times (retired variants) |
-| 2026-01-29 | 14-02 | Separate enums for action and resolution | DeidentificationAction (PS3.15 codes) vs ResolvedAction (runtime operations) |
-| 2026-01-29 | 14-02 | DicomAttributeType for compound resolution | Type1/2/3 determines Z/D vs X/Z vs X/D resolution |
-| 2026-01-29 | 14-02 | Profile option flags pattern | DeidentificationOptions.ToProfileOptions() for generated code |
-| 2026-01-30 | 14-06 | System.Text.Json for config | Built-in, AOT-friendly with RequiresUnreferencedCode attributes |
-| 2026-01-30 | 14-06 | $extends inheritance pattern | Config composition via preset name or file path resolution |
-| 2026-01-30 | 14-06 | Built-in presets (4) | basic-profile, research, clinical-trial, teaching for common use cases |
-| 2026-01-29 | 14-07 | Static PixelDataRedactor API | No instance state needed; simpler API |
-| 2026-01-29 | 14-07 | Modality risk categorization | High (US, ES, SC), Moderate (XA, MG), Low (CT, MR) for burned-in annotation assessment |
-| 2026-01-29 | 14-07 | Region-based redaction | Rectangular regions with optional frame-specific targeting |
-| 2026-01-30 | 14-08 | SOPClassUID preserved in BatchDeidentifier | Required for writing valid DICOM files after de-identification |
-| 2026-01-30 | 14-08 | SemaphoreSlim for parallel throttling | Better control than TPL parallelism |
-| 2026-01-30 | 14-08 | Progress reported per-file | Simpler than incremental in-file progress |
+| 2026-01-31 | 13-06 | LibraryImport + DllImport dual pattern | NET7+ uses source-generated P/Invoke, netstandard2.0 uses reflection |
+| 2026-01-31 | 13-06 | ModuleInitializer for auto-init | Auto-loads native library on NET5+, opt-out via AppContext switch |
+| 2026-01-31 | 13-06 | AppContext.BaseDirectory for single-file | Assembly.Location empty in single-file apps |
+| 2026-01-31 | 13-06 | SafeHandle for native resources | VideoDecoderHandle, NativeBufferHandle for proper cleanup |
 
 ## Session Continuity
 
-**Last session**: 2026-01-30
-**Stopped at**: Phase 14-08 complete - v2.0.0 COMPLETE
+**Last session**: 2026-01-31
+**Stopped at**: Completed 13-06-PLAN.md (Managed P/Invoke Layer)
 **Resume file**: None
-**Next step**: Milestone v2.0.0 complete - ready for release
+**Next step**: Continue Phase 13 Plans 07-09 (Codec implementations and NuGet packaging)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: ALL 9 PHASES COMPLETE
-2. **Project accomplishments**:
+1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
+2. **Current phase**: Phase 13 - Native Codecs Package in progress (6/9 plans)
+3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
    - **Phase 3**: Implicit VR and sequence parsing with depth guards
@@ -344,8 +318,27 @@ If resuming after a break:
    - **Phase 7**: File writing with sequence support (both length modes)
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
-3. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
-4. **Known issues**: None
+4. **v2.0.0 progress**:
+   - **Phase 10**: Network Foundation complete (7/7 plans) - PDU parsing, association, C-ECHO SCU/SCP
+   - **Phase 11 Plan 01**: Common DIMSE types - QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions, DicomClient DIMSE primitives
+   - **Phase 11 Plan 02**: C-STORE SCU - CStoreOptions, CStoreResponse, CStoreScu with SendAsync overloads
+   - **Phase 11 Plan 03**: C-FIND SCU - CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable results
+   - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
+   - **Phase 11 Plan 05**: C-MOVE SCU - CMoveOptions, CMoveProgress, CMoveScu with third-party destination retrieval
+   - **Phase 11 Plan 07**: DIMSE integration tests - roundtrip, DCMTK interop, protocol verification (35 new tests)
+   - **Phase 12 Plan 01**: Codec infrastructure - IImageCodec, JPEG markers, color conversion
+   - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
+   - **Phase 12 Plan 04**: JPEG Lossless codec - Predictor (7 selection values), LosslessHuffman, JpegLosslessCodec (47 tests)
+   - **Phase 12 Plan 05**: JPEG 2000 infrastructure - J2kCodestream parser, Dwt53/Dwt97 wavelet transforms, MqCoder arithmetic coding (17 new tests)
+   - **Phase 12 Plan 06**: JPEG 2000 codec - EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder (16 new tests)
+   - **Phase 12 Plan 07**: JPEG 2000 integration - Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, 5 codecs registered (55 new tests)
+   - **Phase 13 Plan 01**: Native build infrastructure - Zig build system, C API header, CI workflow for 6 platforms
+   - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
+   - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
+   - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
+   - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods, NativeCodecs class
+5. **Test coverage**: 3404+ tests passing (54 skipped)
+6. **Known issues**: None
 
 ## Potential Future Work
 
@@ -385,4 +378,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 14 in progress - 14-02 complete)*
+*Last updated: 2026-01-31 (Phase 13 in progress - 13-06 done)*

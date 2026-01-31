@@ -1,123 +1,121 @@
 ---
-# Plan Execution Summary
 phase: 13-native-codecs-package
 plan: 06
-subsystem: native-codecs
-tags: [pinvoke, native, interop, codecs, aot]
+subsystem: codecs
+tags: [pinvoke, interop, native, jpeg, jpeg2000, jpegls, aot, trim]
 
-# Dependency Graph
-requires: ["13-01", "13-02", "13-03", "13-04"]
-provides: ["SharpDicom.Codecs project", "P/Invoke layer", "NativeCodecs API"]
-affects: ["13-07"]
+# Dependency graph
+requires:
+  - phase: 13-01
+    provides: Native C wrapper API design
+  - phase: 13-02
+    provides: libjpeg-turbo Zig wrapper
+  - phase: 13-03
+    provides: OpenJPEG/CharLS Zig wrappers
+  - phase: 13-04
+    provides: JPEG 2000/JPEG-LS native implementation
+provides:
+  - SharpDicom.Codecs managed project
+  - P/Invoke declarations for all native functions
+  - NativeCodecs static initialization class
+  - Feature detection (SIMD, GPU)
+  - NativeCodecException with error categorization
+affects: [13-07, 13-08, 13-09]
 
-# Tech Tracking
+# Tech tracking
 tech-stack:
-  added: []
-  patterns: ["LibraryImport/DllImport dual-mode", "SafeHandle for native resources", "ModuleInitializer"]
+  added:
+    - P/Invoke with LibraryImport (NET7+)
+    - DllImport fallback (netstandard2.0)
+  patterns:
+    - Dual P/Invoke declarations for AOT compatibility
+    - ModuleInitializer for auto-initialization
+    - DllImportResolver for custom library paths
+    - SafeHandle for native resource cleanup
 
-# File Tracking
 key-files:
   created:
     - src/SharpDicom.Codecs/SharpDicom.Codecs.csproj
     - src/SharpDicom.Codecs/NativeCodecException.cs
-    - src/SharpDicom.Codecs/NativeCodecs.cs
     - src/SharpDicom.Codecs/Interop/NativeMethods.cs
     - src/SharpDicom.Codecs/Interop/SafeHandles.cs
-  modified: []
+    - src/SharpDicom.Codecs/NativeCodecs.cs
+  modified:
+    - SharpDicom.sln
 
-# Decisions
-decisions:
-  - type: implementation
-    decision: "Use conditional compilation for LibraryImport (NET7+) vs DllImport"
-    rationale: "LibraryImport provides source-generated marshalling for AOT, DllImport needed for netstandard2.0"
+key-decisions:
+  - "Use LibraryImport on NET7+ with DllImport fallback for AOT compatibility"
+  - "ModuleInitializer for automatic initialization with opt-out via AppContext switch"
+  - "AppContext.BaseDirectory for single-file app compatibility"
+  - "SafeHandle for VideoDecoder and native buffer cleanup"
 
-  - type: implementation
-    decision: "ModuleInitializer for auto-init with AppContext switch to disable"
-    rationale: "Convenience for most users while allowing opt-out for edge cases"
-
-  - type: implementation
-    decision: "SafeHandle-based resource management for native allocations"
-    rationale: "Ensures proper cleanup even with exceptions, prevents resource leaks"
+patterns-established:
+  - "Dual P/Invoke pattern: LibraryImport for modern, DllImport for legacy"
+  - "Feature detection via native library version and feature bitmasks"
+  - "Error categorization via NativeCodecErrorCategory enum"
 
 # Metrics
-metrics:
-  duration: "~6 minutes"
-  completed: 2026-01-30
+duration: 10min
+completed: 2026-01-31
 ---
 
 # Phase 13 Plan 06: Managed P/Invoke Layer Summary
 
-**One-liner:** P/Invoke declarations for native codec library with auto-initialization and feature detection
+**P/Invoke interop layer with LibraryImport/DllImport dual declarations, NativeCodecs initialization, and feature detection**
 
-## What Was Built
+## Performance
 
-Created the SharpDicom.Codecs managed library that provides:
+- **Duration:** 10 min
+- **Started:** 2026-01-31T20:34:28Z
+- **Completed:** 2026-01-31T20:44:42Z
+- **Tasks:** 2
+- **Files modified:** 6
 
-1. **SharpDicom.Codecs.csproj** - Multi-targeting project (netstandard2.0, net8.0, net9.0) with AOT/trim compatibility
+## Accomplishments
+- Created SharpDicom.Codecs project with AOT/trim compatibility
+- Implemented P/Invoke declarations for all native codec functions
+- Built NativeCodecs static class with auto-initialization and feature detection
+- Added SafeHandle implementations for resource cleanup
 
-2. **NativeCodecException** - Exception type with native error code categorization mapping codes -1 to -8 to meaningful categories (InvalidInput, BufferTooSmall, DecodeFailed, etc.)
+## Task Commits
 
-3. **NativeMethods.cs** - P/Invoke declarations for all native functions:
-   - Version and feature detection (sharpdicom_version, sharpdicom_features, sharpdicom_simd_features)
-   - JPEG codec (jpeg_decode, jpeg_encode, jpeg_free, jpeg_decode_header)
-   - JPEG 2000 codec (j2k_decode, j2k_encode, j2k_free, j2k_get_info)
-   - JPEG-LS codec (jls_decode, jls_encode, jls_free, jls_get_info)
-   - Video codec (video_decoder_create, video_decode_frame, video_decoder_destroy)
-   - GPU acceleration (gpu_available, gpu_j2k_decode, gpu_j2k_decode_batch)
+Each task was committed atomically:
 
-4. **SafeHandles.cs** - Safe handle types for native resource management:
-   - VideoDecoderHandle - For video decoder state
-   - JpegMemoryHandle, Jpeg2000MemoryHandle, JpegLsMemoryHandle - For codec-allocated memory
+1. **Task 1: Create SharpDicom.Codecs project structure** - `2939e82` (feat)
+2. **Task 2: Implement P/Invoke layer and NativeCodecs** - `d7cac10` (feat)
 
-5. **NativeCodecs.cs** - Static API for initialization and feature detection:
-   - IsAvailable, GpuAvailable, ActiveSimdFeatures properties
-   - Initialize() with NativeCodecOptions
-   - ModuleInitializer for auto-init on NET5+
-   - DllImportResolver for custom library paths
-   - Single-file deployment support via AppContext.BaseDirectory
+## Files Created/Modified
+- `src/SharpDicom.Codecs/SharpDicom.Codecs.csproj` - Project with multi-targeting and AOT flags
+- `src/SharpDicom.Codecs/NativeCodecException.cs` - Exception with native error categorization
+- `src/SharpDicom.Codecs/Interop/NativeMethods.cs` - P/Invoke declarations (LibraryImport + DllImport)
+- `src/SharpDicom.Codecs/Interop/SafeHandles.cs` - VideoDecoderHandle and NativeBufferHandle
+- `src/SharpDicom.Codecs/NativeCodecs.cs` - Static initialization and feature detection
+- `SharpDicom.sln` - Added project reference
 
-## Commits
-
-| Hash | Description |
-|------|-------------|
-| f4df953 | Create SharpDicom.Codecs project structure with AOT/trim flags and exception type |
-| a43ead4 | Implement P/Invoke layer with LibraryImport/DllImport, SafeHandles, and NativeCodecs |
-
-## Verification Checklist
-
-- [x] SharpDicom.Codecs.csproj targets netstandard2.0, net8.0, net9.0
-- [x] Project references SharpDicom core
-- [x] IsAotCompatible and IsTrimmable are set (conditional on framework)
-- [x] NativeCodecException provides error categorization
-- [x] NativeMethods.cs has both LibraryImport (NET7+) and DllImport versions
-- [x] All native functions have P/Invoke declarations
-- [x] NativeCodecs.Initialize() loads library and detects features
-- [x] ModuleInitializer auto-initializes on supported frameworks
-- [x] DllImportResolver setup for custom library paths
-- [x] Project builds on all target frameworks (verified: 0 errors, 0 warnings)
-- [x] All 3404 tests pass
+## Decisions Made
+- Used LibraryImport on NET7+ for source-generated P/Invoke with DllImport fallback for older runtimes
+- Implemented ModuleInitializer for auto-initialization with AppContext switch to disable
+- Used AppContext.BaseDirectory instead of Assembly.Location for single-file app compatibility
+- Created SafeHandle types for proper native resource cleanup
 
 ## Deviations from Plan
 
 None - plan executed exactly as written.
 
-## File Statistics
+## Issues Encountered
+- CA2255 warning about ModuleInitializer usage - resolved with pragma disable
+- IL3000 warning about Assembly.Location in single-file apps - switched to AppContext.BaseDirectory
+- CS1574 cref resolution failure on netstandard2.0 - removed cref to ModuleInitializerAttribute
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| NativeCodecs.cs | 668 | Initialization and feature detection |
-| NativeMethods.cs | 498 | P/Invoke declarations |
-| SafeHandles.cs | 164 | Native resource management |
-| NativeCodecException.cs | 222 | Exception with error categorization |
-| SharpDicom.Codecs.csproj | 46 | Project configuration |
+## User Setup Required
+
+None - no external service configuration required.
 
 ## Next Phase Readiness
+- P/Invoke layer complete and ready for codec implementations in Plan 07
+- NativeCodecs.RegisterCodecs() stub ready for codec registration
+- All target frameworks (netstandard2.0, net8.0, net9.0) building successfully
 
-Plan 13-07 (native codec wrappers) can proceed. This plan provides:
-
-1. **NativeMethods** - All P/Invoke entry points for native functions
-2. **NativeCodecs.HasFeature()** - Feature detection for conditional codec registration
-3. **SafeHandles** - Memory management for encode output buffers
-4. **NativeCodecException** - Consistent error handling with native error context
-
-The codec wrapper classes will call NativeMethods directly and use SafeHandles for memory returned from encode operations.
+---
+*Phase: 13-native-codecs-package*
+*Completed: 2026-01-31*
