@@ -63,7 +63,8 @@ namespace SharpDicom.Deidentification
             var config = JsonSerializer.Deserialize<DeidentificationConfig>(json, JsonOptions)
                 ?? throw new InvalidOperationException($"Failed to parse config: {path}");
 
-            return ResolveInheritance(config, Path.GetDirectoryName(path));
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { path };
+            return ResolveInheritance(config, Path.GetDirectoryName(path), visited);
         }
 
         /// <summary>
@@ -82,7 +83,7 @@ namespace SharpDicom.Deidentification
             var config = JsonSerializer.Deserialize<DeidentificationConfig>(json, JsonOptions)
                 ?? throw new InvalidOperationException("Failed to parse config JSON");
 
-            return ResolveInheritance(config, basePath);
+            return ResolveInheritance(config, basePath, null);
         }
 
         /// <summary>
@@ -171,10 +172,16 @@ namespace SharpDicom.Deidentification
 
         [RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed.")]
         [RequiresDynamicCode("JSON serialization may require runtime code generation.")]
-        private static DeidentificationConfig ResolveInheritance(DeidentificationConfig config, string? basePath)
+        private static DeidentificationConfig ResolveInheritance(
+            DeidentificationConfig config,
+            string? basePath,
+            HashSet<string>? visited)
         {
             if (string.IsNullOrEmpty(config.Extends))
                 return config;
+
+            // Initialize visited set if not provided
+            visited ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Resolve base config
             DeidentificationConfig baseConfig;
@@ -192,8 +199,15 @@ namespace SharpDicom.Deidentification
                 if (!File.Exists(path))
                     throw new FileNotFoundException($"Extended config file not found: {path}");
 
+                // Detect circular references
+                if (!visited.Add(path))
+                    throw new InvalidOperationException($"Circular $extends reference detected: {path}");
+
                 var json = File.ReadAllText(path);
-                baseConfig = LoadConfigFromJson(json, Path.GetDirectoryName(path));
+                var childConfig = JsonSerializer.Deserialize<DeidentificationConfig>(json, JsonOptions)
+                    ?? throw new InvalidOperationException($"Failed to parse config: {path}");
+
+                baseConfig = ResolveInheritance(childConfig, Path.GetDirectoryName(path), visited);
             }
 
             // Merge: child overrides parent

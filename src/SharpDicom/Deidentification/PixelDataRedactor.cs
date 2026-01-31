@@ -103,7 +103,11 @@ public sealed class PixelDataRedactor
         // Process each frame
         for (int frame = 0; frame < numberOfFrames; frame++)
         {
-            var frameOffset = frame * (int)frameSize.Value;
+            // Use long arithmetic to avoid integer overflow for large multi-frame images
+            long frameOffsetLong = (long)frame * frameSize.Value;
+            if (frameOffsetLong > int.MaxValue)
+                throw new InvalidOperationException($"Frame offset exceeds maximum supported size: frame {frame} at offset {frameOffsetLong}");
+            var frameOffset = (int)frameOffsetLong;
             var frameSpan = modifiedData.AsSpan(frameOffset, (int)frameSize.Value);
 
             var modified = RedactFrame(

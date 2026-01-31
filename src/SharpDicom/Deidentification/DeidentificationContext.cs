@@ -40,7 +40,7 @@ namespace SharpDicom.Deidentification
     {
         private readonly SqliteUidStore _uidStore;
         private readonly UidRemapper _uidRemapper;
-        private readonly InMemoryDateOffsetStore _dateOffsetStore;
+        private InMemoryDateOffsetStore _dateOffsetStore;
         private bool _disposed;
 
         /// <summary>
@@ -118,7 +118,8 @@ namespace SharpDicom.Deidentification
         public DicomDeidentifierBuilder CreateBuilder()
         {
             return new DicomDeidentifierBuilder()
-                .WithUidRemapper(_uidRemapper);
+                .WithUidRemapper(_uidRemapper)
+                .WithDateOffsetStore(_dateOffsetStore);
         }
 
         /// <summary>
@@ -154,7 +155,8 @@ namespace SharpDicom.Deidentification
         public void Reset()
         {
             _uidStore?.Clear();
-            // Note: InMemoryDateOffsetStore doesn't have Clear - create new for fresh start
+            // Recreate date offset store for fresh start
+            _dateOffsetStore = new InMemoryDateOffsetStore();
         }
 
         /// <inheritdoc/>

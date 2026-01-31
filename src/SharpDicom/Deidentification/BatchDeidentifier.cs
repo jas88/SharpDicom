@@ -53,6 +53,15 @@ namespace SharpDicom.Deidentification
 #if NET6_0_OR_GREATER
             var builder = DeidentificationConfigLoader.CreateBuilder(config);
 #else
+            // Configuration parsing requires .NET 6.0+ due to System.Text.Json requirements.
+            // On older frameworks, check if any non-default config was specified.
+            if (config.Options?.Count > 0 || config.Overrides?.Count > 0 ||
+                config.DateShift != null || config.SafePrivateCreators?.Count > 0)
+            {
+                throw new NotSupportedException(
+                    "Custom de-identification configuration requires .NET 6.0 or later. " +
+                    "Use the constructor that accepts a DicomDeidentifier directly, or upgrade to .NET 6.0+.");
+            }
             var builder = new DicomDeidentifierBuilder().WithBasicProfile();
 #endif
             // SOPClassUID must be preserved for file writing

@@ -177,13 +177,13 @@ namespace SharpDicom.Deidentification
                     break;
 
                 case ResolvedAction.ReplaceWithEmpty:
-                    ReplaceWithEmpty(dataset, element);
-                    result.Summary.AttributesEmptied++;
+                    if (ReplaceWithEmpty(dataset, element))
+                        result.Summary.AttributesEmptied++;
                     break;
 
                 case ResolvedAction.ReplaceWithDummy:
-                    ReplaceWithDummy(dataset, element);
-                    result.Summary.AttributesReplaced++;
+                    if (ReplaceWithDummy(dataset, element))
+                        result.Summary.AttributesReplaced++;
                     break;
 
                 case ResolvedAction.Clean:
@@ -198,7 +198,8 @@ namespace SharpDicom.Deidentification
                         if (!string.IsNullOrWhiteSpace(originalUid))
                         {
                             var trimmedUid = originalUid!.Trim();
-                            var newUid = _uidRemapper.Remap(trimmedUid, patientId);
+                            // Don't use patientId as scope - UIDs should map consistently across all files in a session
+                            var newUid = _uidRemapper.Remap(trimmedUid);
                             var bytes = Encoding.ASCII.GetBytes(newUid);
                             dataset.Add(new DicomStringElement(tag, DicomVR.UI, bytes));
                             result.Summary.UidsRemapped++;
@@ -209,25 +210,24 @@ namespace SharpDicom.Deidentification
             }
         }
 
-        private static void ReplaceWithEmpty(DicomDataset dataset, IDicomElement element)
+        private static bool ReplaceWithEmpty(DicomDataset dataset, IDicomElement element)
         {
-            if (element.VR.IsStringVR)
-            {
-                dataset.Add(new DicomStringElement(element.Tag, element.VR, Array.Empty<byte>()));
-            }
+            if (!element.VR.IsStringVR)
+                return false;
+            dataset.Add(new DicomStringElement(element.Tag, element.VR, Array.Empty<byte>()));
+            return true;
         }
 
-        private static void ReplaceWithDummy(DicomDataset dataset, IDicomElement element)
+        private static bool ReplaceWithDummy(DicomDataset dataset, IDicomElement element)
         {
-            if (element.VR.IsStringVR)
-            {
-                var dummyStr = DummyValueGenerator.GetDummyString(element.VR);
-                if (dummyStr != null)
-                {
-                    var bytes = Encoding.ASCII.GetBytes(dummyStr);
-                    dataset.Add(new DicomStringElement(element.Tag, element.VR, bytes));
-                }
-            }
+            if (!element.VR.IsStringVR)
+                return false;
+            var dummyStr = DummyValueGenerator.GetDummyString(element.VR);
+            if (dummyStr == null)
+                return false;
+            var bytes = Encoding.ASCII.GetBytes(dummyStr);
+            dataset.Add(new DicomStringElement(element.Tag, element.VR, bytes));
+            return true;
         }
 
         private static void CleanElement(DicomDataset dataset, IDicomElement element)

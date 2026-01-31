@@ -76,6 +76,13 @@ public static class BurnedInAnnotationDetector
             return BurnedInAnnotationRisk.Confirmed;
         }
 
+        // Honor explicit BurnedInAnnotation="NO" before modality checks
+        // This allows manufacturers to explicitly declare images are clean
+        if (string.Equals(burnedInTag, "NO", StringComparison.OrdinalIgnoreCase))
+        {
+            return BurnedInAnnotationRisk.Low;
+        }
+
         // Check modality
         var modality = dataset.GetString(DicomTag.Modality)?.Trim();
         if (string.IsNullOrEmpty(modality))
@@ -111,12 +118,6 @@ public static class BurnedInAnnotationDetector
             {
                 return BurnedInAnnotationRisk.High;
             }
-        }
-
-        // If BurnedInAnnotation explicitly says NO, trust it
-        if (string.Equals(burnedInTag, "NO", StringComparison.OrdinalIgnoreCase))
-        {
-            return BurnedInAnnotationRisk.Low;
         }
 
         // Default for unlisted modalities

@@ -29,6 +29,7 @@ namespace SharpDicom.Deidentification
         private readonly HashSet<string> _safePrivateCreators = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<DicomTag, DeidentificationAction> _overrides = new();
         private DateShiftConfig? _dateShiftConfig;
+        private IDateOffsetStore? _dateOffsetStore;
         private UidRemapper? _uidRemapper;
 
         /// <summary>
@@ -277,6 +278,17 @@ namespace SharpDicom.Deidentification
         }
 
         /// <summary>
+        /// Uses a shared date offset store for consistent date shifting across files.
+        /// </summary>
+        /// <param name="store">The date offset store to use.</param>
+        /// <returns>This builder for chaining.</returns>
+        public DicomDeidentifierBuilder WithDateOffsetStore(IDateOffsetStore store)
+        {
+            _dateOffsetStore = store;
+            return this;
+        }
+
+        /// <summary>
         /// Uses a shared UID remapper for consistent UID mapping across files.
         /// </summary>
         /// <param name="remapper">The UID remapper to use.</param>
@@ -317,14 +329,15 @@ namespace SharpDicom.Deidentification
                 CleanStructuredContent = _cleanStructuredContent,
                 CleanGraphics = _cleanGraphics,
                 DefaultPrivateTagAction = _privateTagAction,
-                SafePrivateCreators = _safePrivateCreators.Count > 0 ? _safePrivateCreators : null,
-                Overrides = _overrides.Count > 0 ? _overrides : null
+                // Create defensive copies to prevent mutation of already-built instances
+                SafePrivateCreators = _safePrivateCreators.Count > 0 ? new HashSet<string>(_safePrivateCreators, StringComparer.OrdinalIgnoreCase) : null,
+                Overrides = _overrides.Count > 0 ? new Dictionary<DicomTag, DeidentificationAction>(_overrides) : null
             };
 
             DateShifter? dateShifter = null;
             if (_dateShiftConfig != null)
             {
-                dateShifter = new DateShifter(_dateShiftConfig);
+                dateShifter = new DateShifter(_dateShiftConfig, _dateOffsetStore);
             }
 
             return new DicomDeidentifier(options, _uidRemapper, dateShifter);
