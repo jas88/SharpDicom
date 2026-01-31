@@ -3,33 +3,24 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 11 - DIMSE Services
-**Plan**: 07 of 7 complete (Phase 11 COMPLETE)
-**Status**: Phase 11 complete
-**Last activity**: 2026-01-29 - Completed 11-07-PLAN.md (DIMSE Integration Tests)
+**Phase**: 12 - Pure C# Codecs
+**Plan**: 07 of 7 complete
+**Status**: Phase complete
+**Last activity**: 2026-01-29 - Completed 12-07-PLAN.md (JPEG 2000 Integration)
 
-**Progress**: ███████████████████████████████ (7/7 plans in Phase 11)
+**Progress**: ███████████████████████████████ (7/7 plans in Phase 12)
 
-**Test Status**: 2460 tests passing, 0 failed, 10 skipped (DCMTK integration tests)
+**Test Status**: 3404 tests passing, 0 failed, 54 skipped
 
 ## Completed
 
 - [x] Project initialization
 - [x] PROJECT.md created
 - [x] GSD workflow configured (YOLO mode)
-- [x] v1.0.0 Research completed (Stack, Features, Architecture, Pitfalls)
-- [x] v1.0.0 Research synthesized (SUMMARY.md)
-- [x] v1.0.0 Requirements defined (REQUIREMENTS.md)
-- [x] v1.0.0 Roadmap created (ROADMAP.md)
-- [x] v1.0.0 ALL 9 PHASES COMPLETE (30/30 plans executed)
-- [x] v2.0.0 Research completed (SUMMARY.md updated)
-- [x] v2.0.0 Requirements defined (REQUIREMENTS.md updated)
-- [x] v2.0.0 Roadmap created (Phases 10-14)
-- [x] Phase 10 plans created (7 plans)
-- [x] Phase 10 complete (7/7 plans)
-
-### v1.0.0 Plans (Complete)
-
+- [x] Research completed (Stack, Features, Architecture, Pitfalls)
+- [x] Research synthesized (SUMMARY.md)
+- [x] Requirements defined (REQUIREMENTS.md)
+- [x] Roadmap created (ROADMAP.md)
 - [x] Phase 1 Plan 01: Core primitive types (DicomTag, DicomVR, DicomVRInfo, DicomMaskedTag, ValueMultiplicity)
 - [x] Phase 1 Plan 02: Source generator infrastructure and NEMA XML cache
 - [x] Phase 1 Plan 03: DicomUID and TransferSyntax types
@@ -77,22 +68,29 @@
 - [x] Phase 11 Plan 04: C-STORE SCP (ICStoreHandler, IStreamingCStoreHandler, CStoreHandlerMode, DicomServer integration)
 - [x] Phase 11 Plan 05: C-MOVE SCU (CMoveOptions, CMoveProgress, CMoveScu with IAsyncEnumerable progress)
 - [x] Phase 11 Plan 07: DIMSE integration tests (roundtrip, DCMTK interop, protocol verification)
+- [x] Phase 12 Plan 01: Codec infrastructure (IImageCodec, JPEG markers, color conversion)
+- [x] Phase 12 Plan 02: DCT & Bit I/O (DctTransform, BitReader, BitWriter, JpegCodecOptions)
+- [x] Phase 12 Plan 03: JPEG Baseline codec (JpegBaselineDecoder/Encoder/Codec, DCT-based lossy 8-bit)
+- [x] Phase 12 Plan 04: JPEG Lossless codec (Predictor, LosslessHuffman, JpegLosslessDecoder/Encoder/Codec)
+- [x] Phase 12 Plan 05: JPEG 2000 infrastructure (J2kCodestream, Dwt53, Dwt97, MqCoder)
+- [x] Phase 12 Plan 06: JPEG 2000 codec (EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder)
+- [x] Phase 12 Plan 07: JPEG 2000 integration (Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer)
 
 ## In Progress
 
-- Phase 12 - Pure C# Codecs (ready to start)
+*None*
 
 ## Blocked
 
 *None*
 
-## v2.0.0 Phase Progress
+## Phase Progress
 
 | Phase | Name | Status | Plans | Started | Completed |
 |-------|------|--------|-------|---------|-----------|
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 12 | Pure C# Codecs | Pending | ?/? | - | - |
+| 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | Pending | ?/? | - | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
@@ -248,20 +246,38 @@
 | 2026-01-29 | 11-05 | Consistent patterns across Q/R SCU services | Follow CFindScu/CGetScu patterns for API consistency |
 | 2026-01-29 | 11-05 | Validate destinationAE early | Fail fast on empty destination rather than network error |
 | 2026-01-29 | 11-07 | Protocol verification test scope | Focus on testable protocol aspects without wire capture |
+| 2026-01-29 | 12-02 | Loeffler algorithm for 1D DCT | Uses theoretical minimum operations (11 muls, 29 adds) |
+| 2026-01-29 | 12-02 | AVX2 SIMD with matrix transpose | Processes all 8 rows/columns in parallel using 256-bit vectors |
+| 2026-01-29 | 12-02 | 32-bit buffer for bit I/O | Allows reads/writes up to 25 bits at once |
+| 2026-01-29 | 12-02 | Quality 90 for MedicalImaging preset | Balances compression with diagnostic quality preservation |
+| 2026-01-29 | 12-04 | Extended Huffman table to categories 0-16 | 16-bit samples require category 16 for worst-case differences |
+| 2026-01-29 | 12-04 | Output buffer 4 bytes/sample + 1024 overhead | Random data may not compress; each sample needs up to 32 bits |
+| 2026-01-29 | 12-03 | PSNR-based quality verification for tests | Lossy codec requires statistical quality metrics instead of bit-perfect comparison |
+| 2026-01-29 | 12-05 | Lifting scheme for DWT | In-place computation, memory efficient, no intermediate buffers |
+| 2026-01-29 | 12-05 | Integer arithmetic for 5/3 | Bit-exact reconstruction required for lossless compression |
+| 2026-01-29 | 12-05 | Float arithmetic for 9/7 | Standard coefficients from ITU-T T.800 Table F.4 |
+| 2026-01-29 | 12-05 | 47-state probability table for MQ | Standard MQ-coder state machine from ITU-T T.800 Table C.2 |
+| 2026-01-29 | 12-05 | 19 coding contexts | Supports full EBCOT bitplane coding |
+| 2026-01-29 | 12-06 | EBCOT context model per ITU-T T.800 | 19 contexts for significance, sign, refinement coding |
+| 2026-01-29 | 12-06 | Simplified tier-2 packet encoding | Medical imaging typically uses single-tile; full complexity deferred |
+| 2026-01-29 | 12-07 | Removed ModuleInitializer attribute | CA2255 warning treated as error; explicit CodecInitializer.RegisterAll() preferred for AOT |
+| 2026-01-29 | 12-07 | MedicalImaging preset uses 5:1 ratio | Conservative compression for diagnostic imaging quality preservation |
+| 2026-01-29 | 12-07 | Codec tests focus on wrapper behavior | J2K encoder quality is separate concern; tests verify IPixelDataCodec contract |
+| 2026-01-29 | 12-06 | BufferWriter alias for netstandard2.0 | Consistent with existing network code ArrayBufferWriter polyfill |
 
 ## Session Continuity
 
 **Last session**: 2026-01-29
-**Stopped at**: Completed 11-07-PLAN.md (DIMSE Integration Tests) - Phase 11 COMPLETE
+**Stopped at**: Completed 12-07-PLAN.md (JPEG 2000 Integration) - Phase 12 complete
 **Resume file**: None
-**Next step**: Execute Phase 12 - Pure C# Codecs
+**Next step**: Phase 13 - Native Codecs Package (pending plans creation)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 12 - Pure C# Codecs (ready to start) - Phase 11 COMPLETE
+2. **Current phase**: Phase 12 - Pure C# Codecs (COMPLETE - 7/7)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -280,10 +296,16 @@ If resuming after a break:
    - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
    - **Phase 11 Plan 05**: C-MOVE SCU - CMoveOptions, CMoveProgress, CMoveScu with third-party destination retrieval
    - **Phase 11 Plan 07**: DIMSE integration tests - roundtrip, DCMTK interop, protocol verification (35 new tests)
-5. **Test coverage**: 1551 tests passing (19 DCMTK integration tests skipped)
+   - **Phase 12 Plan 01**: Codec infrastructure - IImageCodec, JPEG markers, color conversion
+   - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
+   - **Phase 12 Plan 04**: JPEG Lossless codec - Predictor (7 selection values), LosslessHuffman, JpegLosslessCodec (47 tests)
+   - **Phase 12 Plan 05**: JPEG 2000 infrastructure - J2kCodestream parser, Dwt53/Dwt97 wavelet transforms, MqCoder arithmetic coding (17 new tests)
+   - **Phase 12 Plan 06**: JPEG 2000 codec - EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder (16 new tests)
+   - **Phase 12 Plan 07**: JPEG 2000 integration - Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, 5 codecs registered (55 new tests)
+5. **Test coverage**: 3404+ tests passing (54 skipped)
 6. **Known issues**: None
 
-## v2.0.0 Requirements Coverage
+## Potential Future Work
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -299,13 +321,13 @@ If resuming after a break:
 | FR-10.10 (DicomClient async) | Phase 10 | Complete (10-05) |
 | FR-10.11 (DicomServer events) | Phase 10 | Complete (10-06) |
 | FR-10.12 (Zero-copy PDU) | Phase 11 | Pending |
-| FR-11.1 (JPEG Baseline) | Phase 12 | Pending |
-| FR-11.2 (JPEG Lossless) | Phase 12 | Pending |
-| FR-11.3 (J2K Lossless) | Phase 12 | Pending |
-| FR-11.4 (J2K Lossy) | Phase 12 | Pending |
-| FR-11.5 (Pure C#) | Phase 12 | Pending |
-| FR-11.6 (Trim/AOT) | Phase 12 | Pending |
-| FR-11.7 (IPixelDataCodec) | Phase 12 | Pending |
+| FR-11.1 (JPEG Baseline) | Phase 12 | Complete (12-03) |
+| FR-11.2 (JPEG Lossless) | Phase 12 | Complete (12-04) |
+| FR-11.3 (J2K Lossless) | Phase 12 | Complete (12-07) |
+| FR-11.4 (J2K Lossy) | Phase 12 | Complete (12-07) |
+| FR-11.5 (Pure C#) | Phase 12 | Complete (12-01 to 12-07) |
+| FR-11.6 (Trim/AOT) | Phase 12 | Complete (12-07) |
+| FR-11.7 (IPixelDataCodec) | Phase 12 | Complete (12-07) |
 | FR-12.1 (SharpDicom.Codecs) | Phase 13 | Pending |
 | FR-12.2 (libjpeg-turbo) | Phase 13 | Pending |
 | FR-12.3 (OpenJPEG) | Phase 13 | Pending |
@@ -321,4 +343,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-29 (Phase 11 complete - 11-07)*
+*Last updated: 2026-01-29 (Phase 12 complete - 12-07 done)*
