@@ -10,25 +10,26 @@ const std = @import("std");
 /// - FFmpeg: vendor/ffmpeg/src (downloaded in CI)
 pub fn build(b: *std.Build) void {
     // Check for vendor library sources
-    // Note: Only OpenJPEG is compiled from source currently.
-    // libjpeg-turbo, CharLS, and FFmpeg require system libraries or additional
-    // source compilation support (to be added in Phase 13b).
+    // Note: Cross-compilation of vendor libraries requires proper sysroot setup.
+    // All vendor libraries are disabled for Phase 13a - building stubs only.
+    // Proper source compilation will be added in Phase 13b.
     const libjpeg_path = "vendor/libjpeg-turbo/src";
     const openjpeg_path = "vendor/openjpeg/src";
     const charls_path = "vendor/charls/src";
     const ffmpeg_path = "vendor/ffmpeg/src";
-    const have_openjpeg = detectVendorLibrary(openjpeg_path);
 
-    // These libraries need source compilation or system library support
-    // For now, they're disabled (will build as stubs)
-    // Path constants are kept for future use when source compilation is added
-    const have_libjpeg = false; // TODO: Add source compilation in Phase 13b
-    const have_charls = false;  // TODO: Add source compilation in Phase 13b
-    const have_ffmpeg = false;  // TODO: Add source compilation in Phase 13b
+    // All vendor libraries disabled for cross-compilation stability
+    // TODO: Add proper cross-compilation support in Phase 13b
+    const have_libjpeg = false;
+    const have_openjpeg = false; // Needs CMake-generated config + sysroot
+    const have_charls = false;
+    const have_ffmpeg = false;
 
-    if (have_openjpeg) {
-        std.debug.print("Found OpenJPEG at {s}\n", .{openjpeg_path});
-    }
+    // Suppress unused constant warnings
+    _ = libjpeg_path;
+    _ = openjpeg_path;
+    _ = charls_path;
+    _ = ffmpeg_path;
     // Target configurations for all supported platforms
     const targets = [_]std.Target.Query{
         // Windows x64
@@ -80,6 +81,9 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .pic = true, // Position-independent code for ASLR
         });
+
+        // Link libc for cross-compilation (provides standard headers like string.h, stdlib.h)
+        lib.linkLibC();
 
         // Build flags common to all source files
         const common_flags = &[_][]const u8{
@@ -311,6 +315,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .pic = true,
     });
+
+    // Link libc for standard library headers
+    native_lib.linkLibC();
 
     const native_flags = &[_][]const u8{
         "-std=c11",

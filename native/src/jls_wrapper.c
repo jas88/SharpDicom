@@ -27,7 +27,11 @@ extern void set_error(const char* message);
 
 /**
  * Format and set an error message.
+ * Marked unused for stub builds where this function isn't called.
  */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
 static void set_error_fmt(const char* format, ...) {
     char buffer[256];
     va_list args;

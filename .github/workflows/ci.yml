@@ -98,15 +98,9 @@ jobs:
         with:
           version: 0.13.0
 
-      - name: Download vendor libraries
-        working-directory: native/vendor
-        run: |
-          # OpenJPEG - compiled from source in build.zig
-          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
-          mv openjpeg-2.5.3 openjpeg/src
-
-          # Note: libjpeg-turbo, CharLS, and FFmpeg source compilation
-          # will be added in Phase 13b. For now, these codecs build as stubs.
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
 
       - name: Build native codecs (all platforms)
         working-directory: native
