@@ -55,16 +55,23 @@
   </ItemGroup>
 
   <!--
-    Runtime package references: All runtime packages are included as dependencies.
-    NuGet's RID-based asset selection will pick the correct native library at restore/build time.
-    Removing RID conditions ensures packages are referenced during pack.
+    Runtime package references are NOT included as hard dependencies because:
+    1. They don't exist on NuGet until after the first release
+    2. Consumers only need one platform's package, not all six
+    3. NuGet's runtime-specific asset selection works via build targets
+
+    Instead, the build/SharpDicom.Codecs.targets file handles native library discovery
+    and consumers should reference the appropriate SharpDicom.Codecs.runtime.{RID} package.
+
+    For RID-specific builds (during CI or explicit RuntimeIdentifier), the correct
+    runtime package can be conditionally referenced:
   -->
-  <ItemGroup>
-    <PackageReference Include="SharpDicom.Codecs.runtime.win-x64" Version="$(Version)" PrivateAssets="none" />
-    <PackageReference Include="SharpDicom.Codecs.runtime.win-arm64" Version="$(Version)" PrivateAssets="none" />
-    <PackageReference Include="SharpDicom.Codecs.runtime.linux-x64" Version="$(Version)" PrivateAssets="none" />
-    <PackageReference Include="SharpDicom.Codecs.runtime.linux-arm64" Version="$(Version)" PrivateAssets="none" />
-    <PackageReference Include="SharpDicom.Codecs.runtime.osx-x64" Version="$(Version)" PrivateAssets="none" />
-    <PackageReference Include="SharpDicom.Codecs.runtime.osx-arm64" Version="$(Version)" PrivateAssets="none" />
+  <ItemGroup Condition="'$(SharpDicomIncludeRuntimePackages)' == 'true'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-arm64'" PrivateAssets="none" />
   </ItemGroup>
 </Project>
