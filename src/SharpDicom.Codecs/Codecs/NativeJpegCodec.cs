@@ -267,10 +267,21 @@ namespace SharpDicom.Codecs.Native
         /// Higher values produce larger files with better quality.
         /// Typical values: 75-85 for general use, 90-95 for medical imaging.
         /// </remarks>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when value is less than 1 or greater than 100.
+        /// </exception>
         public int Quality
         {
             get => _quality;
-            init => _quality = value;
+            init
+            {
+                if (value < 1 || value > 100)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(value),
+                        $"Quality must be between 1 and 100, got {value}");
+                }
+                _quality = value;
+            }
         }
 
         /// <summary>
