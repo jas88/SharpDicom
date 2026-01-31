@@ -17,18 +17,19 @@ pub fn build(b: *std.Build) void {
     const have_charls = false;
     const have_ffmpeg = false;
     // Target configurations for all supported platforms
+    // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
-        // Windows x64
+        // Windows x64 (GNU ABI for cross-compilation)
         .{
             .cpu_arch = .x86_64,
             .os_tag = .windows,
-            .abi = .msvc,
+            .abi = .gnu,
         },
-        // Windows ARM64
+        // Windows ARM64 (GNU ABI for cross-compilation)
         .{
             .cpu_arch = .aarch64,
             .os_tag = .windows,
-            .abi = .msvc,
+            .abi = .gnu,
         },
         // Linux x64 (musl for zero dependencies)
         .{

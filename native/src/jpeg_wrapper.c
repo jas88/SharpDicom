@@ -153,7 +153,11 @@ static int map_tj_to_subsamp(int tjsamp) {
     }
 }
 
-/** Get pixel format for requested colorspace and components */
+/** Get pixel format for requested colorspace and components
+ * Marked unused for stub builds where this function isn't called. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
 static int get_pixel_format(int colorspace, int components) {
     if (components == 1 || colorspace == JPEG_CS_GRAY) {
         return TJPF_GRAY;

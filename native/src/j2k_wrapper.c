@@ -943,11 +943,7 @@ SHARPDICOM_API const char* j2k_version(void) {
  * Stub implementations when OpenJPEG is not available
  *============================================================================*/
 
-/* Forward declare set_error if not already visible */
-#ifndef SET_ERROR_DECLARED
-#define SET_ERROR_DECLARED
-static void set_error(const char* message);
-#endif
+/* set_error is already declared at the top of this file as extern */
 
 SHARPDICOM_API int j2k_get_info(
     const uint8_t* input,
