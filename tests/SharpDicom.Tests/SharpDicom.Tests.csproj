@@ -2,6 +2,10 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Disable trimming/AOT analyzers for test project -->
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>
