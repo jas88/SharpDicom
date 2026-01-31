@@ -1,12 +1,32 @@
-<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
-    SharpDicom.Codecs NuGet package transitive MSBuild targets
+    SharpDicom.Codecs MSBuild Targets (Transitive)
 
-    This file is imported by projects that transitively depend on SharpDicom.Codecs.
-    It imports the main targets file to ensure native libraries are copied.
+    This file ensures native libraries are copied to the output directory
+    for projects that transitively reference SharpDicom.Codecs.
+
+    buildTransitive folder applies to projects that don't directly reference
+    this package but get it through another dependency.
   -->
 
-  <Import Project="$(MSBuildThisFileDirectory)..\build\SharpDicom.Codecs.targets" />
+  <PropertyGroup>
+    <!-- Path to native libraries for the current RID -->
+    <_SharpDicomCodecsNativeDir>$(MSBuildThisFileDirectory)..\runtimes\$(RuntimeIdentifier)\native\</_SharpDicomCodecsNativeDir>
+  </PropertyGroup>
+
+  <!-- Copy natives to output for development builds with explicit RID -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' != '' AND Exists('$(_SharpDicomCodecsNativeDir)')">
+    <None Include="$(_SharpDicomCodecsNativeDir)*"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="%(Filename)%(Extension)"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- Warning if runtime package not installed for explicit RID build -->
+  <Target Name="_SharpDicomCodecsCheckRuntime"
+          BeforeTargets="Build"
+          Condition="'$(RuntimeIdentifier)' != '' AND !Exists('$(_SharpDicomCodecsNativeDir)')">
+    <Warning Text="SharpDicom.Codecs native libraries not found for $(RuntimeIdentifier). Native codec acceleration unavailable. Install SharpDicom.Codecs.runtime.$(RuntimeIdentifier) for full functionality." />
+  </Target>
 
 </Project>

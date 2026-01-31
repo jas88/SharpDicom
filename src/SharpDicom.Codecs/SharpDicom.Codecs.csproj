@@ -28,8 +28,40 @@
     <PackageReference Include="System.Memory" />
   </ItemGroup>
 
-  <!-- Include native libraries based on RID -->
+  <!-- Include MSBuild targets for native library handling -->
+  <ItemGroup>
+    <None Include="build\**\*" Pack="true" PackagePath="build" />
+    <None Include="buildTransitive\**\*" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
+  <!-- Include native libraries based on RID (for local development) -->
   <ItemGroup>
     <None Include="runtimes\**\*" Pack="true" PackagePath="runtimes" Condition="Exists('runtimes')" />
+  </ItemGroup>
+
+  <!--
+    Conditional runtime package references based on RID.
+    When building with an explicit RuntimeIdentifier (e.g., dotnet build -r win-x64),
+    the appropriate runtime package provides the native libraries.
+
+    For non-RID builds, native libraries are optional (managed fallback used).
+  -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-x64" Version="$(PackageVersion)" PrivateAssets="none" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-arm64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-arm64" Version="$(PackageVersion)" PrivateAssets="none" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-x64" Version="$(PackageVersion)" PrivateAssets="none" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-arm64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-arm64" Version="$(PackageVersion)" PrivateAssets="none" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-x64" Version="$(PackageVersion)" PrivateAssets="none" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'osx-arm64'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-arm64" Version="$(PackageVersion)" PrivateAssets="none" />
   </ItemGroup>
 </Project>
