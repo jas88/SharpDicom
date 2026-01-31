@@ -374,7 +374,6 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             int position = 0;
             int currentTile = -1;
-            bool inTargetTile = false;
 
             while (position + 2 <= data.Length)
             {
@@ -384,26 +383,6 @@ namespace SharpDicom.Codecs.Jpeg2000
                 if (marker == J2kMarkers.EOC)
                 {
                     break;
-                }
-
-                // SOD has no segment - if we're in the target tile, we found it
-                if (marker == J2kMarkers.SOD)
-                {
-                    if (inTargetTile)
-                    {
-                        return position; // Return position after SOD marker
-                    }
-                    // Not our tile - skip tile data by scanning for next marker (0xFF followed by non-0x00)
-                    while (position < data.Length)
-                    {
-                        if (data[position] == 0xFF && position + 1 < data.Length && data[position + 1] != 0x00)
-                        {
-                            // Found a marker - don't consume it, let the outer loop handle it
-                            break;
-                        }
-                        position++;
-                    }
-                    continue;
                 }
 
                 if (!J2kMarkers.HasSegment(marker))
@@ -430,11 +409,32 @@ namespace SharpDicom.Codecs.Jpeg2000
                     if (position + 4 <= data.Length)
                     {
                         currentTile = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
-                        inTargetTile = (currentTile == tileIndex);
+                    }
+                }
+                else if (marker == J2kMarkers.SOD)
+                {
+                    // This shouldn't happen as SOD has no segment, but handle it
+                    // The position after SOD marker is the tile data
+                    if (currentTile == tileIndex)
+                    {
+                        return position - 2; // Return position of SOD marker
                     }
                 }
 
                 position += segmentLength - 2;
+
+                // Check for SOD immediately after SOT segment
+                if (marker == J2kMarkers.SOT && position + 2 <= data.Length)
+                {
+                    ushort nextMarker = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
+                    if (nextMarker == J2kMarkers.SOD)
+                    {
+                        if (currentTile == tileIndex)
+                        {
+                            return position + 2; // Return position after SOD marker
+                        }
+                    }
+                }
             }
 
             return -1;
@@ -627,15 +627,6 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             byte cbWidthExp = data[offset++];
             byte cbHeightExp = data[offset++];
-
-            // JPEG 2000 spec: code block exponents must be in range 0-8 (sizes 4-1024)
-            // Also: width_exp + height_exp + 4 <= 12 (max 4096 samples per code block)
-            if (cbWidthExp > 8 || cbHeightExp > 8)
-            {
-                error = $"Invalid code-block exponents: width={cbWidthExp}, height={cbHeightExp}";
-                return false;
-            }
-
             codeBlockWidth = 1 << (cbWidthExp + 2);
             codeBlockHeight = 1 << (cbHeightExp + 2);
 
@@ -655,7 +646,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                 return false;
             }
 
-            byte wavelet = data[offset];
+            byte wavelet = data[offset++];
             // 0 = 9/7 irreversible, 1 = 5/3 reversible
             usesReversibleTransform = wavelet == 1;
 

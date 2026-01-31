@@ -159,13 +159,6 @@ namespace SharpDicom.Codecs.Jpeg
                         break;
 
                     case JpegMarkers.SOS:
-                        // Validate SOF was parsed before SOS
-                        if (context.FrameInfo.Width == 0 || context.FrameInfo.Height == 0)
-                        {
-                            return DecodeResult.Fail(frameIndex, position,
-                                "SOS marker found before SOF (frame header missing)");
-                        }
-
                         // Parse SOS header
                         if (!ParseSosHeader(segmentPayload, context, out var sosError))
                         {
@@ -337,6 +330,7 @@ namespace SharpDicom.Codecs.Jpeg
 
             int mcuCountX = (width + mcuWidth - 1) / mcuWidth;
             int mcuCountY = (height + mcuHeight - 1) / mcuHeight;
+            int totalMcus = mcuCountX * mcuCountY;
 
             // Allocate temporary buffers for decoded components
             int pixelCount = width * height;
@@ -472,7 +466,7 @@ namespace SharpDicom.Codecs.Jpeg
                                     for (int i = 0; i < 64; i++)
                                     {
                                         int zigzagIndex = QuantizationTable.ZigZagOrder[i];
-                                        dctBlock[zigzagIndex] = (float)quantizedBlock[i] * quantTable[i];
+                                        dctBlock[zigzagIndex] = quantizedBlock[i] * quantTable[i];
                                     }
 
                                     // Inverse DCT
@@ -578,9 +572,6 @@ namespace SharpDicom.Codecs.Jpeg
         {
             if (components == null) return null;
 
-            // Note: Using foreach instead of LINQ FirstOrDefault for performance.
-            // This is called per-component during decode, and avoiding LINQ
-            // eliminates delegate allocation overhead in this hot path.
             foreach (var comp in components)
             {
                 if (comp.ComponentId == componentId)
@@ -605,22 +596,18 @@ namespace SharpDicom.Codecs.Jpeg
             int scaleX = maxH / compH;
             int scaleY = maxV / compV;
 
-            // The input component was stored with full image width as stride,
-            // even though only a portion of each row contains valid data.
-            // This is because the component buffer uses row-major storage.
-            int inputStride = width;
-            int maxSrcX = (width + scaleX - 1) / scaleX - 1;
-            int maxSrcY = (height + scaleY - 1) / scaleY - 1;
+            int inputWidth = (width + scaleX - 1) / scaleX;
+            int inputHeight = (height + scaleY - 1) / scaleY;
 
             // Simple nearest-neighbor upsampling
             for (int y = 0; y < height; y++)
             {
-                int srcY = Math.Min(y / scaleY, maxSrcY);
+                int srcY = Math.Min(y / scaleY, inputHeight - 1);
 
                 for (int x = 0; x < width; x++)
                 {
-                    int srcX = Math.Min(x / scaleX, maxSrcX);
-                    output[y * width + x] = input[srcY * inputStride + srcX];
+                    int srcX = Math.Min(x / scaleX, inputWidth - 1);
+                    output[y * width + x] = input[srcY * inputWidth + srcX];
                 }
             }
         }

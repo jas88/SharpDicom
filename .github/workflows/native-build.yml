@@ -1,0 +1,181 @@
+name: Native Codecs Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-build.yml'
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'native/**'
+      - '.github/workflows/native-build.yml'
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-linux-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-linux-
+
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
+
+      - name: Build all targets
+        working-directory: native
+        run: zig build
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload linux-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-x64
+          path: native/zig-out/linux-x64/
+          if-no-files-found: warn
+
+      - name: Upload linux-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux-arm64
+          path: native/zig-out/linux-arm64/
+          if-no-files-found: warn
+
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-windows-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-windows-
+
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
+
+      - name: Build Windows targets
+        working-directory: native
+        run: zig build
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload win-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: native/zig-out/win-x64/
+          if-no-files-found: warn
+
+      - name: Upload win-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-arm64
+          path: native/zig-out/win-arm64/
+          if-no-files-found: warn
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Cache Zig build
+        uses: actions/cache@v4
+        with:
+          path: native/zig-cache
+          key: zig-cache-macos-${{ hashFiles('native/**/*.c', 'native/**/*.h', 'native/build.zig') }}
+          restore-keys: |
+            zig-cache-macos-
+
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
+
+      - name: Build macOS targets
+        working-directory: native
+        run: zig build
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload osx-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-x64
+          path: native/zig-out/osx-x64/
+          if-no-files-found: warn
+
+      - name: Upload osx-arm64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-osx-arm64
+          path: native/zig-out/osx-arm64/
+          if-no-files-found: warn
+
+  # Combine all artifacts for release
+  combine-artifacts:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts
+          merge-multiple: false
+
+      - name: Create combined archive
+        run: |
+          mkdir -p combined/runtimes
+          for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-x64 osx-arm64; do
+            mkdir -p "combined/runtimes/${rid}/native"
+            if [ -d "artifacts/native-${rid}" ]; then
+              cp -r "artifacts/native-${rid}/"* "combined/runtimes/${rid}/native/" || true
+            fi
+          done
+          cd combined && tar -czvf ../native-codecs-${GITHUB_REF_NAME}.tar.gz .
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-codecs-all-platforms
+          path: native-codecs-*.tar.gz

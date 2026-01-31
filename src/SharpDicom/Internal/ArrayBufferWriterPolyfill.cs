@@ -137,25 +137,12 @@ namespace SharpDicom.Internal
                     growBy = Math.Max(growBy, DefaultInitialBufferSize);
                 }
 
-                // Check for overflow before computing newSize
-                int newSize;
-                if (currentLength > MaxArrayLength - growBy)
+                int newSize = currentLength + growBy;
+
+                // Ensure we don't overflow
+                if ((uint)newSize > MaxArrayLength)
                 {
-                    // Would overflow or exceed max - cap at MaxArrayLength if minimum requirement fits
-                    if (currentLength > MaxArrayLength - sizeHint)
-                    {
-                        throw new InvalidOperationException($"Cannot allocate buffer larger than {MaxArrayLength}.");
-                    }
-                    newSize = MaxArrayLength;
-                }
-                else
-                {
-                    newSize = currentLength + growBy;
-                    // Cap at MaxArrayLength
-                    if (newSize > MaxArrayLength)
-                    {
-                        newSize = MaxArrayLength;
-                    }
+                    newSize = Math.Max(currentLength + sizeHint, MaxArrayLength);
                 }
 
                 Array.Resize(ref _buffer, newSize);

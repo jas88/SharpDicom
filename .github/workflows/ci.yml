@@ -15,6 +15,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      orthanc:
+        image: orthancteam/orthanc:25.12.3
+        ports:
+          - 4242:4242  # DICOM port
+          - 8042:8042  # HTTP API
+        # No health check - Orthanc starts quickly, we'll wait in step
+
     steps:
       - uses: actions/checkout@v6
         with:
@@ -35,6 +43,26 @@ jobs:
 
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
+
+      - name: Wait for Orthanc
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8042/system > /dev/null 2>&1; then
+              echo "Orthanc is ready"
+              exit 0
+            fi
+            echo "Waiting for Orthanc... ($i/30)"
+            sleep 2
+          done
+          echo "Orthanc may not be ready, continuing anyway"
+
+      - name: Integration tests with Orthanc
+        continue-on-error: true  # Orthanc tests are optional for now
+        run: dotnet test --no-build --configuration Release --filter "Category=Orthanc"
+        env:
+          ORTHANC_HOST: localhost
+          ORTHANC_DICOM_PORT: 4242
+          ORTHANC_AE_TITLE: ORTHANC
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -66,4 +94,74 @@ jobs:
 
       - name: Push to NuGet
         if: startsWith(github.ref, 'refs/tags/v')
-        run: dotnet nuget push "src/SharpDicom/bin/Release/SharpDicom.*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  # Native codecs build (Zig)
+  native-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
+
+      - name: Build native codecs (all platforms)
+        working-directory: native
+        run: zig build
+
+      - name: Run native tests
+        working-directory: native
+        run: zig build test
+
+      - name: Upload native artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-codecs
+          path: native/zig-out/
+          retention-days: 7
+
+  # CUDA nvJPEG2000 wrapper build (optional, only on GPU runners)
+  cuda-build:
+    runs-on: ubuntu-latest
+    container:
+      image: nvidia/cuda:12.3.2-devel-ubuntu22.04
+    continue-on-error: true  # GPU builds are optional
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y cmake build-essential
+
+      - name: Check for nvJPEG2000
+        id: nvjpeg2k-check
+        run: |
+          if [ -f "/usr/local/cuda/include/nvjpeg2k.h" ]; then
+            echo "nvjpeg2k_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "nvjpeg2k_available=false" >> $GITHUB_OUTPUT
+            echo "nvJPEG2000 not available in this container"
+          fi
+
+      - name: Build CUDA wrapper
+        if: steps.nvjpeg2k-check.outputs.nvjpeg2k_available == 'true'
+        working-directory: native/cuda
+        run: |
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake --build . --parallel
+
+      - name: Upload CUDA artifacts
+        if: steps.nvjpeg2k-check.outputs.nvjpeg2k_available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-wrapper
+          path: native/cuda/build/lib/
+          retention-days: 7

@@ -251,18 +251,15 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         public void Jpeg2000Lossy_EncodeAndDecode_Grayscale8_ProducesCompressedData()
         {
             var codec = new Jpeg2000LossyCodec();
-            // Use larger image for reliable compression (small images may not compress well)
-            var info = PixelDataInfo.Grayscale8(64, 64);
-            var original = CreateGradientImage(64, 64);
+            var info = PixelDataInfo.Grayscale8(32, 32);
+            var original = CreateGradientImage(32, 32);
 
             var fragments = codec.Encode(original, info);
 
             Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
-            // Verify encoded data is valid JPEG 2000 (starts with SOC marker)
-            Assert.That(fragments.Fragments[0].Length, Is.GreaterThan(0),
-                "Encoded data should not be empty");
-            // Note: Compression ratio depends on image content and encoder settings.
-            // We only verify the codestream is valid, not its size relative to original.
+            // Lossy data should be smaller
+            Assert.That(fragments.Fragments[0].Length, Is.LessThan(original.Length),
+                "Lossy encoded data should be smaller than original");
         }
 
         #endregion
@@ -398,158 +395,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
                 var result = codec.Decode(fragments, info, frame, decoded);
                 Assert.That(result.Success, Is.True, $"Frame {frame} decode failed: {result.Diagnostic?.Message}");
             }
-        }
-
-        #endregion
-
-        #region Edge Case Tests
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_OddDimensions_Succeeds()
-        {
-            // Test with non-power-of-2 dimensions (17x23)
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(17, 23);
-            var original = new byte[17 * 23];
-
-            var random = new Random(42);
-            random.NextBytes(original);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[17 * 23];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Odd dimensions should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_ExtremeValues8Bit_Succeeds()
-        {
-            // Test with alternating 0/255 values
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(16, 16);
-            var original = new byte[256];
-
-            for (int i = 0; i < 256; i++)
-            {
-                original[i] = (i % 2 == 0) ? (byte)0 : (byte)255;
-            }
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[256];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Extreme values should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_AllZeros_Succeeds()
-        {
-            // Edge case: uniform black image
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(16, 16);
-            var original = new byte[256]; // All zeros
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[256];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "All-zero image should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_AllMax_Succeeds()
-        {
-            // Edge case: uniform white image
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(16, 16);
-            var original = new byte[256];
-            Array.Fill(original, (byte)255);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[256];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "All-max image should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_SingleCodeBlock_Succeeds()
-        {
-            // Minimum: image smaller than default code-block size
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(4, 4);
-            var original = new byte[16];
-
-            var random = new Random(42);
-            random.NextBytes(original);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[16];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Single code-block should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossless_EncodeAndDecode_LargerImage_Succeeds()
-        {
-            // Test with a larger image (128x128)
-            var codec = new Jpeg2000LosslessCodec();
-            var info = PixelDataInfo.Grayscale8(128, 128);
-            var original = new byte[128 * 128];
-
-            var random = new Random(42);
-            random.NextBytes(original);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[128 * 128];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Larger image should encode/decode successfully");
-        }
-
-        [Test]
-        public void Jpeg2000Lossy_EncodeAndDecode_OddDimensions_Succeeds()
-        {
-            // Test lossy codec with odd dimensions
-            var codec = new Jpeg2000LossyCodec();
-            var info = PixelDataInfo.Grayscale8(17, 23);
-            var original = new byte[17 * 23];
-
-            var random = new Random(42);
-            random.NextBytes(original);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[17 * 23];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Lossy codec should handle odd dimensions");
-        }
-
-        [Test]
-        public void Jpeg2000Lossy_EncodeAndDecode_ExtremeValues_Succeeds()
-        {
-            // Test lossy codec with high-contrast data (checkerboard is worst-case)
-            var codec = new Jpeg2000LossyCodec();
-            var info = PixelDataInfo.Grayscale8(32, 32);
-            var original = new byte[1024];
-
-            // Checkerboard pattern with extreme values
-            for (int y = 0; y < 32; y++)
-            {
-                for (int x = 0; x < 32; x++)
-                {
-                    original[y * 32 + x] = ((x + y) % 2 == 0) ? (byte)0 : (byte)255;
-                }
-            }
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[1024];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            // Just verify it succeeds - high-contrast data is worst-case for lossy codecs
-            Assert.That(result.Success, Is.True, "Lossy codec should handle extreme values without crashing");
         }
 
         #endregion

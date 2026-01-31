@@ -47,8 +47,8 @@ namespace SharpDicom.Codecs.Jpeg
                 throw new ArgumentException("JPEG Baseline only supports 8-bit samples.", nameof(info));
             }
 
-            // Estimate output size accounting for worst-case byte stuffing
-            int estimatedSize = GetMaxEncodedSize(info);
+            // Estimate output size (typically < original for lossy)
+            int estimatedSize = pixelData.Length + 1024; // Extra for headers
             byte[]? outputBuffer = null;
 
             try
@@ -389,6 +389,8 @@ namespace SharpDicom.Codecs.Jpeg
             JpegCodecOptions options,
             QuantizationTable[] quantTables)
         {
+            int width = info.Columns;
+            int height = info.Rows;
             int componentCount = info.SamplesPerPixel;
 
             // Write SOS header
@@ -607,9 +609,14 @@ namespace SharpDicom.Codecs.Jpeg
 
                 if (value == 0)
                 {
-                    // Just count zeros - ZRL is only emitted when followed by a non-zero coefficient.
-                    // If all remaining coefficients are zero, we emit EOB instead, not ZRL.
                     zeroRun++;
+                    if (zeroRun == 16)
+                    {
+                        // ZRL (16 zeros)
+                        var (zrlCode, zrlSize) = acTable.GetCode(0xF0);
+                        writer.WriteBits(zrlCode, zrlSize);
+                        zeroRun = 0;
+                    }
                 }
                 else
                 {

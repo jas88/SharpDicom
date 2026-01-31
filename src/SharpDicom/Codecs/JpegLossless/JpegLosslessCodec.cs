@@ -87,16 +87,6 @@ namespace SharpDicom.Codecs.JpegLossless
         {
             var codecOptions = options is JpegLosslessCodecOptions opt ? opt : JpegLosslessCodecOptions.Default;
 
-            // Validate SelectionValue for JPEG Lossless SV1 transfer syntax (1.2.840.10008.1.2.4.70)
-            // Per DICOM, this transfer syntax MUST use Selection Value 1 (predictor Px = Ra)
-            if (codecOptions.SelectionValue != 1)
-            {
-                throw new ArgumentException(
-                    $"JPEG Lossless SV1 transfer syntax requires SelectionValue=1, but got {codecOptions.SelectionValue}. " +
-                    "Use the default options or explicitly set SelectionValue to 1.",
-                    nameof(options));
-            }
-
             int frameSize = info.FrameSize;
             int frameCount = pixelData.Length / frameSize;
             var fragments = new List<ReadOnlyMemory<byte>>(frameCount);

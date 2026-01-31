@@ -58,15 +58,14 @@ namespace SharpDicom.Codecs.JpegLossless
             int components = info.SamplesPerPixel;
             int bytesPerSample = info.BytesPerSample;
 
-            // Read samples from input (converting to planar layout if needed)
-            int[] samples = ReadSamplesFromInput(pixelData, width, height, components, bytesPerSample, info.IsPlanar);
+            // Read samples from input
+            int[] samples = ReadSamplesFromInput(pixelData, width * height * components, bytesPerSample);
 
             // Estimate output size: in worst case (random data), output may exceed input
-            // For each sample: Huffman code (up to 16 bits) + category bits (up to 16 bits) = 4 bytes
-            // With JPEG byte stuffing, each 0xFF requires an additional 0x00, potentially doubling size
-            // So worst case is ~8 bytes per sample. Add header overhead.
+            // For each sample: Huffman code (up to 16 bits) + category bits (up to 16 bits)
+            // So worst case is ~4 bytes per sample. Add header overhead.
             int totalSamples = width * height * components;
-            int estimatedSize = (totalSamples * 8) + 2048;
+            int estimatedSize = (totalSamples * 4) + 1024;
             byte[] outputBuffer = ArrayPool<byte>.Shared.Rent(estimatedSize);
 
             try
@@ -117,61 +116,23 @@ namespace SharpDicom.Codecs.JpegLossless
             }
         }
 
-        private static int[] ReadSamplesFromInput(
-            ReadOnlySpan<byte> pixelData,
-            int width,
-            int height,
-            int components,
-            int bytesPerSample,
-            bool isPlanar)
+        private static int[] ReadSamplesFromInput(ReadOnlySpan<byte> pixelData, int sampleCount, int bytesPerSample)
         {
-            int pixelCount = width * height;
-            int sampleCount = pixelCount * components;
             int[] samples = new int[sampleCount];
 
-            if (isPlanar || components == 1)
+            if (bytesPerSample == 1)
             {
-                // Planar layout: all samples for component 0, then component 1, etc.
-                // This is the layout we need for encoding, so just copy directly
-                if (bytesPerSample == 1)
+                for (int i = 0; i < sampleCount; i++)
                 {
-                    for (int i = 0; i < sampleCount; i++)
-                    {
-                        samples[i] = pixelData[i];
-                    }
-                }
-                else
-                {
-                    // Little-endian 16-bit input (DICOM native format)
-                    for (int i = 0; i < sampleCount; i++)
-                    {
-                        samples[i] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(i * 2));
-                    }
+                    samples[i] = pixelData[i];
                 }
             }
             else
             {
-                // Interleaved layout (RGB RGB RGB...): convert to planar (RRR... GGG... BBB...)
-                if (bytesPerSample == 1)
+                // Little-endian 16-bit input (DICOM native format)
+                for (int i = 0; i < sampleCount; i++)
                 {
-                    for (int p = 0; p < pixelCount; p++)
-                    {
-                        for (int c = 0; c < components; c++)
-                        {
-                            samples[c * pixelCount + p] = pixelData[p * components + c];
-                        }
-                    }
-                }
-                else
-                {
-                    for (int p = 0; p < pixelCount; p++)
-                    {
-                        for (int c = 0; c < components; c++)
-                        {
-                            int srcOffset = (p * components + c) * 2;
-                            samples[c * pixelCount + p] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(srcOffset));
-                        }
-                    }
+                    samples[i] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(i * 2));
                 }
             }
 

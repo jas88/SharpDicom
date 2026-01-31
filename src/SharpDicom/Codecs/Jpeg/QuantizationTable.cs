@@ -253,19 +253,14 @@ namespace SharpDicom.Codecs.Jpeg
             int[] values = new int[64];
             var baseValues = baseTable.GetValues();
 
-            // Preserve base table precision and use appropriate max value
-            byte precision = baseTable.Precision;
-            int maxValue = precision == 16 ? 65535 : 255;
-
             for (int i = 0; i < 64; i++)
             {
-                // Scale and clamp to valid range for the precision
-                // Use long arithmetic to avoid overflow with extreme scale values
-                long scaled = ((long)baseValues[i] * scale + 50) / 100;
-                values[i] = (int)Math.Max(1, Math.Min(maxValue, scaled));
+                // Scale and clamp to 1-255 (8-bit) or 1-65535 (16-bit)
+                int scaled = (baseValues[i] * scale + 50) / 100;
+                values[i] = Math.Max(1, Math.Min(255, scaled));
             }
 
-            return new QuantizationTable(values, precision, tableId);
+            return new QuantizationTable(values, 8, tableId);
         }
     }
 }
