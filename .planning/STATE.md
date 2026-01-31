@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 07 of 9 complete
+**Plan**: 08 of 9 complete
 **Status**: In progress
-**Last activity**: 2026-01-31 - Completed 13-07-PLAN.md (Native Codec Wrappers)
+**Last activity**: 2026-01-31 - Completed 13-08-PLAN.md (NuGet Package Structure)
 
-**Progress**: █████████████████████████████░░░░░░░░░░░ (7/9 plans in Phase 13)
+**Progress**: ██████████████████████████████████░░░░░░ (8/9 plans in Phase 13)
 
-**Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
+**Test Status**: 3240 tests passing, 0 failed, 38 skipped
 
 ## Completed
 
@@ -82,10 +82,11 @@
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
 - [x] Phase 13 Plan 07: Native codec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec)
+- [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
 
 ## In Progress
 
-- [ ] Phase 13 Plans 08-09: NuGet packaging
+- [ ] Phase 13 Plan 09: Final verification
 
 ## Blocked
 
@@ -98,7 +99,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 7/9 | 2026-01-29 | - |
+| 13 | Native Codecs Package | In progress | 8/9 | 2026-01-29 | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -295,13 +296,16 @@
 | 2026-01-31 | 13-06 | ModuleInitializer for auto-init | Auto-loads native library on NET5+, opt-out via AppContext switch |
 | 2026-01-31 | 13-06 | AppContext.BaseDirectory for single-file | Assembly.Location empty in single-file apps |
 | 2026-01-31 | 13-06 | SafeHandle for native resources | VideoDecoderHandle, NativeBufferHandle for proper cleanup |
+| 2026-01-31 | 13-08 | Warning-only for missing natives | Managed fallback exists; warning not error |
+| 2026-01-31 | 13-08 | GPL-3.0-or-later for all packages | Consistent with main project and FFmpeg |
+| 2026-01-31 | 13-08 | Skip duplicate on NuGet push | Handle workflow re-runs gracefully |
 
 ## Session Continuity
 
 **Last session**: 2026-01-31
-**Stopped at**: Completed 13-06-PLAN.md (Managed P/Invoke Layer)
+**Stopped at**: Completed 13-08-PLAN.md (NuGet Package Structure)
 **Resume file**: None
-**Next step**: Continue Phase 13 Plans 07-09 (Codec implementations and NuGet packaging)
+**Next step**: Continue Phase 13 Plan 09 (Final verification)
 
 ## Context for Next Session
 
@@ -338,7 +342,9 @@ If resuming after a break:
    - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
    - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
    - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods, NativeCodecs class
-5. **Test coverage**: 3404+ tests passing (54 skipped)
+   - **Phase 13 Plan 07**: Native codec wrappers - NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec
+   - **Phase 13 Plan 08**: NuGet package structure - MSBuild targets, runtime packages for 6 platforms, release workflow
+5. **Test coverage**: 3240+ tests passing (38 skipped)
 6. **Known issues**: None
 
 ## Potential Future Work
@@ -379,4 +385,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-31 (Phase 13 in progress - 13-06 done)*
+*Last updated: 2026-01-31 (Phase 13 in progress - 13-08 done)*
