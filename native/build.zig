@@ -93,15 +93,16 @@ pub fn build(b: *std.Build) void {
             "-Werror",
         };
 
-        // Core flags with JPEG feature enabled
+        // Feature flags (only defined when corresponding library is available)
         const jpeg_flags = common_flags ++ &[_][]const u8{
             "-DSHARPDICOM_WITH_JPEG",
         };
 
-        // Add C source files (core)
+        // Add C source files (core) - feature flags based on available libraries
+        const core_flags = if (have_libjpeg) jpeg_flags else common_flags;
         lib.addCSourceFile(.{
             .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = jpeg_flags,
+            .flags = core_flags,
         });
 
         // JPEG wrapper (libjpeg-turbo)

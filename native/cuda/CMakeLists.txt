@@ -45,16 +45,28 @@ add_library(${TARGET_NAME} SHARED
     nvjpeg2k_wrapper.c
 )
 
-# Set CUDA architectures (compute capability 5.0+)
+# Set CUDA architectures based on CUDA toolkit version
 # 50 = Maxwell (GTX 750 Ti, GTX 9xx)
 # 60 = Pascal (GTX 10xx, Tesla P100)
 # 70 = Volta (Tesla V100)
 # 75 = Turing (RTX 20xx, Tesla T4)
 # 80 = Ampere (RTX 30xx, A100)
 # 86 = Ampere (RTX 30xx laptop variants)
-# 89 = Ada Lovelace (RTX 40xx)
-# 90 = Hopper (H100)
-set(CMAKE_CUDA_ARCHITECTURES 50 60 70 75 80 86 89 90)
+# 89 = Ada Lovelace (RTX 40xx) - requires CUDA 11.8+
+# 90 = Hopper (H100) - requires CUDA 12.0+
+set(BASE_CUDA_ARCHITECTURES 50 60 70 75 80 86)
+
+# Add sm_89 for CUDA 11.8+
+if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "11.8")
+    list(APPEND BASE_CUDA_ARCHITECTURES 89)
+endif()
+
+# Add sm_90 for CUDA 12.0+
+if(CUDAToolkit_VERSION VERSION_GREATER_EQUAL "12.0")
+    list(APPEND BASE_CUDA_ARCHITECTURES 90)
+endif()
+
+set(CMAKE_CUDA_ARCHITECTURES ${BASE_CUDA_ARCHITECTURES})
 
 # Define HAVE_NVJPEG2K to enable the implementation
 target_compile_definitions(${TARGET_NAME} PRIVATE

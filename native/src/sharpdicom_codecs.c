@@ -101,7 +101,30 @@ void set_error_fmt(const char* fmt, ...) {
 #endif
 
 /**
+ * Read Extended Control Register (XGETBV) to check OS-enabled XSAVE features.
+ * Returns 0 if XGETBV is not supported.
+ */
+static unsigned long long get_xcr0(void) {
+#if defined(_MSC_VER)
+    return _xgetbv(0);
+#elif defined(__GNUC__) || defined(__clang__)
+    unsigned int eax, edx;
+    __asm__ volatile("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
+    return ((unsigned long long)edx << 32) | eax;
+#else
+    return 0;
+#endif
+}
+
+/**
  * Detect x86_64 SIMD features using CPUID.
+ *
+ * IMPORTANT: AVX/AVX2/AVX512 detection requires checking both:
+ * 1. CPUID feature flags (CPU supports the instructions)
+ * 2. XGETBV XCR0 flags (OS has enabled the state save/restore)
+ *
+ * Without the OS check, AVX code can crash with illegal instruction
+ * on VMs or systems where the OS hasn't enabled AVX state.
  */
 static int detect_x86_simd(void) {
     int features = SHARPDICOM_SIMD_NONE;
@@ -111,27 +134,49 @@ static int detect_x86_simd(void) {
     cpuid(info, 0);
     int max_level = info[0];
 
-    if (max_level >= 1) {
-        cpuid(info, 1);
-        int ecx = info[2];
-        int edx = info[3];
-
-        /* EDX flags */
-        if (edx & (1 << 26)) features |= SHARPDICOM_SIMD_SSE2;
-
-        /* ECX flags */
-        if (ecx & (1 << 19)) features |= SHARPDICOM_SIMD_SSE4_1;
-        if (ecx & (1 << 20)) features |= SHARPDICOM_SIMD_SSE4_2;
-        if (ecx & (1 << 28)) features |= SHARPDICOM_SIMD_AVX;
+    if (max_level < 1) {
+        return features;
     }
 
-    if (max_level >= 7) {
-        cpuidex(info, 7, 0);
-        int ebx = info[1];
+    cpuid(info, 1);
+    int ecx = info[2];
+    int edx = info[3];
 
-        /* EBX flags */
-        if (ebx & (1 << 5)) features |= SHARPDICOM_SIMD_AVX2;
-        if (ebx & (1 << 16)) features |= SHARPDICOM_SIMD_AVX512F;
+    /* EDX flags - SSE2 doesn't need XSAVE check */
+    if (edx & (1 << 26)) features |= SHARPDICOM_SIMD_SSE2;
+
+    /* ECX flags - SSE4.x doesn't need XSAVE check */
+    if (ecx & (1 << 19)) features |= SHARPDICOM_SIMD_SSE4_1;
+    if (ecx & (1 << 20)) features |= SHARPDICOM_SIMD_SSE4_2;
+
+    /* AVX requires OSXSAVE (bit 27) and XGETBV check */
+    int cpu_has_avx = (ecx & (1 << 28)) != 0;
+    int os_has_xsave = (ecx & (1 << 27)) != 0;
+
+    if (cpu_has_avx && os_has_xsave) {
+        unsigned long long xcr0 = get_xcr0();
+        /* XCR0 bits 1-2 must be set for AVX (XMM + YMM state) */
+        int os_avx_enabled = ((xcr0 & 0x6) == 0x6);
+
+        if (os_avx_enabled) {
+            features |= SHARPDICOM_SIMD_AVX;
+
+            /* Check AVX2 and AVX-512 only if AVX is OS-enabled */
+            if (max_level >= 7) {
+                cpuidex(info, 7, 0);
+                int ebx = info[1];
+
+                if (ebx & (1 << 5)) {
+                    features |= SHARPDICOM_SIMD_AVX2;
+                }
+
+                /* AVX-512 requires XCR0 bits 5-7 (opmask, ZMM_Hi256, Hi16_ZMM) */
+                int os_avx512_enabled = ((xcr0 & 0xE0) == 0xE0);
+                if ((ebx & (1 << 16)) && os_avx512_enabled) {
+                    features |= SHARPDICOM_SIMD_AVX512F;
+                }
+            }
+        }
     }
 
     return features;

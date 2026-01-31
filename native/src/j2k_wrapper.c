@@ -695,6 +695,15 @@ SHARPDICOM_API int j2k_encode(
         return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
+    /* Validate input buffer size (with overflow protection) */
+    int32_t bytes_per_sample = (bits_per_component <= 8) ? 1 : 2;
+    size_t required_input_size = safe_mul4_size(
+        (size_t)width, (size_t)height, (size_t)num_components, (size_t)bytes_per_sample);
+    if (required_input_size == 0 || input_len < required_input_size) {
+        set_error("Input buffer too small for specified dimensions");
+        return SHARPDICOM_ERR_INVALID_ARGUMENT;
+    }
+
     /* Use defaults if params is NULL */
     J2kEncodeParams default_params = {
         .lossless = 1,
