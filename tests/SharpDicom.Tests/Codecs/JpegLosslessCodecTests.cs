@@ -517,6 +517,204 @@ namespace SharpDicom.Tests.Codecs
             Assert.That(options.GenerateBasicOffsetTable, Is.True);
         }
 
+        [Test]
+        public void Encode_InvalidSelectionValue_ThrowsArgumentException()
+        {
+            var info = PixelDataInfo.Grayscale8(8, 8);
+            var original = new byte[64];
+
+            // SV1 transfer syntax requires SelectionValue=1
+            var options = new JpegLosslessCodecOptions(SelectionValue: 3);
+
+            Assert.Throws<ArgumentException>(() => _codec.Encode(original, info, options));
+        }
+
+        #endregion
+
+        #region Edge Case Tests
+
+        [Test]
+        public void EncodeAndDecode_ExtremeValues_8Bit_RoundtripSucceeds()
+        {
+            // Test with extreme values: 0 and 255
+            var info = PixelDataInfo.Grayscale8(8, 8);
+            var original = new byte[64];
+
+            // Fill with extreme pattern: alternating min/max
+            for (int i = 0; i < 64; i++)
+            {
+                original[i] = (i % 2 == 0) ? (byte)0 : (byte)255;
+            }
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[64];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Extreme 8-bit values must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_ExtremeValues_16Bit_RoundtripSucceeds()
+        {
+            // Test with extreme 16-bit values: 0 and 65535
+            var info = PixelDataInfo.Grayscale16(8, 8);
+            var original = new byte[128]; // 64 pixels * 2 bytes
+
+            // Fill with extreme pattern
+            for (int i = 0; i < 64; i++)
+            {
+                ushort value = (i % 2 == 0) ? (ushort)0 : (ushort)65535;
+                original[i * 2] = (byte)(value & 0xFF);
+                original[i * 2 + 1] = (byte)(value >> 8);
+            }
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[128];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Extreme 16-bit values must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_OddDimensions_RoundtripSucceeds()
+        {
+            // Test with non-power-of-2 dimensions (7x13)
+            var info = PixelDataInfo.Grayscale8(7, 13);
+            var original = new byte[7 * 13]; // 91 pixels
+
+            var random = new Random(42);
+            random.NextBytes(original);
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[91];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Odd dimensions must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_SinglePixel_RoundtripSucceeds()
+        {
+            // Edge case: 1x1 image
+            var info = PixelDataInfo.Grayscale8(1, 1);
+            var original = new byte[] { 128 };
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[1];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Single pixel must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_SingleRow_RoundtripSucceeds()
+        {
+            // Edge case: 1 row, multiple columns
+            var info = PixelDataInfo.Grayscale8(16, 1);
+            var original = new byte[16];
+            for (int i = 0; i < 16; i++)
+            {
+                original[i] = (byte)(i * 16);
+            }
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[16];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Single row must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_SingleColumn_RoundtripSucceeds()
+        {
+            // Edge case: multiple rows, 1 column
+            var info = PixelDataInfo.Grayscale8(1, 16);
+            var original = new byte[16];
+            for (int i = 0; i < 16; i++)
+            {
+                original[i] = (byte)(i * 16);
+            }
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[16];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Single column must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_LargerImage_RoundtripSucceeds()
+        {
+            // Test with a larger image (256x256)
+            var info = PixelDataInfo.Grayscale8(256, 256);
+            var original = new byte[256 * 256];
+
+            var random = new Random(42);
+            random.NextBytes(original);
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[256 * 256];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Larger image must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_UniformData_RoundtripSucceeds()
+        {
+            // Edge case: all pixels have same value (worst case for DPCM compression)
+            var info = PixelDataInfo.Grayscale8(32, 32);
+            var original = new byte[1024];
+
+            // All pixels = 128
+            Array.Fill(original, (byte)128);
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[1024];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "Uniform data must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_AllZeros_RoundtripSucceeds()
+        {
+            // Edge case: all zeros
+            var info = PixelDataInfo.Grayscale8(16, 16);
+            var original = new byte[256]; // All zeros by default
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[256];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "All-zero data must roundtrip exactly");
+        }
+
+        [Test]
+        public void EncodeAndDecode_AllMax_RoundtripSucceeds()
+        {
+            // Edge case: all maximum values
+            var info = PixelDataInfo.Grayscale8(16, 16);
+            var original = new byte[256];
+            Array.Fill(original, (byte)255);
+
+            var fragments = _codec.Encode(original, info);
+            var decoded = new byte[256];
+            var result = _codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original), "All-max data must roundtrip exactly");
+        }
+
         #endregion
     }
 }
