@@ -483,52 +483,58 @@ int jpeg_encode_12bit(
  * Stub implementations when libjpeg-turbo is not available
  *============================================================================*/
 
-SHARPDICOM_API int jpeg_get_info(
-    const uint8_t* input, size_t inputLen,
-    int* width, int* height, int* components, int* subsamp, int* colorspace)
+int jpeg_decode(
+    const uint8_t* input, int inputLen,
+    uint8_t* output, int outputLen,
+    int* width, int* height, int* components,
+    int colorspace)
 {
     (void)input;
     (void)inputLen;
+    (void)output;
+    (void)outputLen;
     (void)width;
     (void)height;
     (void)components;
-    (void)subsamp;
     (void)colorspace;
     set_error("JPEG support not compiled in");
     return SHARPDICOM_ERR_UNSUPPORTED;
 }
 
-SHARPDICOM_API int jpeg_decode(
-    const uint8_t* input, size_t inputLen,
-    uint8_t* output, size_t outputLen,
-    int* width, int* height, int* components)
+int jpeg_decode_header(
+    const uint8_t* input, int inputLen,
+    int* width, int* height, int* components, int* subsampling)
 {
     (void)input;
     (void)inputLen;
-    (void)output;
-    (void)outputLen;
     (void)width;
     (void)height;
     (void)components;
+    (void)subsampling;
     set_error("JPEG support not compiled in");
     return SHARPDICOM_ERR_UNSUPPORTED;
 }
 
-SHARPDICOM_API int jpeg_encode(
+int jpeg_encode(
     const uint8_t* input, int width, int height, int components,
-    int quality, int subsamp,
-    uint8_t** output, size_t* outputLen)
+    uint8_t** output, int* outputLen,
+    int quality, int subsamp)
 {
     (void)input;
     (void)width;
     (void)height;
     (void)components;
-    (void)quality;
-    (void)subsamp;
     (void)output;
     (void)outputLen;
+    (void)quality;
+    (void)subsamp;
     set_error("JPEG support not compiled in");
     return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+void jpeg_free(uint8_t* buffer)
+{
+    (void)buffer;
 }
 
 int jpeg_decode_12bit(
@@ -561,6 +567,11 @@ int jpeg_encode_12bit(
     (void)quality;
     set_error("JPEG support not compiled in");
     return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+int jpeg_has_12bit_support(void)
+{
+    return 0;
 }
 
 #endif /* SHARPDICOM_WITH_JPEG */
