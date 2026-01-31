@@ -21,6 +21,11 @@ namespace SharpDicom.Codecs
     /// <see cref="RegisterFromAssembly(Assembly)"/>.
     /// </para>
     /// <para>
+    /// The registry supports priority-based registration. When multiple codecs are
+    /// registered for the same transfer syntax, the one with the highest priority wins.
+    /// Default priority is 50. Native codecs typically register at priority 100.
+    /// </para>
+    /// <para>
     /// On .NET 8+, the registry uses FrozenDictionary for lock-free reads after
     /// the first lookup. On older runtimes, a regular dictionary is used.
     /// </para>
@@ -36,19 +41,14 @@ namespace SharpDicom.Codecs
     public static class CodecRegistry
     {
         /// <summary>
-        /// Default priority for pure C# codec implementations.
+        /// Default priority for codec registration.
         /// </summary>
-        public const int PriorityDefault = 50;
+        public const int DefaultPriority = 50;
 
         /// <summary>
-        /// Priority for native codec implementations.
+        /// Priority level for native codecs.
         /// </summary>
-        public const int PriorityNative = 100;
-
-        /// <summary>
-        /// Priority for user-specified overrides.
-        /// </summary>
-        public const int PriorityUserOverride = 200;
+        public const int NativePriority = 100;
 
         private static readonly object _lock = new();
         private static Dictionary<TransferSyntax, IPixelDataCodec> _mutableRegistry = new();
@@ -62,27 +62,25 @@ namespace SharpDicom.Codecs
 #endif
 
         /// <summary>
-        /// Registers a codec instance with the registry using default priority.
+        /// Registers a codec instance with the registry using the default priority.
         /// </summary>
         /// <param name="codec">The codec to register.</param>
         /// <exception cref="ArgumentNullException"><paramref name="codec"/> is null.</exception>
         public static void Register(IPixelDataCodec codec)
         {
-            Register(codec, PriorityDefault);
+            Register(codec, DefaultPriority);
         }
 
         /// <summary>
-        /// Registers a codec instance with the registry with a specified priority.
+        /// Registers a codec instance with the registry at a specified priority.
         /// </summary>
         /// <param name="codec">The codec to register.</param>
-        /// <param name="priority">
-        /// Priority level (0=fallback, 50=pure C#, 100=native, 200=user override).
-        /// Higher priority codecs override lower priority ones.
-        /// </param>
+        /// <param name="priority">The priority level. Higher values take precedence.</param>
         /// <exception cref="ArgumentNullException"><paramref name="codec"/> is null.</exception>
         /// <remarks>
-        /// If a codec with equal or higher priority is already registered for the
-        /// same transfer syntax, the new codec is ignored.
+        /// If a codec is already registered for the same transfer syntax with a higher
+        /// priority, the new codec will not replace it. Equal priority registration
+        /// replaces the existing codec (last one wins at the same priority level).
         /// </remarks>
         public static void Register(IPixelDataCodec codec, int priority)
         {
@@ -90,17 +88,20 @@ namespace SharpDicom.Codecs
 
             lock (_lock)
             {
-                var key = codec.TransferSyntax;
+                var syntax = codec.TransferSyntax;
 
-                // Check if a higher or equal priority codec is already registered
-                if (_priorities.TryGetValue(key, out var existingPriority) && existingPriority >= priority)
+                // Check existing priority - only replace if new priority is >= existing
+                if (_priorities.TryGetValue(syntax, out int existingPriority))
                 {
-                    // Higher or equal priority already registered, skip
-                    return;
+                    if (priority < existingPriority)
+                    {
+                        // Lower priority - don't replace
+                        return;
+                    }
                 }
 
-                _mutableRegistry[key] = codec;
-                _priorities[key] = priority;
+                _mutableRegistry[syntax] = codec;
+                _priorities[syntax] = priority;
 
                 // Invalidate frozen cache if it exists
                 if (_isFrozen)
@@ -112,12 +113,22 @@ namespace SharpDicom.Codecs
         }
 
         /// <summary>
-        /// Registers a codec type with the registry by creating a new instance.
+        /// Registers a codec type with the registry by creating a new instance using default priority.
         /// </summary>
         /// <typeparam name="TCodec">The codec type, which must have a parameterless constructor.</typeparam>
         public static void Register<TCodec>() where TCodec : IPixelDataCodec, new()
         {
-            Register(new TCodec());
+            Register(new TCodec(), DefaultPriority);
+        }
+
+        /// <summary>
+        /// Registers a codec type with the registry by creating a new instance at a specified priority.
+        /// </summary>
+        /// <typeparam name="TCodec">The codec type, which must have a parameterless constructor.</typeparam>
+        /// <param name="priority">The priority level. Higher values take precedence.</param>
+        public static void Register<TCodec>(int priority) where TCodec : IPixelDataCodec, new()
+        {
+            Register(new TCodec(), priority);
         }
 
         /// <summary>
@@ -129,7 +140,7 @@ namespace SharpDicom.Codecs
         /// <remarks>
         /// This method uses reflection and is not compatible with trimming or AOT compilation.
         /// For trim-compatible scenarios, use <see cref="Register(IPixelDataCodec)"/> or
-        /// <see cref="Register{TCodec}"/> to register codecs explicitly.
+        /// <see cref="Register{TCodec}()"/> to register codecs explicitly.
         /// </remarks>
 #if NET5_0_OR_GREATER
         [RequiresUnreferencedCode("This method uses reflection to scan for codec types. Use Register(IPixelDataCodec) or Register<TCodec>() for trim-compatible registration.")]
@@ -212,6 +223,41 @@ namespace SharpDicom.Codecs
         {
             EnsureFrozen();
             return _frozenRegistry!.Keys.ToArray();
+        }
+
+        /// <summary>
+        /// Gets registration information for a specific transfer syntax.
+        /// </summary>
+        /// <param name="syntax">The transfer syntax to look up.</param>
+        /// <returns>Registration info including codec and priority, or null if not registered.</returns>
+        public static CodecRegistrationInfo? GetCodecInfo(TransferSyntax syntax)
+        {
+            lock (_lock)
+            {
+                if (_mutableRegistry.TryGetValue(syntax, out var codec) &&
+                    _priorities.TryGetValue(syntax, out var priority))
+                {
+                    return new CodecRegistrationInfo(codec, priority);
+                }
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the priority of a registered codec for a specific transfer syntax.
+        /// </summary>
+        /// <param name="syntax">The transfer syntax to look up.</param>
+        /// <returns>The priority if registered, or null if not registered.</returns>
+        public static int? GetPriority(TransferSyntax syntax)
+        {
+            lock (_lock)
+            {
+                if (_priorities.TryGetValue(syntax, out var priority))
+                {
+                    return priority;
+                }
+                return null;
+            }
         }
 
         /// <summary>
@@ -322,8 +368,7 @@ namespace SharpDicom.Codecs
     /// <summary>
     /// Information about a registered codec.
     /// </summary>
-    /// <param name="Name">The display name of the codec.</param>
-    /// <param name="Priority">The priority level at which the codec is registered.</param>
-    /// <param name="Assembly">The name of the assembly containing the codec.</param>
-    public readonly record struct CodecInfo(string Name, int Priority, string? Assembly);
+    /// <param name="Codec">The registered codec instance.</param>
+    /// <param name="Priority">The priority at which the codec was registered.</param>
+    public readonly record struct CodecRegistrationInfo(IPixelDataCodec Codec, int Priority);
 }
