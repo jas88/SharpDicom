@@ -280,10 +280,15 @@ namespace SharpDicom.Codecs.Native
                         throw new NativeCodecException(_initializationException.Message, ex);
                     }
                 }
-                catch (NativeCodecException)
+                catch (NativeCodecException ex)
                 {
+                    _initializationException = ex;
                     _initializationState = 2;
-                    throw;
+
+                    if (options?.SuppressInitializationErrors != true)
+                    {
+                        throw;
+                    }
                 }
                 catch (Exception ex)
                 {

@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 #if NET7_0_OR_GREATER
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.Marshalling;
 #endif
 
 namespace SharpDicom.Codecs.Native.Interop
@@ -39,6 +40,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// </summary>
         /// <returns>Version number (currently 1).</returns>
         [LibraryImport(LibraryName, EntryPoint = "sharpdicom_version")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int sharpdicom_version();
 
         /// <summary>
@@ -46,6 +48,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// </summary>
         /// <returns>Bitmask of available features.</returns>
         [LibraryImport(LibraryName, EntryPoint = "sharpdicom_features")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int sharpdicom_features();
 
         /// <summary>
@@ -53,6 +56,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// </summary>
         /// <returns>Bitmask: 1=SSE2, 2=AVX2, 4=NEON.</returns>
         [LibraryImport(LibraryName, EntryPoint = "sharpdicom_simd_features")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int sharpdicom_simd_features();
 
         /// <summary>
@@ -60,6 +64,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// </summary>
         /// <returns>Pointer to null-terminated UTF-8 string, or null if no error.</returns>
         [LibraryImport(LibraryName, EntryPoint = "sharpdicom_last_error")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial IntPtr sharpdicom_last_error();
 
         // =====================================================================
@@ -70,6 +75,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Decodes JPEG compressed data.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jpeg_decode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jpeg_decode(
             byte* input,
             int inputLen,
@@ -84,6 +90,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Gets JPEG header information without decoding.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jpeg_decode_header")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jpeg_decode_header(
             byte* input,
             int inputLen,
@@ -96,6 +103,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Encodes raw pixel data to JPEG.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jpeg_encode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jpeg_encode(
             byte* input,
             int width,
@@ -110,6 +118,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Frees JPEG-allocated memory.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jpeg_free")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial void jpeg_free(byte* buffer);
 
         // =====================================================================
@@ -120,6 +129,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Decodes JPEG 2000 compressed data.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "j2k_decode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_decode(
             byte* input,
             int inputLen,
@@ -135,6 +145,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Gets JPEG 2000 header information without decoding.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "j2k_get_info")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_get_info(
             byte* input,
             int inputLen,
@@ -148,6 +159,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Encodes raw pixel data to JPEG 2000.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "j2k_encode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_encode(
             byte* input,
             int width,
@@ -164,6 +176,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Frees JPEG 2000-allocated memory.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "j2k_free")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial void j2k_free(byte* buffer);
 
         // =====================================================================
@@ -174,6 +187,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Decodes JPEG-LS compressed data.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jls_decode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jls_decode(
             byte* input,
             int inputLen,
@@ -188,6 +202,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Gets JPEG-LS header information without decoding.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jls_get_info")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jls_get_info(
             byte* input,
             int inputLen,
@@ -201,6 +216,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Encodes raw pixel data to JPEG-LS.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jls_encode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int jls_encode(
             byte* input,
             int width,
@@ -215,6 +231,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Frees JPEG-LS-allocated memory.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "jls_free")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial void jls_free(byte* buffer);
 
         // =====================================================================
@@ -225,6 +242,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Creates a video decoder instance.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "video_decoder_create")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial IntPtr video_decoder_create(
             int codecId,
             int width,
@@ -236,6 +254,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Decodes a video frame.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "video_decode_frame")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int video_decode_frame(
             IntPtr decoder,
             byte* input,
@@ -249,6 +268,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Destroys a video decoder instance.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "video_decoder_destroy")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial void video_decoder_destroy(IntPtr decoder);
 
         // =====================================================================
@@ -260,18 +280,21 @@ namespace SharpDicom.Codecs.Native.Interop
         /// </summary>
         /// <returns>Non-zero if GPU is available, 0 otherwise.</returns>
         [LibraryImport(LibraryName, EntryPoint = "gpu_available")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int gpu_available();
 
         /// <summary>
         /// Gets GPU device information.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "gpu_get_device_name")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial IntPtr gpu_get_device_name();
 
         /// <summary>
         /// Decodes JPEG 2000 using GPU acceleration.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "gpu_j2k_decode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int gpu_j2k_decode(
             byte* input,
             int inputLen,
@@ -286,6 +309,7 @@ namespace SharpDicom.Codecs.Native.Interop
         /// Batch decodes multiple JPEG 2000 images using GPU.
         /// </summary>
         [LibraryImport(LibraryName, EntryPoint = "gpu_j2k_decode_batch")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int gpu_j2k_decode_batch(
             byte** inputs,
             int* inputLens,
