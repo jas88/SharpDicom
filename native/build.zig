@@ -9,17 +9,8 @@ const std = @import("std");
 /// - CharLS: vendor/charls/src (downloaded in CI)
 /// - FFmpeg: vendor/ffmpeg/src (downloaded in CI)
 pub fn build(b: *std.Build) void {
-    // Check for vendor library sources
-    // Note: Cross-compilation of vendor libraries requires proper sysroot setup.
-    // All vendor libraries are disabled for Phase 13a - building stubs only.
-    // Proper source compilation will be added in Phase 13b.
-    const libjpeg_path = "vendor/libjpeg-turbo/src";
-    const openjpeg_path = "vendor/openjpeg/src";
-    const charls_path = "vendor/charls/src";
-    const ffmpeg_path = "vendor/ffmpeg/src";
-
-    // All vendor libraries disabled for cross-compilation stability
-    // Path constants are used in comptime-false if blocks below
+    // All vendor libraries disabled for Phase 13a - building stubs only.
+    // Cross-compilation of vendor libraries requires proper sysroot setup.
     // TODO: Add proper cross-compilation support in Phase 13b
     const have_libjpeg = false;
     const have_openjpeg = false; // Needs CMake-generated config + sysroot
@@ -109,7 +100,7 @@ pub fn build(b: *std.Build) void {
                 .flags = jpeg_flags,
             });
             // Add libjpeg-turbo include path
-            lib.addIncludePath(b.path(libjpeg_path));
+            lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
             // Link against turbojpeg library
             lib.linkSystemLibrary("turbojpeg");
         } else {
@@ -159,7 +150,7 @@ pub fn build(b: *std.Build) void {
                 },
             });
             // Add CharLS include path
-            lib.addIncludePath(b.path(charls_path));
+            lib.addIncludePath(b.path("vendor/charls/src"));
             lib.addIncludePath(b.path("vendor/charls/src/include"));
             // Link against CharLS library
             lib.linkSystemLibrary("charls");
@@ -181,7 +172,7 @@ pub fn build(b: *std.Build) void {
                 },
             });
             // Add FFmpeg include paths
-            lib.addIncludePath(b.path(ffmpeg_path));
+            lib.addIncludePath(b.path("vendor/ffmpeg/src"));
             // Link against FFmpeg libraries
             lib.linkSystemLibrary("avcodec");
             lib.linkSystemLibrary("avutil");
@@ -339,7 +330,7 @@ pub fn build(b: *std.Build) void {
             .file = b.path("src/jpeg_wrapper.c"),
             .flags = native_jpeg_flags,
         });
-        native_lib.addIncludePath(b.path(libjpeg_path));
+        native_lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
         native_lib.linkSystemLibrary("turbojpeg");
     } else {
         native_lib.addCSourceFile(.{
@@ -381,7 +372,7 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_JLS",
             },
         });
-        native_lib.addIncludePath(b.path(charls_path));
+        native_lib.addIncludePath(b.path("vendor/charls/src"));
         native_lib.addIncludePath(b.path("vendor/charls/src/include"));
         native_lib.linkSystemLibrary("charls");
     } else {
@@ -400,7 +391,7 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
-        native_lib.addIncludePath(b.path(ffmpeg_path));
+        native_lib.addIncludePath(b.path("vendor/ffmpeg/src"));
         native_lib.linkSystemLibrary("avcodec");
         native_lib.linkSystemLibrary("avutil");
         native_lib.linkSystemLibrary("swscale");
