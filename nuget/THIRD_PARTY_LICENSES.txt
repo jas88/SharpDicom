@@ -1,62 +1,28 @@
+THIRD-PARTY LICENSE NOTICES
+============================
+
+SharpDicom.Codecs includes the following third-party libraries:
+
+
 ================================================================================
-THIRD-PARTY LICENSES FOR SHARPDICOM.CODECS
+libjpeg-turbo
 ================================================================================
 
-This file contains the licenses for all third-party libraries bundled in the
-SharpDicom.Codecs NuGet packages.
+libjpeg-turbo is covered by three compatible BSD-style open source licenses.
+Refer to LICENSE.md in the source tree for full details. A brief summary:
 
-================================================================================
-libjpeg-turbo 3.0.4
-================================================================================
+1. Independent JPEG Group License (IJG License)
+2. Modified (3-clause) BSD License
+3. zlib License
 
-libjpeg-turbo Licenses
-======================
+Most of the TurboJPEG API code and the SIMD extensions are covered by the
+modified BSD license. The libjpeg library's JPEG Arithmetic Encoder is
+covered by the zlib license.
 
-libjpeg-turbo is covered by three compatible BSD-style open source licenses:
-
-The IJG (Independent JPEG Group) License, which is listed in README.ijg
-
-This license applies to the libjpeg API library and associated programs
-(any code inherited from libjpeg, and any modifications to that code.)
-
-The Modified (3-clause) BSD License, which is listed in turbojpeg.c
-
-This license covers the TurboJPEG API library and associated programs, as
-well as the build system.
-
-The zlib License
-
-The zlib License covers the libjpeg-turbo SIMD extensions.
-
-
-IJG License (from README.ijg)
------------------------------
-
-The authors make NO WARRANTY or representation, either express or implied,
-with respect to this software, its quality, accuracy, merchantability, or
-fitness for a particular purpose.  This software is provided "AS IS", and you,
-its user, assume the entire risk as to its quality and accuracy.
-
-This software is copyright (C) 1991-2020, Thomas G. Lane, Guido Vollbeding.
-All Rights Reserved except as specified below.
-
-Permission is hereby granted to use, copy, modify, and distribute this
-software (or portions thereof) for any purpose, without fee, subject to these
-conditions:
-(1) If any part of the source code for this software is distributed, then this
-README file must be included, with this copyright and no-warranty notice
-unaltered; and any additions, deletions, or changes to the original files
-must be clearly indicated in accompanying documentation.
-(2) If only executable code is distributed, then the accompanying
-documentation must state that "this software is based in part on the work of
-the Independent JPEG Group".
-(3) Permission for use of this software is granted only if the user accepts
-full responsibility for any undesirable consequences; the authors accept
-NO LIABILITY for damages of any kind.
-
-
-Modified BSD License (from turbojpeg.c)
----------------------------------------
+libjpeg-turbo Licensing:
+------------------------
+Copyright (C) 2009-2024 D. R. Commander.  All Rights Reserved.
+Copyright (C) 2015 Viktor Szathmary.  All Rights Reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -83,36 +49,9 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 
-zlib License
-------------
-
-The zlib/libpng License
-
-This software is provided 'as-is', without any express or implied
-warranty. In no event will the authors be held liable for any damages
-arising from the use of this software.
-
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-   claim that you wrote the original software. If you use this software
-   in a product, an acknowledgment in the product documentation would be
-   appreciated but is not required.
-
-   2. Altered source versions must be plainly marked as such, and must not be
-   misrepresented as being the original software.
-
-   3. This notice may not be removed or altered from any source
-   distribution.
-
-
 ================================================================================
-OpenJPEG 2.5.3
+OpenJPEG
 ================================================================================
-
-BSD 2-Clause License
 
 Copyright (c) 2002-2014, Universite catholique de Louvain (UCL), Belgium
 Copyright (c) 2002-2014, Professor Benoit Macq
@@ -149,27 +88,26 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 ================================================================================
-CharLS 2.4.2
+CharLS
 ================================================================================
 
-BSD 3-Clause License
-
-Copyright (c) 2017-2023, Team CharLS.
+Copyright (c) 2007-2010, Jan de Vaan
+Copyright (c) 2017-2024, Victor Derks
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
 
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
 
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
+* Neither the name of the organization nor the names of its contributors may
+  be used to endorse or promote products derived from this software without
+  specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -184,35 +122,51 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ================================================================================
-Zig Standard Library (Build System)
+FFmpeg
 ================================================================================
 
-The native libraries are built using Zig. The Zig standard library is licensed
-under the MIT license.
+FFmpeg is licensed under the GNU Lesser General Public License (LGPL)
+version 2.1 or later. Some optional components are licensed under the
+GNU General Public License (GPL) version 2.0 or later.
 
-MIT License
+SharpDicom.Codecs uses only the LGPL-licensed portions of FFmpeg.
 
-Copyright (c) 2015-2024 Zig Software Foundation
+                  GNU LESSER GENERAL PUBLIC LICENSE
+                       Version 2.1, February 1999
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+ Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+ 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+[This is the first released version of the Lesser GPL.  It also counts
+ as the successor of the GNU Library Public License, version 2, hence
+ the version number 2.1.]
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+                            Preamble
+
+  The licenses for most software are designed to take away your
+freedom to share and change it.  By contrast, the GNU General Public
+Licenses are intended to guarantee your freedom to share and change
+free software--to make sure the software is free for all its users.
+
+  This license, the Lesser General Public License, applies to some
+specially designated software packages--typically libraries--of the
+Free Software Foundation and other authors who decide to use it.  You
+can use it too, but we suggest you first think carefully about whether
+this license or the ordinary General Public License is the better
+strategy to use in any particular case, based on the explanations below.
+
+  When we speak of free software, we are referring to freedom of use,
+not price.  Our General Public Licenses are designed to make sure that
+you have the freedom to distribute copies of free software (and charge
+for this service if you wish); that you receive source code or can get
+it if you want it; that you can change the software and use pieces of
+it in new free programs; and that you are informed that you can do
+these things.
+
+[Full LGPL-2.1 license text available at:
+https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html]
 
 
-================================================================================
-END OF THIRD-PARTY LICENSES
 ================================================================================
