@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>SharpDicom.Codecs.runtime.osx-arm64</id>
+    <version>$version$</version>
+    <title>SharpDicom Native Codecs - macOS ARM64</title>
+    <authors>jas88</authors>
+    <license type="expression">GPL-3.0-or-later</license>
+    <projectUrl>https://github.com/jas88/SharpDicom</projectUrl>
+    <repository type="git" url="https://github.com/jas88/SharpDicom.git" />
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Native codec libraries for SharpDicom on macOS ARM64 (Apple Silicon). Contains pre-built binaries for JPEG (libjpeg-turbo), JPEG 2000 (OpenJPEG), and JPEG-LS (CharLS). Install the SharpDicom.Codecs meta package instead of this package directly.</description>
+    <tags>DICOM medical imaging codec jpeg jpeg2000 jpegls native osx-arm64 runtime macos apple-silicon</tags>
+    <readme>docs\README.md</readme>
+  </metadata>
+  <files>
+    <!-- Native library -->
+    <file src="native\osx-arm64\libsharpdicom_codecs.dylib" target="runtimes\osx-arm64\native" />
+
+    <!-- Documentation -->
+    <file src="README.md" target="docs" />
+    <file src="THIRD_PARTY_LICENSES.txt" target="docs" />
+  </files>
+</package>

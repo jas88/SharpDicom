@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    SharpDicom.Codecs NuGet package MSBuild targets
+
+    This file ensures native libraries from runtime packages are copied to the output directory.
+    It handles both direct package references and transitive dependencies.
+  -->
+
+  <!-- Detect native library path based on RuntimeIdentifier -->
+  <PropertyGroup>
+    <SharpDicomCodecsNativePath Condition="'$(RuntimeIdentifier)' != ''">$(NuGetPackageRoot)sharpdicom.codecs.runtime.$(RuntimeIdentifier)\$(SharpDicomCodecsVersion)\runtimes\$(RuntimeIdentifier)\native\</SharpDicomCodecsNativePath>
+    <SharpDicomCodecsNativePath Condition="'$(RuntimeIdentifier)' == '' AND '$(NativeCodecsRID)' != ''">$(NuGetPackageRoot)sharpdicom.codecs.runtime.$(NativeCodecsRID)\$(SharpDicomCodecsVersion)\runtimes\$(NativeCodecsRID)\native\</SharpDicomCodecsNativePath>
+  </PropertyGroup>
+
+  <!-- Auto-detect RID if not explicitly set -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == '' AND '$(NativeCodecsRID)' == ''">
+    <!-- Windows -->
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">win-x64</NativeCodecsRID>
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('Windows')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">win-arm64</NativeCodecsRID>
+    <!-- Linux -->
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('Linux')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">linux-x64</NativeCodecsRID>
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('Linux')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">linux-arm64</NativeCodecsRID>
+    <!-- macOS -->
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">osx-x64</NativeCodecsRID>
+    <NativeCodecsRID Condition="$([MSBuild]::IsOSPlatform('OSX')) AND '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">osx-arm64</NativeCodecsRID>
+
+    <!-- Update native path with auto-detected RID -->
+    <SharpDicomCodecsNativePath Condition="'$(NativeCodecsRID)' != ''">$(NuGetPackageRoot)sharpdicom.codecs.runtime.$(NativeCodecsRID)\$(SharpDicomCodecsVersion)\runtimes\$(NativeCodecsRID)\native\</SharpDicomCodecsNativePath>
+  </PropertyGroup>
+
+  <!-- Platform-specific library names -->
+  <PropertyGroup>
+    <SharpDicomNativeLibName Condition="$([MSBuild]::IsOSPlatform('Windows')) OR '$(NativeCodecsRID)' == 'win-x64' OR '$(NativeCodecsRID)' == 'win-arm64'">sharpdicom_codecs.dll</SharpDicomNativeLibName>
+    <SharpDicomNativeLibName Condition="$([MSBuild]::IsOSPlatform('Linux')) OR '$(NativeCodecsRID)' == 'linux-x64' OR '$(NativeCodecsRID)' == 'linux-arm64'">libsharpdicom_codecs.so</SharpDicomNativeLibName>
+    <SharpDicomNativeLibName Condition="$([MSBuild]::IsOSPlatform('OSX')) OR '$(NativeCodecsRID)' == 'osx-x64' OR '$(NativeCodecsRID)' == 'osx-arm64'">libsharpdicom_codecs.dylib</SharpDicomNativeLibName>
+  </PropertyGroup>
+
+  <!-- Copy native library to output directory -->
+  <Target Name="CopySharpDicomNativeLibrary" AfterTargets="Build" Condition="Exists('$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)')">
+    <Copy SourceFiles="$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)"
+          DestinationFolder="$(OutputPath)"
+          SkipUnchangedFiles="true" />
+    <Message Importance="normal" Text="Copied SharpDicom native codecs: $(SharpDicomNativeLibName)" />
+  </Target>
+
+  <!-- Warn if native library not found but is expected -->
+  <Target Name="WarnMissingNativeLibrary" AfterTargets="Build" Condition="'$(SharpDicomCodecsNativePath)' != '' AND !Exists('$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)')">
+    <Warning Code="SDCODECS001" Text="SharpDicom native codec library not found at $(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName). Install the appropriate SharpDicom.Codecs.runtime.{RID} package for your platform ($(NativeCodecsRID))." />
+  </Target>
+
+  <!-- Include native library in publish output -->
+  <ItemGroup Condition="Exists('$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)')">
+    <None Include="$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)"
+          Link="$(SharpDicomNativeLibName)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- For self-contained publish: ensure runtime package native library is included -->
+  <Target Name="IncludeSharpDicomNativeInPublish" BeforeTargets="GetCopyToPublishDirectoryItems" Condition="'$(SelfContained)' == 'true' AND Exists('$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)')">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(SharpDicomCodecsNativePath)$(SharpDicomNativeLibName)">
+        <RelativePath>$(SharpDicomNativeLibName)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+    <Message Importance="normal" Text="Including SharpDicom native codecs in self-contained publish: $(SharpDicomNativeLibName)" />
+  </Target>
+
+</Project>

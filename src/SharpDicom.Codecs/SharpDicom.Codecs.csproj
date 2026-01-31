@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0</TargetFrameworks>
+    <RootNamespace>SharpDicom.Codecs.Native</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+
+    <!-- Package metadata -->
+    <PackageId>SharpDicom.Codecs</PackageId>
+    <Description>High-performance native codec wrappers for SharpDicom (JPEG, JPEG 2000, JPEG-LS)</Description>
+    <PackageTags>DICOM;medical;imaging;codec;jpeg;jpeg2000;jpegls;native</PackageTags>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!-- AOT/Trim compatibility -->
+    <IsAotCompatible Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</IsAotCompatible>
+    <IsTrimmable Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</IsTrimmable>
+    <EnableTrimAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))">true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net7.0'))">true</EnableAotAnalyzer>
+
+    <!-- Suppress analyzer warnings that don't apply to this library -->
+    <NoWarn>$(NoWarn);CS1591;CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+
+  <!-- Include native libraries based on RID -->
+  <ItemGroup>
+    <None Include="runtimes\**\*" Pack="true" PackagePath="runtimes" Condition="Exists('runtimes')" />
+  </ItemGroup>
+
+  <!-- Include build targets for consumers -->
+  <ItemGroup>
+    <None Include="build\**\*" Pack="true" PackagePath="build" Condition="Exists('build')" />
+    <None Include="buildTransitive\**\*" Pack="true" PackagePath="buildTransitive" Condition="Exists('buildTransitive')" />
+  </ItemGroup>
+
+  <!-- Include README in package -->
+  <ItemGroup>
+    <None Include="..\..\nuget\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\nuget\README.md')" />
+  </ItemGroup>
+
+  <!--
+    Runtime package references are NOT included as hard dependencies because:
+    1. They don't exist on NuGet until after the first release
+    2. Consumers only need one platform's package, not all six
+    3. NuGet's runtime-specific asset selection works via build targets
+
+    Instead, the build/SharpDicom.Codecs.targets file handles native library discovery
+    and consumers should reference the appropriate SharpDicom.Codecs.runtime.{RID} package.
+
+    For RID-specific builds (during CI or explicit RuntimeIdentifier), the correct
+    runtime package can be conditionally referenced:
+  -->
+  <ItemGroup Condition="'$(SharpDicomIncludeRuntimePackages)' == 'true'">
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.win-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'win-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.linux-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'linux-arm64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-x64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-x64'" PrivateAssets="none" />
+    <PackageReference Include="SharpDicom.Codecs.runtime.osx-arm64" Version="$(Version)" Condition="'$(RuntimeIdentifier)' == 'osx-arm64'" PrivateAssets="none" />
+  </ItemGroup>
+</Project>

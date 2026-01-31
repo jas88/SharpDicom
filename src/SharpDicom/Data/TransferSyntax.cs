@@ -66,6 +66,10 @@ namespace SharpDicom.Data
                 return JPEG2000Lossless;
             if (uid == JPEG2000Lossy.UID)
                 return JPEG2000Lossy;
+            if (uid == JPEGLSLossless.UID)
+                return JPEGLSLossless;
+            if (uid == JPEGLSNearLossless.UID)
+                return JPEGLSNearLossless;
             if (uid == RLELossless.UID)
                 return RLELossless;
             if (uid == DeflatedExplicitVRLittleEndian.UID)
@@ -220,6 +224,42 @@ namespace SharpDicom.Data
             IsEncapsulated = true,
             IsLossy = true,
             Compression = CompressionType.JPEG2000Lossy,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// JPEG-LS Lossless Image Compression (1.2.840.10008.1.2.4.80).
+        /// </summary>
+        /// <remarks>
+        /// JPEG-LS lossless compression using LOCO-I/JPEG-LS algorithm (ISO/IEC 14495-1).
+        /// Provides better compression ratios than traditional lossless JPEG for medical images.
+        /// </remarks>
+        public static readonly TransferSyntax JPEGLSLossless = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.80"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = false,
+            Compression = CompressionType.JPEGLSLossless,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// JPEG-LS Lossy (Near-Lossless) Image Compression (1.2.840.10008.1.2.4.81).
+        /// </summary>
+        /// <remarks>
+        /// JPEG-LS near-lossless compression with configurable NEAR parameter.
+        /// Provides controlled quality loss with specified maximum pixel error.
+        /// </remarks>
+        public static readonly TransferSyntax JPEGLSNearLossless = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.81"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.JPEGLSNearLossless,
             IsKnown = true
         };
     }

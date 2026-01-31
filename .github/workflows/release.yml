@@ -1,0 +1,241 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+        type: string
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  # Build native libraries for all platforms
+  build-native:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            lib_name: sharpdicom_codecs.dll
+          - rid: win-arm64
+            lib_name: sharpdicom_codecs.dll
+          - rid: linux-x64
+            lib_name: libsharpdicom_codecs.so
+          - rid: linux-arm64
+            lib_name: libsharpdicom_codecs.so
+          - rid: osx-x64
+            lib_name: libsharpdicom_codecs.dylib
+          - rid: osx-arm64
+            lib_name: libsharpdicom_codecs.dylib
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Download vendor libraries
+        working-directory: native/vendor
+        run: |
+          # Expected SHA256 checksums for vendor archives
+          LIBJPEG_TURBO_SHA256="6c5db30c4d1b8c0a172af8bf6fc9bbacd5fa3a8a7bdd10d10a6b2db4a10749e5"
+          OPENJPEG_SHA256="368fe0468228e767433c9ebdea82ad9d801a3ad1e4234421f352c5b5c336f22a"
+          CHARLS_SHA256="81f7e10d8e1e9a08c6d9e7b8a45fb39e8743f0fce88b9f2c0b8e34e78e8e57a8"
+
+          # libjpeg-turbo with checksum verification
+          curl -L -o libjpeg-turbo.tar.gz https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz
+          echo "$LIBJPEG_TURBO_SHA256  libjpeg-turbo.tar.gz" | sha256sum -c -
+          tar xzf libjpeg-turbo.tar.gz
+          mv libjpeg-turbo-3.0.4 libjpeg-turbo/src
+          rm libjpeg-turbo.tar.gz
+
+          # OpenJPEG with checksum verification
+          curl -L -o openjpeg.tar.gz https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz
+          echo "$OPENJPEG_SHA256  openjpeg.tar.gz" | sha256sum -c -
+          tar xzf openjpeg.tar.gz
+          mv openjpeg-2.5.3 openjpeg/src
+          rm openjpeg.tar.gz
+
+          # CharLS with checksum verification
+          curl -L -o charls.tar.gz https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz
+          echo "$CHARLS_SHA256  charls.tar.gz" | sha256sum -c -
+          tar xzf charls.tar.gz
+          mv charls-2.4.2 charls/src
+          rm charls.tar.gz
+
+      - name: Build native codecs
+        working-directory: native
+        run: zig build -Dtarget=${{ matrix.rid == 'win-x64' && 'x86_64-windows' || matrix.rid == 'win-arm64' && 'aarch64-windows' || matrix.rid == 'linux-x64' && 'x86_64-linux-musl' || matrix.rid == 'linux-arm64' && 'aarch64-linux-musl' || matrix.rid == 'osx-x64' && 'x86_64-macos' || 'aarch64-macos' }}
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: native/zig-out/${{ matrix.rid }}/${{ matrix.lib_name }}
+          retention-days: 1
+
+  # Create runtime NuGet packages
+  package-runtime:
+    needs: build-native
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64, osx-x64, osx-arm64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: nuget/native/${{ matrix.rid }}
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create runtime package
+        run: |
+          cd nuget
+          nuget pack SharpDicom.Codecs.runtime.${{ matrix.rid }}.nuspec \
+            -Version ${{ steps.version.outputs.version }} \
+            -OutputDirectory packages
+
+      - name: Upload runtime package
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-runtime-${{ matrix.rid }}
+          path: nuget/packages/*.nupkg
+          retention-days: 1
+
+  # Build and package managed code
+  package-managed:
+    needs: package-runtime
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Pack all projects
+        run: |
+          dotnet pack --no-build --configuration Release \
+            -p:PackageVersion=${{ steps.version.outputs.version }} \
+            -p:Version=${{ steps.version.outputs.version }} \
+            --output packages
+
+      - name: Upload managed packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-managed
+          path: packages/*.nupkg
+          retention-days: 1
+
+  # Publish to NuGet
+  publish:
+    needs: [package-runtime, package-managed]
+    runs-on: ubuntu-latest
+    environment: nuget
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Download all runtime packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: package-runtime-*
+          path: packages
+          merge-multiple: true
+
+      - name: Download managed packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-managed
+          path: packages
+
+      - name: List packages
+        run: ls -la packages/
+
+      - name: Publish to NuGet
+        run: |
+          for package in packages/*.nupkg; do
+            echo "Publishing $package"
+            dotnet nuget push "$package" \
+              --api-key ${{ secrets.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+
+  # Create GitHub Release
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Download managed packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-managed
+          path: release-artifacts
+
+      - name: Determine version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SharpDicom v${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            release-artifacts/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
