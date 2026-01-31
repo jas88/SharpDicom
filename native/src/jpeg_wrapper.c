@@ -11,6 +11,11 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* Forward declaration of set_error from sharpdicom_codecs.c */
+extern void set_error(const char* message);
+
+#ifdef SHARPDICOM_WITH_JPEG
+
 /*============================================================================
  * TurboJPEG API declarations
  *
@@ -124,9 +129,6 @@ static tjhandle get_compress_handle(void) {
 /*============================================================================
  * Internal helper functions
  *============================================================================*/
-
-/** Forward declaration of set_error from sharpdicom_codecs.c */
-extern void set_error(const char* message);
 
 /** Map JpegSubsampling to TurboJPEG TJSAMP */
 static int map_subsamp_to_tj(int subsamp) {
@@ -474,3 +476,91 @@ int jpeg_encode_12bit(
     return JPEG_ERR_12BIT_NOT_SUPPORTED;
 #endif
 }
+
+#else /* SHARPDICOM_WITH_JPEG not defined */
+
+/*============================================================================
+ * Stub implementations when libjpeg-turbo is not available
+ *============================================================================*/
+
+SHARPDICOM_API int jpeg_get_info(
+    const uint8_t* input, size_t inputLen,
+    int* width, int* height, int* components, int* subsamp, int* colorspace)
+{
+    (void)input;
+    (void)inputLen;
+    (void)width;
+    (void)height;
+    (void)components;
+    (void)subsamp;
+    (void)colorspace;
+    set_error("JPEG support not compiled in");
+    return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+SHARPDICOM_API int jpeg_decode(
+    const uint8_t* input, size_t inputLen,
+    uint8_t* output, size_t outputLen,
+    int* width, int* height, int* components)
+{
+    (void)input;
+    (void)inputLen;
+    (void)output;
+    (void)outputLen;
+    (void)width;
+    (void)height;
+    (void)components;
+    set_error("JPEG support not compiled in");
+    return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+SHARPDICOM_API int jpeg_encode(
+    const uint8_t* input, int width, int height, int components,
+    int quality, int subsamp,
+    uint8_t** output, size_t* outputLen)
+{
+    (void)input;
+    (void)width;
+    (void)height;
+    (void)components;
+    (void)quality;
+    (void)subsamp;
+    (void)output;
+    (void)outputLen;
+    set_error("JPEG support not compiled in");
+    return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+int jpeg_decode_12bit(
+    const uint8_t* input, int inputLen,
+    uint16_t* output, int outputLen,
+    int* width, int* height, int* components)
+{
+    (void)input;
+    (void)inputLen;
+    (void)output;
+    (void)outputLen;
+    (void)width;
+    (void)height;
+    (void)components;
+    set_error("JPEG support not compiled in");
+    return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+int jpeg_encode_12bit(
+    const uint16_t* input, int width, int height, int components,
+    uint8_t** output, int* outputLen,
+    int quality)
+{
+    (void)input;
+    (void)width;
+    (void)height;
+    (void)components;
+    (void)output;
+    (void)outputLen;
+    (void)quality;
+    set_error("JPEG support not compiled in");
+    return SHARPDICOM_ERR_UNSUPPORTED;
+}
+
+#endif /* SHARPDICOM_WITH_JPEG */
