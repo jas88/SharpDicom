@@ -2,521 +2,250 @@ using System;
 using System.Runtime.InteropServices;
 #if NET7_0_OR_GREATER
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.Marshalling;
 #endif
 
 namespace SharpDicom.Codecs.Native.Interop
 {
     /// <summary>
-    /// P/Invoke declarations for the native codec library.
+    /// P/Invoke declarations for the native sharpdicom_codecs library.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This class provides the managed interface to the native sharpdicom_codecs library.
-    /// On .NET 7+, it uses LibraryImport for source-generated marshalling.
-    /// On older frameworks, it uses DllImport with manual marshalling.
-    /// </para>
-    /// <para>
-    /// The native library follows these conventions:
-    /// - Return values: 0 = success, negative = error code
-    /// - Output pointers: Must be freed using the appropriate *_free function
-    /// - Error messages: Retrieved via sharpdicom_last_error()
-    /// </para>
+    /// This class uses LibraryImport on .NET 7+ for source-generated P/Invoke,
+    /// and falls back to DllImport on older runtimes.
     /// </remarks>
     internal static unsafe partial class NativeMethods
     {
-        /// <summary>
-        /// Native library name (without platform-specific prefix/suffix).
-        /// </summary>
-        internal const string LibraryName = "sharpdicom_codecs";
+        private const string LibName = "sharpdicom_codecs";
 
 #if NET7_0_OR_GREATER
-        // =====================================================================
-        // Version and Feature Detection
-        // =====================================================================
+        // ============================================================
+        // Core functions
+        // ============================================================
 
-        /// <summary>
-        /// Gets the native library version.
-        /// </summary>
-        /// <returns>Version number (currently 1).</returns>
-        [LibraryImport(LibraryName, EntryPoint = "sharpdicom_version")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int sharpdicom_version();
+        /// <summary>Returns the API version of the native library.</summary>
+        [LibraryImport(LibName, EntryPoint = "sharpdicom_version")]
+        internal static partial int GetVersion();
 
-        /// <summary>
-        /// Gets the available codec features as a bitmask.
-        /// </summary>
-        /// <returns>Bitmask of available features.</returns>
-        [LibraryImport(LibraryName, EntryPoint = "sharpdicom_features")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int sharpdicom_features();
+        /// <summary>Returns a bitmask of available codec features.</summary>
+        [LibraryImport(LibName, EntryPoint = "sharpdicom_features")]
+        internal static partial int GetFeatures();
 
-        /// <summary>
-        /// Gets the active SIMD features as a bitmask.
-        /// </summary>
-        /// <returns>Bitmask: 1=SSE2, 2=AVX2, 4=NEON.</returns>
-        [LibraryImport(LibraryName, EntryPoint = "sharpdicom_simd_features")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int sharpdicom_simd_features();
+        /// <summary>Returns a bitmask of detected SIMD features.</summary>
+        [LibraryImport(LibName, EntryPoint = "sharpdicom_simd_features")]
+        internal static partial int GetSimdFeatures();
 
-        /// <summary>
-        /// Gets the last error message.
-        /// </summary>
-        /// <returns>Pointer to null-terminated UTF-8 string, or null if no error.</returns>
-        [LibraryImport(LibraryName, EntryPoint = "sharpdicom_last_error")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial IntPtr sharpdicom_last_error();
+        /// <summary>Returns a pointer to the last error message (thread-local).</summary>
+        [LibraryImport(LibName, EntryPoint = "sharpdicom_last_error")]
+        internal static partial IntPtr GetLastError();
 
-        // =====================================================================
-        // JPEG Codec (libjpeg-turbo)
-        // =====================================================================
+        // ============================================================
+        // JPEG functions (libjpeg-turbo wrapper)
+        // ============================================================
 
-        /// <summary>
-        /// Decodes JPEG compressed data.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jpeg_decode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jpeg_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
+        /// <summary>Decodes JPEG data to raw pixel data.</summary>
+        [LibraryImport(LibName, EntryPoint = "jpeg_decode")]
+        internal static partial int JpegDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components,
             int colorspace);
 
-        /// <summary>
-        /// Gets JPEG header information without decoding.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jpeg_decode_header")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jpeg_decode_header(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int colorspace);
+        /// <summary>Encodes raw pixel data to JPEG.</summary>
+        [LibraryImport(LibName, EntryPoint = "jpeg_encode")]
+        internal static partial int JpegEncode(
+            byte* input, int width, int height, int components,
+            out byte* output, out int outputLen,
+            int quality, int subsamp);
 
-        /// <summary>
-        /// Encodes raw pixel data to JPEG.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jpeg_encode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jpeg_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            out byte* output,
-            out int outputLen,
-            int quality,
-            int subsamp);
+        /// <summary>Frees a buffer allocated by JPEG encode.</summary>
+        [LibraryImport(LibName, EntryPoint = "jpeg_free")]
+        internal static partial void JpegFree(byte* buffer);
 
-        /// <summary>
-        /// Frees JPEG-allocated memory.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jpeg_free")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial void jpeg_free(byte* buffer);
+        // ============================================================
+        // JPEG 2000 functions (OpenJPEG wrapper)
+        // ============================================================
 
-        // =====================================================================
-        // JPEG 2000 Codec (OpenJPEG)
-        // =====================================================================
-
-        /// <summary>
-        /// Decodes JPEG 2000 compressed data.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "j2k_decode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int j2k_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
+        /// <summary>Decodes JPEG 2000 data to raw pixel data.</summary>
+        [LibraryImport(LibName, EntryPoint = "j2k_decode")]
+        internal static partial int J2kDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample,
             int resolutionLevel);
 
-        /// <summary>
-        /// Gets JPEG 2000 header information without decoding.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "j2k_get_info")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int j2k_get_info(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            out int numResolutions);
+        /// <summary>Encodes raw pixel data to JPEG 2000.</summary>
+        [LibraryImport(LibName, EntryPoint = "j2k_encode")]
+        internal static partial int J2kEncode(
+            byte* input, int width, int height, int components, int bitsPerSample,
+            out byte* output, out int outputLen,
+            int lossless, float compressionRatio, int tileSize);
 
-        /// <summary>
-        /// Encodes raw pixel data to JPEG 2000.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "j2k_encode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int j2k_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
-            int lossless,
-            float compressionRatio,
-            int tileSize);
+        /// <summary>Frees a buffer allocated by J2K encode.</summary>
+        [LibraryImport(LibName, EntryPoint = "j2k_free")]
+        internal static partial void J2kFree(byte* buffer);
 
-        /// <summary>
-        /// Frees JPEG 2000-allocated memory.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "j2k_free")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial void j2k_free(byte* buffer);
+        // ============================================================
+        // JPEG-LS functions (CharLS wrapper)
+        // ============================================================
 
-        // =====================================================================
-        // JPEG-LS Codec (CharLS)
-        // =====================================================================
+        /// <summary>Decodes JPEG-LS data to raw pixel data.</summary>
+        [LibraryImport(LibName, EntryPoint = "jls_decode")]
+        internal static partial int JlsDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample);
 
-        /// <summary>
-        /// Decodes JPEG-LS compressed data.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jls_decode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jls_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample);
-
-        /// <summary>
-        /// Gets JPEG-LS header information without decoding.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jls_get_info")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jls_get_info(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            out int nearLossless);
-
-        /// <summary>
-        /// Encodes raw pixel data to JPEG-LS.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jls_encode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int jls_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
+        /// <summary>Encodes raw pixel data to JPEG-LS.</summary>
+        [LibraryImport(LibName, EntryPoint = "jls_encode")]
+        internal static partial int JlsEncode(
+            byte* input, int width, int height, int components, int bitsPerSample,
+            out byte* output, out int outputLen,
             int nearLossless);
 
-        /// <summary>
-        /// Frees JPEG-LS-allocated memory.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "jls_free")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial void jls_free(byte* buffer);
+        /// <summary>Frees a buffer allocated by JPEG-LS encode.</summary>
+        [LibraryImport(LibName, EntryPoint = "jls_free")]
+        internal static partial void JlsFree(byte* buffer);
 
-        // =====================================================================
-        // Video Codec (H.264/H.265 via FFmpeg)
-        // =====================================================================
+        // ============================================================
+        // GPU functions (nvJPEG2000 wrapper)
+        // ============================================================
 
-        /// <summary>
-        /// Creates a video decoder instance.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "video_decoder_create")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial IntPtr video_decoder_create(
-            int codecId,
-            int width,
-            int height,
-            byte* extradata,
-            int extradataLen);
+        /// <summary>Returns 1 if GPU acceleration is available, 0 otherwise.</summary>
+        [LibraryImport(LibName, EntryPoint = "gpu_available")]
+        internal static partial int GpuAvailable();
 
-        /// <summary>
-        /// Decodes a video frame.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "video_decode_frame")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int video_decode_frame(
+        /// <summary>Decodes JPEG 2000 data using GPU acceleration.</summary>
+        [LibraryImport(LibName, EntryPoint = "gpu_j2k_decode")]
+        internal static partial int GpuJ2kDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample);
+
+        // ============================================================
+        // Video decoder functions (FFmpeg wrapper)
+        // ============================================================
+
+        /// <summary>Creates a video decoder instance.</summary>
+        [LibraryImport(LibName, EntryPoint = "video_decoder_create")]
+        internal static partial IntPtr VideoDecoderCreate(int codecId, int width, int height);
+
+        /// <summary>Destroys a video decoder instance.</summary>
+        [LibraryImport(LibName, EntryPoint = "video_decoder_destroy")]
+        internal static partial void VideoDecoderDestroy(IntPtr decoder);
+
+        /// <summary>Decodes a single video frame.</summary>
+        [LibraryImport(LibName, EntryPoint = "video_decode_frame")]
+        internal static partial int VideoDecodeFrame(
             IntPtr decoder,
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int frameWidth,
-            out int frameHeight);
-
-        /// <summary>
-        /// Destroys a video decoder instance.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "video_decoder_destroy")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial void video_decoder_destroy(IntPtr decoder);
-
-        // =====================================================================
-        // GPU Acceleration (nvJPEG2000)
-        // =====================================================================
-
-        /// <summary>
-        /// Checks if GPU acceleration is available.
-        /// </summary>
-        /// <returns>Non-zero if GPU is available, 0 otherwise.</returns>
-        [LibraryImport(LibraryName, EntryPoint = "gpu_available")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int gpu_available();
-
-        /// <summary>
-        /// Gets GPU device information.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "gpu_get_device_name")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial IntPtr gpu_get_device_name();
-
-        /// <summary>
-        /// Decodes JPEG 2000 using GPU acceleration.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "gpu_j2k_decode")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int gpu_j2k_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample);
-
-        /// <summary>
-        /// Batch decodes multiple JPEG 2000 images using GPU.
-        /// </summary>
-        [LibraryImport(LibraryName, EntryPoint = "gpu_j2k_decode_batch")]
-        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-        internal static partial int gpu_j2k_decode_batch(
-            byte** inputs,
-            int* inputLens,
-            byte** outputs,
-            int* outputLens,
-            int count);
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int frameWidth, out int frameHeight);
 
 #else
-        // =====================================================================
-        // DllImport versions for netstandard2.0 and older frameworks
-        // =====================================================================
+        // ============================================================
+        // Core functions (DllImport fallback)
+        // ============================================================
 
-        // Version and Feature Detection
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "sharpdicom_version")]
-        internal static extern int sharpdicom_version();
+        [DllImport(LibName, EntryPoint = "sharpdicom_version", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int GetVersion();
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "sharpdicom_features")]
-        internal static extern int sharpdicom_features();
+        [DllImport(LibName, EntryPoint = "sharpdicom_features", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int GetFeatures();
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "sharpdicom_simd_features")]
-        internal static extern int sharpdicom_simd_features();
+        [DllImport(LibName, EntryPoint = "sharpdicom_simd_features", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int GetSimdFeatures();
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "sharpdicom_last_error")]
-        internal static extern IntPtr sharpdicom_last_error();
+        [DllImport(LibName, EntryPoint = "sharpdicom_last_error", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr GetLastError();
 
-        // JPEG Codec
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg_decode")]
-        internal static extern int jpeg_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
+        // ============================================================
+        // JPEG functions (DllImport fallback)
+        // ============================================================
+
+        [DllImport(LibName, EntryPoint = "jpeg_decode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int JpegDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components,
             int colorspace);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg_decode_header")]
-        internal static extern int jpeg_decode_header(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int colorspace);
+        [DllImport(LibName, EntryPoint = "jpeg_encode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int JpegEncode(
+            byte* input, int width, int height, int components,
+            out byte* output, out int outputLen,
+            int quality, int subsamp);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg_encode")]
-        internal static extern int jpeg_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            out byte* output,
-            out int outputLen,
-            int quality,
-            int subsamp);
+        [DllImport(LibName, EntryPoint = "jpeg_free", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void JpegFree(byte* buffer);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg_free")]
-        internal static extern void jpeg_free(byte* buffer);
+        // ============================================================
+        // JPEG 2000 functions (DllImport fallback)
+        // ============================================================
 
-        // JPEG 2000 Codec
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_decode")]
-        internal static extern int j2k_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
+        [DllImport(LibName, EntryPoint = "j2k_decode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int J2kDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample,
             int resolutionLevel);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_get_info")]
-        internal static extern int j2k_get_info(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            out int numResolutions);
+        [DllImport(LibName, EntryPoint = "j2k_encode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int J2kEncode(
+            byte* input, int width, int height, int components, int bitsPerSample,
+            out byte* output, out int outputLen,
+            int lossless, float compressionRatio, int tileSize);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_encode")]
-        internal static extern int j2k_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
-            int lossless,
-            float compressionRatio,
-            int tileSize);
+        [DllImport(LibName, EntryPoint = "j2k_free", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void J2kFree(byte* buffer);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_free")]
-        internal static extern void j2k_free(byte* buffer);
+        // ============================================================
+        // JPEG-LS functions (DllImport fallback)
+        // ============================================================
 
-        // JPEG-LS Codec
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jls_decode")]
-        internal static extern int jls_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample);
+        [DllImport(LibName, EntryPoint = "jls_decode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int JlsDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jls_get_info")]
-        internal static extern int jls_get_info(
-            byte* input,
-            int inputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            out int nearLossless);
-
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jls_encode")]
-        internal static extern int jls_encode(
-            byte* input,
-            int width,
-            int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
+        [DllImport(LibName, EntryPoint = "jls_encode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int JlsEncode(
+            byte* input, int width, int height, int components, int bitsPerSample,
+            out byte* output, out int outputLen,
             int nearLossless);
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jls_free")]
-        internal static extern void jls_free(byte* buffer);
+        [DllImport(LibName, EntryPoint = "jls_free", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void JlsFree(byte* buffer);
 
-        // Video Codec
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_decoder_create")]
-        internal static extern IntPtr video_decoder_create(
-            int codecId,
-            int width,
-            int height,
-            byte* extradata,
-            int extradataLen);
+        // ============================================================
+        // GPU functions (DllImport fallback)
+        // ============================================================
 
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_decode_frame")]
-        internal static extern int video_decode_frame(
+        [DllImport(LibName, EntryPoint = "gpu_available", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int GpuAvailable();
+
+        [DllImport(LibName, EntryPoint = "gpu_j2k_decode", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int GpuJ2kDecode(
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int width, out int height, out int components, out int bitsPerSample);
+
+        // ============================================================
+        // Video decoder functions (DllImport fallback)
+        // ============================================================
+
+        [DllImport(LibName, EntryPoint = "video_decoder_create", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern IntPtr VideoDecoderCreate(int codecId, int width, int height);
+
+        [DllImport(LibName, EntryPoint = "video_decoder_destroy", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern void VideoDecoderDestroy(IntPtr decoder);
+
+        [DllImport(LibName, EntryPoint = "video_decode_frame", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern int VideoDecodeFrame(
             IntPtr decoder,
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int frameWidth,
-            out int frameHeight);
-
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_decoder_destroy")]
-        internal static extern void video_decoder_destroy(IntPtr decoder);
-
-        // GPU Acceleration
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "gpu_available")]
-        internal static extern int gpu_available();
-
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "gpu_get_device_name")]
-        internal static extern IntPtr gpu_get_device_name();
-
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "gpu_j2k_decode")]
-        internal static extern int gpu_j2k_decode(
-            byte* input,
-            int inputLen,
-            byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample);
-
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "gpu_j2k_decode_batch")]
-        internal static extern int gpu_j2k_decode_batch(
-            byte** inputs,
-            int* inputLens,
-            byte** outputs,
-            int* outputLens,
-            int count);
+            byte* input, int inputLen,
+            byte* output, int outputLen,
+            out int frameWidth, out int frameHeight);
 #endif
-    }
-
-    /// <summary>
-    /// Feature flags from the native library.
-    /// </summary>
-    [Flags]
-    internal enum NativeFeatures
-    {
-        /// <summary>No features.</summary>
-        None = 0,
-
-        /// <summary>JPEG codec available.</summary>
-        Jpeg = 1 << 0,
-
-        /// <summary>JPEG 2000 codec available.</summary>
-        Jpeg2000 = 1 << 1,
-
-        /// <summary>JPEG-LS codec available.</summary>
-        JpegLs = 1 << 2,
-
-        /// <summary>Video codecs available.</summary>
-        Video = 1 << 3,
-
-        /// <summary>GPU acceleration available.</summary>
-        Gpu = 1 << 4
     }
 }

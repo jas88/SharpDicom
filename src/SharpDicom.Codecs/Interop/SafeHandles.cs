@@ -7,187 +7,101 @@ namespace SharpDicom.Codecs.Native.Interop
     /// Safe handle for video decoder state.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Video decoders maintain state between frames for efficient decoding.
-    /// This safe handle ensures proper cleanup when the decoder is no longer needed.
-    /// </para>
+    /// This handle wraps the native video decoder instance and ensures
+    /// proper cleanup when disposed or finalized.
     /// </remarks>
     internal sealed class VideoDecoderHandle : SafeHandle
     {
         /// <summary>
         /// Initializes a new instance of the <see cref="VideoDecoderHandle"/> class.
         /// </summary>
-        public VideoDecoderHandle()
-            : base(IntPtr.Zero, ownsHandle: true)
+        public VideoDecoderHandle() : base(IntPtr.Zero, true)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="VideoDecoderHandle"/> class with the specified handle.
+        /// Initializes a new instance with an existing handle.
         /// </summary>
-        /// <param name="existingHandle">The pre-existing handle to wrap.</param>
-        /// <param name="ownsHandle">True if the handle should be released when the safe handle is disposed.</param>
-        public VideoDecoderHandle(IntPtr existingHandle, bool ownsHandle)
-            : base(IntPtr.Zero, ownsHandle)
+        /// <param name="existingHandle">The existing native handle.</param>
+        /// <param name="ownsHandle">Whether this instance owns the handle.</param>
+        public VideoDecoderHandle(IntPtr existingHandle, bool ownsHandle) : base(IntPtr.Zero, ownsHandle)
         {
             SetHandle(existingHandle);
         }
 
-        /// <summary>
-        /// Gets a value indicating whether the handle value is invalid.
-        /// </summary>
+        /// <inheritdoc/>
         public override bool IsInvalid => handle == IntPtr.Zero;
 
-        /// <summary>
-        /// Executes the code required to free the handle.
-        /// </summary>
-        /// <returns>true if the handle is released successfully.</returns>
+        /// <inheritdoc/>
         protected override bool ReleaseHandle()
         {
-            if (!IsInvalid)
+            if (handle != IntPtr.Zero)
             {
-                NativeMethods.video_decoder_destroy(handle);
+                NativeMethods.VideoDecoderDestroy(handle);
             }
             return true;
         }
     }
 
     /// <summary>
-    /// Safe handle for native-allocated memory that must be freed with a specific deallocator.
+    /// Safe handle for native codec output buffers.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Different codecs allocate memory in different ways, so each codec has its own
-    /// free function. This class provides a base for codec-specific memory handles.
-    /// </para>
+    /// This handle wraps buffers allocated by native encode functions
+    /// and ensures they are freed using the appropriate codec-specific free function.
     /// </remarks>
-    internal abstract class NativeMemoryHandle : SafeHandle
+    internal sealed class NativeBufferHandle : SafeHandle
     {
-        /// <summary>
-        /// The length of the allocated memory in bytes.
-        /// </summary>
-        private readonly int _length;
+        private readonly NativeBufferType _bufferType;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="NativeMemoryHandle"/> class.
+        /// Initializes a new instance of the <see cref="NativeBufferHandle"/> class.
         /// </summary>
-        /// <param name="pointer">Pointer to the allocated memory.</param>
-        /// <param name="length">Length of the allocated memory in bytes.</param>
-        protected NativeMemoryHandle(IntPtr pointer, int length)
-            : base(IntPtr.Zero, ownsHandle: true)
+        /// <param name="buffer">The native buffer pointer.</param>
+        /// <param name="bufferType">The type of buffer (determines which free function to call).</param>
+        public NativeBufferHandle(IntPtr buffer, NativeBufferType bufferType) : base(IntPtr.Zero, true)
         {
-            SetHandle(pointer);
-            _length = length;
+            SetHandle(buffer);
+            _bufferType = bufferType;
         }
 
-        /// <summary>
-        /// Gets a value indicating whether the handle value is invalid.
-        /// </summary>
+        /// <inheritdoc/>
         public override bool IsInvalid => handle == IntPtr.Zero;
 
-        /// <summary>
-        /// Gets the length of the allocated memory in bytes.
-        /// </summary>
-        public int Length => _length;
-
-        /// <summary>
-        /// Gets a span over the allocated memory.
-        /// </summary>
-        /// <returns>A span representing the allocated memory.</returns>
-        public unsafe Span<byte> AsSpan()
-        {
-            if (IsInvalid || IsClosed)
-            {
-                return Span<byte>.Empty;
-            }
-            return new Span<byte>((void*)handle, _length);
-        }
-    }
-
-    /// <summary>
-    /// Safe handle for JPEG-allocated memory.
-    /// </summary>
-    internal sealed class JpegMemoryHandle : NativeMemoryHandle
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JpegMemoryHandle"/> class.
-        /// </summary>
-        /// <param name="pointer">Pointer to the allocated memory.</param>
-        /// <param name="length">Length of the allocated memory in bytes.</param>
-        public JpegMemoryHandle(IntPtr pointer, int length)
-            : base(pointer, length)
-        {
-        }
-
-        /// <summary>
-        /// Executes the code required to free the handle.
-        /// </summary>
-        /// <returns>true if the handle is released successfully.</returns>
+        /// <inheritdoc/>
         protected override unsafe bool ReleaseHandle()
         {
-            if (!IsInvalid)
+            if (handle != IntPtr.Zero)
             {
-                NativeMethods.jpeg_free((byte*)handle);
+                switch (_bufferType)
+                {
+                    case NativeBufferType.Jpeg:
+                        NativeMethods.JpegFree((byte*)handle);
+                        break;
+                    case NativeBufferType.Jpeg2000:
+                        NativeMethods.J2kFree((byte*)handle);
+                        break;
+                    case NativeBufferType.JpegLs:
+                        NativeMethods.JlsFree((byte*)handle);
+                        break;
+                }
             }
             return true;
         }
     }
 
     /// <summary>
-    /// Safe handle for JPEG 2000-allocated memory.
+    /// Types of native buffers for proper cleanup.
     /// </summary>
-    internal sealed class Jpeg2000MemoryHandle : NativeMemoryHandle
+    internal enum NativeBufferType
     {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="Jpeg2000MemoryHandle"/> class.
-        /// </summary>
-        /// <param name="pointer">Pointer to the allocated memory.</param>
-        /// <param name="length">Length of the allocated memory in bytes.</param>
-        public Jpeg2000MemoryHandle(IntPtr pointer, int length)
-            : base(pointer, length)
-        {
-        }
+        /// <summary>Buffer allocated by JPEG encode.</summary>
+        Jpeg,
 
-        /// <summary>
-        /// Executes the code required to free the handle.
-        /// </summary>
-        /// <returns>true if the handle is released successfully.</returns>
-        protected override unsafe bool ReleaseHandle()
-        {
-            if (!IsInvalid)
-            {
-                NativeMethods.j2k_free((byte*)handle);
-            }
-            return true;
-        }
-    }
+        /// <summary>Buffer allocated by JPEG 2000 encode.</summary>
+        Jpeg2000,
 
-    /// <summary>
-    /// Safe handle for JPEG-LS-allocated memory.
-    /// </summary>
-    internal sealed class JpegLsMemoryHandle : NativeMemoryHandle
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JpegLsMemoryHandle"/> class.
-        /// </summary>
-        /// <param name="pointer">Pointer to the allocated memory.</param>
-        /// <param name="length">Length of the allocated memory in bytes.</param>
-        public JpegLsMemoryHandle(IntPtr pointer, int length)
-            : base(pointer, length)
-        {
-        }
-
-        /// <summary>
-        /// Executes the code required to free the handle.
-        /// </summary>
-        /// <returns>true if the handle is released successfully.</returns>
-        protected override unsafe bool ReleaseHandle()
-        {
-            if (!IsInvalid)
-            {
-                NativeMethods.jls_free((byte*)handle);
-            }
-            return true;
-        }
+        /// <summary>Buffer allocated by JPEG-LS encode.</summary>
+        JpegLs
     }
 }
