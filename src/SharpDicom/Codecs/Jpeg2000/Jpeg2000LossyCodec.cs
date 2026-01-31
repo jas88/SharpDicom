@@ -98,7 +98,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 DecompositionLevels = j2kOptions.DecompositionLevels,
                 CodeBlockWidth = j2kOptions.CodeBlockSize,
                 CodeBlockHeight = j2kOptions.CodeBlockSize,
-                NumberOfLayers = j2kOptions.QualityLayers
+                NumberOfLayers = j2kOptions.QualityLayers,
+                CompressionRatio = j2kOptions.CompressionRatio
             };
 
             for (int i = 0; i < frameCount; i++)

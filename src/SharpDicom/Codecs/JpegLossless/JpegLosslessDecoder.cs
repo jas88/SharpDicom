@@ -243,7 +243,14 @@ namespace SharpDicom.Codecs.JpegLossless
             int frameIndex)
         {
             // Allocate temporary buffer for decoded samples
-            int totalSamples = width * height * components;
+            // Use long arithmetic to avoid overflow for large images
+            long totalSamplesLong = (long)width * height * components;
+            if (totalSamplesLong > int.MaxValue)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Image too large: {width}x{height}x{components} exceeds maximum sample count");
+            }
+            int totalSamples = (int)totalSamplesLong;
             int[] samples = new int[totalSamples];
 
             // Default prediction value: 2^(P-Pt-1)

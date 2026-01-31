@@ -31,6 +31,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private byte[]? _significanceState;
         private byte[]? _signState;
         private int[]? _magnitudeState; // Accumulated magnitude bits
+        private bool[]? _visitedInSigProp; // Track samples visited in significance propagation pass
         private int _currentWidth;
         private int _currentHeight;
 
@@ -82,6 +83,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             Array.Clear(_significanceState!, 0, size);
             Array.Clear(_signState!, 0, size);
             Array.Clear(_magnitudeState!, 0, size);
+            Array.Clear(_visitedInSigProp!, 0, size);
             _currentWidth = width;
             _currentHeight = height;
 
@@ -145,6 +147,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 _significanceState = new byte[size];
                 _signState = new byte[size];
                 _magnitudeState = new int[size];
+                _visitedInSigProp = new bool[size];
             }
         }
 
@@ -158,6 +161,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int subbandType)
         {
             int bitMask = 1 << bitplane;
+
+            // Clear visited flags for this pass
+            Array.Clear(_visitedInSigProp!, 0, width * height);
 
             for (int y = 0; y < height; y++)
             {
@@ -176,6 +182,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     {
                         continue;
                     }
+
+                    // Mark as visited in this pass (for cleanup pass to skip)
+                    _visitedInSigProp![idx] = true;
 
                     // Decode significance bit
                     int context = GetSignificanceContext(x, y, width, height, subbandType);
@@ -354,8 +363,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return;
             }
 
-            // Skip if processed by significance propagation
-            if (HasSignificantNeighbor(x, y, width, height))
+            // Skip if processed by significance propagation (use visited flag instead of recomputing)
+            if (_visitedInSigProp![idx])
             {
                 return;
             }

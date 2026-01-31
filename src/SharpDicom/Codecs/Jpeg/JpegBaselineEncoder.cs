@@ -47,8 +47,8 @@ namespace SharpDicom.Codecs.Jpeg
                 throw new ArgumentException("JPEG Baseline only supports 8-bit samples.", nameof(info));
             }
 
-            // Estimate output size (typically < original for lossy)
-            int estimatedSize = pixelData.Length + 1024; // Extra for headers
+            // Estimate output size accounting for worst-case byte stuffing
+            int estimatedSize = GetMaxEncodedSize(info);
             byte[]? outputBuffer = null;
 
             try

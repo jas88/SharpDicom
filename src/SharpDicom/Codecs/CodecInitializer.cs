@@ -90,9 +90,8 @@ namespace SharpDicom.Codecs
             lock (_lock)
             {
                 _initialized = false;
+                CodecRegistry.Reset();
             }
-
-            CodecRegistry.Reset();
         }
     }
 }

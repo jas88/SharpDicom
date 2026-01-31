@@ -120,6 +120,22 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 return Array.Empty<PacketData>();
             }
 
+            // Validate parameters
+            if (numLayers < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(numLayers), "Number of layers must be at least 1.");
+            }
+
+            if (numResolutions < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(numResolutions), "Number of resolutions must be at least 1.");
+            }
+
+            if ((int)progression < 0 || (int)progression > 4)
+            {
+                throw new ArgumentOutOfRangeException(nameof(progression), "Invalid progression order.");
+            }
+
             int numCodeBlocks = codeBlocksWide * codeBlocksHigh;
             if (codeBlocks.Length < numCodeBlocks)
             {

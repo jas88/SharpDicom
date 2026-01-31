@@ -34,6 +34,10 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <summary>Gets or sets the progression order.</summary>
         public ProgressionOrder Progression { get; set; } = ProgressionOrder.LRCP;
 
+        /// <summary>Gets or sets the target compression ratio for lossy encoding (e.g., 10 = 10:1).</summary>
+        /// <remarks>Only used for lossy encoding. Higher values = more compression, lower quality.</remarks>
+        public int CompressionRatio { get; set; } = 10;
+
         /// <summary>
         /// Gets the default options for lossless encoding.
         /// </summary>
@@ -589,7 +593,6 @@ namespace SharpDicom.Codecs.Jpeg2000
             if (tileData.Count > 0)
             {
                 Span<byte> dataSpan = buffer.GetSpan(tileData.Count);
-                tileData.CopyTo(dataSpan.ToArray());
                 for (int i = 0; i < tileData.Count; i++)
                 {
                     dataSpan[i] = tileData[i];

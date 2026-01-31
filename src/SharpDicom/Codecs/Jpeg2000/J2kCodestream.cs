@@ -393,7 +393,16 @@ namespace SharpDicom.Codecs.Jpeg2000
                     {
                         return position; // Return position after SOD marker
                     }
-                    // Skip to next marker by searching for 0xFF followed by non-0xFF
+                    // Not our tile - skip tile data by scanning for next marker (0xFF followed by non-0x00)
+                    while (position < data.Length)
+                    {
+                        if (data[position] == 0xFF && position + 1 < data.Length && data[position + 1] != 0x00)
+                        {
+                            // Found a marker - don't consume it, let the outer loop handle it
+                            break;
+                        }
+                        position++;
+                    }
                     continue;
                 }
 
