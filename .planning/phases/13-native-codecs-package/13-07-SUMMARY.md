@@ -1,199 +1,172 @@
 ---
-phase: 13
+# Execution metadata
+phase: 13-native-codecs-package
 plan: 07
 subsystem: codecs
-tags: [native, jpeg, jpeg2000, jpegls, p/invoke, codec-registry]
-dependency_graph:
-  requires: [13-06]
-  provides: [native-codec-wrappers, priority-registration]
-  affects: [14-xx]
-tech_stack:
+
+# Tags for discoverability
+tags:
+  - native-codecs
+  - jpeg
+  - jpeg2000
+  - jpeg-ls
+  - p/invoke
+  - codec-registry
+  - priority
+
+# Dependency graph
+requires:
+  - 13-06 # P/Invoke layer
+provides:
+  - native-codec-implementations
+  - priority-based-codec-registration
+affects:
+  - 13-08 # NuGet packaging
+
+# Tech tracking
+tech-stack:
   added: []
-  patterns: [priority-based-registration, codec-wrapper-pattern]
-key_files:
+  patterns:
+    - priority-based-registration
+    - native-wrapper-pattern
+    - gpu-fallback
+
+# Files changed
+key-files:
   created:
     - src/SharpDicom.Codecs/Codecs/NativeJpegCodec.cs
     - src/SharpDicom.Codecs/Codecs/NativeJpeg2000Codec.cs
     - src/SharpDicom.Codecs/Codecs/NativeJpegLsCodec.cs
-    - src/SharpDicom.Codecs/Internal/IsExternalInit.cs
-    - src/SharpDicom.Codecs/Internal/ThrowHelpers.cs
   modified:
     - src/SharpDicom/Codecs/CodecRegistry.cs
-    - src/SharpDicom/Data/TransferSyntax.cs
     - src/SharpDicom.Codecs/NativeCodecs.cs
+
+# Decisions made this plan
 decisions:
-  - id: priority-constants
-    decision: "Define priority constants in CodecRegistry: PriorityDefault=50, PriorityNative=100, PriorityUserOverride=200"
-    rationale: "Clear precedence hierarchy allows native codecs to override pure C# implementations while still allowing user overrides"
-  - id: instance-decode-methods
-    decision: "Keep DecodeInternal as instance method with CA1822 suppression"
-    rationale: "Future-proofs for transfer-syntax-specific decode options while maintaining interface pattern"
+  - id: priority-registry
+    choice: "Higher priority replaces, equal priority replaces (last wins), lower priority ignored"
+    context: "Need native codecs to override pure C# codecs"
+    impact: "DefaultPriority=50, NativePriority=100"
+  - id: gpu-fallback
+    choice: "Automatic GPU to CPU fallback for J2K"
+    context: "GPU may not be available or may fail"
+    impact: "Seamless degradation to OpenJPEG"
+
+# Metrics
 metrics:
-  duration: ~9 minutes
-  completed: 2026-01-30
+  duration: 8m
+  completed: 2026-01-31
 ---
 
-# Phase 13 Plan 07: IPixelDataCodec Wrappers for Native Codecs Summary
+# Phase 13 Plan 07: IPixelDataCodec Wrapper Implementation Summary
 
-Priority-based codec registration with native JPEG, JPEG 2000, and JPEG-LS implementations.
+Priority-based CodecRegistry with native JPEG/J2K/JLS codec wrappers at priority 100
 
-## What Was Done
+## One-liner
+
+Native codec wrappers implementing IPixelDataCodec with P/Invoke, GPU fallback for J2K, and priority-based registration
+
+## What Was Built
 
 ### Task 1: Enhanced CodecRegistry with Priority Support
 
-Extended `CodecRegistry` to support priority-based registration:
+Added priority-based registration to CodecRegistry:
 
-1. **Priority Constants**:
-   - `PriorityDefault = 50` - Pure C# implementations
-   - `PriorityNative = 100` - Native implementations
-   - `PriorityUserOverride = 200` - User-specified overrides
-
-2. **New Methods**:
-   - `Register(codec, priority)` - Register with explicit priority
-   - `GetCodecInfo(TransferSyntax)` - Returns `CodecInfo` record with name, priority, assembly
-   - `GetPriority(TransferSyntax)` - Query registered priority
-
-3. **Priority Logic**: Higher priority codecs override lower priority ones; equal or higher existing priority prevents override.
-
-**Key code** (`src/SharpDicom/Codecs/CodecRegistry.cs`):
-```csharp
-public static void Register(IPixelDataCodec codec, int priority)
-{
-    lock (_lock)
-    {
-        var key = codec.TransferSyntax;
-        if (_priorities.TryGetValue(key, out var existingPriority) && existingPriority >= priority)
-            return; // Higher or equal priority already registered
-
-        _mutableRegistry[key] = codec;
-        _priorities[key] = priority;
-        // Invalidate frozen cache...
-    }
-}
-```
+- `Register(codec, priority)` overload for priority-based registration
+- `DefaultPriority` (50) for pure C# codecs
+- `NativePriority` (100) for native codecs
+- `GetCodecInfo()` and `GetPriority()` for debugging
+- Equal priority replaces existing (last wins), lower priority is ignored
 
 ### Task 2: Native Codec Wrappers
 
-Implemented three native codec wrappers implementing `IPixelDataCodec`:
+Implemented three IPixelDataCodec implementations wrapping P/Invoke calls:
 
-#### NativeJpegCodec (302 lines)
+**NativeJpegCodec** (322 lines)
 - Wraps libjpeg-turbo via P/Invoke
-- Supports JPEG Baseline (Process 1)
-- 8-bit grayscale and RGB/YBR color
-- `JpegEncodeOptions` with Quality (1-100) and Subsampling (4:4:4, 4:2:2, 4:2:0)
+- Supports JPEG Baseline (lossy)
+- Options: quality (1-100), subsampling (4:4:4, 4:2:2, 4:2:0)
+- Full encode/decode/validate implementation
 
-#### NativeJpeg2000Codec (384 lines)
-- Wraps OpenJPEG with optional GPU acceleration via nvJPEG2000
-- Supports JPEG2000Lossless and JPEG2000Lossy transfer syntaxes
-- 8, 12, and 16-bit support
-- `Jpeg2000EncodeOptions` with CompressionRatio, TileSize, ResolutionLevels
-- `Jpeg2000DecodeOptions` with ResolutionLevel for progressive decode
+**NativeJpeg2000Codec** (369 lines)
+- Wraps OpenJPEG with optional nvJPEG2000 GPU support
+- Automatic GPU-to-CPU fallback
+- Supports lossless and lossy modes
+- Options: compression ratio, tile size, resolution levels
 
-#### NativeJpegLsCodec (301 lines)
-- Wraps CharLS library
-- Supports JPEGLSLossless and JPEGLSNearLossless transfer syntaxes
-- 8, 12, and 16-bit support
-- `JpegLsEncodeOptions` with NearLossless parameter (0 = lossless)
+**NativeJpegLsCodec** (353 lines)
+- Wraps CharLS for JPEG-LS
+- Supports lossless and near-lossless modes
+- Options: NEAR parameter (0=lossless, >0=max error)
 
-### Added JPEG-LS Transfer Syntax Definitions
+**NativeCodecs.RegisterCodecs()** updated:
+- Registers all enabled codecs at priority 100
+- Checks feature flags and codec availability
+- Integrates with module initializer
 
-Added missing transfer syntax constants to `TransferSyntax.cs`:
-- `JPEGLSLossless` (1.2.840.10008.1.2.4.80)
-- `JPEGLSNearLossless` (1.2.840.10008.1.2.4.81)
+## Key Technical Details
 
-### Updated NativeCodecs Registration
+### Priority-Based Registration
 
-`NativeCodecs.RegisterCodecs()` now registers all native codecs at priority 100:
 ```csharp
-if (HasFeature(NativeCodecFeature.Jpeg))
-    CodecRegistry.Register(new NativeJpegCodec(), CodecRegistry.PriorityNative);
+// Pure C# codec (default priority 50)
+CodecRegistry.Register(new JpegLosslessCodec());
 
-if (HasFeature(NativeCodecFeature.Jpeg2000))
-{
-    CodecRegistry.Register(NativeJpeg2000Codec.Lossless, CodecRegistry.PriorityNative);
-    CodecRegistry.Register(NativeJpeg2000Codec.Lossy, CodecRegistry.PriorityNative);
-}
-
-if (HasFeature(NativeCodecFeature.JpegLs))
-{
-    CodecRegistry.Register(NativeJpegLsCodec.Lossless, CodecRegistry.PriorityNative);
-    CodecRegistry.Register(NativeJpegLsCodec.NearLossless, CodecRegistry.PriorityNative);
-}
+// Native codec (priority 100 - wins)
+CodecRegistry.Register(NativeJpegCodec.CreateBaseline(), CodecRegistry.NativePriority);
 ```
 
-## Verification
+### GPU Fallback Pattern
 
-| Criteria | Status |
-|----------|--------|
-| CodecRegistry.Register(codec, priority) works correctly | PASS |
-| Higher priority codecs override lower priority ones | PASS |
-| GetCodecInfo returns priority and assembly info | PASS |
-| NativeJpegCodec implements Decode/Encode with P/Invoke | PASS |
-| NativeJpeg2000Codec handles lossless and lossy transfer syntaxes | PASS |
-| NativeJpegLsCodec handles JPEG-LS transfer syntax | PASS |
-| GPU acceleration used for J2K when available | PASS |
-| Error messages propagate from native to managed | PASS |
-| All codec classes compile without warnings | PASS |
+```csharp
+// NativeJpeg2000Codec.Decode
+if (GpuEnabled)
+{
+    result = NativeMethods.GpuJ2kDecode(...);
+    if (result >= 0) return ValidateAndReturn(...);
+    // GPU failed - fall through to CPU
+}
+// CPU decode via OpenJPEG
+result = NativeMethods.J2kDecode(...);
+```
 
-## Commits
+### Codec Options Classes
 
-| Hash | Description |
-|------|-------------|
-| 7c057ba | feat(13-07): add priority-based codec registration to CodecRegistry |
-| 21b9a36 | feat(13-07): implement native codec wrappers for JPEG, JPEG 2000, and JPEG-LS |
+Each codec has an options class for encode configuration:
+- `NativeJpegCodecOptions` - Quality, Subsampling
+- `NativeJpeg2000CodecOptions` - Lossless, CompressionRatio, TileSize
+- `NativeJpegLsCodecOptions` - NearLossless, Interleaved
 
 ## Deviations from Plan
 
-### Auto-fixed Issues
+None - plan executed exactly as written.
 
-**1. [Rule 3 - Blocking] Added IsExternalInit polyfill**
-- **Found during:** Task 2
-- **Issue:** netstandard2.0 doesn't define IsExternalInit needed for `init` property accessors
-- **Fix:** Created `src/SharpDicom.Codecs/Internal/IsExternalInit.cs` polyfill
-- **Commit:** 21b9a36
+## Test Results
 
-**2. [Rule 3 - Blocking] Added ThrowHelpers copy**
-- **Found during:** Task 2
-- **Issue:** SharpDicom.Internal.ThrowHelpers is internal to SharpDicom, inaccessible from SharpDicom.Codecs
-- **Fix:** Copied ThrowHelpers to `src/SharpDicom.Codecs/Internal/ThrowHelpers.cs`
-- **Commit:** 21b9a36
+All 1639 tests passing (1620 succeeded, 19 skipped - environment-dependent).
 
-**3. [Rule 2 - Missing Critical] Added JPEG-LS TransferSyntax definitions**
-- **Found during:** Task 2
-- **Issue:** TransferSyntax.cs was missing JPEGLSLossless and JPEGLSNearLossless definitions needed by NativeJpegLsCodec
-- **Fix:** Added both transfer syntax definitions with proper UIDs and compression types
-- **Commit:** 21b9a36
+## Files Changed
 
-## Technical Notes
+| File | Lines | Change |
+|------|-------|--------|
+| CodecRegistry.cs | +104 | Priority support |
+| NativeJpegCodec.cs | 322 | New codec wrapper |
+| NativeJpeg2000Codec.cs | 369 | New codec wrapper |
+| NativeJpegLsCodec.cs | 353 | New codec wrapper |
+| NativeCodecs.cs | +18 | Registration implementation |
 
-### Codec Pattern
-All native codecs follow consistent pattern:
-1. P/Invoke calls to native methods
-2. Pin managed memory for native access
-3. Error checking via result codes
-4. Error message retrieval via `NativeCodecs.GetLastError()`
-5. Validation methods check format signatures (SOI, SOF markers)
+## Commits
 
-### Memory Management
-- Encode: Native allocates output buffer, managed copies and frees
-- Decode: Managed allocates destination, native writes directly
-
-### GPU Acceleration
-JPEG 2000 codec automatically uses GPU when `NativeCodecFeature.Gpu` is available:
-```csharp
-if (useGpu && NativeCodecs.HasFeature(NativeCodecFeature.Gpu))
-    result = NativeMethods.gpu_j2k_decode(...);
-else
-    result = NativeMethods.j2k_decode(...);
-```
+1. `8982f88` - feat(13-07): add priority-based codec registration to CodecRegistry
+2. `7206e15` - feat(13-07): implement native codec wrappers for JPEG, JPEG 2000, JPEG-LS
 
 ## Next Phase Readiness
 
-Phase 13 is now complete. All native codec infrastructure is in place:
-- P/Invoke declarations (13-06)
-- Managed codec wrappers (13-07)
-- Priority-based codec registration
+**Blockers**: None
 
-Ready for:
-- Phase 14: Testing and benchmarking native codecs
-- Integration with pure C# codecs from Phase 12
+**Ready for Plan 08**: NuGet packaging with runtime packages
+
+**Dependencies satisfied**:
+- P/Invoke layer (Plan 06)
+- Codec wrappers (this plan)
+- Native library build (Plan 02-05)

@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 06 of 9 complete
+**Plan**: 07 of 9 complete
 **Status**: In progress
-**Last activity**: 2026-01-31 - Completed 13-06-PLAN.md (Managed P/Invoke Layer)
+**Last activity**: 2026-01-31 - Completed 13-07-PLAN.md (Native Codec Wrappers)
 
-**Progress**: ██████████████████████████░░░░░░░░░░░░░░ (6/9 plans in Phase 13)
+**Progress**: █████████████████████████████░░░░░░░░░░░ (7/9 plans in Phase 13)
 
 **Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
 
@@ -81,10 +81,11 @@
 - [x] Phase 13 Plan 04: CharLS/FFmpeg wrappers (jls_decode/encode, video_decoder for MPEG2/H.264/HEVC)
 - [x] Phase 13 Plan 05: GPU acceleration (nvJPEG2000 wrapper, GPU dispatch, CPU fallback)
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
+- [x] Phase 13 Plan 07: Native codec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec)
 
 ## In Progress
 
-- [ ] Phase 13 Plans 07-09: Codec implementations and NuGet packaging
+- [ ] Phase 13 Plans 08-09: NuGet packaging
 
 ## Blocked
 
@@ -97,7 +98,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 6/9 | 2026-01-29 | - |
+| 13 | Native Codecs Package | In progress | 7/9 | 2026-01-29 | - |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
