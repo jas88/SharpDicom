@@ -92,7 +92,8 @@ extern unsigned long tjBufSize(int width, int height, int jpegSubsamp);
  * Thread-local handles
  *============================================================================*/
 
-#if defined(_WIN32) || defined(_WIN64)
+/* Thread-local storage: use __declspec(thread) only for actual MSVC */
+#if defined(_MSC_VER)
     #define THREAD_LOCAL __declspec(thread)
 #else
     #define THREAD_LOCAL __thread

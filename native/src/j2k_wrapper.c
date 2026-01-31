@@ -13,22 +13,17 @@
 #include <string.h>
 #include <stdio.h>
 
+/*============================================================================
+ * Thread-local error handling (shared between OpenJPEG and stub code)
+ *============================================================================*/
+
+extern void set_error_fmt(const char* fmt, ...);
+extern void set_error(const char* message);
+
 /* Only compile OpenJPEG wrapper if available */
 #ifdef SHARPDICOM_HAS_OPENJPEG
 
 #include <openjpeg.h>
-
-/*============================================================================
- * Thread-local error handling
- *============================================================================*/
-
-extern void set_error_fmt(const char* fmt, ...);
-
-/* Forward declare set_error if not already visible */
-#ifndef SET_ERROR_DECLARED
-#define SET_ERROR_DECLARED
-extern void set_error(const char* message);
-#endif
 
 /*============================================================================
  * Memory stream for OpenJPEG
