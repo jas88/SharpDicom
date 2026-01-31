@@ -58,8 +58,8 @@ namespace SharpDicom.Codecs.JpegLossless
             int components = info.SamplesPerPixel;
             int bytesPerSample = info.BytesPerSample;
 
-            // Read samples from input
-            int[] samples = ReadSamplesFromInput(pixelData, width * height * components, bytesPerSample);
+            // Read samples from input (converting to planar layout if needed)
+            int[] samples = ReadSamplesFromInput(pixelData, width, height, components, bytesPerSample, info.IsPlanar);
 
             // Estimate output size: in worst case (random data), output may exceed input
             // For each sample: Huffman code (up to 16 bits) + category bits (up to 16 bits)
@@ -116,23 +116,61 @@ namespace SharpDicom.Codecs.JpegLossless
             }
         }
 
-        private static int[] ReadSamplesFromInput(ReadOnlySpan<byte> pixelData, int sampleCount, int bytesPerSample)
+        private static int[] ReadSamplesFromInput(
+            ReadOnlySpan<byte> pixelData,
+            int width,
+            int height,
+            int components,
+            int bytesPerSample,
+            bool isPlanar)
         {
+            int pixelCount = width * height;
+            int sampleCount = pixelCount * components;
             int[] samples = new int[sampleCount];
 
-            if (bytesPerSample == 1)
+            if (isPlanar || components == 1)
             {
-                for (int i = 0; i < sampleCount; i++)
+                // Planar layout: all samples for component 0, then component 1, etc.
+                // This is the layout we need for encoding, so just copy directly
+                if (bytesPerSample == 1)
                 {
-                    samples[i] = pixelData[i];
+                    for (int i = 0; i < sampleCount; i++)
+                    {
+                        samples[i] = pixelData[i];
+                    }
+                }
+                else
+                {
+                    // Little-endian 16-bit input (DICOM native format)
+                    for (int i = 0; i < sampleCount; i++)
+                    {
+                        samples[i] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(i * 2));
+                    }
                 }
             }
             else
             {
-                // Little-endian 16-bit input (DICOM native format)
-                for (int i = 0; i < sampleCount; i++)
+                // Interleaved layout (RGB RGB RGB...): convert to planar (RRR... GGG... BBB...)
+                if (bytesPerSample == 1)
                 {
-                    samples[i] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(i * 2));
+                    for (int p = 0; p < pixelCount; p++)
+                    {
+                        for (int c = 0; c < components; c++)
+                        {
+                            samples[c * pixelCount + p] = pixelData[p * components + c];
+                        }
+                    }
+                }
+                else
+                {
+                    for (int p = 0; p < pixelCount; p++)
+                    {
+                        for (int c = 0; c < components; c++)
+                        {
+                            int srcOffset = (p * components + c) * 2;
+                            samples[c * pixelCount + p] = BinaryPrimitives.ReadUInt16LittleEndian(pixelData.Slice(srcOffset));
+                        }
+                    }
                 }
             }
 

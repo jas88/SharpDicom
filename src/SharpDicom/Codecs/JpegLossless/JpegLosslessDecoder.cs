@@ -164,6 +164,7 @@ namespace SharpDicom.Codecs.JpegLossless
                 precision,
                 selectionValue,
                 pointTransform,
+                info,
                 output,
                 frameIndex);
         }
@@ -239,6 +240,7 @@ namespace SharpDicom.Codecs.JpegLossless
             int precision,
             int selectionValue,
             int pointTransform,
+            PixelDataInfo info,
             Span<byte> output,
             int frameIndex)
         {
@@ -305,30 +307,63 @@ namespace SharpDicom.Codecs.JpegLossless
                 return DecodeResult.Fail(frameIndex, reader.BytePosition, ex.Message);
             }
 
-            // Write samples to output buffer
+            // Write samples to output buffer (respecting planar configuration)
             int bytesPerSample = (precision + 7) / 8;
-            int bytesWritten = WriteSamplesToOutput(samples, output, bytesPerSample);
+            int bytesWritten = WriteSamplesToOutput(samples, output, width, height, components, bytesPerSample, info.IsPlanar);
 
             return DecodeResult.Ok(bytesWritten);
         }
 
-        private static int WriteSamplesToOutput(int[] samples, Span<byte> output, int bytesPerSample)
+        private static int WriteSamplesToOutput(
+            int[] samples,
+            Span<byte> output,
+            int width,
+            int height,
+            int components,
+            int bytesPerSample,
+            bool isPlanar)
         {
+            int pixelCount = width * height;
             int outputIndex = 0;
 
-            for (int i = 0; i < samples.Length; i++)
+            if (isPlanar || components == 1)
             {
-                int sample = samples[i];
+                // Planar output: samples are already in planar format, just copy
+                for (int i = 0; i < samples.Length; i++)
+                {
+                    int sample = samples[i];
 
-                if (bytesPerSample == 1)
-                {
-                    output[outputIndex++] = (byte)sample;
+                    if (bytesPerSample == 1)
+                    {
+                        output[outputIndex++] = (byte)sample;
+                    }
+                    else
+                    {
+                        // Little-endian 16-bit output (DICOM native format)
+                        output[outputIndex++] = (byte)(sample & 0xFF);
+                        output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
+                    }
                 }
-                else
+            }
+            else
+            {
+                // Interleaved output: convert from planar (RRR... GGG... BBB...) to interleaved (RGB RGB RGB...)
+                for (int p = 0; p < pixelCount; p++)
                 {
-                    // Little-endian 16-bit output (DICOM native format)
-                    output[outputIndex++] = (byte)(sample & 0xFF);
-                    output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
+                    for (int c = 0; c < components; c++)
+                    {
+                        int sample = samples[c * pixelCount + p];
+
+                        if (bytesPerSample == 1)
+                        {
+                            output[outputIndex++] = (byte)sample;
+                        }
+                        else
+                        {
+                            output[outputIndex++] = (byte)(sample & 0xFF);
+                            output[outputIndex++] = (byte)((sample >> 8) & 0xFF);
+                        }
+                    }
                 }
             }
 
