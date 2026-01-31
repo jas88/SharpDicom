@@ -250,12 +250,27 @@ namespace SharpDicom.Codecs.Native
         private static void RegisterCodecs()
         {
             // Registration with priority 100 (above pure C# implementations at 50)
-            // Actual codec classes will be created in Plan 07
-            // This is a stub that will be filled in when codec implementations are ready
+            const int NativePriority = CodecRegistry.NativePriority;
 
-            // When codec implementations exist, they will be registered like:
-            // if (EnableJpeg && AvailableFeatures.HasFlag(CodecFeatures.Jpeg))
-            //     CodecRegistry.Register(new NativeJpegCodec(), priority: 100);
+            // Register JPEG codec if available and enabled
+            if (EnableJpeg && AvailableFeatures.HasFlag(CodecFeatures.Jpeg))
+            {
+                CodecRegistry.Register(NativeJpegCodec.CreateBaseline(), NativePriority);
+            }
+
+            // Register JPEG 2000 codecs if available and enabled
+            if (EnableJpeg2000 && AvailableFeatures.HasFlag(CodecFeatures.Jpeg2000))
+            {
+                CodecRegistry.Register(NativeJpeg2000Codec.CreateLossless(), NativePriority);
+                CodecRegistry.Register(NativeJpeg2000Codec.CreateLossy(), NativePriority);
+            }
+
+            // Register JPEG-LS codecs if available and enabled
+            if (EnableJpegLs && AvailableFeatures.HasFlag(CodecFeatures.JpegLs))
+            {
+                CodecRegistry.Register(NativeJpegLsCodec.CreateLossless(), NativePriority);
+                CodecRegistry.Register(NativeJpegLsCodec.CreateNearLossless(), NativePriority);
+            }
         }
 
         /// <summary>

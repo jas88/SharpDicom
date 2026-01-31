@@ -6,45 +6,68 @@ using System.Threading.Tasks;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native.Interop;
 using SharpDicom.Data;
-using SharpDicom.Internal;
 
 namespace SharpDicom.Codecs.Native
 {
     /// <summary>
-    /// Native JPEG codec using libjpeg-turbo for high-performance encode/decode.
+    /// Native JPEG codec using libjpeg-turbo via P/Invoke.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This codec wraps the native libjpeg-turbo library for JPEG baseline (Process 1)
-    /// encoding and decoding. It provides significant performance improvements over
-    /// pure C# implementations by leveraging SIMD optimizations.
+    /// This codec wraps the native sharpdicom_codecs library for high-performance
+    /// JPEG encoding and decoding. It supports both JPEG Baseline (lossy) and
+    /// JPEG Lossless transfer syntaxes.
     /// </para>
     /// <para>
-    /// Supported features:
-    /// <list type="bullet">
-    /// <item>8-bit grayscale and RGB/YBR color images</item>
-    /// <item>Configurable quality levels (1-100)</item>
-    /// <item>Configurable chroma subsampling (4:4:4, 4:2:2, 4:2:0)</item>
-    /// <item>Multi-frame image support</item>
-    /// </list>
+    /// libjpeg-turbo provides SIMD-accelerated JPEG processing on x86/x64 (SSE2/AVX2)
+    /// and ARM (NEON) platforms.
     /// </para>
     /// </remarks>
     public sealed class NativeJpegCodec : IPixelDataCodec
     {
-        private static readonly int[] SupportedBitDepths = new[] { 8 };
-        private static readonly int[] SupportedSamplesPerPixel = new[] { 1, 3 };
+        // Static arrays to avoid CA1861
+        private static readonly int[] LossyBitDepths = new[] { 8 };
+        private static readonly int[] LosslessBitDepths = new[] { 8, 12, 16 };
+        private static readonly int[] SupportedSamples = new[] { 1, 3 };
+
+        private readonly TransferSyntax _transferSyntax;
+        private readonly bool _isLossy;
+
+        /// <summary>
+        /// Initializes a new instance for JPEG Baseline (lossy) encoding/decoding.
+        /// </summary>
+        public NativeJpegCodec()
+            : this(TransferSyntax.JPEGBaseline, isLossy: true)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance for a specific JPEG transfer syntax.
+        /// </summary>
+        /// <param name="transferSyntax">The transfer syntax to handle.</param>
+        /// <param name="isLossy">Whether this is a lossy codec.</param>
+        internal NativeJpegCodec(TransferSyntax transferSyntax, bool isLossy)
+        {
+            _transferSyntax = transferSyntax;
+            _isLossy = isLossy;
+        }
 
         /// <inheritdoc />
-        public TransferSyntax TransferSyntax => TransferSyntax.JPEGBaseline;
+        public TransferSyntax TransferSyntax => _transferSyntax;
 
         /// <inheritdoc />
-        public string Name => "Native JPEG (libjpeg-turbo)";
+        public string Name => _isLossy ? "Native JPEG Baseline (libjpeg-turbo)" : "Native JPEG Lossless (libjpeg-turbo)";
 
         /// <inheritdoc />
-        public CodecCapabilities Capabilities => CodecCapabilities.Full(
-            isLossy: true,
-            supportedBitDepths: SupportedBitDepths,
-            supportedSamplesPerPixel: SupportedSamplesPerPixel);
+        public CodecCapabilities Capabilities => new(
+            CanEncode: true,
+            CanDecode: true,
+            IsLossy: _isLossy,
+            SupportsMultiFrame: true,
+            SupportsParallelEncode: true,
+            SupportedBitDepths: _isLossy ? LossyBitDepths : LosslessBitDepths,
+            SupportedSamplesPerPixel: SupportedSamples
+        );
 
         /// <inheritdoc />
         public unsafe DecodeResult Decode(
@@ -53,44 +76,56 @@ namespace SharpDicom.Codecs.Native
             int frameIndex,
             Memory<byte> destination)
         {
-            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
-
-            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(fragments);
+#else
+            if (fragments == null)
+                throw new ArgumentNullException(nameof(fragments));
+#endif
+            if (frameIndex < 0 || frameIndex >= fragments.FragmentCount)
                 throw new ArgumentOutOfRangeException(nameof(frameIndex));
 
+            // Get the fragment for this frame
             var fragment = fragments.Fragments[frameIndex];
             if (fragment.IsEmpty)
             {
-                return DecodeResult.Fail(frameIndex, 0, "Empty fragment");
+                return DecodeResult.Fail(frameIndex, 0, "Empty fragment for frame");
             }
 
-            using var fragmentPin = fragment.Pin();
-            using var destPin = destination.Pin();
+            // Pin the input and output buffers
+            using var inputHandle = fragment.Pin();
+            using var outputHandle = destination.Pin();
 
-            int colorspace = DetermineColorspace(info.SamplesPerPixel);
+            byte* inputPtr = (byte*)inputHandle.Pointer;
+            byte* outputPtr = (byte*)outputHandle.Pointer;
+            int inputLen = fragment.Length;
+            int outputLen = destination.Length;
 
-            int result = NativeMethods.jpeg_decode(
-                (byte*)fragmentPin.Pointer, fragment.Length,
-                (byte*)destPin.Pointer, destination.Length,
-                out int width, out int height, out int components,
-                colorspace);
+            int result = NativeMethods.JpegDecode(
+                inputPtr, inputLen,
+                outputPtr, outputLen,
+                out int width, out int height, out _,
+                colorspace: 0); // 0 = use default colorspace
 
             if (result < 0)
             {
-                var errorMessage = NativeCodecs.GetLastError();
+                string errorMsg = NativeCodecs.GetLastError();
                 return DecodeResult.Fail(frameIndex, 0,
-                    string.IsNullOrEmpty(errorMessage) ? "JPEG decode failed" : errorMessage);
+                    $"JPEG decode failed: {errorMsg}",
+                    expected: $"{info.Columns}x{info.Rows}",
+                    actual: $"error code {result}");
             }
 
-            // Verify dimensions match expected
+            // Validate decoded dimensions
             if (width != info.Columns || height != info.Rows)
             {
                 return DecodeResult.Fail(frameIndex, 0,
-                    $"Dimension mismatch: expected {info.Columns}x{info.Rows}, got {width}x{height}");
+                    "Decoded dimensions do not match pixel data info",
+                    expected: $"{info.Columns}x{info.Rows}",
+                    actual: $"{width}x{height}");
             }
 
-            int bytesWritten = width * height * components;
-            return DecodeResult.Ok(bytesWritten);
+            return DecodeResult.Ok(result);
         }
 
         /// <inheritdoc />
@@ -101,9 +136,11 @@ namespace SharpDicom.Codecs.Native
             Memory<byte> destination,
             CancellationToken cancellationToken = default)
         {
-            // Native decode is synchronous but fast, run in thread pool
-            return new ValueTask<DecodeResult>(
-                Task.Run(() => Decode(fragments, info, frameIndex, destination), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // JPEG decode is CPU-bound and fast - no benefit from async
+            var result = Decode(fragments, info, frameIndex, destination);
+            return new ValueTask<DecodeResult>(result);
         }
 
         /// <inheritdoc />
@@ -112,71 +149,24 @@ namespace SharpDicom.Codecs.Native
             PixelDataInfo info,
             object? options = null)
         {
-            var opts = options as JpegEncodeOptions ?? JpegEncodeOptions.Default;
+            var codecOptions = options as NativeJpegCodecOptions ?? NativeJpegCodecOptions.Default;
 
-            fixed (byte* input = pixelData)
+            int frameSize = info.FrameSize;
+            var fragments = new List<ReadOnlyMemory<byte>>();
+
+            for (int frame = 0; frame < info.NumberOfFrames; frame++)
             {
-                int result = NativeMethods.jpeg_encode(
-                    input,
-                    info.Columns,
-                    info.Rows,
-                    info.SamplesPerPixel,
-                    out byte* output,
-                    out int outputLen,
-                    opts.Quality,
-                    (int)opts.Subsampling);
-
-                if (result < 0)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        result,
-                        NativeCodecs.GetLastError(),
-                        TransferSyntax);
-                }
-
-                try
-                {
-                    // Validate output length from native code
-                    if (outputLen < 0)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            "Native encoder returned negative output length",
-                            TransferSyntax);
-                    }
-
-                    // Sanity check: output shouldn't be larger than reasonable maximum
-                    // For small images, JPEG header overhead can exceed 4x raw size, so use minimum threshold
-                    long rawSize = (long)info.Columns * info.Rows * info.SamplesPerPixel;
-                    long maxReasonableSize = Math.Max(rawSize * 4, 4096);
-                    if (outputLen > maxReasonableSize)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
-                            TransferSyntax);
-                    }
-
-                    // Copy native buffer to managed array
-                    var data = new byte[outputLen];
-                    Marshal.Copy((IntPtr)output, data, 0, outputLen);
-
-                    // Create fragment sequence with single fragment
-                    var fragments = new List<ReadOnlyMemory<byte>> { data };
-                    return new DicomFragmentSequence(
-                        DicomTag.PixelData,
-                        DicomVR.OB,
-                        ReadOnlyMemory<byte>.Empty,
-                        fragments);
-                }
-                finally
-                {
-                    NativeMethods.jpeg_free(output);
-                }
+                var frameData = pixelData.Slice(frame * frameSize, frameSize);
+                var encoded = EncodeFrame(frameData, info, codecOptions);
+                fragments.Add(encoded);
             }
+
+            // Create fragment sequence with empty offset table
+            return new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                fragments);
         }
 
         /// <inheritdoc />
@@ -186,131 +176,117 @@ namespace SharpDicom.Codecs.Native
             object? options = null,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<DicomFragmentSequence>(
-                Task.Run(() => Encode(pixelData.Span, info, options), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // JPEG encode is CPU-bound - no benefit from async for single call
+            var result = Encode(pixelData.Span, info, options);
+            return new ValueTask<DicomFragmentSequence>(result);
         }
 
         /// <inheritdoc />
         public ValidationResult ValidateCompressedData(DicomFragmentSequence fragments, PixelDataInfo info)
         {
             if (fragments == null)
-            {
-                return ValidationResult.Invalid(-1, 0, "Fragments is null");
-            }
+                return ValidationResult.Invalid(0, 0, "Fragments is null");
+
+            if (fragments.FragmentCount == 0)
+                return ValidationResult.Invalid(0, 0, "No fragments in sequence");
 
             var issues = new List<CodecDiagnostic>();
 
-            for (int i = 0; i < fragments.Fragments.Count; i++)
+            for (int i = 0; i < fragments.FragmentCount; i++)
             {
                 var fragment = fragments.Fragments[i];
+                if (fragment.IsEmpty)
+                {
+                    issues.Add(CodecDiagnostic.At(i, 0, "Empty fragment"));
+                    continue;
+                }
+
+                // Check for JPEG SOI marker (0xFFD8)
                 if (fragment.Length < 2)
                 {
-                    issues.Add(CodecDiagnostic.At(i, 0, "Fragment too short"));
+                    issues.Add(CodecDiagnostic.At(i, 0, "Fragment too short for JPEG marker"));
                     continue;
                 }
 
                 var span = fragment.Span;
-
-                // Check for JPEG SOI marker (0xFFD8)
                 if (span[0] != 0xFF || span[1] != 0xD8)
                 {
                     issues.Add(CodecDiagnostic.Mismatch(i, 0,
-                        "Missing JPEG SOI marker",
-                        "0xFFD8",
-                        $"0x{span[0]:X2}{span[1]:X2}"));
-                }
-
-                // Check for EOI marker at end (0xFFD9)
-                if (fragment.Length >= 2)
-                {
-                    int endOffset = fragment.Length - 2;
-                    if (span[endOffset] != 0xFF || span[endOffset + 1] != 0xD9)
-                    {
-                        issues.Add(CodecDiagnostic.Mismatch(i, endOffset,
-                            "Missing JPEG EOI marker",
-                            "0xFFD9",
-                            $"0x{span[endOffset]:X2}{span[endOffset + 1]:X2}"));
-                    }
+                        "Invalid JPEG SOI marker",
+                        expected: "0xFFD8",
+                        actual: $"0x{span[0]:X2}{span[1]:X2}"));
                 }
             }
 
             return issues.Count == 0 ? ValidationResult.Valid() : ValidationResult.Invalid(issues);
         }
 
-        private static int DetermineColorspace(ushort samplesPerPixel)
+        private unsafe byte[] EncodeFrame(ReadOnlySpan<byte> frameData, PixelDataInfo info, NativeJpegCodecOptions options)
         {
-            return samplesPerPixel switch
+            fixed (byte* inputPtr = frameData)
             {
-                1 => 2, // GRAY
-                3 => 1, // YBR (most common for DICOM)
-                _ => 0  // RGB
-            };
-        }
-    }
+                byte* outputPtr;
+                int outputLen;
 
-    /// <summary>
-    /// Options for JPEG encoding.
-    /// </summary>
-    public sealed class JpegEncodeOptions
-    {
-        /// <summary>
-        /// Default encoding options (quality 90, 4:2:2 subsampling).
-        /// </summary>
-        public static readonly JpegEncodeOptions Default = new();
+                int result = NativeMethods.JpegEncode(
+                    inputPtr,
+                    info.Columns,
+                    info.Rows,
+                    info.SamplesPerPixel,
+                    out outputPtr,
+                    out outputLen,
+                    options.Quality,
+                    (int)options.Subsampling);
 
-        private int _quality = 90;
-        private JpegSubsampling _subsampling = JpegSubsampling.Yuv422;
-
-        /// <summary>
-        /// Gets or sets the JPEG quality level (1-100).
-        /// </summary>
-        /// <remarks>
-        /// Higher values produce larger files with better quality.
-        /// Typical values: 75-85 for general use, 90-95 for medical imaging.
-        /// </remarks>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// Thrown when value is less than 1 or greater than 100.
-        /// </exception>
-        public int Quality
-        {
-            get => _quality;
-            init
-            {
-                if (value < 1 || value > 100)
+                if (result < 0)
                 {
-                    throw new ArgumentOutOfRangeException(nameof(value),
-                        $"Quality must be between 1 and 100, got {value}");
+                    string errorMsg = NativeCodecs.GetLastError();
+                    throw new NativeCodecException($"JPEG encode failed: {errorMsg}", result);
                 }
-                _quality = value;
+
+                try
+                {
+                    // Copy from native buffer to managed array
+                    var encoded = new byte[outputLen];
+                    Marshal.Copy((IntPtr)outputPtr, encoded, 0, outputLen);
+                    return encoded;
+                }
+                finally
+                {
+                    // Free the native buffer
+                    NativeMethods.JpegFree(outputPtr);
+                }
             }
         }
 
         /// <summary>
-        /// Gets or sets the chroma subsampling mode.
+        /// Creates a codec instance for JPEG Baseline transfer syntax.
         /// </summary>
-        public JpegSubsampling Subsampling
-        {
-            get => _subsampling;
-            init => _subsampling = value;
-        }
+        public static NativeJpegCodec CreateBaseline() =>
+            new(TransferSyntax.JPEGBaseline, isLossy: true);
+    }
+
+    /// <summary>
+    /// Options for native JPEG encoding.
+    /// </summary>
+    public sealed class NativeJpegCodecOptions
+    {
+        /// <summary>
+        /// Gets or sets the JPEG quality (1-100). Default is 90.
+        /// </summary>
+        public int Quality { get; set; } = 90;
 
         /// <summary>
-        /// Creates options optimized for medical imaging (high quality).
+        /// Gets or sets the chroma subsampling mode. Default is 4:2:0.
         /// </summary>
-        public static JpegEncodeOptions MedicalImaging => new()
-        {
-            Quality = 95,
-            Subsampling = JpegSubsampling.Yuv444
-        };
+        public JpegSubsampling Subsampling { get; set; } = JpegSubsampling.Subsample420;
 
         /// <summary>
-        /// Creates options optimized for storage (smaller files).
+        /// Default JPEG encoding options.
         /// </summary>
-        public static JpegEncodeOptions Compact => new()
-        {
-            Quality = 75,
-            Subsampling = JpegSubsampling.Yuv420
-        };
+        public static readonly NativeJpegCodecOptions Default = new();
     }
 
     /// <summary>
@@ -319,18 +295,28 @@ namespace SharpDicom.Codecs.Native
     public enum JpegSubsampling
     {
         /// <summary>
-        /// No chroma subsampling (4:4:4). Best quality, largest files.
+        /// 4:4:4 - No subsampling (highest quality).
         /// </summary>
-        Yuv444 = 0,
+        Subsample444 = 0,
 
         /// <summary>
-        /// Horizontal subsampling (4:2:2). Good balance of quality and size.
+        /// 4:2:2 - Horizontal subsampling.
         /// </summary>
-        Yuv422 = 1,
+        Subsample422 = 1,
 
         /// <summary>
-        /// Both horizontal and vertical subsampling (4:2:0). Smallest files.
+        /// 4:2:0 - Both horizontal and vertical subsampling (default).
         /// </summary>
-        Yuv420 = 2
+        Subsample420 = 2,
+
+        /// <summary>
+        /// Grayscale - No color components.
+        /// </summary>
+        Grayscale = 3,
+
+        /// <summary>
+        /// 4:4:0 - Vertical subsampling only.
+        /// </summary>
+        Subsample440 = 4
     }
 }

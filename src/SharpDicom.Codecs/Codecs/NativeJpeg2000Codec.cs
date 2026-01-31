@@ -6,173 +6,161 @@ using System.Threading.Tasks;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native.Interop;
 using SharpDicom.Data;
-using SharpDicom.Internal;
 
 namespace SharpDicom.Codecs.Native
 {
     /// <summary>
-    /// Native JPEG 2000 codec using OpenJPEG with optional GPU acceleration via nvJPEG2000.
+    /// Native JPEG 2000 codec using OpenJPEG (and optionally nvJPEG2000) via P/Invoke.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This codec wraps OpenJPEG for CPU decoding and nvJPEG2000 for GPU-accelerated
-    /// decoding when available. GPU acceleration provides significant performance
-    /// improvements for batch processing of JPEG 2000 images.
+    /// This codec wraps the native sharpdicom_codecs library for high-performance
+    /// JPEG 2000 encoding and decoding. It supports both lossless and lossy
+    /// JPEG 2000 transfer syntaxes.
     /// </para>
     /// <para>
-    /// Supported features:
-    /// <list type="bullet">
-    /// <item>8, 12, and 16-bit grayscale and color images</item>
-    /// <item>Both lossless and lossy compression modes</item>
-    /// <item>Resolution level decode for progressive preview</item>
-    /// <item>GPU acceleration (CUDA) when available</item>
-    /// <item>Multi-frame image support</item>
-    /// </list>
+    /// When GPU acceleration is available (nvJPEG2000 with NVIDIA GPU), the codec
+    /// will automatically use GPU decoding unless <see cref="NativeCodecs.PreferCpu"/>
+    /// is set to true.
     /// </para>
     /// </remarks>
     public sealed class NativeJpeg2000Codec : IPixelDataCodec
     {
-        private static readonly int[] SupportedBitDepths = new[] { 8, 12, 16 };
-        private static readonly int[] SupportedSamplesPerPixel = new[] { 1, 3 };
+        // Static arrays to avoid CA1861
+        private static readonly int[] SupportedBitDepthsArray = new[] { 8, 12, 16 };
+        private static readonly int[] SupportedSamplesArray = new[] { 1, 3 };
 
         private readonly TransferSyntax _transferSyntax;
+        private readonly bool _isLossy;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="NativeJpeg2000Codec"/> class
-        /// for the specified transfer syntax.
+        /// Initializes a new instance for JPEG 2000 Lossless encoding/decoding.
         /// </summary>
-        /// <param name="transferSyntax">
-        /// The transfer syntax to handle (JPEG2000Lossless or JPEG2000Lossy).
-        /// </param>
-        /// <exception cref="ArgumentException">
-        /// Thrown when the transfer syntax is not a JPEG 2000 variant.
-        /// </exception>
-        public NativeJpeg2000Codec(TransferSyntax transferSyntax)
+        public NativeJpeg2000Codec()
+            : this(TransferSyntax.JPEG2000Lossless, isLossy: false)
         {
-            if (transferSyntax.Compression != CompressionType.JPEG2000Lossless &&
-                transferSyntax.Compression != CompressionType.JPEG2000Lossy)
-            {
-                throw new ArgumentException(
-                    $"Transfer syntax {transferSyntax.UID} is not JPEG 2000",
-                    nameof(transferSyntax));
-            }
-
-            _transferSyntax = transferSyntax;
         }
 
         /// <summary>
-        /// Creates a codec for JPEG 2000 lossless compression.
+        /// Initializes a new instance for a specific JPEG 2000 transfer syntax.
         /// </summary>
-        public static NativeJpeg2000Codec Lossless => new(TransferSyntax.JPEG2000Lossless);
-
-        /// <summary>
-        /// Creates a codec for JPEG 2000 lossy compression.
-        /// </summary>
-        public static NativeJpeg2000Codec Lossy => new(TransferSyntax.JPEG2000Lossy);
+        /// <param name="transferSyntax">The transfer syntax to handle.</param>
+        /// <param name="isLossy">Whether this is a lossy codec.</param>
+        internal NativeJpeg2000Codec(TransferSyntax transferSyntax, bool isLossy)
+        {
+            _transferSyntax = transferSyntax;
+            _isLossy = isLossy;
+        }
 
         /// <inheritdoc />
         public TransferSyntax TransferSyntax => _transferSyntax;
 
         /// <inheritdoc />
-        public string Name => _transferSyntax.IsLossy
-            ? "Native JPEG 2000 Lossy (OpenJPEG)"
-            : "Native JPEG 2000 Lossless (OpenJPEG)";
+        public string Name => _isLossy
+            ? "Native JPEG 2000 Lossy (OpenJPEG/nvJPEG2000)"
+            : "Native JPEG 2000 Lossless (OpenJPEG/nvJPEG2000)";
 
         /// <inheritdoc />
-        public CodecCapabilities Capabilities => CodecCapabilities.Full(
-            isLossy: _transferSyntax.IsLossy,
-            supportedBitDepths: SupportedBitDepths,
-            supportedSamplesPerPixel: SupportedSamplesPerPixel);
+        public CodecCapabilities Capabilities => new(
+            CanEncode: true,
+            CanDecode: true,
+            IsLossy: _isLossy,
+            SupportsMultiFrame: true,
+            SupportsParallelEncode: true,
+            SupportedBitDepths: SupportedBitDepthsArray,
+            SupportedSamplesPerPixel: SupportedSamplesArray
+        );
+
+        /// <summary>
+        /// Gets a value indicating whether GPU acceleration is available and enabled.
+        /// </summary>
+        public static bool GpuEnabled =>
+            NativeCodecs.GpuAvailable &&
+            NativeCodecs.EnableGpu &&
+            !NativeCodecs.PreferCpu &&
+            NativeCodecs.AvailableFeatures.HasFlag(CodecFeatures.GpuJpeg2000);
 
         /// <inheritdoc />
-        public DecodeResult Decode(
+        public unsafe DecodeResult Decode(
             DicomFragmentSequence fragments,
             PixelDataInfo info,
             int frameIndex,
             Memory<byte> destination)
         {
-            return DecodeInternal(fragments, info, frameIndex, destination, null);
-        }
-
-        /// <summary>
-        /// Decodes a frame with optional decode options.
-        /// </summary>
-        /// <param name="fragments">The compressed fragment sequence.</param>
-        /// <param name="info">Pixel data information.</param>
-        /// <param name="frameIndex">Zero-based frame index.</param>
-        /// <param name="destination">Destination buffer for decoded pixels.</param>
-        /// <param name="options">Optional decode options.</param>
-        /// <returns>The decode result.</returns>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Interface implementation pattern")]
-        public unsafe DecodeResult DecodeInternal(
-            DicomFragmentSequence fragments,
-            PixelDataInfo info,
-            int frameIndex,
-            Memory<byte> destination,
-            Jpeg2000DecodeOptions? options)
-        {
-            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
-
-            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(fragments);
+#else
+            if (fragments == null)
+                throw new ArgumentNullException(nameof(fragments));
+#endif
+            if (frameIndex < 0 || frameIndex >= fragments.FragmentCount)
                 throw new ArgumentOutOfRangeException(nameof(frameIndex));
 
             var fragment = fragments.Fragments[frameIndex];
             if (fragment.IsEmpty)
             {
-                return DecodeResult.Fail(frameIndex, 0, "Empty fragment");
+                return DecodeResult.Fail(frameIndex, 0, "Empty fragment for frame");
             }
 
-            using var fragmentPin = fragment.Pin();
-            using var destPin = destination.Pin();
+            using var inputHandle = fragment.Pin();
+            using var outputHandle = destination.Pin();
 
-            int resolutionLevel = options?.ResolutionLevel ?? 0;
-            bool useGpu = options?.UseGpu ?? ShouldUseGpu();
-
-            // GPU decode does not support ResolutionLevel; fall back to CPU when needed
-            if (resolutionLevel > 0 && useGpu)
-            {
-                useGpu = false;
-            }
+            byte* inputPtr = (byte*)inputHandle.Pointer;
+            byte* outputPtr = (byte*)outputHandle.Pointer;
+            int inputLen = fragment.Length;
+            int outputLen = destination.Length;
 
             int result;
             int width, height, components, bitsPerSample;
 
-            if (useGpu && NativeCodecs.HasFeature(NativeCodecFeature.Gpu))
+            // Try GPU decode first if available
+            if (GpuEnabled)
             {
-                result = NativeMethods.gpu_j2k_decode(
-                    (byte*)fragmentPin.Pointer, fragment.Length,
-                    (byte*)destPin.Pointer, destination.Length,
+                result = NativeMethods.GpuJ2kDecode(
+                    inputPtr, inputLen,
+                    outputPtr, outputLen,
                     out width, out height, out components, out bitsPerSample);
+
+                // If GPU decode succeeds, use the result
+                if (result >= 0)
+                {
+                    return ValidateAndReturn(result, info, frameIndex, width, height);
+                }
+
+                // GPU decode failed - fall back to CPU
+                // Error code -8 (GpuUnavailable) is expected, others are logged
             }
-            else
-            {
-                result = NativeMethods.j2k_decode(
-                    (byte*)fragmentPin.Pointer, fragment.Length,
-                    (byte*)destPin.Pointer, destination.Length,
-                    out width, out height, out components, out bitsPerSample,
-                    resolutionLevel);
-            }
+
+            // CPU decode via OpenJPEG
+            result = NativeMethods.J2kDecode(
+                inputPtr, inputLen,
+                outputPtr, outputLen,
+                out width, out height, out components, out bitsPerSample,
+                resolutionLevel: 0); // 0 = full resolution
 
             if (result < 0)
             {
-                var errorMessage = NativeCodecs.GetLastError();
+                string errorMsg = NativeCodecs.GetLastError();
                 return DecodeResult.Fail(frameIndex, 0,
-                    string.IsNullOrEmpty(errorMessage) ? "JPEG 2000 decode failed" : errorMessage);
+                    $"JPEG 2000 decode failed: {errorMsg}",
+                    expected: $"{info.Columns}x{info.Rows}",
+                    actual: $"error code {result}");
             }
 
-            // Calculate bytes written based on actual decoded dimensions and bit depth
-            // Use long arithmetic to prevent overflow on large images
-            int bytesPerSample = (bitsPerSample + 7) / 8;
-            long bytesWrittenLong = (long)width * height * components * bytesPerSample;
+            return ValidateAndReturn(result, info, frameIndex, width, height);
+        }
 
-            // Validate the result fits in an int (DecodeResult uses int)
-            if (bytesWrittenLong > int.MaxValue)
+        private static DecodeResult ValidateAndReturn(int bytesWritten, PixelDataInfo info, int frameIndex, int width, int height)
+        {
+            if (width != info.Columns || height != info.Rows)
             {
                 return DecodeResult.Fail(frameIndex, 0,
-                    $"Decoded image size ({bytesWrittenLong} bytes) exceeds maximum supported size");
+                    "Decoded dimensions do not match pixel data info",
+                    expected: $"{info.Columns}x{info.Rows}",
+                    actual: $"{width}x{height}");
             }
 
-            return DecodeResult.Ok((int)bytesWrittenLong);
+            return DecodeResult.Ok(bytesWritten);
         }
 
         /// <inheritdoc />
@@ -183,8 +171,12 @@ namespace SharpDicom.Codecs.Native
             Memory<byte> destination,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<DecodeResult>(
-                Task.Run(() => Decode(fragments, info, frameIndex, destination), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // J2K decode is CPU/GPU-bound - async wrapper for consistency
+            // Future: could use Task.Run for CPU decode to avoid blocking
+            var result = Decode(fragments, info, frameIndex, destination);
+            return new ValueTask<DecodeResult>(result);
         }
 
         /// <inheritdoc />
@@ -193,76 +185,23 @@ namespace SharpDicom.Codecs.Native
             PixelDataInfo info,
             object? options = null)
         {
-            var opts = options as Jpeg2000EncodeOptions ?? Jpeg2000EncodeOptions.Default;
+            var codecOptions = options as NativeJpeg2000CodecOptions ?? GetDefaultOptions();
 
-            int lossless = _transferSyntax.IsLossy ? 0 : 1;
-            float compressionRatio = _transferSyntax.IsLossy ? opts.CompressionRatio : 1.0f;
-            int bitsPerSample = info.BitsStored;
+            int frameSize = info.FrameSize;
+            var fragments = new List<ReadOnlyMemory<byte>>();
 
-            fixed (byte* input = pixelData)
+            for (int frame = 0; frame < info.NumberOfFrames; frame++)
             {
-                int result = NativeMethods.j2k_encode(
-                    input,
-                    info.Columns,
-                    info.Rows,
-                    info.SamplesPerPixel,
-                    bitsPerSample,
-                    out byte* output,
-                    out int outputLen,
-                    lossless,
-                    compressionRatio,
-                    opts.TileSize);
-
-                if (result < 0)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        result,
-                        NativeCodecs.GetLastError(),
-                        TransferSyntax);
-                }
-
-                try
-                {
-                    // Validate output length from native code
-                    if (outputLen < 0)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            "Native encoder returned negative output length",
-                            TransferSyntax);
-                    }
-
-                    // Sanity check: output shouldn't be larger than reasonable maximum
-                    // For small images, codec header overhead can exceed 4x raw size, so use minimum threshold
-                    int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
-                    long rawSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck;
-                    long maxReasonableSize = Math.Max(rawSize * 4, 4096);
-                    if (outputLen > maxReasonableSize)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
-                            TransferSyntax);
-                    }
-
-                    var data = new byte[outputLen];
-                    Marshal.Copy((IntPtr)output, data, 0, outputLen);
-
-                    var fragments = new List<ReadOnlyMemory<byte>> { data };
-                    return new DicomFragmentSequence(
-                        DicomTag.PixelData,
-                        DicomVR.OB,
-                        ReadOnlyMemory<byte>.Empty,
-                        fragments);
-                }
-                finally
-                {
-                    NativeMethods.j2k_free(output);
-                }
+                var frameData = pixelData.Slice(frame * frameSize, frameSize);
+                var encoded = EncodeFrame(frameData, info, codecOptions);
+                fragments.Add(encoded);
             }
+
+            return new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                fragments);
         }
 
         /// <inheritdoc />
@@ -272,153 +211,159 @@ namespace SharpDicom.Codecs.Native
             object? options = null,
             CancellationToken cancellationToken = default)
         {
-            return new ValueTask<DicomFragmentSequence>(
-                Task.Run(() => Encode(pixelData.Span, info, options), cancellationToken));
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = Encode(pixelData.Span, info, options);
+            return new ValueTask<DicomFragmentSequence>(result);
         }
 
         /// <inheritdoc />
         public ValidationResult ValidateCompressedData(DicomFragmentSequence fragments, PixelDataInfo info)
         {
             if (fragments == null)
-            {
-                return ValidationResult.Invalid(-1, 0, "Fragments is null");
-            }
+                return ValidationResult.Invalid(0, 0, "Fragments is null");
+
+            if (fragments.FragmentCount == 0)
+                return ValidationResult.Invalid(0, 0, "No fragments in sequence");
 
             var issues = new List<CodecDiagnostic>();
 
-            for (int i = 0; i < fragments.Fragments.Count; i++)
+            for (int i = 0; i < fragments.FragmentCount; i++)
             {
                 var fragment = fragments.Fragments[i];
-                if (fragment.Length < 12)
+                if (fragment.IsEmpty)
                 {
-                    issues.Add(CodecDiagnostic.At(i, 0, "Fragment too short for JPEG 2000"));
+                    issues.Add(CodecDiagnostic.At(i, 0, "Empty fragment"));
+                    continue;
+                }
+
+                // Check for JPEG 2000 signature (JP2/J2C codestream)
+                if (fragment.Length < 4)
+                {
+                    issues.Add(CodecDiagnostic.At(i, 0, "Fragment too short for J2K signature"));
                     continue;
                 }
 
                 var span = fragment.Span;
 
-                // Check for JPEG 2000 codestream signature (0xFF4F) or JP2 file signature
-                bool hasCodestreamSig = span[0] == 0xFF && span[1] == 0x4F;
-                bool hasJp2Sig = span[0] == 0x00 && span[1] == 0x00 && span[2] == 0x00 && span[3] == 0x0C &&
-                                 span[4] == 0x6A && span[5] == 0x50 && span[6] == 0x20 && span[7] == 0x20;
+                // J2K codestream starts with SOC marker (0xFF4F)
+                // JP2 box format starts with signature box (0x0000000C 6A502020)
+                bool isJ2kCodestream = span[0] == 0xFF && span[1] == 0x4F;
+                bool isJp2Box = span.Length >= 12 &&
+                    span[0] == 0x00 && span[1] == 0x00 && span[2] == 0x00 && span[3] == 0x0C &&
+                    span[4] == 0x6A && span[5] == 0x50 && span[6] == 0x20 && span[7] == 0x20;
 
-                if (!hasCodestreamSig && !hasJp2Sig)
+                if (!isJ2kCodestream && !isJp2Box)
                 {
                     issues.Add(CodecDiagnostic.Mismatch(i, 0,
-                        "Missing JPEG 2000 signature",
-                        "0xFF4F (codestream) or JP2 file header",
-                        $"0x{span[0]:X2}{span[1]:X2}..."));
+                        "Invalid JPEG 2000 signature",
+                        expected: "0xFF4F (J2K) or JP2 box",
+                        actual: $"0x{span[0]:X2}{span[1]:X2}"));
                 }
             }
 
             return issues.Count == 0 ? ValidationResult.Valid() : ValidationResult.Invalid(issues);
         }
 
-        private static bool ShouldUseGpu()
+        private unsafe byte[] EncodeFrame(ReadOnlySpan<byte> frameData, PixelDataInfo info, NativeJpeg2000CodecOptions options)
         {
-            // Use GPU when available and not explicitly disabled
-            return NativeCodecs.HasFeature(NativeCodecFeature.Gpu);
+            fixed (byte* inputPtr = frameData)
+            {
+                byte* outputPtr;
+                int outputLen;
+
+                int result = NativeMethods.J2kEncode(
+                    inputPtr,
+                    info.Columns,
+                    info.Rows,
+                    info.SamplesPerPixel,
+                    info.BitsStored,
+                    out outputPtr,
+                    out outputLen,
+                    options.Lossless ? 1 : 0,
+                    options.CompressionRatio,
+                    options.TileSize);
+
+                if (result < 0)
+                {
+                    string errorMsg = NativeCodecs.GetLastError();
+                    throw new NativeCodecException($"JPEG 2000 encode failed: {errorMsg}", result);
+                }
+
+                try
+                {
+                    var encoded = new byte[outputLen];
+                    Marshal.Copy((IntPtr)outputPtr, encoded, 0, outputLen);
+                    return encoded;
+                }
+                finally
+                {
+                    NativeMethods.J2kFree(outputPtr);
+                }
+            }
         }
+
+        private NativeJpeg2000CodecOptions GetDefaultOptions() =>
+            _isLossy ? NativeJpeg2000CodecOptions.DefaultLossy : NativeJpeg2000CodecOptions.DefaultLossless;
+
+        /// <summary>
+        /// Creates a codec instance for JPEG 2000 Lossless transfer syntax.
+        /// </summary>
+        public static NativeJpeg2000Codec CreateLossless() =>
+            new(TransferSyntax.JPEG2000Lossless, isLossy: false);
+
+        /// <summary>
+        /// Creates a codec instance for JPEG 2000 Lossy transfer syntax.
+        /// </summary>
+        public static NativeJpeg2000Codec CreateLossy() =>
+            new(TransferSyntax.JPEG2000Lossy, isLossy: true);
     }
 
     /// <summary>
-    /// Options for JPEG 2000 decoding.
+    /// Options for native JPEG 2000 encoding.
     /// </summary>
-    public sealed class Jpeg2000DecodeOptions
-    {
-        private int _resolutionLevel;
-        private bool? _useGpu;
-
-        /// <summary>
-        /// Gets or sets the resolution level to decode (0 = full resolution).
-        /// </summary>
-        /// <remarks>
-        /// Higher values decode at lower resolutions, which is useful for
-        /// generating thumbnails or progressive preview.
-        /// </remarks>
-        public int ResolutionLevel
-        {
-            get => _resolutionLevel;
-            init => _resolutionLevel = value;
-        }
-
-        /// <summary>
-        /// Gets or sets whether to use GPU acceleration if available.
-        /// </summary>
-        /// <remarks>
-        /// When null, GPU is used automatically if available and not disabled.
-        /// </remarks>
-        public bool? UseGpu
-        {
-            get => _useGpu;
-            init => _useGpu = value;
-        }
-    }
-
-    /// <summary>
-    /// Options for JPEG 2000 encoding.
-    /// </summary>
-    public sealed class Jpeg2000EncodeOptions
+    public sealed class NativeJpeg2000CodecOptions
     {
         /// <summary>
-        /// Default encoding options.
+        /// Gets or sets whether to use lossless compression. Default is true.
         /// </summary>
-        public static readonly Jpeg2000EncodeOptions Default = new();
-
-        private float _compressionRatio = 10.0f;
-        private int _tileSize;
-        private int _resolutionLevels = 6;
+        public bool Lossless { get; set; } = true;
 
         /// <summary>
-        /// Gets or sets the compression ratio for lossy encoding.
+        /// Gets or sets the compression ratio for lossy compression.
+        /// Higher values mean more compression (lower quality).
+        /// Only used when Lossless is false. Default is 20.0.
         /// </summary>
-        /// <remarks>
-        /// Typical values: 10-20 for lossy medical imaging.
-        /// Ignored for lossless encoding.
-        /// </remarks>
-        public float CompressionRatio
-        {
-            get => _compressionRatio;
-            init => _compressionRatio = value;
-        }
+        public float CompressionRatio { get; set; } = 20.0f;
 
         /// <summary>
-        /// Gets or sets the tile size (0 = no tiling, use full image).
+        /// Gets or sets the tile size. 0 means no tiling (single tile).
+        /// Default is 0 (no tiling) for maximum compatibility.
         /// </summary>
-        /// <remarks>
-        /// Tiling can improve decode performance for large images.
-        /// Typical values: 0 (no tiling) or 512/1024.
-        /// </remarks>
-        public int TileSize
-        {
-            get => _tileSize;
-            init => _tileSize = value;
-        }
+        public int TileSize { get; set; }
 
         /// <summary>
-        /// Gets or sets the number of resolution levels.
+        /// Gets or sets the number of resolution levels. Default is 6.
         /// </summary>
-        public int ResolutionLevels
-        {
-            get => _resolutionLevels;
-            init => _resolutionLevels = value;
-        }
+        public int ResolutionLevels { get; set; } = 6;
 
         /// <summary>
-        /// Creates options optimized for lossless medical imaging.
+        /// Default options for lossless JPEG 2000 encoding.
         /// </summary>
-        public static Jpeg2000EncodeOptions Lossless => new()
+        public static readonly NativeJpeg2000CodecOptions DefaultLossless = new()
         {
-            ResolutionLevels = 6
+            Lossless = true,
+            TileSize = 0
         };
 
         /// <summary>
-        /// Creates options optimized for lossy medical imaging.
+        /// Default options for lossy JPEG 2000 encoding.
         /// </summary>
-        public static Jpeg2000EncodeOptions LossyMedical => new()
+        public static readonly NativeJpeg2000CodecOptions DefaultLossy = new()
         {
-            CompressionRatio = 15.0f,
-            ResolutionLevels = 6
+            Lossless = false,
+            CompressionRatio = 20.0f,
+            TileSize = 0
         };
     }
 }
