@@ -21,13 +21,7 @@ jobs:
         ports:
           - 4242:4242  # DICOM port
           - 8042:8042  # HTTP API
-        # Health check uses wget since curl isn't in the container
-        options: >-
-          --health-cmd "wget -q --spider http://localhost:8042/system || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 60s
+        # No health check - Orthanc starts quickly, we'll wait in step
 
     steps:
       - uses: actions/checkout@v6
@@ -49,6 +43,18 @@ jobs:
 
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
+
+      - name: Wait for Orthanc
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8042/system > /dev/null 2>&1; then
+              echo "Orthanc is ready"
+              exit 0
+            fi
+            echo "Waiting for Orthanc... ($i/30)"
+            sleep 2
+          done
+          echo "Orthanc may not be ready, continuing anyway"
 
       - name: Integration tests with Orthanc
         continue-on-error: true  # Orthanc tests are optional for now
