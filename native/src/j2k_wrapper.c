@@ -434,10 +434,10 @@ SHARPDICOM_API int j2k_decode(
     int32_t bits = (int32_t)image->comps[0].prec;
     int32_t bytes_per_sample = (bits <= 8) ? 1 : 2;
 
-    /* Check output buffer size */
-    size_t required_size = (size_t)width * (size_t)height * (size_t)num_comps * (size_t)bytes_per_sample;
-    if (output_len < required_size) {
-        set_error("Output buffer too small");
+    /* Check output buffer size (with overflow protection) */
+    size_t required_size = safe_mul4_size((size_t)width, (size_t)height, (size_t)num_comps, (size_t)bytes_per_sample);
+    if (required_size == 0 || output_len < required_size) {
+        set_error("Output buffer too small or image dimensions too large");
         opj_image_destroy(image);
         opj_stream_destroy(stream);
         opj_destroy_codec(codec);
@@ -603,10 +603,10 @@ SHARPDICOM_API int j2k_decode_region(
     int32_t bits = (int32_t)image->comps[0].prec;
     int32_t bytes_per_sample = (bits <= 8) ? 1 : 2;
 
-    /* Check output buffer size */
-    size_t required_size = (size_t)width * (size_t)height * (size_t)num_comps * (size_t)bytes_per_sample;
-    if (output_len < required_size) {
-        set_error("Output buffer too small for region");
+    /* Check output buffer size (with overflow protection) */
+    size_t required_size = safe_mul4_size((size_t)width, (size_t)height, (size_t)num_comps, (size_t)bytes_per_sample);
+    if (required_size == 0 || output_len < required_size) {
+        set_error("Output buffer too small for region or dimensions too large");
         opj_image_destroy(image);
         opj_stream_destroy(stream);
         opj_destroy_codec(codec);

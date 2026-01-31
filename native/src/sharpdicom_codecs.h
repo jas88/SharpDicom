@@ -68,6 +68,54 @@ extern "C" {
 #define SHARPDICOM_SIMD_NEON        (1 << 6)  /* aarch64: NEON (always available on ARM64) */
 
 /*============================================================================
+ * Safe arithmetic helpers (overflow protection)
+ *============================================================================*/
+
+/**
+ * Safely multiply two size_t values, returning 0 on overflow.
+ * Uses compiler intrinsics when available for optimal code generation.
+ */
+static inline size_t safe_mul_size(size_t a, size_t b) {
+#if defined(__GNUC__) || defined(__clang__)
+    size_t result;
+    if (__builtin_mul_overflow(a, b, &result)) {
+        return 0; /* Overflow occurred */
+    }
+    return result;
+#elif defined(_MSC_VER) && defined(_WIN64)
+    /* MSVC 64-bit: use intrinsic */
+    unsigned __int64 high;
+    unsigned __int64 low = _umul128(a, b, &high);
+    if (high != 0) return 0; /* Overflow */
+    return (size_t)low;
+#else
+    /* Fallback: check before multiply */
+    if (a != 0 && b > SIZE_MAX / a) {
+        return 0; /* Would overflow */
+    }
+    return a * b;
+#endif
+}
+
+/**
+ * Safely multiply three size_t values, returning 0 on overflow.
+ */
+static inline size_t safe_mul3_size(size_t a, size_t b, size_t c) {
+    size_t ab = safe_mul_size(a, b);
+    if (ab == 0 && (a != 0 && b != 0)) return 0;
+    return safe_mul_size(ab, c);
+}
+
+/**
+ * Safely multiply four size_t values, returning 0 on overflow.
+ */
+static inline size_t safe_mul4_size(size_t a, size_t b, size_t c, size_t d) {
+    size_t abc = safe_mul3_size(a, b, c);
+    if (abc == 0 && (a != 0 && b != 0 && c != 0)) return 0;
+    return safe_mul_size(abc, d);
+}
+
+/*============================================================================
  * Error codes
  *============================================================================*/
 

@@ -143,13 +143,25 @@ static pfn_nvj2k_clear_error fn_nvj2k_clear_error = NULL;
 
 #if defined(_WIN32) || defined(_WIN64)
 static CRITICAL_SECTION g_lock;
-static volatile int g_lock_init = 0;
+static volatile LONG g_lock_init = 0;
 
 static void init_lock(void) {
-    if (!g_lock_init) {
+    /* Thread-safe one-time initialization using InterlockedCompareExchange.
+     * State machine: 0 = uninitialized, 1 = initializing, 2 = initialized */
+    if (g_lock_init == 2) return; /* Fast path: already initialized */
+
+    LONG state = InterlockedCompareExchange(&g_lock_init, 1, 0);
+    if (state == 0) {
+        /* We won the race - initialize the critical section */
         InitializeCriticalSection(&g_lock);
-        g_lock_init = 1;
+        InterlockedExchange(&g_lock_init, 2);
+    } else if (state == 1) {
+        /* Another thread is initializing - spin until complete */
+        while (g_lock_init != 2) {
+            SwitchToThread(); /* Yield to other threads */
+        }
     }
+    /* state == 2 means already initialized, nothing to do */
 }
 
 static void lock(void) {
@@ -418,7 +430,7 @@ int gpu_j2k_decode(
             result->height = height;
             result->num_components = components;
             result->precision = 8; /* Default, may need refinement */
-            result->output_size = (size_t)width * height * components;
+            result->output_size = safe_mul3_size((size_t)width, (size_t)height, (size_t)components);
         }
         return GPU_OK;
     }

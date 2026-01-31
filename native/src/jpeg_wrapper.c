@@ -237,7 +237,7 @@ int jpeg_decode(
     tjhandle handle;
     int w, h, comps, subsamp;
     int pixelFormat;
-    int requiredSize;
+    size_t requiredSize;
     int flags;
 
     /* Validate input arguments */
@@ -279,10 +279,10 @@ int jpeg_decode(
         comps = 3;
     }
 
-    /* Check output buffer size */
-    requiredSize = w * h * comps;
-    if (outputLen < requiredSize) {
-        set_error("jpeg_decode: output buffer too small");
+    /* Check output buffer size (with overflow protection) */
+    requiredSize = safe_mul3_size((size_t)w, (size_t)h, (size_t)comps);
+    if (requiredSize == 0 || (size_t)outputLen < requiredSize) {
+        set_error("jpeg_decode: output buffer too small or dimensions too large");
         return JPEG_ERR_OUTPUT_TOO_SMALL;
     }
 

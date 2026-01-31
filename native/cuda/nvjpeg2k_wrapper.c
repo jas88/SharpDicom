@@ -10,6 +10,7 @@
 
 #define NVJPEG2K_WRAPPER_EXPORTS
 #include "nvjpeg2k_wrapper.h"
+#include "../src/sharpdicom_codecs.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -411,14 +412,14 @@ NVJ2K_API int nvj2k_decode(
         return NVJ2K_ERR_DECODE_FAILED;
     }
 
-    /* Calculate expected output size */
+    /* Calculate expected output size (with overflow protection) */
     int bytes_per_sample = (comp_info.precision + 7) / 8;
-    size_t expected_size = (size_t)decode_width * decode_height *
-                           image_info.num_components * bytes_per_sample;
+    size_t expected_size = safe_mul4_size((size_t)decode_width, (size_t)decode_height,
+                                          (size_t)image_info.num_components, (size_t)bytes_per_sample);
 
-    if (output_len < expected_size) {
+    if (expected_size == 0 || output_len < expected_size) {
         nvjpeg2kStreamDestroy(j2k_stream);
-        set_error_fmt("Output buffer too small: need %zu, got %zu", expected_size, output_len);
+        set_error_fmt("Output buffer too small or dimensions too large: need %zu, got %zu", expected_size, output_len);
         return NVJ2K_ERR_INVALID_ARGUMENT;
     }
 
@@ -446,10 +447,11 @@ NVJ2K_API int nvj2k_decode(
     output_image.num_components = image_info.num_components;
 
     /* For interleaved output, we use a single buffer */
+    size_t comp_size = safe_mul3_size((size_t)decode_width, (size_t)decode_height, (size_t)bytes_per_sample);
+    size_t pitch = safe_mul_size((size_t)decode_width, (size_t)bytes_per_sample);
     for (uint32_t c = 0; c < image_info.num_components && c < NVJPEG2K_MAX_COMPONENT; c++) {
-        size_t comp_size = (size_t)decode_width * decode_height * bytes_per_sample;
         output_image.pixel_data[c] = d_output + c * comp_size;
-        output_image.pitch_in_bytes[c] = decode_width * bytes_per_sample;
+        output_image.pitch_in_bytes[c] = pitch;
         output_image.pixel_type = (bytes_per_sample == 1) ? NVJPEG2K_UINT8 :
                                    (bytes_per_sample == 2) ? NVJPEG2K_UINT16 : NVJPEG2K_UINT8;
     }
