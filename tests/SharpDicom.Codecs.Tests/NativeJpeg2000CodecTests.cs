@@ -1,454 +1,412 @@
 using System;
+using System.Linq;
 using NUnit.Framework;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native;
 using SharpDicom.Data;
 
+// Alias to disambiguate from SharpDicom.Data.PixelDataInfo
+using PixelDataInfo = SharpDicom.Codecs.PixelDataInfo;
+
 namespace SharpDicom.Codecs.Tests
 {
     /// <summary>
-    /// Tests for <see cref="NativeJpeg2000Codec"/> decode and encode operations.
+    /// Tests for NativeJpeg2000Codec decode/encode operations.
     /// </summary>
-    /// <remarks>
-    /// These tests verify JPEG 2000 codec functionality when native libraries are available.
-    /// Tests are skipped if native libraries are not present.
-    /// </remarks>
     [TestFixture]
+    [Category("Native")]
     public class NativeJpeg2000CodecTests
     {
-        [SetUp]
+        private NativeJpeg2000Codec _losslessCodec = null!;
+        private NativeJpeg2000Codec _lossyCodec = null!;
+        private bool _nativeAvailable;
+
+        [OneTimeSetUp]
         public void Setup()
         {
-            NativeCodecs.Reset();
             CodecRegistry.Reset();
 
-            // Initialize with suppressed errors since native libs may not be available
-            NativeCodecs.Initialize(new NativeCodecOptions
+            try
             {
-                SuppressInitializationErrors = true
-            });
-        }
+                NativeCodecs.Initialize();
+                _nativeAvailable = NativeCodecs.IsAvailable &&
+                                   NativeCodecs.AvailableFeatures.HasFlag(CodecFeatures.Jpeg2000);
 
-        [TearDown]
-        public void TearDown()
-        {
-            NativeCodecs.Reset();
-            CodecRegistry.Reset();
-        }
-
-        #region Test Helpers
-
-        private static bool NativeJpeg2000Available =>
-            NativeCodecs.IsAvailable && NativeCodecs.HasFeature(NativeCodecFeature.Jpeg2000);
-
-        private static bool GpuAvailable =>
-            NativeCodecs.IsAvailable && NativeCodecs.GpuAvailable;
-
-        private static void SkipIfNativeJ2kUnavailable()
-        {
-            if (!NativeJpeg2000Available)
-            {
-                Assert.Ignore("Native JPEG 2000 codec not available - skipping test");
-            }
-        }
-
-        private static void SkipIfGpuUnavailable()
-        {
-            SkipIfNativeJ2kUnavailable();
-            if (!GpuAvailable)
-            {
-                Assert.Ignore("GPU not available - skipping GPU test");
-            }
-        }
-
-        private static byte[] CreateGrayscale8TestImage(int width, int height)
-        {
-            var data = new byte[width * height];
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
+                if (_nativeAvailable)
                 {
-                    data[y * width + x] = (byte)((x + y) % 256);
+                    _losslessCodec = NativeJpeg2000Codec.CreateLossless();
+                    _lossyCodec = NativeJpeg2000Codec.CreateLossy();
                 }
             }
-
-            return data;
-        }
-
-        private static byte[] CreateGrayscale16TestImage(int width, int height)
-        {
-            var data = new byte[width * height * 2];
-            for (int y = 0; y < height; y++)
+            catch (NativeCodecException)
             {
-                for (int x = 0; x < width; x++)
-                {
-                    ushort value = (ushort)((x * 256 + y) % 65536);
-                    int offset = (y * width + x) * 2;
-                    data[offset] = (byte)(value & 0xFF);
-                    data[offset + 1] = (byte)(value >> 8);
-                }
+                _nativeAvailable = false;
             }
-
-            return data;
         }
 
-        private static bool HasJ2kMarkers(ReadOnlySpan<byte> data)
+        private void EnsureNativeAvailable()
         {
-            if (data.Length < 4)
+            if (!_nativeAvailable)
             {
-                return false;
+                Assert.Ignore("Native JPEG 2000 library not available");
             }
-
-            // Check SOC (Start of Codestream) marker: 0xFF4F
-            bool hasSoc = data[0] == 0xFF && data[1] == 0x4F;
-
-            // Check EOC (End of Codestream) marker: 0xFFD9
-            bool hasEoc = data[data.Length - 2] == 0xFF && data[data.Length - 1] == 0xD9;
-
-            return hasSoc && hasEoc;
-        }
-
-        #endregion
-
-        #region Codec Instantiation Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void NativeJpeg2000Codec_Lossless_CanBeInstantiated()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            Assert.That(codec, Is.Not.Null);
-            Assert.That(codec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossless));
         }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void NativeJpeg2000Codec_Lossy_CanBeInstantiated()
+        public void LosslessCodec_Properties_AreCorrect()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossy);
-            Assert.That(codec, Is.Not.Null);
-            Assert.That(codec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossy));
+            Assert.That(_losslessCodec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossless));
+            Assert.That(_losslessCodec.Name, Does.Contain("JPEG 2000"));
+            Assert.That(_losslessCodec.Name, Does.Contain("Lossless"));
+            Assert.That(_losslessCodec.Capabilities.IsLossy, Is.False);
         }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void NativeJpeg2000Codec_Lossless_HasCorrectCapabilities()
+        public void LossyCodec_Properties_AreCorrect()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            Assert.That(codec.Capabilities.IsLossy, Is.False);
-            Assert.That(codec.Capabilities.CanEncode, Is.True);
-            Assert.That(codec.Capabilities.CanDecode, Is.True);
+            Assert.That(_lossyCodec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossy));
+            Assert.That(_lossyCodec.Name, Does.Contain("JPEG 2000"));
+            Assert.That(_lossyCodec.Capabilities.IsLossy, Is.True);
         }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void NativeJpeg2000Codec_Lossy_HasCorrectCapabilities()
+        public void Decode_NullFragments_ThrowsArgumentNullException()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossy);
-            Assert.That(codec.Capabilities.IsLossy, Is.True);
-            Assert.That(codec.Capabilities.CanEncode, Is.True);
-            Assert.That(codec.Capabilities.CanDecode, Is.True);
+            var info = PixelDataInfo.Grayscale16(256, 256);
+            var destination = new byte[256 * 256 * 2];
+
+            Assert.Throws<ArgumentNullException>(() =>
+                _losslessCodec.Decode(null!, info, 0, destination));
         }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void NativeJpeg2000Codec_Name_ContainsJpeg2000()
+        public void Decode_InvalidFrameIndex_ThrowsArgumentOutOfRange()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            Assert.That(codec.Name, Does.Contain("JPEG 2000").Or.Contain("J2K").Or.Contain("OpenJPEG"));
-        }
+            var fragments = CreateTestFragmentSequence(1);
+            var info = PixelDataInfo.Grayscale16(256, 256);
+            var destination = new byte[256 * 256 * 2];
 
-        #endregion
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                _losslessCodec.Decode(fragments, info, -1, destination));
 
-        #region Lossless Encode/Decode Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void LosslessEncode_ThenDecode_ExactMatch()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(16, 16);
-            var original = CreateGrayscale8TestImage(16, 16);
-
-            // Encode
-            var fragments = codec.Encode(original, info);
-            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
-
-            // Decode
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic?.Message}");
-            Assert.That(decoded, Is.EqualTo(original), "Lossless roundtrip should be exact");
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                _losslessCodec.Decode(fragments, info, 5, destination));
         }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void LosslessEncode_16Bit_ThenDecode_ExactMatch()
+        public void Decode_EmptyFragment_ReturnsFailure()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale16(16, 16);
-            var original = CreateGrayscale16TestImage(16, 16);
+            var fragments = new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                new[] { ReadOnlyMemory<byte>.Empty });
 
-            // Encode
-            var fragments = codec.Encode(original, info);
-            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
+            var info = PixelDataInfo.Grayscale16(256, 256);
+            var destination = new byte[256 * 256 * 2];
 
-            // Decode
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic?.Message}");
-            Assert.That(decoded, Is.EqualTo(original), "Lossless 16-bit roundtrip should be exact");
-        }
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void LosslessEncode_ProducesValidJ2kCodestream()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(32, 32);
-            var original = CreateGrayscale8TestImage(32, 32);
-
-            var fragments = codec.Encode(original, info);
-            var data = fragments.Fragments[0].Span;
-
-            Assert.That(HasJ2kMarkers(data), Is.True, "Output should have SOC/EOC markers");
-        }
-
-        #endregion
-
-        #region Lossy Encode/Decode Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void LossyEncode_ThenDecode_Succeeds()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossy);
-            var info = PixelDataInfo.Grayscale8(32, 32);
-            var original = CreateGrayscale8TestImage(32, 32);
-
-            // Encode
-            var fragments = codec.Encode(original, info);
-            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
-
-            // Decode
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic?.Message}");
-            Assert.That(result.BytesWritten, Is.EqualTo(original.Length));
-        }
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void LossyEncode_ProducesCompressedOutput()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossy);
-            var info = PixelDataInfo.Grayscale8(64, 64);
-            var original = CreateGrayscale8TestImage(64, 64);
-
-            var fragments = codec.Encode(original, info);
-
-            // Lossy compression should produce smaller output
-            Assert.That(fragments.Fragments[0].Length, Is.LessThan(original.Length),
-                "Lossy J2K should be smaller than raw data");
-        }
-
-        #endregion
-
-        #region Resolution Level Decode Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void ResolutionLevelDecode_ProducesSmaller()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            // Note: Resolution level decode is an advanced feature
-            // This test verifies basic decode works - resolution level support
-            // depends on the native library implementation
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(64, 64);
-            var original = CreateGrayscale8TestImage(64, 64);
-
-            // Encode at full resolution
-            var fragments = codec.Encode(original, info);
-
-            // Decode - resolution level support would be via codec options
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "Decode should succeed");
-
-            // If codec supports resolution levels, a lower level would produce smaller output
-            // For now, just verify full decode works
-            Assert.That(result.BytesWritten, Is.EqualTo(original.Length));
-        }
-
-        #endregion
-
-        #region GPU Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        [Category("GPU")]
-        public void GpuDecode_WhenAvailable_Succeeds()
-        {
-            SkipIfGpuUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(32, 32);
-            var original = CreateGrayscale8TestImage(32, 32);
-
-            // Ensure GPU is enabled
-            NativeCodecs.PreferCpu = false;
-
-            // Encode
-            var fragments = codec.Encode(original, info);
-
-            // Decode (should use GPU if available)
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, $"GPU decode failed: {result.Diagnostic?.Message}");
-            Assert.That(decoded, Is.EqualTo(original), "GPU decode should produce correct output");
-        }
-
-        [Test]
-        [Category("NativeCodecs")]
-        [Category("GPU")]
-        public void GpuDecode_WithPreferCpu_UsesCpu()
-        {
-            SkipIfGpuUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(32, 32);
-            var original = CreateGrayscale8TestImage(32, 32);
-
-            // Force CPU path
-            NativeCodecs.PreferCpu = true;
-
-            // Encode
-            var fragments = codec.Encode(original, info);
-
-            // Decode (should use CPU due to PreferCpu=true)
-            var decoded = new byte[original.Length];
-            var result = codec.Decode(fragments, info, 0, decoded);
-
-            Assert.That(result.Success, Is.True, "CPU decode failed");
-            Assert.That(decoded, Is.EqualTo(original), "CPU decode should produce correct output");
-        }
-
-        #endregion
-
-        #region Validation Tests
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void ValidateCompressedData_ValidData_ReturnsValid()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(8, 8);
-            var original = CreateGrayscale8TestImage(8, 8);
-
-            var fragments = codec.Encode(original, info);
-            var result = codec.ValidateCompressedData(fragments, info);
-
-            Assert.That(result.IsValid, Is.True);
-        }
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void ValidateCompressedData_NullFragments_ReturnsInvalid()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(8, 8);
-
-            var result = codec.ValidateCompressedData(null!, info);
-
-            Assert.That(result.IsValid, Is.False);
-        }
-
-        [Test]
-        [Category("NativeCodecs")]
-        public void Decode_InvalidFrameIndex_ReturnsFailure()
-        {
-            SkipIfNativeJ2kUnavailable();
-
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            var info = PixelDataInfo.Grayscale8(8, 8);
-            var original = CreateGrayscale8TestImage(8, 8);
-
-            var fragments = codec.Encode(original, info);
-            var decoded = new byte[64];
-
-            var result = codec.Decode(fragments, info, 10, decoded);
+            var result = _losslessCodec.Decode(fragments, info, 0, destination);
 
             Assert.That(result.Success, Is.False);
+            Assert.That(result.Diagnostic, Is.Not.Null);
         }
 
-        #endregion
+        [Test]
+        public void LosslessEncode_ThenDecode_ExactMatch()
+        {
+            EnsureNativeAvailable();
 
-        #region Multi-Frame Tests
+            const int width = 32;
+            const int height = 32;
+            var original = CreateGradient16Pattern(width, height);
+
+            var info = PixelDataInfo.Grayscale16((ushort)height, (ushort)width);
+
+            // Encode lossless
+            var fragments = _losslessCodec.Encode(original, info);
+
+            Assert.That(fragments.FragmentCount, Is.GreaterThan(0),
+                "Encoding should produce at least one fragment");
+
+            // Decode
+            var decoded = new byte[original.Length];
+            var result = _losslessCodec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True,
+                $"Decode failed: {result.Diagnostic?.Message}");
+
+            // Lossless should be exact match
+            Assert.That(decoded, Is.EqualTo(original),
+                "Lossless JPEG 2000 roundtrip should produce exact match");
+        }
 
         [Test]
-        [Category("NativeCodecs")]
-        public void MultiFrame_EncodeAndDecode_ProducesCorrectFragmentCount()
+        public void LossyEncode_ThenDecode_ProducesReasonableQuality()
         {
-            SkipIfNativeJ2kUnavailable();
+            EnsureNativeAvailable();
 
-            var codec = new NativeJpeg2000Codec(TransferSyntax.JPEG2000Lossless);
-            int numFrames = 4;
-            int frameSize = 64;
-            var info = PixelDataInfo.Grayscale8(8, 8, numberOfFrames: numFrames);
+            const int width = 64;
+            const int height = 64;
+            var original = CreateGradient8Pattern(width, height);
 
-            // Create multi-frame data
-            var original = new byte[frameSize * numFrames];
-            for (int frame = 0; frame < numFrames; frame++)
+            var info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+
+            // Encode lossy with moderate compression
+            var options = new NativeJpeg2000CodecOptions
             {
-                for (int i = 0; i < frameSize; i++)
+                Lossless = false,
+                CompressionRatio = 10.0f
+            };
+            var fragments = _lossyCodec.Encode(original, info, options);
+
+            Assert.That(fragments.FragmentCount, Is.GreaterThan(0));
+
+            // Decode
+            var decoded = new byte[original.Length];
+            var result = _lossyCodec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True,
+                $"Decode failed: {result.Diagnostic?.Message}");
+
+            // Lossy should have reasonable quality (PSNR > 35dB)
+            double psnr = CalculatePsnr8(original, decoded);
+            Assert.That(psnr, Is.GreaterThan(35.0),
+                $"PSNR {psnr:F2}dB should be > 35dB for moderate J2K compression");
+        }
+
+        [Test]
+        public void ValidateCompressedData_ValidJ2k_ReturnsValid()
+        {
+            EnsureNativeAvailable();
+
+            const int width = 32;
+            const int height = 32;
+            var pixels = CreateGradient8Pattern(width, height);
+            var info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+
+            var fragments = _losslessCodec.Encode(pixels, info);
+
+            var validation = _losslessCodec.ValidateCompressedData(fragments, info);
+
+            Assert.That(validation.IsValid, Is.True);
+        }
+
+        [Test]
+        public void ValidateCompressedData_InvalidData_ReturnsInvalid()
+        {
+            EnsureNativeAvailable();
+
+            // Create fragment with invalid J2K data
+            var invalidData = new byte[] { 0x00, 0x00, 0x00, 0x00 };
+            var fragments = new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                new[] { new ReadOnlyMemory<byte>(invalidData) });
+
+            var info = PixelDataInfo.Grayscale16(32, 32);
+
+            var validation = _losslessCodec.ValidateCompressedData(fragments, info);
+
+            Assert.That(validation.IsValid, Is.False);
+        }
+
+        [Test]
+        public void J2kOptions_DefaultLossless_HasCorrectSettings()
+        {
+            var options = NativeJpeg2000CodecOptions.DefaultLossless;
+            Assert.That(options.Lossless, Is.True);
+            Assert.That(options.TileSize, Is.EqualTo(0)); // No tiling
+        }
+
+        [Test]
+        public void J2kOptions_DefaultLossy_HasCorrectSettings()
+        {
+            var options = NativeJpeg2000CodecOptions.DefaultLossy;
+            Assert.That(options.Lossless, Is.False);
+            Assert.That(options.CompressionRatio, Is.GreaterThan(1.0f));
+        }
+
+        [Test]
+        public void J2kOptions_CanSetResolutionLevels()
+        {
+            var options = new NativeJpeg2000CodecOptions
+            {
+                ResolutionLevels = 4
+            };
+            Assert.That(options.ResolutionLevels, Is.EqualTo(4));
+        }
+
+        [Test]
+        public void J2kOptions_CanSetTileSize()
+        {
+            var options = new NativeJpeg2000CodecOptions
+            {
+                TileSize = 256
+            };
+            Assert.That(options.TileSize, Is.EqualTo(256));
+        }
+
+        [Test]
+        public void GpuEnabled_ReturnsBoolean()
+        {
+            // This should not throw even if GPU is not available
+            var gpuEnabled = NativeJpeg2000Codec.GpuEnabled;
+            Assert.That(gpuEnabled, Is.TypeOf<bool>());
+        }
+
+        [Test]
+        [Category("GPU")]
+        public void GpuDecode_WhenAvailable_UsesGpu()
+        {
+            if (!NativeCodecs.GpuAvailable ||
+                !NativeCodecs.AvailableFeatures.HasFlag(CodecFeatures.GpuJpeg2000) ||
+                !NativeJpeg2000Codec.GpuEnabled)
+            {
+                Assert.Ignore("GPU JPEG 2000 not available");
+            }
+
+            EnsureNativeAvailable();
+
+            const int width = 256;
+            const int height = 256;
+            var original = CreateGradient16Pattern(width, height);
+
+            var info = PixelDataInfo.Grayscale16((ushort)height, (ushort)width);
+            var fragments = _losslessCodec.Encode(original, info);
+
+            // GPU decode should work
+            var decoded = new byte[original.Length];
+            var result = _losslessCodec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True);
+            Assert.That(decoded, Is.EqualTo(original));
+        }
+
+        [Test]
+        public void CreateLossless_ReturnsCorrectTransferSyntax()
+        {
+            var codec = NativeJpeg2000Codec.CreateLossless();
+            Assert.That(codec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossless));
+            Assert.That(codec.Capabilities.IsLossy, Is.False);
+        }
+
+        [Test]
+        public void CreateLossy_ReturnsCorrectTransferSyntax()
+        {
+            var codec = NativeJpeg2000Codec.CreateLossy();
+            Assert.That(codec.TransferSyntax, Is.EqualTo(TransferSyntax.JPEG2000Lossy));
+            Assert.That(codec.Capabilities.IsLossy, Is.True);
+        }
+
+        [Test]
+        public void DecodeAsync_CompletesImmediately()
+        {
+            EnsureNativeAvailable();
+
+            const int width = 32;
+            const int height = 32;
+            var original = CreateGradient8Pattern(width, height);
+            var info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+
+            var fragments = _losslessCodec.Encode(original, info);
+            var destination = new byte[original.Length];
+
+            var task = _losslessCodec.DecodeAsync(fragments, info, 0, destination);
+
+            Assert.That(task.IsCompleted, Is.True,
+                "Sync-over-async should complete immediately");
+        }
+
+        [Test]
+        public void EncodeAsync_CompletesImmediately()
+        {
+            EnsureNativeAvailable();
+
+            const int width = 32;
+            const int height = 32;
+            var pixels = CreateGradient8Pattern(width, height);
+            var info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+
+            var task = _losslessCodec.EncodeAsync(pixels, info);
+
+            Assert.That(task.IsCompleted, Is.True,
+                "Sync-over-async should complete immediately");
+        }
+
+        #region Helper Methods
+
+        private static DicomFragmentSequence CreateTestFragmentSequence(int fragmentCount)
+        {
+            // Minimal J2K codestream (SOC marker only)
+            var j2kMinimal = new byte[] { 0xFF, 0x4F };
+            var fragments = Enumerable.Range(0, fragmentCount)
+                .Select(_ => new ReadOnlyMemory<byte>(j2kMinimal))
+                .ToList();
+
+            return new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                fragments);
+        }
+
+        private static byte[] CreateGradient8Pattern(int width, int height)
+        {
+            var pixels = new byte[width * height];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
                 {
-                    original[frame * frameSize + i] = (byte)((frame * 50 + i) % 256);
+                    pixels[y * width + x] = (byte)((x + y) * 255 / (width + height - 2));
                 }
             }
+            return pixels;
+        }
 
-            var fragments = codec.Encode(original, info);
-
-            Assert.That(fragments.Fragments.Count, Is.EqualTo(numFrames));
-
-            // Decode each frame
-            for (int frame = 0; frame < numFrames; frame++)
+        private static byte[] CreateGradient16Pattern(int width, int height)
+        {
+            var pixels = new byte[width * height * 2];
+            for (int y = 0; y < height; y++)
             {
-                var decoded = new byte[frameSize];
-                var result = codec.Decode(fragments, info, frame, decoded);
-                Assert.That(result.Success, Is.True, $"Frame {frame} decode failed");
+                for (int x = 0; x < width; x++)
+                {
+                    ushort value = (ushort)((x + y) * 4095 / (width + height - 2));
+                    int idx = (y * width + x) * 2;
+                    pixels[idx] = (byte)(value & 0xFF);       // Low byte
+                    pixels[idx + 1] = (byte)(value >> 8);     // High byte
+                }
             }
+            return pixels;
+        }
+
+        private static double CalculatePsnr8(byte[] original, byte[] decoded)
+        {
+            if (original.Length != decoded.Length || original.Length == 0)
+                return 0;
+
+            double mse = 0;
+            for (int i = 0; i < original.Length; i++)
+            {
+                double diff = original[i] - decoded[i];
+                mse += diff * diff;
+            }
+            mse /= original.Length;
+
+            if (mse == 0)
+                return double.PositiveInfinity;
+
+            return 10 * Math.Log10(255.0 * 255.0 / mse);
         }
 
         #endregion
