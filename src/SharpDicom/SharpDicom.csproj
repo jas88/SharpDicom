@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- In shared framework for net10.0+; NuGet correctly omits this dependency from the packed .nuspec for those TFMs (earlier TFMs still get the package dependency). -->
     <PackageReference Include="System.Text.Encoding.CodePages" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
   </ItemGroup>
