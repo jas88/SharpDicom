@@ -17,15 +17,16 @@ jobs:
 
     services:
       orthanc:
-        image: orthancteam/orthanc:25.12.3
+        image: orthancteam/orthanc:24.12.1
         ports:
           - 4242:4242  # DICOM port
           - 8042:8042  # HTTP API
         options: >-
           --health-cmd "curl -f http://localhost:8042/system || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
 
     steps:
       - uses: actions/checkout@v6

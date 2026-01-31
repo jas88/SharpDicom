@@ -13,9 +13,6 @@ on:
       - 'native/**'
       - '.github/workflows/native-build.yml'
 
-env:
-  ZIG_VERSION: '0.13.0'
-
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -24,9 +21,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: ${{ env.ZIG_VERSION }}
+          version: 0.13.0
 
       - name: Cache Zig build
         uses: actions/cache@v4
@@ -36,39 +33,13 @@ jobs:
           restore-keys: |
             zig-cache-linux-
 
-      - name: Cache libjpeg-turbo source
-        uses: actions/cache@v4
-        id: cache-libjpeg-turbo
-        with:
-          path: native/vendor/libjpeg-turbo/src
-          key: libjpeg-turbo-3.0.4
-
-      - name: Download libjpeg-turbo
-        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
-        run: |
-          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
-          mkdir -p native/vendor/libjpeg-turbo/src
-          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
-          rm libjpeg-turbo.tar.gz
-
-      - name: Cache OpenJPEG source
-        uses: actions/cache@v4
-        id: cache-openjpeg
-        with:
-          path: native/vendor/openjpeg/src
-          key: openjpeg-v2.5.3
-
-      - name: Download OpenJPEG
-        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
-        run: |
-          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
-          mkdir -p native/vendor/openjpeg/src
-          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
-          rm openjpeg.tar.gz
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
 
       - name: Build all targets
         working-directory: native
-        run: zig build -Doptimize=ReleaseFast
+        run: zig build
 
       - name: Run native tests
         working-directory: native
@@ -95,9 +66,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: ${{ env.ZIG_VERSION }}
+          version: 0.13.0
 
       - name: Cache Zig build
         uses: actions/cache@v4
@@ -107,45 +78,13 @@ jobs:
           restore-keys: |
             zig-cache-windows-
 
-      - name: Cache libjpeg-turbo source
-        uses: actions/cache@v4
-        id: cache-libjpeg-turbo
-        with:
-          path: native/vendor/libjpeg-turbo/src
-          key: libjpeg-turbo-3.0.4
-
-      - name: Download libjpeg-turbo
-        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.zip -OutFile libjpeg-turbo.zip
-          New-Item -ItemType Directory -Path native/vendor/libjpeg-turbo/src -Force
-          Expand-Archive -Path libjpeg-turbo.zip -DestinationPath native/vendor/libjpeg-turbo/temp
-          Move-Item -Path native/vendor/libjpeg-turbo/temp/libjpeg-turbo-3.0.4/* -Destination native/vendor/libjpeg-turbo/src
-          Remove-Item -Recurse -Force native/vendor/libjpeg-turbo/temp
-          Remove-Item libjpeg-turbo.zip
-
-      - name: Cache OpenJPEG source
-        uses: actions/cache@v4
-        id: cache-openjpeg
-        with:
-          path: native/vendor/openjpeg/src
-          key: openjpeg-v2.5.3
-
-      - name: Download OpenJPEG
-        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          Invoke-WebRequest -Uri https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.zip -OutFile openjpeg.zip
-          New-Item -ItemType Directory -Path native/vendor/openjpeg/src -Force
-          Expand-Archive -Path openjpeg.zip -DestinationPath native/vendor/openjpeg/temp
-          Move-Item -Path native/vendor/openjpeg/temp/openjpeg-2.5.3/* -Destination native/vendor/openjpeg/src
-          Remove-Item -Recurse -Force native/vendor/openjpeg/temp
-          Remove-Item openjpeg.zip
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
 
       - name: Build Windows targets
         working-directory: native
-        run: zig build -Doptimize=ReleaseFast
+        run: zig build
 
       - name: Run native tests
         working-directory: native
@@ -172,9 +111,9 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: ${{ env.ZIG_VERSION }}
+          version: 0.13.0
 
       - name: Cache Zig build
         uses: actions/cache@v4
@@ -184,39 +123,13 @@ jobs:
           restore-keys: |
             zig-cache-macos-
 
-      - name: Cache libjpeg-turbo source
-        uses: actions/cache@v4
-        id: cache-libjpeg-turbo
-        with:
-          path: native/vendor/libjpeg-turbo/src
-          key: libjpeg-turbo-3.0.4
-
-      - name: Download libjpeg-turbo
-        if: steps.cache-libjpeg-turbo.outputs.cache-hit != 'true'
-        run: |
-          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
-          mkdir -p native/vendor/libjpeg-turbo/src
-          tar -xzf libjpeg-turbo.tar.gz -C native/vendor/libjpeg-turbo/src --strip-components=1
-          rm libjpeg-turbo.tar.gz
-
-      - name: Cache OpenJPEG source
-        uses: actions/cache@v4
-        id: cache-openjpeg
-        with:
-          path: native/vendor/openjpeg/src
-          key: openjpeg-v2.5.3
-
-      - name: Download OpenJPEG
-        if: steps.cache-openjpeg.outputs.cache-hit != 'true'
-        run: |
-          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
-          mkdir -p native/vendor/openjpeg/src
-          tar -xzf openjpeg.tar.gz -C native/vendor/openjpeg/src --strip-components=1
-          rm openjpeg.tar.gz
+      # Note: Vendor library downloads disabled for Phase 13a
+      # Cross-compilation of vendor libraries requires proper sysroot setup
+      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
 
       - name: Build macOS targets
         working-directory: native
-        run: zig build -Doptimize=ReleaseFast
+        run: zig build
 
       - name: Run native tests
         working-directory: native
