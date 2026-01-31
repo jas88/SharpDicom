@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 13 - Native Codecs Package
-**Plan**: 08 of 9 complete
-**Status**: In progress
-**Last activity**: 2026-01-31 - Completed 13-08-PLAN.md (NuGet Package Structure)
+**Plan**: 09 of 9 complete
+**Status**: Phase complete
+**Last activity**: 2026-01-31 - Completed 13-09-PLAN.md (Native Codecs Tests)
 
-**Progress**: ██████████████████████████████████░░░░░░ (8/9 plans in Phase 13)
+**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 13)
 
-**Test Status**: 3240 tests passing, 0 failed, 38 skipped
+**Test Status**: 3338 tests passing, 0 failed, 71 skipped
 
 ## Completed
 
@@ -83,10 +83,11 @@
 - [x] Phase 13 Plan 06: Managed P/Invoke layer (SharpDicom.Codecs project, NativeMethods, NativeCodecs)
 - [x] Phase 13 Plan 07: Native codec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec)
 - [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
+- [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
 
 ## In Progress
 
-- [ ] Phase 13 Plan 09: Final verification
+*None*
 
 ## Blocked
 
@@ -99,7 +100,7 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | In progress | 8/9 | 2026-01-29 | - |
+| 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-31 |
 | 14 | De-identification | Pending | ?/? | - | - |
 
 ## v1.0.0 Phase Progress (Complete)
@@ -299,13 +300,16 @@
 | 2026-01-31 | 13-08 | Warning-only for missing natives | Managed fallback exists; warning not error |
 | 2026-01-31 | 13-08 | GPL-3.0-or-later for all packages | Consistent with main project and FFmpeg |
 | 2026-01-31 | 13-08 | Skip duplicate on NuGet push | Handle workflow re-runs gracefully |
+| 2026-01-31 | 13-09 | Category-based test filtering | Native/GPU tests can be filtered in CI |
+| 2026-01-31 | 13-09 | PSNR quality thresholds | 30dB for JPEG, 35dB for J2K lossy |
+| 2026-01-31 | 13-09 | InternalsVisibleTo for tests | Test project needs access to internal Reset() |
 
 ## Session Continuity
 
 **Last session**: 2026-01-31
-**Stopped at**: Completed 13-08-PLAN.md (NuGet Package Structure)
+**Stopped at**: Completed 13-09-PLAN.md (Native Codecs Tests) - Phase 13 complete
 **Resume file**: None
-**Next step**: Continue Phase 13 Plan 09 (Final verification)
+**Next step**: Begin Phase 14 (De-identification)
 
 ## Context for Next Session
 
@@ -344,7 +348,8 @@ If resuming after a break:
    - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods, NativeCodecs class
    - **Phase 13 Plan 07**: Native codec wrappers - NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec
    - **Phase 13 Plan 08**: NuGet package structure - MSBuild targets, runtime packages for 6 platforms, release workflow
-5. **Test coverage**: 3240+ tests passing (38 skipped)
+   - **Phase 13 Plan 09**: Native codecs tests - NativeCodecsTests, CodecRegistryPriorityTests, JPEG/J2K codec tests
+5. **Test coverage**: 3338 tests passing (71 skipped)
 6. **Known issues**: None
 
 ## Potential Future Work
@@ -385,4 +390,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-31 (Phase 13 in progress - 13-08 done)*
+*Last updated: 2026-01-31 (Phase 13 complete - 9/9 plans done)*
