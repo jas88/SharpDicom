@@ -208,7 +208,7 @@ pub fn build(b: *std.Build) void {
         // Install the library to zig-out with platform-specific naming
         const rid = getRuntimeId(target_query);
         const install_step = b.addInstallArtifact(lib, .{
-            .dest_dir = .{ .custom = rid },
+            .dest_dir = .{ .override = .{ .custom = rid } },
         });
         b.getInstallStep().dependOn(&install_step.step);
     }
@@ -455,7 +455,7 @@ fn detectVendorLibrary(path: []const u8) bool {
 }
 
 /// Add OpenJPEG source files to compilation
-fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, common_flags: []const []const u8) void {
+fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []const u8) void {
     const opj_base = "vendor/openjpeg/src/src/lib/openjp2";
 
     // OpenJPEG core source files
@@ -484,8 +484,15 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, common_flags:
         "thread.c",
     };
 
-    // OpenJPEG-specific flags (suppress warnings from third-party code)
-    const opj_flags = common_flags ++ &[_][]const u8{
+    // OpenJPEG-specific flags - defined as comptime constant to allow concatenation
+    // Includes common flags plus OpenJPEG-specific suppressions for third-party code
+    const opj_flags = &[_][]const u8{
+        "-std=c11",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-implicit-fallthrough",
