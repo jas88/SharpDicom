@@ -578,6 +578,9 @@ namespace SharpDicom.Codecs.Jpeg
         {
             if (components == null) return null;
 
+            // Note: Using foreach instead of LINQ FirstOrDefault for performance.
+            // This is called per-component during decode, and avoiding LINQ
+            // eliminates delegate allocation overhead in this hot path.
             foreach (var comp in components)
             {
                 if (comp.ComponentId == componentId)

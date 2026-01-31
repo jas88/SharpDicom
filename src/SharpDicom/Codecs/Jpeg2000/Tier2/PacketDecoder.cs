@@ -68,7 +68,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// </summary>
         /// <param name="packetData">The packet data to decode.</param>
         /// <param name="numCodeBlocks">Number of code-blocks in the precinct.</param>
-        /// <param name="firstInclusion">Array tracking whether each code-block has been included before.</param>
+        /// <param name="firstInclusion">Array where true indicates the code-block has NOT been included
+        /// in any previous layer yet (i.e., this would be its first inclusion).</param>
         /// <returns>Code-block segments for this layer.</returns>
         public CodeBlockSegment[] DecodePacket(
             ReadOnlySpan<byte> packetData,
@@ -227,15 +228,23 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                             accumulatedData[i].AddRange(seg.Data.ToArray());
                         }
 
-                        // Update totals
+                        // Update pass count and zero bitplanes (defer ToArray until after all packets)
                         var (_, totalPasses, zeroBitPlanes) = results[i];
                         if (seg.IsFirstInclusion)
                         {
                             zeroBitPlanes = seg.ZeroBitPlanes;
                         }
-                        results[i] = (accumulatedData[i].ToArray(), totalPasses + seg.NumNewPasses, zeroBitPlanes);
+                        // Store null placeholder for data - will convert to array after loop
+                        results[i] = (Array.Empty<byte>(), totalPasses + seg.NumNewPasses, zeroBitPlanes);
                     }
                 }
+            }
+
+            // Convert accumulated data to arrays (deferred to avoid O(n^2) copying)
+            for (int i = 0; i < numCodeBlocks; i++)
+            {
+                var (_, totalPasses, zeroBitPlanes) = results[i];
+                results[i] = (accumulatedData[i].ToArray(), totalPasses, zeroBitPlanes);
             }
 
             return results;

@@ -518,8 +518,8 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             // Sqcd: quantization style
             // For lossless: no quantization (style 0)
-            // For lossy: scalar derived (style 1) or scalar expounded (style 2)
-            span[offset++] = lossless ? (byte)0x00 : (byte)0x00;
+            // For lossy: scalar derived (style 1) - mantissa/exponent pairs for each subband
+            span[offset++] = lossless ? (byte)0x00 : (byte)0x01;
 
             // SPqcd: step sizes
             // For lossless, just write 8 (exponent = 8, mantissa = 0)

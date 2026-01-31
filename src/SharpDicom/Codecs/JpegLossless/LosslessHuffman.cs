@@ -309,11 +309,17 @@ namespace SharpDicom.Codecs.JpegLossless
                 return false;
             }
 
-            // Read values array
+            // Read values array and validate category values (must be 0-16 for lossless JPEG)
             byte[] values = new byte[totalValues];
             for (int i = 0; i < totalValues; i++)
             {
-                values[i] = segment[17 + i];
+                byte value = segment[17 + i];
+                if (value > 16)
+                {
+                    // Invalid category value for lossless JPEG
+                    return false;
+                }
+                values[i] = value;
             }
 
             table = new LosslessHuffman(bits, values);

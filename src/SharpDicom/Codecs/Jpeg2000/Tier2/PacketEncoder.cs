@@ -269,6 +269,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
 
             // Check if packet is empty
+            // Note: Using foreach with early exit instead of LINQ .Any() for performance.
+            // This avoids delegate allocation overhead in the encoding hot path.
             bool hasContributions = false;
             foreach (var contrib in contributions)
             {
@@ -444,37 +446,92 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Writes number of coding passes.
+        /// Writes number of coding passes using ITU-T T.800 Table B.4 encoding.
+        /// Must match PacketDecoder.ReadNumPasses exactly.
         /// </summary>
         private void WriteNumPasses(int passes)
         {
             // ITU-T T.800 Table B.4: Variable-length coding for number of passes
+            // Encoding must match ReadNumPasses in PacketDecoder
             if (passes == 1)
             {
+                // 0
                 WriteBit(0);
             }
             else if (passes == 2)
             {
+                // 10
                 WriteBit(1);
                 WriteBit(0);
             }
             else if (passes <= 5)
             {
-                // 11 + 2-bit suffix
+                // 11xx where xx = passes - 3 (00, 01, 10 for passes 3, 4, 5)
                 WriteBit(1);
                 WriteBit(1);
                 int suffix = passes - 3;
                 WriteBit((suffix >> 1) & 1);
                 WriteBit(suffix & 1);
             }
-            else if (passes <= 36)
+            else if (passes <= 21)
             {
-                // 1111 + 5-bit suffix
+                // 1111 0xxxx (prefix 11110, then 4-bit suffix for 6-21)
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
+                WriteBit(0);
                 int suffix = passes - 6;
+                WriteBit((suffix >> 3) & 1);
+                WriteBit((suffix >> 2) & 1);
+                WriteBit((suffix >> 1) & 1);
+                WriteBit(suffix & 1);
+            }
+            else if (passes <= 37)
+            {
+                // 1111 10xxxx (prefix 111110, then 4-bit suffix for 22-37)
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(0);
+                int suffix = passes - 22;
+                WriteBit((suffix >> 3) & 1);
+                WriteBit((suffix >> 2) & 1);
+                WriteBit((suffix >> 1) & 1);
+                WriteBit(suffix & 1);
+            }
+            else if (passes <= 69)
+            {
+                // 1111 110xxxxx (prefix 1111110, then 5-bit suffix for 38-69)
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(0);
+                int suffix = passes - 38;
+                WriteBit((suffix >> 4) & 1);
+                WriteBit((suffix >> 3) & 1);
+                WriteBit((suffix >> 2) & 1);
+                WriteBit((suffix >> 1) & 1);
+                WriteBit(suffix & 1);
+            }
+            else if (passes <= 133)
+            {
+                // 1111 1110xxxxxx (prefix 11111110, then 6-bit suffix for 70-133)
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(1);
+                WriteBit(0);
+                int suffix = passes - 70;
+                WriteBit((suffix >> 5) & 1);
                 WriteBit((suffix >> 4) & 1);
                 WriteBit((suffix >> 3) & 1);
                 WriteBit((suffix >> 2) & 1);
@@ -483,12 +540,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else
             {
-                // 1111 1111 + 7-bit suffix
+                // 1111 1111xxxxxxx (prefix 11111111, then 7-bit suffix for 134+)
                 for (int i = 0; i < 8; i++)
                 {
                     WriteBit(1);
                 }
-                int suffix = passes - 37;
+                int suffix = passes - 134;
                 WriteBit((suffix >> 6) & 1);
                 WriteBit((suffix >> 5) & 1);
                 WriteBit((suffix >> 4) & 1);

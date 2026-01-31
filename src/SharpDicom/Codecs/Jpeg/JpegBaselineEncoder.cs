@@ -607,14 +607,9 @@ namespace SharpDicom.Codecs.Jpeg
 
                 if (value == 0)
                 {
+                    // Just count zeros - ZRL is only emitted when followed by a non-zero coefficient.
+                    // If all remaining coefficients are zero, we emit EOB instead, not ZRL.
                     zeroRun++;
-                    if (zeroRun == 16)
-                    {
-                        // ZRL (16 zeros)
-                        var (zrlCode, zrlSize) = acTable.GetCode(0xF0);
-                        writer.WriteBits(zrlCode, zrlSize);
-                        zeroRun = 0;
-                    }
                 }
                 else
                 {

@@ -133,8 +133,9 @@ namespace SharpDicom.Codecs.Jpeg
 
             if (_bitsInBuffer < count)
             {
-                // Return what we have, padded with zeros (use unsigned shift to avoid sign extension)
-                return (int)((_buffer << (count - _bitsInBuffer)) >> (32 - count));
+                // Return what we have, padded with zeros on the right
+                // Mask after left shift to get correct count bits
+                return (int)((_buffer << (count - _bitsInBuffer)) & ((1u << count) - 1));
             }
 
             return (int)((_buffer >> (_bitsInBuffer - count)) & ((1u << count) - 1));
