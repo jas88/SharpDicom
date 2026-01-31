@@ -88,6 +88,10 @@ namespace SharpDicom.Deidentification
         /// <param name="originalUid">The original UID.</param>
         /// <param name="context">Optional context for consistent mapping (e.g., patient ID).</param>
         /// <returns>The remapped UID, or the original if it's a standard UID.</returns>
+        /// <remarks>
+        /// DICOM UI values can be multi-valued (VM&gt;1) with values separated by backslash.
+        /// Each component is remapped independently, with standard UIDs preserved.
+        /// </remarks>
         public string Remap(string originalUid, string? context = null)
         {
             if (string.IsNullOrWhiteSpace(originalUid))
@@ -97,13 +101,38 @@ namespace SharpDicom.Deidentification
 
             var trimmed = originalUid.Trim();
 
-            // Never remap standard UIDs
-            if (IsStandardUid(trimmed))
+            // Handle multi-valued UI (VM>1) - values separated by backslash
+#if NETSTANDARD2_0
+            if (trimmed.IndexOf('\\') >= 0)
+#else
+            if (trimmed.Contains('\\'))
+#endif
             {
-                return trimmed;
+                var components = trimmed.Split('\\');
+                for (int i = 0; i < components.Length; i++)
+                {
+                    components[i] = RemapSingleUid(components[i].Trim(), context);
+                }
+                return string.Join("\\", components);
             }
 
-            return _store.GetOrCreateMapping(trimmed, context);
+            return RemapSingleUid(trimmed, context);
+        }
+
+        private string RemapSingleUid(string uid, string? context)
+        {
+            if (string.IsNullOrWhiteSpace(uid))
+            {
+                return uid;
+            }
+
+            // Never remap standard UIDs
+            if (IsStandardUid(uid))
+            {
+                return uid;
+            }
+
+            return _store.GetOrCreateMapping(uid, context);
         }
 
         /// <summary>

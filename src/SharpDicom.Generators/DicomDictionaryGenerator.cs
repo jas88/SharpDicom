@@ -39,6 +39,11 @@ namespace SharpDicom.Generators
                         var doc = XDocument.Parse(content);
                         return Parsing.Part6Parser.ParseTags(doc).ToImmutableArray();
                     }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
+                    }
                     catch
                     {
                         // Return empty on parse error - don't fail build
@@ -63,6 +68,11 @@ namespace SharpDicom.Generators
 
                         var doc = XDocument.Parse(content);
                         return Parsing.Part6Parser.ParseUids(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
                     }
                     catch
                     {
@@ -92,6 +102,11 @@ namespace SharpDicom.Generators
 
                         var doc = XDocument.Parse(content);
                         return Parsing.Part7Parser.ParseCommandTags(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
                     }
                     catch
                     {
@@ -199,6 +214,11 @@ namespace SharpDicom.Generators
                         var doc = XDocument.Parse(content);
                         return Parsing.PrivateDictParser.ParsePrivateTags(doc).ToImmutableArray();
                     }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
+                    }
                     catch
                     {
                         // Return empty on parse error - don't fail build
@@ -241,6 +261,11 @@ namespace SharpDicom.Generators
 
                         var doc = XDocument.Parse(content);
                         return Parsing.Part15Parser.ParseDeidentificationActions(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
                     }
                     catch
                     {

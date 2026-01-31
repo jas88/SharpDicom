@@ -151,6 +151,10 @@ namespace SharpDicom.Deidentification
         /// <param name="dateString">The date string in YYYYMMDD format.</param>
         /// <param name="patientId">The patient ID for consistent shifting.</param>
         /// <returns>The shifted date string, or empty string on error.</returns>
+        /// <remarks>
+        /// DICOM DA values can be multi-valued (VM&gt;1) with values separated by backslash.
+        /// Each component is shifted independently.
+        /// </remarks>
         public string ShiftDate(string? dateString, string? patientId)
         {
             if (string.IsNullOrWhiteSpace(dateString))
@@ -158,18 +162,41 @@ namespace SharpDicom.Deidentification
                 return string.Empty;
             }
 
+            // After null check, dateString is guaranteed non-null
+            var ds = dateString!;
+
+            // Handle multi-valued DA (VM>1) - values separated by backslash
+#if NETSTANDARD2_0
+            if (ds.IndexOf('\\') >= 0)
+#else
+            if (ds.Contains('\\'))
+#endif
+            {
+                var components = ds.Split('\\');
+                for (int i = 0; i < components.Length; i++)
+                {
+                    components[i] = ShiftSingleDate(components[i], patientId);
+                }
+                return string.Join("\\", components);
+            }
+
+            return ShiftSingleDate(ds, patientId);
+        }
+
+        private string ShiftSingleDate(string dateString, string? patientId)
+        {
             // Handle Remove strategy - replace with dummy date
             if (_config.Strategy == DateShiftStrategy.Remove)
             {
                 return DummyDate;
             }
 
-            if (dateString!.Length < 8)
+            if (dateString.Length < 8)
             {
                 return dateString; // Invalid format, return as-is
             }
 
-            if (!TryParseDate(dateString!, out var date))
+            if (!TryParseDate(dateString, out var date))
             {
                 return dateString; // Can't parse, return as-is
             }
@@ -191,15 +218,39 @@ namespace SharpDicom.Deidentification
         /// <param name="timeString">The time string in HHMMSS.FFFFFF format.</param>
         /// <param name="patientId">The patient ID (not used for time-only shifting).</param>
         /// <returns>The time string (unchanged unless config specifies time shifting).</returns>
+        /// <remarks>
+        /// DICOM TM values can be multi-valued (VM&gt;1) with values separated by backslash.
+        /// Each component is processed independently.
+        /// </remarks>
         public string ShiftTime(string? timeString, string? patientId)
         {
             // Suppress unused parameter warning - parameter kept for API consistency
             _ = patientId;
 
+            if (string.IsNullOrEmpty(timeString))
+            {
+                return string.Empty;
+            }
+
             // Handle Remove or RemoveTime strategy - remove time component
             if (_config.Strategy == DateShiftStrategy.Remove ||
                 _config.Strategy == DateShiftStrategy.RemoveTime)
             {
+                // Handle multi-valued TM (VM>1) - values separated by backslash
+                // After null check above, timeString is guaranteed non-null
+#if NETSTANDARD2_0
+                if (timeString!.IndexOf('\\') >= 0)
+#else
+                if (timeString!.Contains('\\'))
+#endif
+                {
+                    var components = timeString.Split('\\');
+                    for (int i = 0; i < components.Length; i++)
+                    {
+                        components[i] = DummyTime;
+                    }
+                    return string.Join("\\", components);
+                }
                 return DummyTime;
             }
 
@@ -217,6 +268,10 @@ namespace SharpDicom.Deidentification
         /// <param name="dateTimeString">The datetime string in YYYYMMDDHHMMSS.FFFFFF&amp;ZZXX format.</param>
         /// <param name="patientId">The patient ID for consistent shifting.</param>
         /// <returns>The shifted datetime string.</returns>
+        /// <remarks>
+        /// DICOM DT values can be multi-valued (VM&gt;1) with values separated by backslash.
+        /// Each component is shifted independently.
+        /// </remarks>
         public string ShiftDateTime(string? dateTimeString, string? patientId)
         {
             if (string.IsNullOrWhiteSpace(dateTimeString))
@@ -224,25 +279,48 @@ namespace SharpDicom.Deidentification
                 return string.Empty;
             }
 
+            // After null check, dateTimeString is guaranteed non-null
+            var dts = dateTimeString!;
+
+            // Handle multi-valued DT (VM>1) - values separated by backslash
+#if NETSTANDARD2_0
+            if (dts.IndexOf('\\') >= 0)
+#else
+            if (dts.Contains('\\'))
+#endif
+            {
+                var components = dts.Split('\\');
+                for (int i = 0; i < components.Length; i++)
+                {
+                    components[i] = ShiftSingleDateTime(components[i], patientId);
+                }
+                return string.Join("\\", components);
+            }
+
+            return ShiftSingleDateTime(dts, patientId);
+        }
+
+        private string ShiftSingleDateTime(string dateTimeString, string? patientId)
+        {
             // Handle Remove strategy - replace with dummy datetime
             if (_config.Strategy == DateShiftStrategy.Remove)
             {
                 return DummyDateTime;
             }
 
-            if (dateTimeString!.Length < 8)
+            if (dateTimeString.Length < 8)
             {
                 return dateTimeString; // Invalid format
             }
 
             // Extract timezone suffix if present (preserve it)
             string timezone = string.Empty;
-            string dtWithoutTz = dateTimeString!;
-            var tzMatch = TimezonePattern.Match(dateTimeString!);
+            string dtWithoutTz = dateTimeString;
+            var tzMatch = TimezonePattern.Match(dateTimeString);
             if (tzMatch.Success)
             {
                 timezone = tzMatch.Groups[1].Value;
-                dtWithoutTz = dateTimeString!.Substring(0, dateTimeString.Length - timezone.Length);
+                dtWithoutTz = dateTimeString.Substring(0, dateTimeString.Length - timezone.Length);
             }
 
             // Extract date part and shift it
@@ -252,11 +330,11 @@ namespace SharpDicom.Deidentification
             // Handle RemoveTime strategy - keep shifted date, remove time
             if (_config.Strategy == DateShiftStrategy.RemoveTime)
             {
-                var shiftedDateOnly = ShiftDate(datePart, patientId);
-                return shiftedDateOnly + "000000.000000" + timezone;
+                var shiftedDateOnly = ShiftSingleDate(datePart, patientId);
+                return shiftedDateOnly + DummyTime + timezone;
             }
 
-            var shiftedDate = ShiftDate(datePart, patientId);
+            var shiftedDate = ShiftSingleDate(datePart, patientId);
             return shiftedDate + timePart + timezone;
         }
 

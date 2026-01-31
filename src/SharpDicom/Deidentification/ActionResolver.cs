@@ -54,10 +54,11 @@ namespace SharpDicom.Deidentification
             // First resolve compound actions
             var baseResolution = Resolve(action, attributeType);
 
-            // For UID VR with RemapUid action, always remap
-            if (vr == DicomVR.UI && baseResolution == ResolvedAction.RemapUid)
+            // RemapUid only makes sense for UI VR - for non-UI Type1 attributes,
+            // use ReplaceWithDummy instead
+            if (baseResolution == ResolvedAction.RemapUid && vr != DicomVR.UI)
             {
-                return ResolvedAction.RemapUid;
+                return ResolvedAction.ReplaceWithDummy;
             }
 
             // If element is already empty and resolved to empty, keep it that way

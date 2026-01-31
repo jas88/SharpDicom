@@ -17,7 +17,9 @@ namespace SharpDicom.Deidentification
     /// </remarks>
     public sealed class InMemoryUidStore : IUidStore, IUidMappingStore
     {
-        private readonly Dictionary<string, UidMappingEntry> _originalToMapped = new();
+        // Nested dictionary: scope -> (originalUid -> entry)
+        // Empty string scope is used for global/scopeless mappings
+        private readonly Dictionary<string, Dictionary<string, UidMappingEntry>> _scopedMappings = new();
         private readonly Dictionary<string, string> _mappedToOriginal = new();
         private readonly object _lock = new();
 
@@ -28,7 +30,12 @@ namespace SharpDicom.Deidentification
             {
                 lock (_lock)
                 {
-                    return _originalToMapped.Count;
+                    int count = 0;
+                    foreach (var scopeDict in _scopedMappings.Values)
+                    {
+                        count += scopeDict.Count;
+                    }
+                    return count;
                 }
             }
         }
@@ -47,23 +54,44 @@ namespace SharpDicom.Deidentification
 
         private string GetOrCreateMappingInternal(string originalUid, string scope)
         {
-            if (string.IsNullOrEmpty(originalUid))
+#if NET6_0_OR_GREATER
+            ArgumentNullException.ThrowIfNull(originalUid);
+            ArgumentException.ThrowIfNullOrEmpty(originalUid);
+#else
+            if (originalUid == null)
             {
                 throw new ArgumentNullException(nameof(originalUid));
             }
 
+            if (originalUid.Length == 0)
+            {
+                throw new ArgumentException("Value cannot be empty.", nameof(originalUid));
+            }
+#endif
+
+            // Use empty string as key for null/empty scope
+            var scopeKey = scope ?? string.Empty;
+
             lock (_lock)
             {
-                if (_originalToMapped.TryGetValue(originalUid, out var existing))
+                // Get or create the scope dictionary
+                if (!_scopedMappings.TryGetValue(scopeKey, out var scopeDict))
+                {
+                    scopeDict = new Dictionary<string, UidMappingEntry>();
+                    _scopedMappings[scopeKey] = scopeDict;
+                }
+
+                // Check if mapping already exists for this scope
+                if (scopeDict.TryGetValue(originalUid, out var existing))
                 {
                     return existing.RemappedUid;
                 }
 
                 // Generate new UID using UUID-derived 2.25.xxx format
                 var newUid = UidGenerator.GenerateUid();
-                var entry = new UidMappingEntry(originalUid, newUid, scope, DateTime.UtcNow);
+                var entry = new UidMappingEntry(originalUid, newUid, scopeKey, DateTime.UtcNow);
 
-                _originalToMapped[originalUid] = entry;
+                scopeDict[originalUid] = entry;
                 _mappedToOriginal[newUid] = originalUid;
 
                 return newUid;
@@ -75,10 +103,14 @@ namespace SharpDicom.Deidentification
         {
             lock (_lock)
             {
-                if (_originalToMapped.TryGetValue(originalUid, out var entry))
+                // Search across all scopes for a mapping (returns first match)
+                foreach (var scopeDict in _scopedMappings.Values)
                 {
-                    mappedUid = entry.RemappedUid;
-                    return true;
+                    if (scopeDict.TryGetValue(originalUid, out var entry))
+                    {
+                        mappedUid = entry.RemappedUid;
+                        return true;
+                    }
                 }
 
                 mappedUid = null!;
@@ -91,10 +123,14 @@ namespace SharpDicom.Deidentification
         {
             lock (_lock)
             {
-                if (_originalToMapped.TryGetValue(originalUid, out var entry))
+                // Search across all scopes for a mapping (returns first match)
+                foreach (var scopeDict in _scopedMappings.Values)
                 {
-                    remappedUid = entry.RemappedUid;
-                    return true;
+                    if (scopeDict.TryGetValue(originalUid, out var entry))
+                    {
+                        remappedUid = entry.RemappedUid;
+                        return true;
+                    }
                 }
 
                 remappedUid = null;
@@ -147,8 +183,17 @@ namespace SharpDicom.Deidentification
             {
                 foreach (var (original, remapped, scope) in mappings)
                 {
-                    var entry = new UidMappingEntry(original, remapped, scope, DateTime.UtcNow);
-                    _originalToMapped[original] = entry;
+                    var scopeKey = scope ?? string.Empty;
+
+                    // Get or create the scope dictionary
+                    if (!_scopedMappings.TryGetValue(scopeKey, out var scopeDict))
+                    {
+                        scopeDict = new Dictionary<string, UidMappingEntry>();
+                        _scopedMappings[scopeKey] = scopeDict;
+                    }
+
+                    var entry = new UidMappingEntry(original, remapped, scopeKey, DateTime.UtcNow);
+                    scopeDict[original] = entry;
                     _mappedToOriginal[remapped] = original;
                 }
             }
@@ -166,7 +211,11 @@ namespace SharpDicom.Deidentification
             List<UidMappingEntry> entries;
             lock (_lock)
             {
-                entries = new List<UidMappingEntry>(_originalToMapped.Values);
+                entries = new List<UidMappingEntry>();
+                foreach (var scopeDict in _scopedMappings.Values)
+                {
+                    entries.AddRange(scopeDict.Values);
+                }
             }
 
             // Serialize manually to JSON format (avoids System.Text.Json dependency on netstandard2.0
@@ -233,7 +282,7 @@ namespace SharpDicom.Deidentification
         {
             lock (_lock)
             {
-                _originalToMapped.Clear();
+                _scopedMappings.Clear();
                 _mappedToOriginal.Clear();
             }
         }
