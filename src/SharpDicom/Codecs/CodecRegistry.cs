@@ -264,14 +264,14 @@ namespace SharpDicom.Codecs
         /// <returns>Information about the registered codec, or null if not found.</returns>
         public static CodecInfo? GetCodecInfo(TransferSyntax syntax)
         {
-            var codec = GetCodec(syntax);
-            if (codec == null)
-            {
-                return null;
-            }
-
             lock (_lock)
             {
+                // Read both codec and priority under the same lock to avoid race conditions
+                if (!_mutableRegistry.TryGetValue(syntax, out var codec))
+                {
+                    return null;
+                }
+
                 _priorities.TryGetValue(syntax, out var priority);
                 var assemblyName = codec.GetType().Assembly.GetName().Name;
                 return new CodecInfo(codec.Name, priority, assemblyName);

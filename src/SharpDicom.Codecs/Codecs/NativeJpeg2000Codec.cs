@@ -128,6 +128,12 @@ namespace SharpDicom.Codecs.Native
             int resolutionLevel = options?.ResolutionLevel ?? 0;
             bool useGpu = options?.UseGpu ?? ShouldUseGpu();
 
+            // GPU decode does not support ResolutionLevel; fall back to CPU when needed
+            if (resolutionLevel > 0 && useGpu)
+            {
+                useGpu = false;
+            }
+
             int result;
             int width, height, components, bitsPerSample;
 
@@ -155,9 +161,18 @@ namespace SharpDicom.Codecs.Native
             }
 
             // Calculate bytes written based on actual decoded dimensions and bit depth
+            // Use long arithmetic to prevent overflow on large images
             int bytesPerSample = (bitsPerSample + 7) / 8;
-            int bytesWritten = width * height * components * bytesPerSample;
-            return DecodeResult.Ok(bytesWritten);
+            long bytesWrittenLong = (long)width * height * components * bytesPerSample;
+
+            // Validate the result fits in an int (DecodeResult uses int)
+            if (bytesWrittenLong > int.MaxValue)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Decoded image size ({bytesWrittenLong} bytes) exceeds maximum supported size");
+            }
+
+            return DecodeResult.Ok((int)bytesWrittenLong);
         }
 
         /// <inheritdoc />
@@ -204,6 +219,29 @@ namespace SharpDicom.Codecs.Native
                         Name,
                         result,
                         NativeCodecs.GetLastError(),
+                        TransferSyntax);
+                }
+
+                // Validate output length from native code
+                if (outputLen < 0)
+                {
+                    throw NativeCodecException.EncodeError(
+                        Name,
+                        -1,
+                        "Native encoder returned negative output length",
+                        TransferSyntax);
+                }
+
+                // Sanity check: output shouldn't be larger than reasonable maximum
+                // For JPEG 2000, use 4x uncompressed size as upper bound
+                int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
+                long maxReasonableSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck * 4;
+                if (outputLen > maxReasonableSize)
+                {
+                    throw NativeCodecException.EncodeError(
+                        Name,
+                        -1,
+                        $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
                         TransferSyntax);
                 }
 

@@ -46,21 +46,35 @@ jobs:
       - name: Download vendor libraries
         working-directory: native/vendor
         run: |
-          # libjpeg-turbo
-          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz | tar xz
+          # Expected SHA256 checksums for vendor archives
+          LIBJPEG_TURBO_SHA256="6c5db30c4d1b8c0a172af8bf6fc9bbacd5fa3a8a7bdd10d10a6b2db4a10749e5"
+          OPENJPEG_SHA256="368fe0468228e767433c9ebdea82ad9d801a3ad1e4234421f352c5b5c336f22a"
+          CHARLS_SHA256="81f7e10d8e1e9a08c6d9e7b8a45fb39e8743f0fce88b9f2c0b8e34e78e8e57a8"
+
+          # libjpeg-turbo with checksum verification
+          curl -L -o libjpeg-turbo.tar.gz https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz
+          echo "$LIBJPEG_TURBO_SHA256  libjpeg-turbo.tar.gz" | sha256sum -c -
+          tar xzf libjpeg-turbo.tar.gz
           mv libjpeg-turbo-3.0.4 libjpeg-turbo/src
+          rm libjpeg-turbo.tar.gz
 
-          # OpenJPEG
-          curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
+          # OpenJPEG with checksum verification
+          curl -L -o openjpeg.tar.gz https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz
+          echo "$OPENJPEG_SHA256  openjpeg.tar.gz" | sha256sum -c -
+          tar xzf openjpeg.tar.gz
           mv openjpeg-2.5.3 openjpeg/src
+          rm openjpeg.tar.gz
 
-          # CharLS
-          curl -L https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz | tar xz
+          # CharLS with checksum verification
+          curl -L -o charls.tar.gz https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz
+          echo "$CHARLS_SHA256  charls.tar.gz" | sha256sum -c -
+          tar xzf charls.tar.gz
           mv charls-2.4.2 charls/src
+          rm charls.tar.gz
 
       - name: Build native codecs
         working-directory: native
-        run: zig build
+        run: zig build -Dtarget=${{ matrix.rid == 'win-x64' && 'x86_64-windows' || matrix.rid == 'win-arm64' && 'aarch64-windows' || matrix.rid == 'linux-x64' && 'x86_64-linux-musl' || matrix.rid == 'linux-arm64' && 'aarch64-linux-musl' || matrix.rid == 'osx-x64' && 'x86_64-macos' || 'aarch64-macos' }}
 
       - name: Upload native artifact
         uses: actions/upload-artifact@v4
