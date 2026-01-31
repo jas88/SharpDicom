@@ -19,17 +19,12 @@ pub fn build(b: *std.Build) void {
     const ffmpeg_path = "vendor/ffmpeg/src";
 
     // All vendor libraries disabled for cross-compilation stability
+    // Path constants are used in comptime-false if blocks below
     // TODO: Add proper cross-compilation support in Phase 13b
     const have_libjpeg = false;
     const have_openjpeg = false; // Needs CMake-generated config + sysroot
     const have_charls = false;
     const have_ffmpeg = false;
-
-    // Suppress unused constant warnings
-    _ = libjpeg_path;
-    _ = openjpeg_path;
-    _ = charls_path;
-    _ = ffmpeg_path;
     // Target configurations for all supported platforms
     const targets = [_]std.Target.Query{
         // Windows x64
