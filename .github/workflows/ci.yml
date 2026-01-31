@@ -101,21 +101,12 @@ jobs:
       - name: Download vendor libraries
         working-directory: native/vendor
         run: |
-          # libjpeg-turbo
-          curl -L https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz | tar xz
-          mv libjpeg-turbo-3.0.4 libjpeg-turbo/src
-
-          # OpenJPEG
+          # OpenJPEG - compiled from source in build.zig
           curl -L https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
           mv openjpeg-2.5.3 openjpeg/src
 
-          # CharLS
-          curl -L https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz | tar xz
-          mv charls-2.4.2 charls/src
-
-          # FFmpeg (libavcodec, libavutil only)
-          curl -L https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz | tar xz
-          mv FFmpeg-n7.1 ffmpeg/src
+          # Note: libjpeg-turbo, CharLS, and FFmpeg source compilation
+          # will be added in Phase 13b. For now, these codecs build as stubs.
 
       - name: Build native codecs (all platforms)
         working-directory: native

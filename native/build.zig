@@ -10,26 +10,24 @@ const std = @import("std");
 /// - FFmpeg: vendor/ffmpeg/src (downloaded in CI)
 pub fn build(b: *std.Build) void {
     // Check for vendor library sources
+    // Note: Only OpenJPEG is compiled from source currently.
+    // libjpeg-turbo, CharLS, and FFmpeg require system libraries or additional
+    // source compilation support (to be added in Phase 13b).
     const libjpeg_path = "vendor/libjpeg-turbo/src";
     const openjpeg_path = "vendor/openjpeg/src";
     const charls_path = "vendor/charls/src";
     const ffmpeg_path = "vendor/ffmpeg/src";
-    const have_libjpeg = detectVendorLibrary(libjpeg_path);
     const have_openjpeg = detectVendorLibrary(openjpeg_path);
-    const have_charls = detectVendorLibrary(charls_path);
-    const have_ffmpeg = detectVendorLibrary(ffmpeg_path);
 
-    if (have_libjpeg) {
-        std.debug.print("Found libjpeg-turbo at {s}\n", .{libjpeg_path});
-    }
+    // These libraries need source compilation or system library support
+    // For now, they're disabled (will build as stubs)
+    // Path constants are kept for future use when source compilation is added
+    const have_libjpeg = false; // TODO: Add source compilation in Phase 13b
+    const have_charls = false;  // TODO: Add source compilation in Phase 13b
+    const have_ffmpeg = false;  // TODO: Add source compilation in Phase 13b
+
     if (have_openjpeg) {
         std.debug.print("Found OpenJPEG at {s}\n", .{openjpeg_path});
-    }
-    if (have_charls) {
-        std.debug.print("Found CharLS at {s}\n", .{charls_path});
-    }
-    if (have_ffmpeg) {
-        std.debug.print("Found FFmpeg at {s}\n", .{ffmpeg_path});
     }
     // Target configurations for all supported platforms
     const targets = [_]std.Target.Query{
@@ -322,10 +320,11 @@ pub fn build(b: *std.Build) void {
         "-Werror",
     };
 
-    // Native flags with JPEG enabled
-    const native_jpeg_flags = native_flags ++ &[_][]const u8{
-        "-DSHARPDICOM_WITH_JPEG",
-    };
+    // Native flags with JPEG enabled (only when libjpeg is available)
+    const native_jpeg_flags = if (have_libjpeg)
+        native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG"}
+    else
+        native_flags;
 
     native_lib.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
