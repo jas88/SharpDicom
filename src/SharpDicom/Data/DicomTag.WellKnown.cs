@@ -137,6 +137,10 @@ namespace SharpDicom.Data
         /// <summary>(0008,0005) Specific Character Set</summary>
         public static readonly DicomTag SpecificCharacterSet = new(0x0008, 0x0005);
 
+        /// <summary>(0008,0008) Image Type</summary>
+        /// <remarks>CS VR. Image identification characteristics (e.g., ORIGINAL\PRIMARY, DERIVED\SECONDARY).</remarks>
+        public static readonly DicomTag ImageType = new(0x0008, 0x0008);
+
         /// <summary>(0008,0016) SOP Class UID</summary>
         public static readonly DicomTag SOPClassUID = new(0x0008, 0x0016);
 
@@ -154,7 +158,7 @@ namespace SharpDicom.Data
         public static readonly DicomTag QueryRetrieveLevel = new(0x0008, 0x0052);
 
         /// <summary>(0008,0060) Modality</summary>
-        /// <remarks>CS VR. Type of equipment that acquired the data (CT, MR, US, etc.).</remarks>
+        /// <remarks>CS VR. Type of equipment that acquired the data (e.g., CT, MR, US).</remarks>
         public static readonly DicomTag Modality = new(0x0008, 0x0060);
 
         /// <summary>(0008,0061) Modalities in Study</summary>
@@ -221,6 +225,10 @@ namespace SharpDicom.Data
 
         /// <summary>(0028,0107) Largest Image Pixel Value - multi-VR tag (US or SS)</summary>
         public static readonly DicomTag LargestImagePixelValue = new(0x0028, 0x0107);
+
+        /// <summary>(0028,0301) Burned In Annotation</summary>
+        /// <remarks>CS VR. Indicates whether burned-in annotations are present in pixel data (YES/NO).</remarks>
+        public static readonly DicomTag BurnedInAnnotation = new(0x0028, 0x0301);
 
         // Item delimiters for sequence/fragment parsing
 

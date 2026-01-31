@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
-**Phase**: 13 - Native Codecs Package
-**Plan**: 09 of 9 complete
-**Status**: Phase COMPLETE
-**Last activity**: 2026-01-30 - Completed 13-09-PLAN.md (Native Codecs Test Suite)
+**Phase**: 14 - De-identification IN PROGRESS
+**Plan**: 4 of 6 complete
+**Status**: Phase in progress
+**Last activity**: 2026-01-30 - Completed 14-04 date shifting module
 
-**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 13)
+**Progress**: █████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░ (4/6 plans in Phase 14)
 
-**Test Status**: 3500+ tests passing, 0 failed, 126+ skipped (native tests skip when libs unavailable)
+**Test Status**: 3586 tests passing, 0 failed, 126 skipped (external service tests)
 
 ## Completed
 
@@ -84,10 +84,14 @@
 - [x] Phase 13 Plan 07: IPixelDataCodec wrappers (NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration)
 - [x] Phase 13 Plan 08: NuGet package structure (MSBuild targets, runtime packages, release workflow)
 - [x] Phase 13 Plan 09: Native codecs test suite (NativeCodecsTests, CodecRegistryPriorityTests, codec-specific tests)
+- [x] Phase 14 Plan 01: PS3.15 source generator (Part15Parser, DeidentificationEmitter, ~600 tags)
+- [x] Phase 14 Plan 02: Core de-identification types (ActionResolver, DeidentificationOptions, DummyValueGenerator)
+- [x] Phase 14 Plan 03: UID remapping infrastructure (IUidStore, UidGenerator, UidRemapper, InMemoryUidStore, SqliteUidStore)
+- [x] Phase 14 Plan 04: Date shifting module (DateShifter, DateShiftConfig, IDateOffsetStore, DateShiftResult)
 
 ## In Progress
-
-*None*
+- [ ] Phase 14 Plan 05: DicomDeidentifier main class
+- [ ] Phase 14 Plan 06: Tests and verification
 
 ## Blocked
 
@@ -100,8 +104,8 @@
 | 10 | Network Foundation | COMPLETE | 7/7 | 2026-01-28 | 2026-01-28 |
 | 11 | DIMSE Services | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
-| 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-30 |
-| 14 | De-identification | Pending | ?/? | - | - |
+| 13 | Native Codecs Package | VERIFIED | 9/9 | 2026-01-29 | 2026-01-30 |
+| 14 | De-identification | In Progress | 4/6 | 2026-01-29 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -299,21 +303,25 @@
 | 2026-01-30 | 13-08 | RID-conditional runtime package references | Separate packages per platform reduces download size |
 | 2026-01-30 | 13-08 | MSBuild auto-detect platform RID | Convenience for development without explicit RuntimeIdentifier |
 | 2026-01-30 | 13-08 | Matrix strategy for native builds | Parallel compilation across 6 platforms |
+| 2026-01-29 | 14-01 | DocBook 5.0 parsing for part15.xml | Same approach as part06.xml, XNamespace for proper handling |
+| 2026-01-29 | 14-01 | Deduplication by tag value | Same tag can appear multiple times (retired variants) |
+| 2026-01-29 | 14-02 | Separate enums for action and resolution | DeidentificationAction (PS3.15 codes) vs ResolvedAction (runtime operations) |
+| 2026-01-29 | 14-02 | DicomAttributeType for compound resolution | Type1/2/3 determines Z/D vs X/Z vs X/D resolution |
+| 2026-01-29 | 14-02 | Profile option flags pattern | DeidentificationOptions.ToProfileOptions() for generated code |
 
 ## Session Continuity
 
 **Last session**: 2026-01-30
-**Stopped at**: Completed 13-09-PLAN.md (Native Codecs Test Suite)
+**Stopped at**: Phase 14-02 summary completed
 **Resume file**: None
-**Next step**: Phase 13 complete - Continue to Phase 14 (De-identification)
+**Next step**: Continue to Phase 14-03 (UID remapping)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 13 - Native Codecs Package COMPLETE (9/9 plans)
-3. **v1.0.0 accomplishments**:
+1. **Current phase**: ALL 9 PHASES COMPLETE
+2. **Project accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
    - **Phase 3**: Implicit VR and sequence parsing with depth guards
@@ -323,29 +331,8 @@ If resuming after a break:
    - **Phase 7**: File writing with sequence support (both length modes)
    - **Phase 8**: Validation framework with Strict/Lenient/Permissive profiles
    - **Phase 9**: RLE codec with SIMD optimization
-4. **v2.0.0 progress**:
-   - **Phase 10**: Network Foundation complete (7/7 plans) - PDU parsing, association, C-ECHO SCU/SCP
-   - **Phase 11 Plan 01**: Common DIMSE types - QueryRetrieveLevel, SubOperationProgress, DicomTransferProgress, DicomCommand extensions, DicomClient DIMSE primitives
-   - **Phase 11 Plan 02**: C-STORE SCU - CStoreOptions, CStoreResponse, CStoreScu with SendAsync overloads
-   - **Phase 11 Plan 03**: C-FIND SCU - CFindOptions, DicomQuery fluent builder, CFindScu with IAsyncEnumerable results
-   - **Phase 11 Plan 06**: C-GET SCU - CGetOptions, CGetProgress, CGetScu with interleaved C-STORE sub-operations, SCP role selection
-   - **Phase 11 Plan 05**: C-MOVE SCU - CMoveOptions, CMoveProgress, CMoveScu with third-party destination retrieval
-   - **Phase 11 Plan 07**: DIMSE integration tests - roundtrip, DCMTK interop, protocol verification (35 new tests)
-   - **Phase 12 Plan 01**: Codec infrastructure - IImageCodec, JPEG markers, color conversion
-   - **Phase 12 Plan 02**: DCT & Bit I/O - DctTransform (AAN/Loeffler), BitReader, BitWriter, JpegCodecOptions
-   - **Phase 12 Plan 04**: JPEG Lossless codec - Predictor (7 selection values), LosslessHuffman, JpegLosslessCodec (47 tests)
-   - **Phase 12 Plan 05**: JPEG 2000 infrastructure - J2kCodestream parser, Dwt53/Dwt97 wavelet transforms, MqCoder arithmetic coding (17 new tests)
-   - **Phase 12 Plan 06**: JPEG 2000 codec - EbcotEncoder/Decoder, PacketEncoder/Decoder, J2kEncoder/Decoder (16 new tests)
-   - **Phase 12 Plan 07**: JPEG 2000 integration - Jpeg2000LosslessCodec, Jpeg2000LossyCodec, CodecInitializer, 5 codecs registered (55 new tests)
-   - **Phase 13 Plan 01**: Native build infrastructure - Zig build system, C API header, CI workflow for 6 platforms
-   - **Phase 13 Plan 03**: JPEG 2000 wrapper - OpenJPEG integration, j2k_decode/encode, resolution levels, ROI decode
-   - **Phase 13 Plan 04**: CharLS/FFmpeg wrappers - jls_decode/encode for JPEG-LS, video_decoder for MPEG2/H.264/HEVC
-   - **Phase 13 Plan 05**: GPU acceleration - nvJPEG2000 wrapper, GPU dispatch, automatic CPU fallback
-   - **Phase 13 Plan 06**: Managed P/Invoke layer - SharpDicom.Codecs project, NativeMethods (LibraryImport/DllImport), NativeCodecs, SafeHandles
-   - **Phase 13 Plan 07**: IPixelDataCodec wrappers - NativeJpegCodec, NativeJpeg2000Codec, NativeJpegLsCodec, priority registration
-   - **Phase 13 Plan 08**: NuGet package structure - MSBuild targets, 6 runtime packages, release workflow
-5. **Test coverage**: 3404+ tests passing (54 skipped)
-6. **Known issues**: None
+3. **Test coverage**: 2070 tests passing (1035 × 2 assemblies), 0 failed, 0 skipped
+4. **Known issues**: None
 
 ## Potential Future Work
 
@@ -375,14 +362,14 @@ If resuming after a break:
 | FR-12.3 (OpenJPEG) | Phase 13 | Complete (13-03, 13-07) |
 | FR-12.4 (Override registration) | Phase 13 | Complete (13-07) |
 | FR-12.5 (Cross-platform) | Phase 13 | Complete (13-01, 13-08) |
-| FR-13.1 (PS3.15 Basic) | Phase 14 | Pending |
-| FR-13.2 (Source-generated) | Phase 14 | Pending |
-| FR-13.3 (UID remapping) | Phase 14 | Pending |
-| FR-13.4 (Date shifting) | Phase 14 | Pending |
+| FR-13.1 (PS3.15 Basic) | Phase 14 | In Progress (14-01, 14-02) |
+| FR-13.2 (Source-generated) | Phase 14 | Complete (14-01) |
+| FR-13.3 (UID remapping) | Phase 14 | Pending (14-03) |
+| FR-13.4 (Date shifting) | Phase 14 | Pending (14-04) |
 | FR-13.5 (Callback integration) | Phase 14 | Pending |
-| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending |
+| FR-13.6 (DicomDeidentifier) | Phase 14 | Pending (14-05) |
 
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-01-30 (Phase 13 complete - 13-08 done)*
+*Last updated: 2026-01-30 (Phase 14 in progress - 14-02 complete)*

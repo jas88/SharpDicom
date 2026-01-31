@@ -39,6 +39,11 @@ namespace SharpDicom.Generators
                         var doc = XDocument.Parse(content);
                         return Parsing.Part6Parser.ParseTags(doc).ToImmutableArray();
                     }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
+                    }
                     catch
                     {
                         // Return empty on parse error - don't fail build
@@ -63,6 +68,11 @@ namespace SharpDicom.Generators
 
                         var doc = XDocument.Parse(content);
                         return Parsing.Part6Parser.ParseUids(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
                     }
                     catch
                     {
@@ -92,6 +102,11 @@ namespace SharpDicom.Generators
 
                         var doc = XDocument.Parse(content);
                         return Parsing.Part7Parser.ParseCommandTags(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
                     }
                     catch
                     {
@@ -199,6 +214,11 @@ namespace SharpDicom.Generators
                         var doc = XDocument.Parse(content);
                         return Parsing.PrivateDictParser.ParsePrivateTags(doc).ToImmutableArray();
                     }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
+                    }
                     catch
                     {
                         // Return empty on parse error - don't fail build
@@ -220,6 +240,54 @@ namespace SharpDicom.Generators
 
                     var source = Emitters.VendorDictionaryEmitter.Emit(tagArray);
                     spc.AddSource("VendorDictionary.Generated.cs",
+                        SourceText.From(source, Encoding.UTF8));
+                });
+
+            // Filter for part15.xml additional file (De-identification profiles)
+            var part15Xml = context.AdditionalTextsProvider
+                .Where(static file => file.Path.EndsWith("part15.xml", System.StringComparison.Ordinal));
+
+            // Parse de-identification actions from Part 15
+            var deidActions = part15Xml
+                .Select(static (text, ct) =>
+                {
+                    try
+                    {
+                        var content = text.GetText(ct)?.ToString();
+                        if (string.IsNullOrEmpty(content))
+                        {
+                            return ImmutableArray<Parsing.DeidentificationActionDefinition>.Empty;
+                        }
+
+                        var doc = XDocument.Parse(content);
+                        return Parsing.Part15Parser.ParseDeidentificationActions(doc).ToImmutableArray();
+                    }
+                    catch (System.OperationCanceledException)
+                    {
+                        // Rethrow cancellation so build can stop cleanly
+                        throw;
+                    }
+                    catch
+                    {
+                        // Return empty on parse error - don't fail build
+                        return ImmutableArray<Parsing.DeidentificationActionDefinition>.Empty;
+                    }
+                })
+                .Where(static actions => !actions.IsEmpty)
+                .SelectMany(static (actions, _) => actions)
+                .Collect();
+
+            // Register DeidentificationProfiles.Generated.cs output
+            context.RegisterSourceOutput(deidActions,
+                static (spc, actionArray) =>
+                {
+                    if (actionArray.IsEmpty)
+                    {
+                        return;
+                    }
+
+                    var source = Emitters.DeidentificationEmitter.Emit(actionArray);
+                    spc.AddSource("DeidentificationProfiles.Generated.cs",
                         SourceText.From(source, Encoding.UTF8));
                 });
         }
