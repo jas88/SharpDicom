@@ -53,9 +53,10 @@ namespace SharpDicom.Codecs.Tests
             // With native libs present, this should be true
             bool isAvailable = NativeCodecs.IsAvailable;
 
-            // The test validates the property was set correctly based on library presence
-            Assert.That(isAvailable, Is.EqualTo(isAvailable),
-                $"IsAvailable should be deterministic: {isAvailable}");
+            // Verify deterministic behavior - calling twice should return same result
+            bool isAvailableSecondCall = NativeCodecs.IsAvailable;
+            Assert.That(isAvailableSecondCall, Is.EqualTo(isAvailable),
+                "IsAvailable should be deterministic across multiple calls");
 
             // If library is not available, verify it's because native code couldn't load
             if (!isAvailable)

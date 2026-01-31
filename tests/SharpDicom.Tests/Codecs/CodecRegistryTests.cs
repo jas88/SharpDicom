@@ -272,20 +272,37 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        public void Register_ReplacesExistingCodec()
+        public void Register_HigherPriorityReplacesLower()
         {
             // Arrange
             var codec1 = new MockCodec(TransferSyntax.RLELossless, "Codec 1");
             var codec2 = new MockCodec(TransferSyntax.RLELossless, "Codec 2");
 
-            // Act
+            // Act - register codec1 with default priority, codec2 with higher priority
+            CodecRegistry.Register(codec1, CodecRegistry.PriorityDefault);
+            CodecRegistry.Register(codec2, CodecRegistry.PriorityNative);
+            var retrieved = CodecRegistry.GetCodec(TransferSyntax.RLELossless);
+
+            // Assert - higher priority codec replaces lower
+            Assert.That(retrieved, Is.SameAs(codec2));
+            Assert.That(retrieved!.Name, Is.EqualTo("Codec 2"));
+        }
+
+        [Test]
+        public void Register_EqualPriorityKeepsFirst()
+        {
+            // Arrange
+            var codec1 = new MockCodec(TransferSyntax.RLELossless, "Codec 1");
+            var codec2 = new MockCodec(TransferSyntax.RLELossless, "Codec 2");
+
+            // Act - register both with same default priority
             CodecRegistry.Register(codec1);
             CodecRegistry.Register(codec2);
             var retrieved = CodecRegistry.GetCodec(TransferSyntax.RLELossless);
 
-            // Assert - second registration replaces first
-            Assert.That(retrieved, Is.SameAs(codec2));
-            Assert.That(retrieved!.Name, Is.EqualTo("Codec 2"));
+            // Assert - equal priority keeps first registration (documented behavior)
+            Assert.That(retrieved, Is.SameAs(codec1));
+            Assert.That(retrieved!.Name, Is.EqualTo("Codec 1"));
         }
     }
 }

@@ -174,31 +174,32 @@ namespace SharpDicom.Codecs.Native
                         TransferSyntax);
                 }
 
-                // Validate output length from native code
-                if (outputLen < 0)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        -1,
-                        "Native encoder returned negative output length",
-                        TransferSyntax);
-                }
-
-                // Sanity check: output shouldn't be larger than reasonable maximum
-                // For JPEG-LS, use 4x uncompressed size as upper bound
-                int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
-                long maxReasonableSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck * 4;
-                if (outputLen > maxReasonableSize)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        -1,
-                        $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
-                        TransferSyntax);
-                }
-
                 try
                 {
+                    // Validate output length from native code
+                    if (outputLen < 0)
+                    {
+                        throw NativeCodecException.EncodeError(
+                            Name,
+                            -1,
+                            "Native encoder returned negative output length",
+                            TransferSyntax);
+                    }
+
+                    // Sanity check: output shouldn't be larger than reasonable maximum
+                    // For small images, codec header overhead can exceed 4x raw size, so use minimum threshold
+                    int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
+                    long rawSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck;
+                    long maxReasonableSize = Math.Max(rawSize * 4, 4096);
+                    if (outputLen > maxReasonableSize)
+                    {
+                        throw NativeCodecException.EncodeError(
+                            Name,
+                            -1,
+                            $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
+                            TransferSyntax);
+                    }
+
                     var data = new byte[outputLen];
                     Marshal.Copy((IntPtr)output, data, 0, outputLen);
 
