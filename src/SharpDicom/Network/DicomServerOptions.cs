@@ -87,6 +87,25 @@ namespace SharpDicom.Network
         public uint MaxPduLength { get; init; } = PduConstants.DefaultMaxPduLength;
 
         /// <summary>
+        /// Gets the threshold at which the pipe pauses reading from socket (default: 64KB).
+        /// </summary>
+        /// <remarks>
+        /// When buffered data exceeds this threshold, socket reading pauses
+        /// until the buffer drains below <see cref="ResumeWriterThreshold"/>.
+        /// This enables TCP flow control for slow request handlers.
+        /// </remarks>
+        public int PauseWriterThreshold { get; init; } = 65536;
+
+        /// <summary>
+        /// Gets the threshold at which the pipe resumes reading from socket (default: 32KB).
+        /// </summary>
+        /// <remarks>
+        /// Provides hysteresis to prevent thrashing between pause/resume states.
+        /// Should be less than <see cref="PauseWriterThreshold"/>.
+        /// </remarks>
+        public int ResumeWriterThreshold { get; init; } = 32768;
+
+        /// <summary>
         /// Gets the handler called when an A-ASSOCIATE-RQ is received.
         /// </summary>
         /// <remarks>
@@ -212,6 +231,14 @@ namespace SharpDicom.Network
 
             if (MaxPduLength < PduConstants.MinMaxPduLength)
                 throw new ArgumentOutOfRangeException(nameof(MaxPduLength), MaxPduLength, $"MaxPduLength must be at least {PduConstants.MinMaxPduLength}.");
+
+            if (PauseWriterThreshold < 4096)
+                throw new ArgumentOutOfRangeException(nameof(PauseWriterThreshold), PauseWriterThreshold,
+                    "PauseWriterThreshold must be at least 4096 bytes.");
+
+            if (ResumeWriterThreshold < 1024 || ResumeWriterThreshold >= PauseWriterThreshold)
+                throw new ArgumentOutOfRangeException(nameof(ResumeWriterThreshold), ResumeWriterThreshold,
+                    "ResumeWriterThreshold must be between 1024 and PauseWriterThreshold.");
 
             // C-STORE handler consistency checks
             if (StoreHandlerMode == CStoreHandlerMode.Streaming && StreamingCStoreHandler == null)
