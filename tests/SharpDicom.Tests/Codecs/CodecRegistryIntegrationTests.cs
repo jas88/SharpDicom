@@ -167,7 +167,8 @@ namespace SharpDicom.Tests.Codecs
 
             var syntaxes = CodecRegistry.GetRegisteredTransferSyntaxes();
 
-            Assert.That(syntaxes.Count, Is.EqualTo(5));
+            // 5 original + 2 JPEG-LS + 3 HTJ2K = 10
+            Assert.That(syntaxes.Count, Is.EqualTo(10));
         }
 
         #endregion
@@ -182,6 +183,9 @@ namespace SharpDicom.Tests.Codecs
             Assert.That(CodecRegistry.GetCodec(TransferSyntax.RLELossless)!.Capabilities.IsLossy, Is.False);
             Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEGLossless)!.Capabilities.IsLossy, Is.False);
             Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEG2000Lossless)!.Capabilities.IsLossy, Is.False);
+            Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEGLSLossless)!.Capabilities.IsLossy, Is.False);
+            Assert.That(CodecRegistry.GetCodec(TransferSyntax.HTJ2KLossless)!.Capabilities.IsLossy, Is.False);
+            Assert.That(CodecRegistry.GetCodec(TransferSyntax.HTJ2KLosslessRPCL)!.Capabilities.IsLossy, Is.False);
         }
 
         [Test]
@@ -191,6 +195,8 @@ namespace SharpDicom.Tests.Codecs
 
             Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEGBaseline)!.Capabilities.IsLossy, Is.True);
             Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEG2000Lossy)!.Capabilities.IsLossy, Is.True);
+            Assert.That(CodecRegistry.GetCodec(TransferSyntax.JPEGLSNearLossless)!.Capabilities.IsLossy, Is.True);
+            Assert.That(CodecRegistry.GetCodec(TransferSyntax.HTJ2KLossy)!.Capabilities.IsLossy, Is.True);
         }
 
         [Test]

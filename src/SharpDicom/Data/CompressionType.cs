@@ -48,6 +48,16 @@ namespace SharpDicom.Data
         /// <summary>
         /// RLE (Run-Length Encoding) compression.
         /// </summary>
-        RLE
+        RLE,
+
+        /// <summary>
+        /// HTJ2K (High Throughput JPEG 2000) Lossless compression.
+        /// </summary>
+        HTJ2KLossless,
+
+        /// <summary>
+        /// HTJ2K (High Throughput JPEG 2000) Lossy compression.
+        /// </summary>
+        HTJ2KLossy
     }
 }
