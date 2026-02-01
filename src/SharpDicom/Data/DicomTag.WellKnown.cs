@@ -171,6 +171,12 @@ namespace SharpDicom.Data
         /// <summary>(0010,0020) Patient ID</summary>
         public static readonly DicomTag PatientID = new(0x0010, 0x0020);
 
+        /// <summary>(0010,0030) Patient's Birth Date</summary>
+        public static readonly DicomTag PatientBirthDate = new(0x0010, 0x0030);
+
+        /// <summary>(0010,0040) Patient's Sex</summary>
+        public static readonly DicomTag PatientSex = new(0x0010, 0x0040);
+
         // Study/Series/Instance UIDs for Q/R operations
 
         /// <summary>(0020,000D) Study Instance UID</summary>
@@ -240,5 +246,40 @@ namespace SharpDicom.Data
 
         /// <summary>(FFFE,E0DD) Sequence Delimitation Item</summary>
         public static readonly DicomTag SequenceDelimitationItem = new(0xFFFE, 0xE0DD);
+
+        // Modality Worklist tags (MWL Information Model)
+
+        /// <summary>(0032,1060) Requested Procedure Description</summary>
+        public static readonly DicomTag RequestedProcedureDescription = new(0x0032, 0x1060);
+
+        /// <summary>(0040,0001) Scheduled Station AE Title</summary>
+        public static readonly DicomTag ScheduledStationAETitle = new(0x0040, 0x0001);
+
+        /// <summary>(0040,0002) Scheduled Procedure Step Start Date</summary>
+        public static readonly DicomTag ScheduledProcedureStepStartDate = new(0x0040, 0x0002);
+
+        /// <summary>(0040,0003) Scheduled Procedure Step Start Time</summary>
+        public static readonly DicomTag ScheduledProcedureStepStartTime = new(0x0040, 0x0003);
+
+        /// <summary>(0040,0006) Scheduled Performing Physician's Name</summary>
+        public static readonly DicomTag ScheduledPerformingPhysicianName = new(0x0040, 0x0006);
+
+        /// <summary>(0040,0007) Scheduled Procedure Step Description</summary>
+        public static readonly DicomTag ScheduledProcedureStepDescription = new(0x0040, 0x0007);
+
+        /// <summary>(0040,0009) Scheduled Procedure Step ID</summary>
+        public static readonly DicomTag ScheduledProcedureStepID = new(0x0040, 0x0009);
+
+        /// <summary>(0040,0010) Scheduled Station Name</summary>
+        public static readonly DicomTag ScheduledStationName = new(0x0040, 0x0010);
+
+        /// <summary>(0040,0011) Scheduled Procedure Step Location</summary>
+        public static readonly DicomTag ScheduledProcedureStepLocation = new(0x0040, 0x0011);
+
+        /// <summary>(0040,0100) Scheduled Procedure Step Sequence</summary>
+        public static readonly DicomTag ScheduledProcedureStepSequence = new(0x0040, 0x0100);
+
+        /// <summary>(0040,1001) Requested Procedure ID</summary>
+        public static readonly DicomTag RequestedProcedureID = new(0x0040, 0x1001);
     }
 }

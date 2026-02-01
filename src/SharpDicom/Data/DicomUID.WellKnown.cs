@@ -126,6 +126,19 @@ namespace SharpDicom.Data
 
         #endregion
 
+        #region Modality Worklist SOP Classes
+
+        /// <summary>
+        /// Modality Worklist Information Model - FIND UID (1.2.840.10008.5.1.4.31).
+        /// </summary>
+        /// <remarks>
+        /// Used for C-FIND operations to query scheduled procedures from RIS/HIS.
+        /// See DICOM PS3.4 Annex K.
+        /// </remarks>
+        public static readonly DicomUID ModalityWorklistFind = new("1.2.840.10008.5.1.4.31");
+
+        #endregion
+
         #region Storage SOP Classes (Common)
 
         /// <summary>
