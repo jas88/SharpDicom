@@ -1,569 +1,233 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Text.RegularExpressions;
+using System.Text;
 using SharpDicom.Data;
 
-namespace SharpDicom.Deidentification
+namespace SharpDicom.Deidentification;
+
+/// <summary>
+/// Handles date/time shifting with VR-aware logic per PS3.15.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Date shifting is a key privacy technique that preserves temporal relationships
+/// while obscuring the actual dates. This class handles the three date-related VRs:
+/// </para>
+/// <list type="bullet">
+/// <item>DA (Date): YYYYMMDD format</item>
+/// <item>TM (Time): HHMMSS.FFFFFF format</item>
+/// <item>DT (DateTime): YYYYMMDDHHMMSS.FFFFFF format</item>
+/// </list>
+/// </remarks>
+public static class DateShifter
 {
     /// <summary>
-    /// Interface for storing and retrieving date offsets per patient.
+    /// Shifts a date element by the given offset.
     /// </summary>
-    public interface IDateOffsetStore
+    /// <param name="element">The element to shift (must be DA, TM, or DT VR).</param>
+    /// <param name="offset">The time offset to apply (typically days).</param>
+    /// <param name="zeroTime">Whether to zero out time components in TM and DT values.</param>
+    /// <returns>A new element with shifted date, or the original element if not a date VR or invalid.</returns>
+    public static IDicomElement Shift(IDicomElement element, TimeSpan offset, bool zeroTime)
     {
-        /// <summary>
-        /// Gets or creates a date offset for the given patient ID.
-        /// </summary>
-        /// <param name="patientId">The patient identifier.</param>
-        /// <param name="minOffset">Minimum offset range.</param>
-        /// <param name="maxOffset">Maximum offset range.</param>
-        /// <param name="seed">Optional seed for reproducibility.</param>
-        /// <returns>The time offset to apply.</returns>
-        TimeSpan GetOrCreateOffset(string patientId, TimeSpan minOffset, TimeSpan maxOffset, int? seed);
+        if (element is not DicomStringElement se)
+            return element;
 
-        /// <summary>
-        /// Tries to get existing offset for patient.
-        /// </summary>
-        /// <param name="patientId">The patient identifier.</param>
-        /// <param name="offset">The offset if found.</param>
-        /// <returns>True if found, false otherwise.</returns>
-        bool TryGetOffset(string patientId, out TimeSpan offset);
+        var vr = element.VR;
+        if (vr == DicomVR.DA)
+            return ShiftDate(element.Tag, se, offset);
+        if (vr == DicomVR.TM)
+            return zeroTime ? ZeroTime(element.Tag) : element;
+        if (vr == DicomVR.DT)
+            return ShiftDateTime(element.Tag, se, offset, zeroTime);
+
+        return element;
     }
 
-    /// <summary>
-    /// In-memory implementation of <see cref="IDateOffsetStore"/>.
-    /// </summary>
-    public sealed class InMemoryDateOffsetStore : IDateOffsetStore
+    private static DicomStringElement ShiftDate(DicomTag tag, DicomStringElement element, TimeSpan offset)
     {
-        private readonly ConcurrentDictionary<string, TimeSpan> _offsets = new();
-        private readonly Random _random;
-        private readonly object _lock = new();
+        var value = element.GetString();
+        if (string.IsNullOrEmpty(value) || value!.Length < 8)
+            return element;
 
-        /// <summary>
-        /// Creates a new in-memory date offset store.
-        /// </summary>
-        /// <param name="seed">Optional seed for reproducibility.</param>
-        public InMemoryDateOffsetStore(int? seed = null)
-        {
-            _random = seed.HasValue ? new Random(seed.Value) : new Random();
-        }
-
-        /// <inheritdoc/>
-        public TimeSpan GetOrCreateOffset(string patientId, TimeSpan minOffset, TimeSpan maxOffset, int? seed)
-        {
-            return _offsets.GetOrAdd(patientId, _ =>
-            {
-                lock (_lock)
-                {
-                    var range = (maxOffset - minOffset).TotalDays;
-                    var offsetDays = minOffset.TotalDays + (_random.NextDouble() * range);
-                    return TimeSpan.FromDays(Math.Round(offsetDays));
-                }
-            });
-        }
-
-        /// <inheritdoc/>
-        public bool TryGetOffset(string patientId, out TimeSpan offset)
-            => _offsets.TryGetValue(patientId, out offset);
-    }
-
-    /// <summary>
-    /// Shifts dates consistently for de-identification while preserving temporal relationships.
-    /// </summary>
-    public sealed class DateShifter
-    {
-        private readonly DateShiftConfig _config;
-        private readonly IDateOffsetStore? _offsetStore;
-        private readonly Dictionary<string, TimeSpan> _patientOffsets = new();
-        private readonly object _lock = new();
-        private readonly Random? _random;
-
-        /// <summary>
-        /// Creates a date shifter with the specified configuration.
-        /// </summary>
-        /// <param name="config">The date shift configuration.</param>
-        /// <param name="offsetStore">Optional offset store for persisting patient offsets.</param>
-        public DateShifter(DateShiftConfig config, IDateOffsetStore? offsetStore = null)
-        {
-            _config = config ?? throw new ArgumentNullException(nameof(config));
-            _offsetStore = offsetStore;
-
-            if (_config.Strategy == DateShiftStrategy.RandomPerPatient && _offsetStore == null)
-            {
-                _random = _config.RandomSeed.HasValue
-                    ? new Random(_config.RandomSeed.Value)
-                    : new Random();
-            }
-        }
-
-        /// <summary>
-        /// Gets the offset for a patient, creating one if needed.
-        /// </summary>
-        /// <param name="patientId">The patient identifier.</param>
-        /// <returns>The time offset to apply.</returns>
-        public TimeSpan GetOffset(string? patientId)
-        {
-            return _config.Strategy switch
-            {
-                DateShiftStrategy.None => TimeSpan.Zero,
-                DateShiftStrategy.Fixed => _config.FixedOffset,
-                DateShiftStrategy.RandomPerPatient => GetOrCreatePatientOffset(patientId ?? "UNKNOWN"),
-                DateShiftStrategy.RemoveTime => _config.FixedOffset, // Apply date shift, remove time
-                DateShiftStrategy.Remove => TimeSpan.Zero,
-                _ => TimeSpan.Zero
-            };
-        }
-
-        private TimeSpan GetOrCreatePatientOffset(string patientId)
-        {
-            // Try external offset store first
-            if (_offsetStore != null)
-            {
-                return _offsetStore.GetOrCreateOffset(
-                    patientId,
-                    TimeSpan.FromDays(_config.MinOffsetDays),
-                    TimeSpan.FromDays(_config.MaxOffsetDays),
-                    _config.RandomSeed);
-            }
-
-            lock (_lock)
-            {
-                if (_patientOffsets.TryGetValue(patientId, out var existing))
-                {
-                    return existing;
-                }
-
-                // Generate random offset within configured range
-                var minDays = _config.MinOffsetDays;
-                var maxDays = _config.MaxOffsetDays;
-                var days = _random!.Next(minDays, maxDays + 1);
-                var offset = TimeSpan.FromDays(days);
-
-                _patientOffsets[patientId] = offset;
-                return offset;
-            }
-        }
-
-        /// <summary>
-        /// Shifts a DICOM date string.
-        /// </summary>
-        /// <param name="dateString">The date string in YYYYMMDD format.</param>
-        /// <param name="patientId">The patient ID for consistent shifting.</param>
-        /// <returns>The shifted date string, or empty string on error.</returns>
-        /// <remarks>
-        /// DICOM DA values can be multi-valued (VM&gt;1) with values separated by backslash.
-        /// Each component is shifted independently.
-        /// </remarks>
-        public string ShiftDate(string? dateString, string? patientId)
-        {
-            if (string.IsNullOrWhiteSpace(dateString))
-            {
-                return string.Empty;
-            }
-
-            // After null check, dateString is guaranteed non-null
-            var ds = dateString!;
-
-            // Handle multi-valued DA (VM>1) - values separated by backslash
+        // Parse YYYYMMDD format
 #if NETSTANDARD2_0
-            if (ds.IndexOf('\\') >= 0)
+        if (!int.TryParse(value.Substring(0, 4), out var year) ||
+            !int.TryParse(value.Substring(4, 2), out var month) ||
+            !int.TryParse(value.Substring(6, 2), out var day))
+            return element;
 #else
-            if (ds.Contains('\\'))
+        if (!int.TryParse(value.AsSpan(0, 4), out var year) ||
+            !int.TryParse(value.AsSpan(4, 2), out var month) ||
+            !int.TryParse(value.AsSpan(6, 2), out var day))
+            return element;
 #endif
-            {
-                var components = ds.Split('\\');
-                for (int i = 0; i < components.Length; i++)
-                {
-                    components[i] = ShiftSingleDate(components[i], patientId);
-                }
-                return string.Join("\\", components);
-            }
 
-            return ShiftSingleDate(ds, patientId);
-        }
-
-        private string ShiftSingleDate(string dateString, string? patientId)
+        try
         {
-            // Handle Remove strategy - replace with dummy date
-            if (_config.Strategy == DateShiftStrategy.Remove)
-            {
-                return DummyDate;
-            }
-
-            if (dateString.Length < 8)
-            {
-                return dateString; // Invalid format, return as-is
-            }
-
-            if (!TryParseDate(dateString, out var date))
-            {
-                return dateString; // Can't parse, return as-is
-            }
-
-            var offset = GetOffset(patientId);
-            var shifted = date.Add(offset);
-
-            return shifted.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+#if NET6_0_OR_GREATER
+            var date = new DateOnly(year, month, day);
+            var shifted = date.AddDays((int)offset.TotalDays);
+            var result = $"{shifted.Year:D4}{shifted.Month:D2}{shifted.Day:D2}";
+#else
+            var date = new DateTime(year, month, day);
+            var shifted = date.AddDays((int)offset.TotalDays);
+            var result = $"{shifted.Year:D4}{shifted.Month:D2}{shifted.Day:D2}";
+#endif
+            return CreateStringElement(tag, DicomVR.DA, result);
         }
-
-        // Dummy values for Remove strategy
-        private const string DummyDate = "19000101";
-        private const string DummyTime = "000000.000000";
-        private const string DummyDateTime = "19000101000000.000000";
-
-        /// <summary>
-        /// Shifts a DICOM time string.
-        /// </summary>
-        /// <param name="timeString">The time string in HHMMSS.FFFFFF format.</param>
-        /// <param name="patientId">The patient ID (not used for time-only shifting).</param>
-        /// <returns>The time string (unchanged unless config specifies time shifting).</returns>
-        /// <remarks>
-        /// DICOM TM values can be multi-valued (VM&gt;1) with values separated by backslash.
-        /// Each component is processed independently.
-        /// </remarks>
-        public string ShiftTime(string? timeString, string? patientId)
+        catch
         {
-            // Suppress unused parameter warning - parameter kept for API consistency
-            _ = patientId;
+            return element; // Invalid date - keep original
+        }
+    }
 
-            if (string.IsNullOrEmpty(timeString))
-            {
-                return string.Empty;
-            }
+    private static DicomStringElement ShiftDateTime(DicomTag tag, DicomStringElement element,
+        TimeSpan offset, bool zeroTime)
+    {
+        var value = element.GetString();
+        if (string.IsNullOrEmpty(value) || value!.Length < 8)
+            return element;
 
-            // Handle Remove or RemoveTime strategy - remove time component
-            if (_config.Strategy == DateShiftStrategy.Remove ||
-                _config.Strategy == DateShiftStrategy.RemoveTime)
-            {
-                // Handle multi-valued TM (VM>1) - values separated by backslash
-                // After null check above, timeString is guaranteed non-null
+        // Parse YYYYMMDD portion
 #if NETSTANDARD2_0
-                if (timeString!.IndexOf('\\') >= 0)
+        if (!int.TryParse(value.Substring(0, 4), out var year) ||
+            !int.TryParse(value.Substring(4, 2), out var month) ||
+            !int.TryParse(value.Substring(6, 2), out var day))
+            return element;
 #else
-                if (timeString!.Contains('\\'))
+        if (!int.TryParse(value.AsSpan(0, 4), out var year) ||
+            !int.TryParse(value.AsSpan(4, 2), out var month) ||
+            !int.TryParse(value.AsSpan(6, 2), out var day))
+            return element;
 #endif
-                {
-                    var components = timeString.Split('\\');
-                    for (int i = 0; i < components.Length; i++)
-                    {
-                        components[i] = DummyTime;
-                    }
-                    return string.Join("\\", components);
-                }
-                return DummyTime;
-            }
 
-            // Time shifting is generally not needed for de-identification
-            // Preserve as-is
-            return timeString ?? string.Empty;
-        }
-
-        // Regex for extracting timezone from DT VR: &ZZXX or +ZZXX or -ZZXX at end
-        private static readonly Regex TimezonePattern = new Regex(@"([&+-]\d{4})$", RegexOptions.Compiled);
-
-        /// <summary>
-        /// Shifts a DICOM datetime string.
-        /// </summary>
-        /// <param name="dateTimeString">The datetime string in YYYYMMDDHHMMSS.FFFFFF&amp;ZZXX format.</param>
-        /// <param name="patientId">The patient ID for consistent shifting.</param>
-        /// <returns>The shifted datetime string.</returns>
-        /// <remarks>
-        /// DICOM DT values can be multi-valued (VM&gt;1) with values separated by backslash.
-        /// Each component is shifted independently.
-        /// </remarks>
-        public string ShiftDateTime(string? dateTimeString, string? patientId)
+        try
         {
-            if (string.IsNullOrWhiteSpace(dateTimeString))
-            {
-                return string.Empty;
-            }
-
-            // After null check, dateTimeString is guaranteed non-null
-            var dts = dateTimeString!;
-
-            // Handle multi-valued DT (VM>1) - values separated by backslash
-#if NETSTANDARD2_0
-            if (dts.IndexOf('\\') >= 0)
+#if NET6_0_OR_GREATER
+            var date = new DateOnly(year, month, day);
+            var shifted = date.AddDays((int)offset.TotalDays);
 #else
-            if (dts.Contains('\\'))
+            var date = new DateTime(year, month, day);
+            var shifted = date.AddDays((int)offset.TotalDays);
 #endif
+
+            string result;
+            if (zeroTime)
             {
-                var components = dts.Split('\\');
-                for (int i = 0; i < components.Length; i++)
-                {
-                    components[i] = ShiftSingleDateTime(components[i], patientId);
-                }
-                return string.Join("\\", components);
+                // YYYYMMDD000000 format with zeroed time
+                result = $"{shifted.Year:D4}{shifted.Month:D2}{shifted.Day:D2}000000";
+            }
+            else
+            {
+                // Keep original time portion if present
+                var time = value.Length > 8 ? value.Substring(8) : "";
+                result = $"{shifted.Year:D4}{shifted.Month:D2}{shifted.Day:D2}{time}";
             }
 
-            return ShiftSingleDateTime(dts, patientId);
+            return CreateStringElement(tag, DicomVR.DT, result);
         }
-
-        private string ShiftSingleDateTime(string dateTimeString, string? patientId)
+        catch
         {
-            // Handle Remove strategy - replace with dummy datetime
-            if (_config.Strategy == DateShiftStrategy.Remove)
-            {
-                return DummyDateTime;
-            }
-
-            if (dateTimeString.Length < 8)
-            {
-                return dateTimeString; // Invalid format
-            }
-
-            // Extract timezone suffix if present (preserve it)
-            string timezone = string.Empty;
-            string dtWithoutTz = dateTimeString;
-            var tzMatch = TimezonePattern.Match(dateTimeString);
-            if (tzMatch.Success)
-            {
-                timezone = tzMatch.Groups[1].Value;
-                dtWithoutTz = dateTimeString.Substring(0, dateTimeString.Length - timezone.Length);
-            }
-
-            // Extract date part and shift it
-            var datePart = dtWithoutTz.Substring(0, 8);
-            var timePart = dtWithoutTz.Length > 8 ? dtWithoutTz.Substring(8) : "";
-
-            // Handle RemoveTime strategy - keep shifted date, remove time
-            if (_config.Strategy == DateShiftStrategy.RemoveTime)
-            {
-                var shiftedDateOnly = ShiftSingleDate(datePart, patientId);
-                return shiftedDateOnly + DummyTime + timezone;
-            }
-
-            var shiftedDate = ShiftSingleDate(datePart, patientId);
-            return shiftedDate + timePart + timezone;
-        }
-
-        /// <summary>
-        /// Shifts all date/time elements in a dataset.
-        /// </summary>
-        /// <param name="dataset">The dataset to process.</param>
-        /// <param name="patientId">The patient ID for consistent shifting.</param>
-        /// <returns>Number of dates shifted.</returns>
-        public int ShiftDates(DicomDataset dataset, string? patientId = null)
-        {
-            var result = ShiftDatesWithResult(dataset, patientId);
-            return result.TotalShifted;
-        }
-
-        /// <summary>
-        /// Shifts all date/time elements in a dataset and returns detailed result.
-        /// </summary>
-        /// <param name="dataset">The dataset to process.</param>
-        /// <param name="patientId">The patient ID for consistent shifting.</param>
-        /// <returns>Detailed result of the shifting operation.</returns>
-        public DateShiftResult ShiftDatesWithResult(DicomDataset dataset, string? patientId = null)
-        {
-            // Try to get patient ID from dataset if not provided
-            if (string.IsNullOrEmpty(patientId))
-            {
-                patientId = dataset.GetString(DicomTag.PatientID);
-            }
-
-            var result = new DateShiftResult
-            {
-                AppliedOffset = GetOffset(patientId)
-            };
-
-            ShiftDatesInternal(dataset, patientId, result);
-            return result;
-        }
-
-        private void ShiftDatesInternal(DicomDataset dataset, string? patientId, DateShiftResult result)
-        {
-            // Collect tags to process
-            var tagsToProcess = new List<DicomTag>();
-            foreach (var element in dataset)
-            {
-                tagsToProcess.Add(element.Tag);
-            }
-
-            foreach (var tag in tagsToProcess)
-            {
-                var element = dataset[tag];
-                if (element == null) continue;
-
-                // Handle sequences recursively
-                if (element is DicomSequence seq)
-                {
-                    foreach (var item in seq.Items)
-                    {
-                        ShiftDatesInternal(item, patientId, result);
-                    }
-                    continue;
-                }
-
-                // Handle date/time VRs
-                if (element is DicomStringElement stringElement)
-                {
-                    var originalValue = stringElement.GetString(DicomEncoding.Default);
-                    string? newValue = null;
-
-                    if (element.VR == DicomVR.DA)
-                    {
-                        newValue = ShiftDate(originalValue, patientId);
-                        if (newValue != null && newValue != originalValue)
-                        {
-                            result.DatesShifted++;
-                        }
-                    }
-                    else if (element.VR == DicomVR.TM)
-                    {
-                        newValue = ShiftTime(originalValue, patientId);
-                        if (newValue != null && newValue != originalValue)
-                        {
-                            result.TimesShifted++;
-                        }
-                    }
-                    else if (element.VR == DicomVR.DT)
-                    {
-                        newValue = ShiftDateTime(originalValue, patientId);
-                        if (newValue != null && newValue != originalValue)
-                        {
-                            result.DateTimesShifted++;
-                        }
-                    }
-
-                    if (newValue != null && newValue != originalValue)
-                    {
-                        var bytes = System.Text.Encoding.ASCII.GetBytes(newValue);
-                        var newElement = new DicomStringElement(tag, element.VR, bytes);
-                        dataset.Add(newElement);
-                    }
-                }
-            }
-        }
-
-        private static bool TryParseDate(string dateString, out DateTime date)
-        {
-            // DICOM date format: YYYYMMDD
-            return DateTime.TryParseExact(
-                dateString.Substring(0, Math.Min(8, dateString.Length)),
-                "yyyyMMdd",
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out date);
+            return element;
         }
     }
 
-    /// <summary>
-    /// Configuration for date shifting.
-    /// </summary>
-    public sealed class DateShiftConfig
+    private static DicomStringElement ZeroTime(DicomTag tag)
     {
-        /// <summary>
-        /// Gets or sets the date shift strategy.
-        /// </summary>
-        public DateShiftStrategy Strategy { get; init; } = DateShiftStrategy.Fixed;
-
-        /// <summary>
-        /// Gets or sets the fixed offset when using Fixed strategy.
-        /// </summary>
-        public TimeSpan FixedOffset { get; init; } = TimeSpan.FromDays(-365);
-
-        /// <summary>
-        /// Gets or sets the minimum offset days for random strategy.
-        /// </summary>
-        public int MinOffsetDays { get; init; } = -365 * 5;
-
-        /// <summary>
-        /// Gets or sets the maximum offset days for random strategy.
-        /// </summary>
-        public int MaxOffsetDays { get; init; } = -30;
-
-        /// <summary>
-        /// Gets or sets the random seed for reproducible results.
-        /// </summary>
-        public int? RandomSeed { get; init; }
-
-        /// <summary>
-        /// Default configuration with -365 days fixed offset.
-        /// </summary>
-        public static DateShiftConfig Default { get; } = new();
-
-        /// <summary>
-        /// Configuration with no date shifting.
-        /// </summary>
-        public static DateShiftConfig None { get; } = new() { Strategy = DateShiftStrategy.None };
-
-        /// <summary>
-        /// Research preset with random offset per patient.
-        /// </summary>
-        public static DateShiftConfig Research { get; } = new()
-        {
-            Strategy = DateShiftStrategy.RandomPerPatient,
-            MinOffsetDays = -365,
-            MaxOffsetDays = 365
-        };
-
-        /// <summary>
-        /// Clinical trial preset - shifts dates, removes time component.
-        /// </summary>
-        public static DateShiftConfig ClinicalTrial { get; } = new()
-        {
-            Strategy = DateShiftStrategy.RemoveTime,
-            FixedOffset = TimeSpan.FromDays(-100)
-        };
+        return CreateStringElement(tag, DicomVR.TM, "000000");
     }
 
     /// <summary>
-    /// Strategy for date shifting.
+    /// Recalculates PatientAge (AS VR) from birth date and study date.
     /// </summary>
-    public enum DateShiftStrategy
+    /// <param name="birthDate">The patient's birth date.</param>
+    /// <param name="studyDate">The study date.</param>
+    /// <returns>The calculated age in AS format (nnnY), or null if dates are invalid.</returns>
+#if NET6_0_OR_GREATER
+    public static string? CalculateAge(DateOnly? birthDate, DateOnly? studyDate)
     {
-        /// <summary>No date shifting - keep original dates.</summary>
-        None,
+        if (birthDate == null || studyDate == null)
+            return null;
 
-        /// <summary>Apply a fixed offset to all dates.</summary>
-        Fixed,
+        var years = studyDate.Value.Year - birthDate.Value.Year;
+        if (studyDate.Value.DayOfYear < birthDate.Value.DayOfYear)
+            years--;
 
-        /// <summary>Apply a random but consistent offset per patient.</summary>
-        RandomPerPatient,
+        if (years < 0)
+            return "000Y";
 
-        /// <summary>Remove time component, keep date shifted.</summary>
-        RemoveTime,
-
-        /// <summary>Remove date entirely (replace with dummy value).</summary>
-        Remove
+        // AS VR format: nnnD, nnnW, nnnM, or nnnY
+        return $"{Math.Min(years, 999):D3}Y";
     }
+#else
+    public static string? CalculateAge(DateTime? birthDate, DateTime? studyDate)
+    {
+        if (birthDate == null || studyDate == null)
+            return null;
+
+        var years = studyDate.Value.Year - birthDate.Value.Year;
+        if (studyDate.Value.DayOfYear < birthDate.Value.DayOfYear)
+            years--;
+
+        if (years < 0)
+            return "000Y";
+
+        // AS VR format: nnnD, nnnW, nnnM, or nnnY
+        return $"{Math.Min(years, 999):D3}Y";
+    }
+#endif
 
     /// <summary>
-    /// Result of date shifting operation containing statistics.
+    /// Parses a DA (Date) value to DateOnly (or DateTime on .NET Standard).
     /// </summary>
-    public sealed class DateShiftResult
+    /// <param name="value">The date string in YYYYMMDD format.</param>
+    /// <returns>The parsed date, or null if invalid.</returns>
+#if NET6_0_OR_GREATER
+    public static DateOnly? ParseDate(string? value)
     {
-        /// <summary>
-        /// Gets or sets the offset that was applied.
-        /// </summary>
-        public TimeSpan AppliedOffset { get; set; }
+        if (string.IsNullOrEmpty(value) || value!.Length < 8)
+            return null;
 
-        /// <summary>
-        /// Gets or sets the number of DA (date) values shifted.
-        /// </summary>
-        public int DatesShifted { get; set; }
+        if (int.TryParse(value.AsSpan(0, 4), out var year) &&
+            int.TryParse(value.AsSpan(4, 2), out var month) &&
+            int.TryParse(value.AsSpan(6, 2), out var day))
+        {
+            try { return new DateOnly(year, month, day); }
+            catch { return null; }
+        }
+        return null;
+    }
+#else
+    public static DateTime? ParseDate(string? value)
+    {
+        if (string.IsNullOrEmpty(value) || value!.Length < 8)
+            return null;
 
-        /// <summary>
-        /// Gets or sets the number of TM (time) values shifted.
-        /// </summary>
-        public int TimesShifted { get; set; }
+        if (int.TryParse(value.Substring(0, 4), out var year) &&
+            int.TryParse(value.Substring(4, 2), out var month) &&
+            int.TryParse(value.Substring(6, 2), out var day))
+        {
+            try { return new DateTime(year, month, day); }
+            catch { return null; }
+        }
+        return null;
+    }
+#endif
 
-        /// <summary>
-        /// Gets or sets the number of DT (datetime) values shifted.
-        /// </summary>
-        public int DateTimesShifted { get; set; }
-
-        /// <summary>
-        /// Gets the list of warnings encountered during shifting.
-        /// </summary>
-        public List<string> Warnings { get; } = new();
-
-        /// <summary>
-        /// Gets the total number of values shifted.
-        /// </summary>
-        public int TotalShifted => DatesShifted + TimesShifted + DateTimesShifted;
+    /// <summary>
+    /// Creates a string element with properly padded value.
+    /// </summary>
+    private static DicomStringElement CreateStringElement(DicomTag tag, DicomVR vr, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        // Pad to even length if necessary
+        if (bytes.Length % 2 != 0)
+        {
+            var padded = new byte[bytes.Length + 1];
+            bytes.CopyTo(padded, 0);
+            padded[padded.Length - 1] = DicomVRInfo.GetInfo(vr).PaddingByte;
+            bytes = padded;
+        }
+        return new DicomStringElement(tag, vr, bytes);
     }
 }
