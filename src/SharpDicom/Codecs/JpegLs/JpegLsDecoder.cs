@@ -423,7 +423,7 @@ namespace SharpDicom.Codecs.JpegLs
             // q1, q2, q3 range from -4 to 4, context array has 365 elements
             int index = (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
             // Defensive bounds check (should not be needed with correct inputs)
-            return Math.Clamp(index, 0, 364);
+            return Clamp(index, 0, 364);
         }
 
         private static int Clamp(int value, int min, int max)
