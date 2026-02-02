@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Deidentification.PixelCleaner;
 
 namespace SharpDicom.Deidentification;
 
@@ -35,8 +36,20 @@ public sealed partial class DicomDeidentifier
     // Patient's Age (0010,1010) - AS VR
     private static readonly DicomTag PatientAgeTag = new DicomTag(0x0010, 0x1010);
 
+    // Burned In Annotation (0028,0301) - CS VR
+    private static readonly DicomTag BurnedInAnnotationTag = new DicomTag(0x0028, 0x0301);
+
     private readonly DeidentificationOptions _options;
     private readonly DeidentificationContext _context;
+
+    /// <summary>
+    /// Raised when a high-risk modality (US, SC, XA, ES, RF) is detected.
+    /// </summary>
+    /// <remarks>
+    /// High-risk modalities frequently contain burned-in PHI in pixel data.
+    /// Subscribe to this event to log warnings or trigger additional processing.
+    /// </remarks>
+    public event Action<string, DicomDataset>? HighRiskModalityDetected;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DicomDeidentifier"/> class.
@@ -74,6 +87,22 @@ public sealed partial class DicomDeidentifier
     /// <exception cref="ArgumentNullException">Thrown when dataset is null.</exception>
     public ValueTask ApplyAsync(DicomDataset dataset, CancellationToken ct = default)
     {
+        return ApplyAsync(dataset, customDetector: null, ct);
+    }
+
+    /// <summary>
+    /// Applies de-identification to the dataset in-place using a custom PHI detector.
+    /// </summary>
+    /// <param name="dataset">The dataset to de-identify.</param>
+    /// <param name="customDetector">Custom PHI detector, or null to use default heuristic detector.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when de-identification is done.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when dataset is null.</exception>
+    public async ValueTask ApplyAsync(
+        DicomDataset dataset,
+        IBurnedInPhiDetector? customDetector,
+        CancellationToken ct = default)
+    {
 #if NETSTANDARD2_0
         if (dataset == null)
             throw new ArgumentNullException(nameof(dataset));
@@ -81,12 +110,54 @@ public sealed partial class DicomDeidentifier
         ArgumentNullException.ThrowIfNull(dataset);
 #endif
 
+        // Step 1: Apply attribute-level de-identification (synchronous)
         ApplyCore(dataset, ct);
-#if NETSTANDARD2_0
-        return default;
-#else
-        return ValueTask.CompletedTask;
-#endif
+
+        // Step 2: Check for high-risk modality and warn
+        var modality = GetStringValue(dataset, DicomTag.Modality);
+        if (_options.PixelCleaning.WarnHighRiskModalities &&
+            HighRiskModalities.IsHighRisk(modality))
+        {
+            HighRiskModalityDetected?.Invoke(modality!, dataset);
+        }
+
+        // Step 3: Check BurnedInAnnotation tag
+        var burnedIn = GetStringValue(dataset, BurnedInAnnotationTag);
+        var hasBurnedIn = string.Equals(burnedIn, "YES", StringComparison.OrdinalIgnoreCase);
+
+        // Step 4: Process pixel data if configured or has burned-in annotation
+        if (_options.PixelCleaning.Enabled || hasBurnedIn)
+        {
+            // Skip if modality is in safe list
+            var safeModalities = _options.PixelCleaning.SafeModalities;
+            var skipCleaning = safeModalities != null &&
+                modality != null &&
+                ContainsIgnoreCase(safeModalities, modality);
+
+            if (!skipCleaning)
+            {
+                var detector = customDetector ?? new HeuristicPhiDetector();
+                await PixelDataCleaner.CleanAsync(dataset, detector, _options.PixelCleaning, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        // Step 5: Process overlay planes if configured
+        if (_options.PixelCleaning.ProcessOverlayPlanes &&
+            OverlayPlaneProcessor.HasOverlayPlanes(dataset))
+        {
+            OverlayPlaneProcessor.RemoveAllOverlays(dataset);
+        }
+    }
+
+    private static bool ContainsIgnoreCase(IReadOnlyList<string> list, string value)
+    {
+        foreach (var item in list)
+        {
+            if (string.Equals(item, value, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
