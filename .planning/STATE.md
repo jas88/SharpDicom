@@ -93,7 +93,7 @@
 - [x] Phase 14 Plan 02: Core de-identification types (action enum, profiles, context, options)
 - [x] Phase 14 Plan 03: DicomDeidentifier engine (DateShifter, action lookup, UID remapping, fluent builder)
 - [x] Phase 14 Plan 04: Burned-in PHI detection (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
-- [x] Phase 14 Plan 05: PixelDataCleaner and StudyDeidentifier
+- [x] Phase 14 Plan 05: PixelDataCleaner and StudyDeidentifier (with pixel cleaning integration)
 - [x] Phase 14 Plan 06: De-identification integration and testing (presumed complete - in git history)
 - [x] Phase 14 Plan 07: TesseractOCR integration (optional OCR-based PHI detection)
 
@@ -140,6 +140,8 @@
 | 2026-02-02 | 14-04 | Modality-specific region templates | Different equipment vendors place burned-in text predictably |
 | 2026-02-02 | 14-04 | 70% confidence for heuristic regions | Indicates uncertainty without OCR verification |
 | 2026-02-02 | 14-04 | Relative coordinates with negative offsets | Support anchoring regions to any edge |
+| 2026-02-02 | 14-05 | DicomBinaryElement for cleaned pixel data | Maintains VR consistency while allowing raw byte replacement |
+| 2026-02-02 | 14-05 | Async ApplyAsync with pixel cleaning | Enables proper async pattern for lazy-loaded pixel data |
 | 2026-02-02 | 14-07 | Conditional compilation with TESSERACT_AVAILABLE | TesseractOCR has native deps unavailable on netstandard2.0 |
 | 2026-02-02 | 14-07 | Graceful fallback to HeuristicPhiDetector | System must work without Tesseract (optional dependency) |
 | 2026-02-02 | 14-07 | 0.6 default confidence threshold | Balance between detecting text and avoiding false positives |

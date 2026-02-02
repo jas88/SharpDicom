@@ -1,164 +1,201 @@
 ---
-phase: 14
+phase: 14-de-identification
 plan: 05
 subsystem: deidentification
-tags: [dicom, deidentification, privacy, builder-pattern, callbacks]
-dependency-graph:
-  requires: [14-01, 14-02, 14-03, 14-04]
-  provides: [complete-deidentifier, streaming-integration]
-  affects: [future-streaming-io]
+status: complete
+completed: 2026-02-02
+duration: ~18min
+tags: [pixel-cleaning, batch-processing, burned-in-phi, overlay-planes]
 tech-stack:
-  added: []
-  patterns: [fluent-builder, callback-based-processing, code-sequences]
+  patterns: [async-await, iasyncenumerable, parallel-foreach]
+dependency-graph:
+  requires: ["14-03", "14-04"]
+  provides: ["PixelDataCleaner", "StudyDeidentifier"]
+  affects: ["14-06", "14-07"]
 key-files:
+  created:
+    - src/SharpDicom/Deidentification/PixelCleaner/PixelDataCleaner.cs
+    - src/SharpDicom/Deidentification/StudyDeidentifier.cs
   modified:
     - src/SharpDicom/Deidentification/DicomDeidentifier.cs
-    - src/SharpDicom/Deidentification/SqliteUidStore.cs
-    - src/SharpDicom/Deidentification/DeidentificationConfig.cs
-    - src/SharpDicom/Deidentification/DeidentificationConfigLoader.cs
-  created:
-    - src/SharpDicom/Deidentification/DeidentificationContext.cs
-    - src/SharpDicom/Deidentification/DeidentificationCallback.cs
-decisions: []
+    - src/SharpDicom/Deidentification/PixelCleaner/TesseractPhiDetector.cs
+decisions:
+  - id: d1
+    title: "DicomBinaryElement for cleaned pixel data"
+    context: "Need to replace pixel data with cleaned bytes"
+    decision: "Use DicomBinaryElement with same VR as original DicomPixelDataElement"
+    rationale: "Maintains VR consistency while allowing raw byte replacement"
+  - id: d2
+    title: "Async ApplyAsync with pixel cleaning"
+    context: "PixelDataCleaner.CleanAsync is async for lazy-loaded pixel data"
+    decision: "ApplyAsync becomes truly async, not sync-returning ValueTask"
+    rationale: "Enables proper async pattern for pixel data loading"
+  - id: d3
+    title: "ContainsIgnoreCase for SafeModalities"
+    context: "Need to check if modality is in safe list"
+    decision: "Custom helper instead of LINQ for netstandard2.0 compatibility"
+    rationale: "Avoids StringComparison issues in Contains for older frameworks"
 metrics:
-  duration: ~25 minutes
-  completed: 2026-01-30
+  tasks-completed: 3
+  commits: 3
+  files-created: 2
+  files-modified: 2
+  tests-passing: 1663
+  tests-skipped: 26
 ---
 
-# Phase 14 Plan 05: DicomDeidentifier Integration Summary
+# Phase 14 Plan 05: Pixel Cleaning Integration Summary
 
-DicomDeidentifier enhanced with PS3.15 code sequences, batch context management, and streaming callback support.
+Pixel cleaning integration into DicomDeidentifier with StudyDeidentifier for batch processing
 
-## What Was Built
+## One-liner
 
-### 1. Enhanced DicomDeidentifier with PS3.15 Compliance
+PixelDataCleaner for region replacement, DicomDeidentifier pixel cleaning integration, and StudyDeidentifier for multi-file batch processing with shared context
 
-Extended the core DicomDeidentifier class to add proper de-identification markers per PS3.15 Annex E:
+## Completed Tasks
 
-- **De-identification Method Code Sequence (0012,0064)**: Added structured codes for active profile options using CID 7050 codes (DCM coding scheme)
-- **Longitudinal Temporal Information Modified (0028,0303)**: Added temporal status indicator (UNMODIFIED/MODIFIED/REMOVED)
-- **Method Text Generation**: Built multi-part method text from active profile options separated by DICOM value separator
+| # | Task | Commit | Files |
+|---|------|--------|-------|
+| 1 | PixelDataCleaner for region replacement | de02c4c | PixelDataCleaner.cs, TesseractPhiDetector.cs |
+| 2 | Integrate pixel cleaning into DicomDeidentifier | 28e6b7a | DicomDeidentifier.cs |
+| 3 | StudyDeidentifier for batch processing | 9f7d492 | StudyDeidentifier.cs |
 
-Code sequence includes:
-| Code | Meaning |
-|------|---------|
-| 113100 | Basic Application Confidentiality Profile |
-| 113101 | Retain Safe Private Option |
-| 113105 | Clean Descriptors Option |
-| 113106 | Retain Longitudinal Full Dates Option |
-| 113107 | Retain Longitudinal Modified Dates Option |
-| 113108 | Retain Patient Characteristics Option |
-| 113109 | Retain Device Identity Option |
-| 113110 | Retain UIDs Option |
-| 113112 | Retain Institution Identity Option |
-| 113103 | Clean Graphics Option |
-| 113104 | Clean Structured Content Option |
+## Key Implementations
 
-### 2. DeidentificationContext for Batch Processing
+### PixelDataCleaner (Task 1)
 
-Created `DeidentificationContext` class for managing persistent state across multiple files:
+Span-based pixel region cleaning for burned-in PHI:
 
-- **SQLite Persistence**: Optional SQLite-backed UID storage for cross-session consistency
-- **In-Memory Mode**: Alternative for single-session processing without persistence
-- **Factory Methods**: `Create(dbPath)` and `CreateInMemory()`
-- **Builder Integration**: `CreateBuilder()` returns pre-configured builder with shared stores
-- **Export Support**: `ExportMappingsAsync()` for UID mapping audit trails
+```csharp
+// Clean regions in-place
+PixelDataCleaner.Clean(
+    pixelData: imageBytes,
+    width: 512, height: 512,
+    bitsAllocated: 16,
+    samplesPerPixel: 1,
+    regions: detectedRegions,
+    replacement: PixelReplacementValue.Black);
 
-### 3. DeidentificationCallback for Streaming Integration
+// Async dataset-level cleaning
+await PixelDataCleaner.CleanAsync(dataset, detector, options, ct);
+```
 
-Created callback system for element-by-element de-identification during streaming:
+Features:
+- **8-bit and 16-bit support**: Handles both common pixel depths
+- **Multiple replacement modes**: Black, White, AverageOfRegion
+- **Bounds clamping**: Safely handles regions extending beyond image
+- **DicomPixelDataElement integration**: Uses proper lazy-loading API
 
-- **ElementCallbackResult**: Struct with action (Keep/Remove/Replace) and optional replacement
-- **ProcessElement**: Method that applies de-identification actions per element
-- **UID Remapping**: Integrated with UidRemapper for consistent UID handling
-- **Resource Management**: Proper IDisposable implementation with ownership tracking
+### DicomDeidentifier Integration (Task 2)
 
-### 4. SqliteUidStore Interface Enhancement
+Updated de-identification engine with pixel data processing:
 
-Extended `SqliteUidStore` to implement both `IUidStore` and `IUidMappingStore`:
+```csharp
+var options = new DeidentificationOptions
+{
+    PixelCleaning = new PixelCleaningOptions
+    {
+        Enabled = true,
+        ReplacementValue = PixelReplacementValue.Black,
+        ProcessOverlayPlanes = true,
+        WarnHighRiskModalities = true,
+        SafeModalities = new[] { "CT", "MR" }
+    }
+};
 
-- Added `TryGetMapped` method for IUidStore compatibility
-- Added explicit interface implementations for both interfaces
-- Added public `TryGetOriginal` for reverse lookups
-- Maintained backward compatibility with existing code
+var deidentifier = new DicomDeidentifier(options);
+deidentifier.HighRiskModalityDetected += (modality, dataset) =>
+    Console.WriteLine($"Warning: High-risk modality {modality}");
 
-### 5. Build Compatibility Fixes
+await deidentifier.ApplyAsync(dataset, customDetector, ct);
+```
 
-Fixed several pre-existing issues for netstandard2.0 compatibility:
+**Key Links Verified:**
+- `PixelDataCleaner.CleanAsync` called from DicomDeidentifier line 140
+- `OverlayPlaneProcessor.RemoveAllOverlays` called when enabled
+- `HighRiskModalityDetected` event raised for US, SC, XA, ES, RF
 
-- DeidentificationConfig: Wrapped JsonPropertyName attributes in NET6_0_OR_GREATER
-- DeidentificationConfigLoader: Added RequiresDynamicCode attributes for AOT safety
-- DeidentificationConfigLoader: Wrapped entire class in NET6_0_OR_GREATER
+**Processing Order:**
+1. Attribute-level de-identification (ApplyCore)
+2. High-risk modality warning
+3. Pixel data cleaning (if enabled or BurnedInAnnotation=YES)
+4. Overlay plane removal (if enabled)
 
-## Commits
+### StudyDeidentifier (Task 3)
 
-| Hash | Message |
-|------|---------|
-| 56d5411 | feat(14-05): enhance DicomDeidentifier with PS3.15 code sequences |
-| bf932dd | feat(14-05): add DeidentificationContext and enhance SqliteUidStore |
-| 9f9a59d | feat(14-05): add DeidentificationCallback for streaming integration |
-| 1de23db | test(14-05): add comprehensive de-identification tests |
+Multi-file batch processor with shared context:
 
-## Test Coverage
+```csharp
+await using var deidentifier = new StudyDeidentifier(options);
 
-Added comprehensive tests:
-- De-identification Method Code Sequence validation
-- Longitudinal Temporal Information Modified status checks
-- Method text option inclusion verification
-- DeidentificationCallback element processing
-- Disposal behavior verification
+// Process directory with progress
+await foreach (var result in deidentifier.ProcessDirectoryAsync(inputDir, outputDir))
+{
+    if (!result.Success)
+        Console.WriteLine($"Failed: {result.Input}: {result.Error?.Message}");
+}
 
-All 360 de-identification tests pass.
+// Parallel processing for throughput
+await deidentifier.ProcessParallelAsync(files, maxDegreeOfParallelism: 4, progress);
+
+// Save context for resumption
+await deidentifier.SaveContextAsync("context.json");
+
+// Resume from saved context
+var resumed = await StudyDeidentifier.LoadAsync("context.json", options);
+```
+
+**Key Links Verified:**
+- `_deidentifier.ApplyAsync` called from StudyDeidentifier line 145
+
+Features:
+- **Shared context**: Consistent UID/date mappings across all files
+- **ProcessFileAsync**: Single file processing
+- **ProcessDirectoryAsync**: IAsyncEnumerable with relative path preservation
+- **ProcessParallelAsync**: Parallel.ForEachAsync on net6.0+
+- **SaveContextAsync/LoadAsync**: Resumable batch operations
+- **Warning event**: Aggregates high-risk modality notifications
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 3 - Blocking] Fixed DeidentificationConfig netstandard2.0 build**
+**1. [Rule 3 - Blocking] Fixed CA1822 analyzer warning in TesseractPhiDetector**
 - **Found during:** Task 1
-- **Issue:** System.Text.Json not available on netstandard2.0
-- **Fix:** Added conditional compilation for JsonPropertyName attributes
-- **Files modified:** DeidentificationConfig.cs
-- **Commit:** 56d5411
+- **Issue:** IsOcrAvailable property didn't access instance data on netstandard2.0
+- **Fix:** Changed to reference _fallback field (_fallback == null evaluates to false)
+- **Files modified:** TesseractPhiDetector.cs
+- **Commit:** de02c4c
 
-**2. [Rule 3 - Blocking] Fixed DeidentificationConfigLoader AOT warnings**
+**2. [Rule 3 - Blocking] Fixed CA1310 string.EndsWith warning**
 - **Found during:** Task 3
-- **Issue:** IL2026/IL3050 warnings treated as errors for JSON serialization
-- **Fix:** Added RequiresDynamicCode attributes and wrapped class in NET6_0_OR_GREATER
-- **Files modified:** DeidentificationConfigLoader.cs
-- **Commit:** (part of 14-06 commits)
+- **Issue:** EndsWith without StringComparison on netstandard2.0
+- **Fix:** Added StringComparison.Ordinal to EndsWith call
+- **Files modified:** StudyDeidentifier.cs
+- **Commit:** 9f7d492
 
-**3. [Rule 3 - Blocking] Fixed SqliteUidStore interface compatibility**
-- **Found during:** Task 2
-- **Issue:** SqliteUidStore didn't implement IUidStore, only IUidMappingStore
-- **Fix:** Added IUidStore implementation with explicit interface members
-- **Files modified:** SqliteUidStore.cs
-- **Commit:** bf932dd
+## Verification Results
 
-**4. [Rule 3 - Blocking] Fixed test project compatibility**
-- **Found during:** Task 4
-- **Issue:** Polyfills project shared tests that use NET6_0_OR_GREATER-only APIs
-- **Fix:** Excluded DeidentificationConfigLoaderTests.cs from polyfills project
-- **Files modified:** SharpDicom.Tests.Polyfills.csproj
-- **Commit:** 1de23db
+```
+Build: Succeeded (all TFMs: netstandard2.0, net8.0, net9.0, net10.0)
+Tests: 1663 passed, 0 failed, 26 skipped (DCMTK interop)
+```
+
+Key pattern verification:
+- `PixelDataCleaner.CleanAsync` in DicomDeidentifier: confirmed
+- `_deidentifier.ApplyAsync` in StudyDeidentifier: confirmed
 
 ## Next Phase Readiness
 
-Ready for:
-- Phase 14-06: JSON configuration loader integration (already completed in parallel)
-- Phase 14-07: Full workflow integration and documentation
-- Future: Streaming I/O integration with DeidentificationCallback
+**Blockers:** None
 
-## Files Created/Modified
+**Ready for:**
+- 14-06: DicomFile.Anonymize extension
+- 14-07: Integration tests for de-identification
 
-### Created
-- `src/SharpDicom/Deidentification/DeidentificationContext.cs`
-- `src/SharpDicom/Deidentification/DeidentificationCallback.cs`
-
-### Modified
-- `src/SharpDicom/Deidentification/DicomDeidentifier.cs`
-- `src/SharpDicom/Deidentification/SqliteUidStore.cs`
-- `src/SharpDicom/Deidentification/DeidentificationConfig.cs`
-- `src/SharpDicom/Deidentification/DeidentificationConfigLoader.cs`
-- `tests/SharpDicom.Tests/Deidentification/DicomDeidentifierTests.cs`
-- `tests/SharpDicom.Tests.Polyfills/SharpDicom.Tests.Polyfills.csproj`
+**Context provides:**
+- PixelDataCleaner for burned-in PHI removal
+- StudyDeidentifier for batch processing
+- HighRiskModalityDetected event for warnings
+- Custom detector support via ApplyAsync overload
+- Overlay plane removal via OverlayPlaneProcessor
