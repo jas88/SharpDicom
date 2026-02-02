@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 1 of 7 complete
+**Plan**: 2 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-02-02 - Completed 14-01 De-identification Action Table Generator
+**Last activity**: 2026-02-02 - Completed 14-02 Core De-identification Types
 
-**Progress**: [Phase 14: 1/7]
+**Progress**: [Phase 14: 2/7]
 
 **Test Status**: 1650 tests passing, 0 failed, 25 skipped
 
@@ -90,10 +90,11 @@
 - [x] Phase 19 Plan 03: MwlScu for Modality Worklist queries
 - [x] Phase 19 Plan 04: IMwlQueryHandler interface for MWL SCP
 - [x] Phase 14 Plan 01: De-identification action table generator (PS3.15 parser, 654 tags)
+- [x] Phase 14 Plan 02: Core de-identification types (action enum, profiles, context, options)
 
 ## In Progress
 
-- [ ] Phase 14 Plans 02-07: De-identification (DicomDeidentifier, date shifting, pixel cleaning)
+- [ ] Phase 14 Plans 03-07: De-identification (DicomDeidentifier, date shifting, pixel cleaning)
 
 ## Blocked
 
@@ -109,7 +110,7 @@
 | 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-31 |
 | 18 | SCP Services | COMPLETE | 6/6 | 2026-02-01 | 2026-02-01 |
 | 19 | Modality Worklist | COMPLETE | 4/4 | 2026-02-01 | 2026-02-01 |
-| 14 | De-identification | IN PROGRESS | 1/7 | 2026-02-02 | - |
+| 14 | De-identification | IN PROGRESS | 2/7 | 2026-02-02 | - |
 
 ## Key Decisions Log
 
@@ -126,13 +127,16 @@
 | 2026-02-02 | 14-01 | Compound action codes take primary | X/Z -> X; most restrictive action first |
 | 2026-02-02 | 14-01 | FrozenDictionary for NET8+ | Matches existing DicomDictionary pattern |
 | 2026-02-02 | 14-01 | Fully qualified enum values | DeidentificationAction.X not bare X |
+| 2026-02-02 | 14-02 | Source-generated JSON serializer | AOT/trimming compatibility for context persistence |
+| 2026-02-02 | 14-02 | ConcurrentDictionary for thread safety | Enable parallel batch processing |
+| 2026-02-02 | 14-02 | Random UID generation | Maximum privacy - no correlation possible |
 
 ## Session Continuity
 
 **Last session**: 2026-02-02
-**Stopped at**: Completed 14-01-PLAN.md (De-identification Action Table Generator)
+**Stopped at**: Completed 14-02-PLAN.md (Core De-identification Types)
 **Resume file**: None
-**Next step**: Continue Phase 14 plans 02-07 (DicomDeidentifier, date shifting, pixel cleaning)
+**Next step**: Continue Phase 14 plans 03-07 (DicomDeidentifier, date shifting, pixel cleaning)
 
 ## Context for Next Session
 
@@ -157,9 +161,9 @@ If resuming after a break:
    - **Phase 13**: Native Codecs Package complete (9/9 plans)
    - **Phase 18**: SCP Services complete (6/6 plans)
    - **Phase 19**: Modality Worklist complete (4/4 plans)
-   - **Phase 14**: De-identification in progress (1/7 plans)
+   - **Phase 14**: De-identification in progress (2/7 plans)
 5. **Test coverage**: 1650 tests passing (25 skipped)
 6. **Known issues**: None
 
 ---
-*Last updated: 2026-02-02 (Phase 14 started - 1/7 plans done)*
+*Last updated: 2026-02-02 (Phase 14 progress - 2/7 plans done)*
