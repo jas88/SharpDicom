@@ -32,6 +32,15 @@
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
+  <!-- TesseractOCR only supported on net6.0+ due to native dependencies -->
+  <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <DefineConstants>$(DefineConstants);TESSERACT_AVAILABLE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <PackageReference Include="TesseractOCR" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\SharpDicom.Generators\SharpDicom.Generators.csproj"
                       OutputItemType="Analyzer"
