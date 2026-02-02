@@ -14,6 +14,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       orthanc:
@@ -42,7 +43,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Test with coverage
-        run: dotnet test --no-build --configuration Release -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
 
       - name: Wait for Orthanc
         run: |
@@ -58,7 +59,7 @@ jobs:
 
       - name: Integration tests with Orthanc
         continue-on-error: true  # Orthanc tests are optional for now
-        run: dotnet test --no-build --configuration Release --filter "Category=Orthanc"
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=Orthanc"
         env:
           ORTHANC_HOST: localhost
           ORTHANC_DICOM_PORT: 4242
