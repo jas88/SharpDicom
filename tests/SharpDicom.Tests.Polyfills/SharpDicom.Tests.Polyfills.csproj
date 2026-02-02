@@ -29,10 +29,10 @@
     <ProjectReference Include="..\..\src\SharpDicom.Generators\SharpDicom.Generators.csproj" />
   </ItemGroup>
 
-  <!-- Share test source files from main test project, excluding obj/bin and NET6+ only tests -->
+  <!-- Share test source files from main test project, excluding obj/bin and DateShifter tests (use DateOnly) -->
   <ItemGroup>
     <Compile Include="..\SharpDicom.Tests\**\*.cs"
-             Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs"
+             Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DateShifterTests.cs"
              LinkBase="Tests" />
   </ItemGroup>
 </Project>
