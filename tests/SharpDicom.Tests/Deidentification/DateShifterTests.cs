@@ -1,190 +1,348 @@
-using NUnit.Framework;
-using SharpDicom.Deidentification;
 using System;
+using System.Text;
+using NUnit.Framework;
+using SharpDicom.Data;
+using SharpDicom.Deidentification;
 
 namespace SharpDicom.Tests.Deidentification;
 
+/// <summary>
+/// Tests for DateShifter VR-aware date/time manipulation.
+/// </summary>
 [TestFixture]
 public class DateShifterTests
 {
+    // Define well-known tags that may not be in DicomTag.WellKnown
+    private static readonly DicomTag StudyTimeTag = new(0x0008, 0x0030);
+    private static readonly DicomTag AcquisitionDateTimeTag = new(0x0008, 0x002A);
     [Test]
-    public void ShiftDate_FixedOffset_ShiftsCorrectly()
+    public void Shift_DateElement_AppliesOffset()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.Fixed,
-            FixedOffset = TimeSpan.FromDays(-100)
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20240115");
+        var offset = TimeSpan.FromDays(30);
 
-        var shifted = shifter.ShiftDate("20240115", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        // 2024-01-15 - 100 days = 2023-10-07
-        Assert.That(shifted, Is.EqualTo("20231007"));
+        Assert.That(shifted, Is.InstanceOf<DicomStringElement>());
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240214")); // Jan 15 + 30 = Feb 14
     }
 
     [Test]
-    public void ShiftDate_NoneStrategy_ReturnsOriginal()
+    public void Shift_DateElement_NegativeOffset()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.None
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20240115");
+        var offset = TimeSpan.FromDays(-30);
 
-        var shifted = shifter.ShiftDate("20240115", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(shifted, Is.EqualTo("20240115"));
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20231216")); // Jan 15 - 30 = Dec 16 prev year
     }
 
     [Test]
-    public void ShiftDate_EmptyString_ReturnsEmpty()
+    public void Shift_DateElement_YearBoundary()
     {
-        var shifter = new DateShifter(DateShiftConfig.Default);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20231231");
+        var offset = TimeSpan.FromDays(1);
 
-        var shifted = shifter.ShiftDate("", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(shifted, Is.Empty);
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240101")); // Dec 31 + 1 = Jan 1 next year
     }
 
     [Test]
-    public void ShiftDate_InvalidFormat_ReturnsOriginal()
+    public void Shift_DateElement_LeapYear()
     {
-        var shifter = new DateShifter(DateShiftConfig.Default);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20240228");
+        var offset = TimeSpan.FromDays(1);
 
-        var shifted = shifter.ShiftDate("invalid", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(shifted, Is.EqualTo("invalid"));
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240229")); // 2024 is leap year
     }
 
     [Test]
-    public void ShiftDate_ShortString_ReturnsOriginal()
+    public void Shift_TimeElement_ZeroTime_ReturnsZeros()
     {
-        var shifter = new DateShifter(DateShiftConfig.Default);
+        var element = CreateStringElement(StudyTimeTag, DicomVR.TM, "143022");
+        var offset = TimeSpan.FromDays(30);
 
-        var shifted = shifter.ShiftDate("2024", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: true);
 
-        Assert.That(shifted, Is.EqualTo("2024"));
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("000000"));
     }
 
     [Test]
-    public void ShiftDateTime_FixedOffset_ShiftsDatePart()
+    public void Shift_TimeElement_NoZeroTime_ReturnsOriginal()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.Fixed,
-            FixedOffset = TimeSpan.FromDays(-100)
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(StudyTimeTag, DicomVR.TM, "143022");
+        var offset = TimeSpan.FromDays(30);
 
-        var shifted = shifter.ShiftDateTime("20240115120000.000000", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(shifted, Does.StartWith("20231007"));
-        Assert.That(shifted, Does.EndWith("120000.000000"));
+        Assert.That(shifted, Is.SameAs(element)); // No change when not zeroing time
     }
 
     [Test]
-    public void ShiftTime_ReturnsUnchanged()
+    public void Shift_DateTimeElement_ZeroTime_KeepsDateZerosTime()
     {
-        var shifter = new DateShifter(DateShiftConfig.Default);
+        var element = CreateStringElement(AcquisitionDateTimeTag, DicomVR.DT, "20240115143022");
+        var offset = TimeSpan.FromDays(10);
 
-        var shifted = shifter.ShiftTime("120000.000000", null);
+        var shifted = DateShifter.Shift(element, offset, zeroTime: true);
 
-        Assert.That(shifted, Is.EqualTo("120000.000000"));
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240125000000")); // Date shifted, time zeroed
     }
 
     [Test]
-    public void GetOffset_SamePatient_ReturnsSameOffset()
+    public void Shift_DateTimeElement_NoZeroTime_PreservesTime()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.RandomPerPatient,
-            RandomSeed = 12345,
-            MinOffsetDays = -365,
-            MaxOffsetDays = -30
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(AcquisitionDateTimeTag, DicomVR.DT, "20240115143022");
+        var offset = TimeSpan.FromDays(10);
 
-        var offset1 = shifter.GetOffset("PATIENT001");
-        var offset2 = shifter.GetOffset("PATIENT001");
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(offset2, Is.EqualTo(offset1));
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240125143022")); // Date shifted, time preserved
     }
 
     [Test]
-    public void GetOffset_DifferentPatients_ReturnsDifferentOffsets()
+    public void Shift_InvalidDate_ReturnsOriginal()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.RandomPerPatient,
-            RandomSeed = 12345,
-            MinOffsetDays = -365,
-            MaxOffsetDays = -30
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "invalid");
+        var offset = TimeSpan.FromDays(30);
 
-        var offset1 = shifter.GetOffset("PATIENT001");
-        var offset2 = shifter.GetOffset("PATIENT002");
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        // With random offsets, different patients should get different offsets
-        // (extremely unlikely to be the same with large range)
-        Assert.That(offset2, Is.Not.EqualTo(offset1));
+        Assert.That(shifted, Is.SameAs(element));
     }
 
     [Test]
-    public void GetOffset_RandomStrategy_WithinRange()
+    public void Shift_ShortDate_ReturnsOriginal()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.RandomPerPatient,
-            RandomSeed = 12345,
-            MinOffsetDays = -365,
-            MaxOffsetDays = -30
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "2024");
+        var offset = TimeSpan.FromDays(30);
 
-        for (int i = 0; i < 10; i++)
-        {
-            var offset = shifter.GetOffset($"PATIENT{i:D3}");
-            Assert.That(offset.TotalDays, Is.GreaterThanOrEqualTo(-365));
-            Assert.That(offset.TotalDays, Is.LessThanOrEqualTo(-30));
-        }
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        Assert.That(shifted, Is.SameAs(element));
     }
 
     [Test]
-    public void ShiftDate_PreservesRelativeOrder()
+    public void Shift_EmptyDate_ReturnsOriginal()
     {
-        var config = new DateShiftConfig
-        {
-            Strategy = DateShiftStrategy.Fixed,
-            FixedOffset = TimeSpan.FromDays(-100)
-        };
-        var shifter = new DateShifter(config);
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "");
+        var offset = TimeSpan.FromDays(30);
 
-        var date1 = shifter.ShiftDate("20240101", "P1");
-        var date2 = shifter.ShiftDate("20240201", "P1");
-        var date3 = shifter.ShiftDate("20240301", "P1");
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
 
-        Assert.That(string.Compare(date1, date2, StringComparison.Ordinal), Is.LessThan(0));
-        Assert.That(string.Compare(date2, date3, StringComparison.Ordinal), Is.LessThan(0));
+        Assert.That(shifted, Is.SameAs(element));
     }
 
     [Test]
-    public void DateShiftConfig_Default_HasNegativeOffset()
+    public void Shift_NonDateVR_ReturnsOriginal()
     {
-        var config = DateShiftConfig.Default;
+        var element = CreateStringElement(DicomTag.PatientID, DicomVR.LO, "12345678");
+        var offset = TimeSpan.FromDays(30);
 
-        Assert.That(config.Strategy, Is.EqualTo(DateShiftStrategy.Fixed));
-        Assert.That(config.FixedOffset.TotalDays, Is.LessThan(0));
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        Assert.That(shifted, Is.SameAs(element));
+    }
+
+#if NET6_0_OR_GREATER
+    [Test]
+    public void CalculateAge_ValidDates_ReturnsCorrectAge()
+    {
+        var birthDate = new DateOnly(1980, 6, 15);
+        var studyDate = new DateOnly(2024, 1, 15);
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.EqualTo("043Y"));
     }
 
     [Test]
-    public void DateShiftConfig_None_HasZeroOffset()
+    public void CalculateAge_BeforeBirthday_ReturnsOneLessYear()
     {
-        var shifter = new DateShifter(DateShiftConfig.None);
+        var birthDate = new DateOnly(1980, 6, 15);
+        var studyDate = new DateOnly(2024, 6, 14); // Day before birthday
 
-        var offset = shifter.GetOffset("TEST");
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
 
-        Assert.That(offset, Is.EqualTo(TimeSpan.Zero));
+        Assert.That(age, Is.EqualTo("043Y")); // Still 43 until birthday
+    }
+
+    [Test]
+    public void CalculateAge_OnBirthday_ReturnsCorrectAge()
+    {
+        var birthDate = new DateOnly(1980, 6, 15);
+        var studyDate = new DateOnly(2024, 6, 15); // On birthday
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.EqualTo("044Y")); // 44 on birthday
+    }
+
+    [Test]
+    public void CalculateAge_NegativeAge_ReturnsZero()
+    {
+        var birthDate = new DateOnly(2025, 1, 1);
+        var studyDate = new DateOnly(2024, 1, 1);
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.EqualTo("000Y"));
+    }
+
+    [Test]
+    public void CalculateAge_NullBirthDate_ReturnsNull()
+    {
+        DateOnly? birthDate = null;
+        var studyDate = new DateOnly(2024, 1, 1);
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.Null);
+    }
+
+    [Test]
+    public void CalculateAge_NullStudyDate_ReturnsNull()
+    {
+        var birthDate = new DateOnly(1980, 1, 1);
+        DateOnly? studyDate = null;
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.Null);
+    }
+
+    [Test]
+    public void CalculateAge_Over999Years_ReturnsCapped()
+    {
+        var birthDate = new DateOnly(0001, 1, 1);
+        var studyDate = new DateOnly(2024, 1, 1);
+
+        var age = DateShifter.CalculateAge(birthDate, studyDate);
+
+        Assert.That(age, Is.EqualTo("999Y")); // Capped at 999
+    }
+
+    [Test]
+    public void ParseDate_ValidDate_ReturnsParsed()
+    {
+        var date = DateShifter.ParseDate("20240115");
+
+        Assert.That(date, Is.EqualTo(new DateOnly(2024, 1, 15)));
+    }
+
+    [Test]
+    public void ParseDate_InvalidDate_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate("invalid");
+
+        Assert.That(date, Is.Null);
+    }
+
+    [Test]
+    public void ParseDate_ShortDate_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate("2024");
+
+        Assert.That(date, Is.Null);
+    }
+
+    [Test]
+    public void ParseDate_EmptyDate_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate("");
+
+        Assert.That(date, Is.Null);
+    }
+
+    [Test]
+    public void ParseDate_NullDate_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate(null);
+
+        Assert.That(date, Is.Null);
+    }
+
+    [Test]
+    public void ParseDate_InvalidMonth_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate("20241315"); // Month 13
+
+        Assert.That(date, Is.Null);
+    }
+
+    [Test]
+    public void ParseDate_InvalidDay_ReturnsNull()
+    {
+        var date = DateShifter.ParseDate("20240132"); // Day 32
+
+        Assert.That(date, Is.Null);
+    }
+#endif
+
+    [Test]
+    public void Shift_DateTimeWithFractionalSeconds_PreservesFormat()
+    {
+        var element = CreateStringElement(AcquisitionDateTimeTag, DicomVR.DT, "20240115143022.123456");
+        var offset = TimeSpan.FromDays(10);
+
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        var se = (DicomStringElement)shifted;
+        // Should shift date and preserve the fractional seconds portion
+        Assert.That(se.GetString(), Does.StartWith("20240125143022"));
+    }
+
+    [Test]
+    public void Shift_DateTimeWithTimezone_PreservesFormat()
+    {
+        var element = CreateStringElement(AcquisitionDateTimeTag, DicomVR.DT, "20240115143022+0100");
+        var offset = TimeSpan.FromDays(10);
+
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        var se = (DicomStringElement)shifted;
+        // Should shift date and preserve the timezone portion
+        Assert.That(se.GetString(), Does.StartWith("20240125143022"));
+    }
+
+    [Test]
+    public void Shift_LargeOffset_HandlesCorrectly()
+    {
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20240115");
+        var offset = TimeSpan.FromDays(1000);
+
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20261011")); // Jan 15 2024 + 1000 days
+    }
+
+    [Test]
+    public void Shift_ZeroOffset_ReturnsSameDate()
+    {
+        var element = CreateStringElement(DicomTag.StudyDate, DicomVR.DA, "20240115");
+        var offset = TimeSpan.Zero;
+
+        var shifted = DateShifter.Shift(element, offset, zeroTime: false);
+
+        var se = (DicomStringElement)shifted;
+        Assert.That(se.GetString(), Is.EqualTo("20240115"));
+    }
+
+    private static DicomStringElement CreateStringElement(DicomTag tag, DicomVR vr, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        return new DicomStringElement(tag, vr, bytes);
     }
 }
