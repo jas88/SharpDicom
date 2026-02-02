@@ -193,12 +193,34 @@ namespace SharpDicom.Network.Pipes
                             continue;
 
 #if NET6_0_OR_GREATER
-                        await _socket.SendAsync(segment, SocketFlags.None, ct).ConfigureAwait(false);
+                        // Loop until the entire segment is sent (handle partial sends)
+                        var remaining = segment;
+                        while (remaining.Length > 0)
+                        {
+                            var bytesSent = await _socket.SendAsync(remaining, SocketFlags.None, ct).ConfigureAwait(false);
+                            if (bytesSent == 0)
+                            {
+                                throw new SocketException((int)SocketError.ConnectionReset);
+                            }
+                            remaining = remaining.Slice(bytesSent);
+                        }
 #else
                         // netstandard2.0: Need to copy to array
+                        // Loop until the entire segment is sent (handle partial sends)
                         var array = segment.ToArray();
-                        var arraySegment = new ArraySegment<byte>(array);
-                        await _socket.SendAsync(arraySegment, SocketFlags.None).ConfigureAwait(false);
+                        var offset = 0;
+                        var count = array.Length;
+                        while (count > 0)
+                        {
+                            var arraySegment = new ArraySegment<byte>(array, offset, count);
+                            var bytesSent = await _socket.SendAsync(arraySegment, SocketFlags.None).ConfigureAwait(false);
+                            if (bytesSent == 0)
+                            {
+                                throw new SocketException((int)SocketError.ConnectionReset);
+                            }
+                            offset += bytesSent;
+                            count -= bytesSent;
+                        }
 #endif
                     }
 
