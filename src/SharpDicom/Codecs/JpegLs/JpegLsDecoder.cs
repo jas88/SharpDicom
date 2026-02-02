@@ -43,8 +43,11 @@ namespace SharpDicom.Codecs.JpegLs
     /// JPEG-LS decoder for ITU-T T.87 / ISO/IEC 14495-1 bitstreams.
     /// </summary>
     /// <remarks>
-    /// This is a simplified managed implementation that handles basic JPEG-LS decoding.
-    /// For production use, consider using a native library (CharLS) for better performance.
+    /// <para>
+    /// This is a stub implementation that provides the API structure for JPEG-LS decoding.
+    /// The full algorithm implementation is incomplete and should not be used for production.
+    /// For actual JPEG-LS decoding, use the native CharLS-based codec from SharpDicom.Codecs.
+    /// </para>
     /// </remarks>
     internal static class JpegLsDecoder
     {
@@ -389,7 +392,12 @@ namespace SharpDicom.Codecs.JpegLs
             if (bytesPerSample == 1)
                 return output[samplePos];
             else
+            {
+                // Ensure both bytes are within bounds for 16-bit samples
+                if (samplePos + 1 >= currentPos)
+                    return 0;
                 return output[samplePos] | (output[samplePos + 1] << 8);
+            }
         }
 
         private static int QuantizeGradient(int g, int near)
@@ -412,7 +420,10 @@ namespace SharpDicom.Codecs.JpegLs
         private static int ComputeContextIndex(int q1, int q2, int q3)
         {
             // Map quantized gradients to context index (0-364)
-            return (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
+            // q1, q2, q3 range from -4 to 4, context array has 365 elements
+            int index = (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
+            // Defensive bounds check (should not be needed with correct inputs)
+            return Math.Clamp(index, 0, 364);
         }
 
         private static int Clamp(int value, int min, int max)

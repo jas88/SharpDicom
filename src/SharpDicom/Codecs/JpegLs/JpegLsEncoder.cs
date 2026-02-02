@@ -254,7 +254,12 @@ namespace SharpDicom.Codecs.JpegLs
             if (bytesPerSample == 1)
                 return data[samplePos];
             else
+            {
+                // Ensure both bytes are within bounds for 16-bit samples
+                if (samplePos + 1 >= data.Length)
+                    return 0;
                 return data[samplePos] | (data[samplePos + 1] << 8);
+            }
         }
 
         private static int QuantizeGradient(int g, int near)
