@@ -1,538 +1,438 @@
-# Phase 14: De-identification Research
+# Phase 14: De-identification - Research
 
-**Completed:** 2026-01-29
-**Status:** Ready for planning
+**Researched:** 2026-02-02
+**Domain:** DICOM De-identification (PS3.15), OCR, UID Generation
+**Confidence:** MEDIUM
 
----
+## Summary
 
-## PS3.15 Basic Application Level Confidentiality Profile
+DICOM de-identification is a standards-driven process defined in DICOM PS3.15 Annex E. The standard defines action codes (D, Z, X, K, C, U) that specify how each attribute should be handled during de-identification. SharpDicom already has a source generator infrastructure parsing NEMA XML files, which can be extended to parse part15.xml for generating the de-identification action table.
 
-### Overview
+The implementation requires four major components: (1) a source-generated action table from part15.xml, (2) a UID remapping system with study-level consistency, (3) date/time shifting with VR-aware handling, and (4) burned-in PHI detection for pixel data. SharpDicom already has a `DicomUID.Generate()` method using the 2.25 (UUID-based) prefix which satisfies the random UID requirement.
 
-The Basic Application Level Confidentiality Profile (PS3.15 Annex E) provides a standards-compliant method for removing Individually Identifiable Information from DICOM datasets. The profile is designed for:
+For burned-in PHI detection, the Tesseract OCR wrapper (TesseractOCR 5.5.1 on NuGet) provides the best balance of capability and licensing for .NET. Heuristic region detection should leverage modality-specific patterns, especially for ultrasound images which have 100% burned-in text rate according to research.
 
-- Teaching files and publications
-- Research and clinical trials
-- Registry submissions
-- Any scenario requiring patient identity protection
+**Primary recommendation:** Extend the existing DicomDictionaryGenerator to parse part15.xml and generate a `DeidentificationActionTable` class, then build a `DicomDeidentifier` class that uses this table with configurable profiles, integrating with the existing validation callback pattern.
 
-### Source Data: part15.xml
+## Standard Stack
 
-The NEMA part15.xml DocBook document (3.5MB, available at `https://dicom.nema.org/medical/dicom/current/source/docbook/part15/part15.xml`) contains two key tables:
+### Core
+| Library | Version | Purpose | Why Standard |
+|---------|---------|---------|--------------|
+| DICOM PS3.15 | 2025e | De-identification profile definitions | NEMA standard, authoritative source |
+| part15.xml | Latest | Machine-readable action table | Official NEMA source, same pattern as part06/07 |
+| TesseractOCR | 5.5.1 | OCR for burned-in PHI detection | Open source, actively maintained, .NET wrapper |
+| System.Numerics.BigInteger | Built-in | UUID-to-decimal conversion for UIDs | Already used in DicomUID.Generate() |
 
-**Table E.1-1a: De-identification Action Codes**
-- Defines the meaning of each action code
-- Simple XML structure: `<tr>` rows with code and description cells
+### Supporting
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| tessdata-best | Latest | Tesseract trained data (English) | Required for OCR accuracy |
+| System.IO.MemoryMappedFiles | Built-in | Large image processing | For efficient pixel data access |
 
-**Table E.1-1: Application Level Confidentiality Profile Attributes**
-- ~600+ attributes with actions per profile/option
-- 15 columns: Attribute Name, Tag, Retired, In Std IOD, Basic Profile, and 10 option columns
-- XML structure follows same pattern as part06.xml (DocBook namespace)
+### Alternatives Considered
+| Instead of | Could Use | Tradeoff |
+|------------|-----------|----------|
+| TesseractOCR | IronOCR | Commercial ($749+), better accuracy claims but license cost |
+| TesseractOCR | Tesseract.Net.SDK | Similar capability, less actively maintained |
+| Random UIDs | Deterministic UIDs | Deterministic allows correlation - privacy risk |
 
-### XML Structure for Source Generator
-
-```xml
-<table frame="box" label="E.1-1" rules="all" xml:id="table_E.1-1">
-  <caption>Application Level Confidentiality Profile Attributes</caption>
-  <thead>...</thead>
-  <tbody>
-    <tr valign="top">
-      <td align="left"><para>Accession Number</para></td>
-      <td align="center"><para>(0008,0050)</para></td>
-      <td align="center"><para>N</para></td>  <!-- Retired -->
-      <td align="center"><para>Y</para></td>  <!-- In Std IOD -->
-      <td align="center"><para>Z</para></td>  <!-- Basic Profile -->
-      <td align="center"/>                     <!-- Rtn. Safe Priv. -->
-      <td align="center"/>                     <!-- Rtn. UIDs -->
-      <!-- ... more option columns ... -->
-    </tr>
-  </tbody>
-</table>
+**Installation:**
+```bash
+dotnet add package TesseractOCR --version 5.5.1
+# Download tessdata-best for English from tessdata repository
 ```
 
----
+## Architecture Patterns
 
-## De-identification Action Codes
+### Recommended Project Structure
+```
+src/SharpDicom/
+├── Deidentification/
+│   ├── DeidentificationAction.cs           # Enum: D, Z, X, K, C, U
+│   ├── DeidentificationProfile.cs          # Enum: Basic, RetainUIDs, etc.
+│   ├── DeidentificationOptions.cs          # Configuration options
+│   ├── DeidentificationContext.cs          # Study-level UID/date mapping
+│   ├── DicomDeidentifier.cs               # Main API with fluent builder
+│   ├── IDeidentificationRule.cs           # Interface for custom rules
+│   └── PixelCleaner/
+│       ├── IBurnedInPhiDetector.cs        # Interface for detection
+│       ├── TesseractPhiDetector.cs        # OCR-based implementation
+│       ├── HeuristicPhiDetector.cs        # Region-based detection
+│       └── OverlayPlaneProcessor.cs       # 60xx group handling
+├── Generators/
+│   └── Parsing/
+│       └── Part15Parser.cs                # New: Parse confidentiality table
+```
 
-### Primary Action Codes
-
-| Code | Action | Implementation |
-|------|--------|----------------|
-| **D** | Replace with non-zero dummy value consistent with VR | Generate VR-appropriate placeholder |
-| **Z** | Replace with zero-length or dummy value | Empty string or VR-appropriate placeholder |
-| **X** | Remove attribute (and sequence contents) | Delete from dataset |
-| **K** | Keep unchanged (clean sequences recursively) | Preserve value, recurse into sequences |
-| **C** | Clean - replace with safe values of similar meaning | Context-aware replacement |
-| **U** | Replace with internally consistent UID | UID remapping with referential integrity |
-
-### Compound Action Codes
-
-| Code | Meaning | Resolution |
-|------|---------|------------|
-| **Z/D** | Z unless D required for Type 2 vs Type 1 | Check IOD type, prefer Z |
-| **X/Z** | X unless Z required for Type 3 vs Type 2 | Check IOD type, prefer X |
-| **X/D** | X unless D required for Type 3 vs Type 1 | Check IOD type, prefer X |
-| **X/Z/D** | X unless Z or D required for Type 3/2/1 | Check IOD type, prefer most restrictive |
-| **X/Z/U*** | X unless Z or U required for sequences with UIDs | Check IOD type, handle contained UIDs |
-
-### Action Resolution Strategy
-
-For compound actions, resolve based on attribute type in IOD:
-1. Type 1 (Required): Use D (dummy value required)
-2. Type 2 (Required, may be empty): Use Z (empty allowed)
-3. Type 3 (Optional): Use X (removal allowed)
-
-When IOD type is unknown, use most restrictive (safest) option.
-
----
-
-## Profile Options
-
-### Retention Options (Override Basic Profile to KEEP)
-
-| Option | Purpose | Effect |
-|--------|---------|--------|
-| **Retain Safe Private** | Preserve known-safe private tags | Changes X to K for specified private creators |
-| **Retain UIDs** | Keep original UIDs | Changes U to K for all UID attributes |
-| **Retain Device Identity** | Keep device serial numbers | Changes X to K for device-related tags |
-| **Retain Institution Identity** | Keep institution names | Changes X to K for institution tags |
-| **Retain Patient Characteristics** | Keep non-identifying patient data | Changes X to K for age, sex, etc. |
-| **Retain Longitudinal Full Dates** | Keep all dates unchanged | Changes X/Z/D to K for date/time tags |
-| **Retain Longitudinal Modified Dates** | Keep dates with offset | Changes X/Z/D to C (shifted dates) |
-
-### Cleaning Options (Override Basic Profile to modify/remove more)
-
-| Option | Purpose | Effect |
-|--------|---------|--------|
-| **Clean Descriptors** | Remove free-text descriptions | Changes K to X for description fields |
-| **Clean Structured Content** | Clean SR content items | Recursive SR de-identification |
-| **Clean Graphics** | Remove graphic overlays | Changes K to X for graphic annotations |
-
-### Action Precedence
-
-When combining profiles/options:
-1. Options override Basic Profile
-2. Most restrictive action wins when rules conflict
-3. K (keep) is least restrictive, X (remove) is most restrictive
-
----
-
-## UID Remapping Strategy
-
-### Requirements
-
-1. **Referential Integrity**: All references to a UID must use the same remapped value
-2. **Internal Consistency**: Within a study/batch, UIDs must be consistently remapped
-3. **Standard UIDs Preserved**: Transfer Syntax, SOP Class, Coding Scheme UIDs never remapped
-
-### UID Categories
-
-**Must Remap (U action):**
-- SOP Instance UID (0008,0018)
-- Study Instance UID (0020,000D)
-- Series Instance UID (0020,000E)
-- Referenced SOP Instance UID (0008,1155)
-- All UID references in sequences
-
-**Never Remap:**
-- Transfer Syntax UID (0002,0010)
-- SOP Class UID (0008,0016)
-- Coding Scheme UIDs
-- Context Group UIDs
-- Any DICOM-defined UID (root 1.2.840.10008.*)
-
-### Generation Strategy: UUID-Derived UIDs (2.25.xxx)
-
-The 2.25 arc is the ISO-registered UUID namespace:
-- Format: `2.25.{uuid-as-decimal}`
-- UUID (128-bit) converted to decimal integer
-- Example: `2.25.329800735698586629295641978511506172918`
-
-**Advantages:**
-- Globally unique without registration
-- No organization root required
-- Maximum length: 64 chars (UUID decimal is ~39 digits + prefix)
-
-**Implementation:**
+### Pattern 1: Source-Generated Action Table
+**What:** Parse part15.xml Table E.1-1 at compile time to generate a lookup table mapping (tag, profile) to action code.
+**When to use:** Always - this is the core of PS3.15 compliance.
+**Example:**
 ```csharp
-public static string GenerateUid()
+// Source: DICOM PS3.15 Table E.1-1
+// Generated code structure
+public static partial class DeidentificationActionTable
 {
-    var uuid = Guid.NewGuid();
-    var bytes = uuid.ToByteArray();
-    // Convert to big-endian for consistent decimal
-    Array.Reverse(bytes);
-    var value = new BigInteger(bytes, isUnsigned: true);
-    return $"2.25.{value}";
+    // Generated from part15.xml
+    private static readonly Dictionary<uint, ActionEntry> _actions = new()
+    {
+        // PatientName (0010,0010): Basic=Z, RetainPatientChars=K
+        [0x00100010] = new ActionEntry(
+            Basic: DeidentificationAction.Z,
+            RetainPatientCharacteristics: DeidentificationAction.K,
+            RetainDeviceIdentity: DeidentificationAction.Z,
+            // ... other profiles
+        ),
+        // PatientBirthDate (0010,0030): Basic=Z
+        [0x00100030] = new ActionEntry(Basic: DeidentificationAction.Z),
+        // StudyInstanceUID (0020,000D): Basic=U
+        [0x0020000D] = new ActionEntry(Basic: DeidentificationAction.U),
+    };
+
+    public static DeidentificationAction GetAction(DicomTag tag, DeidentificationProfile profile)
+        => _actions.TryGetValue(tag.ToUInt32(), out var entry)
+            ? entry.GetAction(profile)
+            : DeidentificationAction.X; // Default: remove unknown
 }
 ```
 
-### UID Reference Discovery
-
-UIDs can appear in:
-1. **UI VR elements**: Standard UID attributes
-2. **Sequences**: Referenced SOP Instance UID in nested items
-3. **Text fields**: UIDs embedded in comments, descriptions (scan with regex)
-4. **Private tags**: Vendor-specific UID storage
-
-**Pattern for text scanning:**
-```regex
-\b[0-9]+(\.[0-9]+){2,}\b
-```
-
-### Persistence Strategy: SQLite
-
-For large batch de-identification, UID mappings require persistent storage:
-
-```sql
-CREATE TABLE uid_mappings (
-    original_uid TEXT PRIMARY KEY,
-    remapped_uid TEXT NOT NULL UNIQUE,
-    scope TEXT NOT NULL,         -- 'study', 'batch', 'global'
-    created_at TEXT NOT NULL,
-    expires_at TEXT              -- NULL for permanent
-);
-
-CREATE INDEX idx_remapped ON uid_mappings(remapped_uid);
-CREATE INDEX idx_scope ON uid_mappings(scope, created_at);
-```
-
-**Features:**
-- Bidirectional lookup (original -> new, new -> original)
-- Scoped mappings (study, batch, or global consistency)
-- Transactional batch operations
-- Optional TTL for temporary mappings
-- Thread-safe with WAL mode
-
----
-
-## Date/Time Shifting
-
-### Strategies
-
-**1. Fixed Offset (Recommended for most use cases)**
-- Same offset applied to all dates within a patient/study
-- Preserves temporal relationships (study before follow-up)
-- Offset stored in mapping file for reversibility
-
-**2. Random Offset per Patient**
-- Random offset within configurable range (e.g., -365 to +365 days)
-- Same offset for all dates within patient
-- More privacy but harder to audit
-
-**3. Remove Time Component**
-- Keep date, remove time portion
-- Reduces temporal precision
-- May be required for some regulations
-
-### Implementation
-
+### Pattern 2: DeidentificationContext for Study Consistency
+**What:** Object that tracks UID mappings and date offsets within a study/batch.
+**When to use:** Multi-file processing, maintaining referential integrity.
+**Example:**
 ```csharp
-public readonly struct DateShiftConfig
+// Source: CONTEXT.md decision - study-level consistency
+public sealed class DeidentificationContext : IDisposable
 {
-    public DateShiftStrategy Strategy { get; init; }
-    public TimeSpan FixedOffset { get; init; }      // For fixed strategy
-    public TimeSpan MinOffset { get; init; }        // For random strategy
-    public TimeSpan MaxOffset { get; init; }        // For random strategy
-    public bool PreserveTimeOfDay { get; init; }    // Keep HH:MM:SS
-    public bool ShiftAcrossMidnight { get; init; }  // Allow date change from time shift
+    private readonly Dictionary<DicomUID, DicomUID> _uidMap = new();
+    private readonly Dictionary<string, TimeSpan> _dateOffsets = new();
+    private readonly string _uidPrefix;
+
+    public DeidentificationContext(string uidPrefix = "2.25")
+    {
+        _uidPrefix = uidPrefix;
+    }
+
+    public DicomUID RemapUID(DicomUID original)
+    {
+        if (_uidMap.TryGetValue(original, out var mapped))
+            return mapped;
+
+        var newUid = DicomUID.Generate(); // Uses 2.25 prefix
+        _uidMap[original] = newUid;
+        return newUid;
+    }
+
+    public TimeSpan GetDateOffset(string patientId)
+    {
+        if (_dateOffsets.TryGetValue(patientId, out var offset))
+            return offset;
+
+        offset = TimeSpan.FromDays(Random.Shared.Next(-365, 366));
+        _dateOffsets[patientId] = offset;
+        return offset;
+    }
+
+    // Serialization for persisting context between sessions
+    public void SaveTo(Stream stream) { /* JSON serialization */ }
+    public static DeidentificationContext LoadFrom(Stream stream) { /* ... */ }
 }
 ```
 
-### VR-Specific Handling
-
-| VR | Format | Shift Behavior |
-|----|--------|----------------|
-| DA | YYYYMMDD | Shift date |
-| TM | HHMMSS.FFFFFF | Optionally shift (usually preserve) |
-| DT | YYYYMMDDHHMMSS.FFFFFF&ZZXX | Shift datetime, preserve timezone |
-
-### Temporal Relationship Preservation
-
-Within a study, ensure:
-1. Acquisition times maintain relative ordering
-2. Study date <= series dates <= instance dates
-3. Report dates follow acquisition dates
-
----
-
-## Required Output Attributes
-
-### De-identification Confirmation Attributes
-
-After de-identification, add/update:
-
-| Tag | Attribute | Value |
-|-----|-----------|-------|
-| (0012,0062) | Patient Identity Removed | "YES" (if removed) |
-| (0012,0063) | De-identification Method | Text description |
-| (0012,0064) | De-identification Method Code Sequence | Coded terms |
-| (0028,0303) | Longitudinal Temporal Information Modified | "MODIFIED" or "REMOVED" |
-
-### De-identification Method Code Sequence Structure
-
-```
-(0012,0064) De-identification Method Code Sequence
-  > (0008,0100) Code Value: "113100" (Basic Profile)
-  > (0008,0102) Coding Scheme Designator: "DCM"
-  > (0008,0104) Code Meaning: "Basic Application Confidentiality Profile"
-  > (Additional items for each option applied)
-```
-
-### Standard Code Values (DCM)
-
-| Code | Meaning |
-|------|---------|
-| 113100 | Basic Application Confidentiality Profile |
-| 113101 | Clean Pixel Data Option |
-| 113102 | Clean Recognizable Visual Features Option |
-| 113103 | Clean Graphics Option |
-| 113104 | Clean Structured Content Option |
-| 113105 | Clean Descriptors Option |
-| 113106 | Retain Longitudinal Temporal Information Modified Dates Option |
-| 113107 | Retain Longitudinal Temporal Information Full Dates Option |
-| 113108 | Retain Patient Characteristics Option |
-| 113109 | Retain Device Identity Option |
-| 113110 | Retain UIDs |
-| 113111 | Retain Safe Private Option |
-| 113112 | Retain Institution Identity Option |
-
----
-
-## Source Generator Design
-
-### Part15Parser
-
-Similar to Part6Parser, parse table E.1-1:
-
+### Pattern 3: Fluent Builder with Options Fallback
+**What:** Primary fluent API with options object for advanced scenarios.
+**When to use:** API design for DicomDeidentifier.
+**Example:**
 ```csharp
-public record DeidentificationActionDefinition(
-    DicomTag Tag,
-    string AttributeName,
-    bool IsRetired,
-    bool InStandardIOD,
-    string BasicProfileAction,
-    string? RetainSafePrivateAction,
-    string? RetainUidsAction,
-    string? RetainDeviceIdentityAction,
-    string? RetainInstitutionIdentityAction,
-    string? RetainPatientCharsAction,
-    string? RetainLongFullDatesAction,
-    string? RetainLongModifiedDatesAction,
-    string? CleanDescriptorsAction,
-    string? CleanStructuredContentAction,
-    string? CleanGraphicsAction
-);
-```
-
-### Generated Output
-
-```csharp
-public static partial class DeidentificationProfiles
-{
-    public static IReadOnlyDictionary<DicomTag, DeidentificationAction> BasicProfile { get; }
-
-    public static DeidentificationAction GetAction(
-        DicomTag tag,
-        DeidentificationOptions options);
-}
-
-public enum DeidentificationAction
-{
-    D,      // Replace with dummy
-    Z,      // Replace with zero/dummy
-    X,      // Remove
-    K,      // Keep
-    C,      // Clean
-    U,      // UID remap
-    ZD,     // Z unless D required
-    XZ,     // X unless Z required
-    XD,     // X unless D required
-    XZD,    // X unless Z or D required
-    XZU     // X unless Z or U required
-}
-```
-
----
-
-## API Design Patterns
-
-### Fluent Builder Pattern
-
-```csharp
-var deidentifier = new DicomDeidentifier()
-    .WithBasicProfile()
-    .WithOption(DeidentificationOption.RetainPatientCharacteristics)
-    .WithOption(DeidentificationOption.CleanDescriptors)
-    .WithDateShift(TimeSpan.FromDays(-100))
-    .WithUidMapping(uidMapper)
-    .WithOverride(DicomTag.InstitutionName, DeidentificationAction.K)
+// Fluent API (simple cases)
+var deidentifier = DicomDeidentifier.Create()
+    .WithProfile(DeidentificationProfile.Basic)
+    .WithOption(DeidentificationProfile.RetainPatientCharacteristics)
+    .WithDateShift(-365, 365)
+    .WithContext(context)
     .Build();
 
-var deidentified = deidentifier.Deidentify(dataset);
-```
+await deidentifier.ApplyAsync(dataset);
 
-### Element Callback Integration
-
-```csharp
-// Use as element callback during reading
-var options = new DicomReaderOptions
+// Options object (advanced cases)
+var options = new DeidentificationOptions
 {
-    ElementCallback = deidentifier.AsElementCallback()
+    Profile = DeidentificationProfile.Basic,
+    EnabledOptions = new[] { DeidentificationProfile.RetainDeviceIdentity },
+    DateShiftStrategy = DateShiftStrategy.PerPatient,
+    DateShiftRange = (-365, 365),
+    ZeroTimeComponents = true,
+    CustomRules = new[] { new MyCustomRule() },
+    PixelCleaning = new PixelCleaningOptions
+    {
+        Enabled = true,
+        ReplacementValue = PixelReplacementValue.Black,
+        DetectOverlayPlanes = true
+    }
 };
 
-// Or use as standalone processor
-var result = deidentifier.Process(dataset);
+var deidentifier = new DicomDeidentifier(options);
 ```
 
-### Batch Processing
-
+### Pattern 4: Integration with ElementCallback
+**What:** De-identification as a callback in the parsing pipeline.
+**When to use:** When processing files and applying de-id in single pass.
+**Example:**
 ```csharp
-await using var context = new DeidentificationContext(sqlitePath);
-
-await foreach (var file in Directory.EnumerateFiles(inputDir, "*.dcm"))
+// From DicomReaderOptions callback pattern
+var readerOptions = new DicomReaderOptions
 {
-    var dataset = await DicomFile.OpenAsync(file);
-    var deidentified = await deidentifier.DeidentifyAsync(dataset, context);
-    await deidentified.SaveAsync(Path.Combine(outputDir, Path.GetFileName(file)));
-}
+    ValidationCallback = issue => true, // Continue on issues
+};
 
-// Export mappings for reversibility
-await context.ExportMappingsAsync("mappings.json");
+// De-id can compose with existing callbacks
+var deidentifier = DicomDeidentifier.Create()
+    .WithProfile(DeidentificationProfile.Basic)
+    .Build();
+
+// Apply during traversal
+foreach (var element in dataset)
+{
+    var action = deidentifier.GetAction(element.Tag);
+    // Process based on action...
+}
 ```
 
----
+### Anti-Patterns to Avoid
+- **Hardcoding action table:** Action table must come from part15.xml to stay current with standard updates.
+- **Deterministic UID generation:** Allows correlation between de-identified datasets - use random UIDs.
+- **Ignoring sequences:** Must traverse all sequences for UID remapping (ReferencedSOPInstanceUID, etc.).
+- **Modifying original dataset:** Always work on copy or use explicit modification tracking.
 
-## Clean Pixel Data Option
+## Don't Hand-Roll
 
-### Region-Based Redaction
+| Problem | Don't Build | Use Instead | Why |
+|---------|-------------|-------------|-----|
+| OCR text detection | Custom neural network | TesseractOCR | Years of training, 100+ languages |
+| UID generation | Custom algorithm | DicomUID.Generate() | Already implements 2.25 spec correctly |
+| Date parsing | Custom regex | DicomStringElement.GetDate() | Already handles DA/TM/DT VRs |
+| Action table | Hardcoded table | Generated from part15.xml | Standard updates 3x/year |
+| Overlay extraction | Custom parser | DicomTag.OverlayData (60xx) | Standard VR handling |
 
-For burned-in annotations, support manual region specification:
+**Key insight:** The DICOM standard evolves frequently (3 releases per year). Source generation from official XML ensures the action table stays current without manual maintenance.
 
+## Common Pitfalls
+
+### Pitfall 1: Missing UID References in Sequences
+**What goes wrong:** De-identified study has broken references because UIDs inside sequences weren't remapped.
+**Why it happens:** ReferencedSOPInstanceUID, ReferencedStudyInstanceUID appear in many sequences (GSPS, SR, RT).
+**How to avoid:** Always traverse all sequences recursively. Use existing DicomSequence enumeration.
+**Warning signs:** Viewers cannot resolve references, hanging protocol failures.
+
+### Pitfall 2: Date/Time Inconsistency
+**What goes wrong:** Shifted dates create impossible timelines (study before birth, age negative).
+**Why it happens:** Shifting StudyDate but not PatientBirthDate, or inconsistent per-element shifts.
+**How to avoid:** Use per-patient or per-study shift strategy consistently. Recalculate PatientAge from shifted dates.
+**Warning signs:** PatientAge doesn't match difference between birth date and study date.
+
+### Pitfall 3: Private Tags Contain PHI
+**What goes wrong:** Private tags leak patient names, referring physician, etc.
+**Why it happens:** PS3.15 Basic Profile removes private tags, but "Retain Safe Private" option preserves some.
+**How to avoid:** Default to removing all private tags unless explicitly configured with whitelist.
+**Warning signs:** Private creator blocks with known vendors that embed identifiers.
+
+### Pitfall 4: Burned-in PHI Not Detected
+**What goes wrong:** Text in image corners contains patient name, visible after de-identification.
+**Why it happens:** Not all modalities set BurnedInAnnotation (0028,0301), especially Secondary Capture.
+**How to avoid:** Apply OCR/heuristic detection regardless of attribute. Ultrasound = 100% risk.
+**Warning signs:** Secondary Capture SOP Class, Ultrasound modality, missing BurnedInAnnotation tag.
+
+### Pitfall 5: Type 1/2 Conformance Violations
+**What goes wrong:** De-identified file fails validation because required Type 1 element is empty.
+**Why it happens:** Applying "Z" (zero length) to Type 1 attributes that require non-empty value.
+**How to avoid:** Use Z/D code logic - apply D (dummy value) for Type 1, Z for Type 2.
+**Warning signs:** Validation errors on PatientName, PatientID after de-identification.
+
+### Pitfall 6: Overlay Planes Ignored
+**What goes wrong:** 60xx group overlay planes contain text annotations with PHI.
+**Why it happens:** Overlay planes are separate from pixel data, easy to miss.
+**How to avoid:** Process all 6000-601E groups with same pixel cleaning logic.
+**Warning signs:** Group 60xx tags present in dataset.
+
+## Code Examples
+
+### Action Code Application
 ```csharp
-public readonly struct RedactionRegion
+// Source: DICOM PS3.15 Section E.1
+public async ValueTask ApplyActionAsync(
+    DicomDataset dataset,
+    DicomTag tag,
+    DeidentificationAction action,
+    DeidentificationContext context)
 {
-    public int X { get; init; }
-    public int Y { get; init; }
-    public int Width { get; init; }
-    public int Height { get; init; }
-    public int? Frame { get; init; }  // null = all frames
-}
+    switch (action)
+    {
+        case DeidentificationAction.D:
+            // Replace with dummy value consistent with VR
+            dataset.AddOrUpdate(CreateDummyElement(tag));
+            break;
 
-deidentifier.WithPixelRedaction(new[]
-{
-    new RedactionRegion { X = 0, Y = 0, Width = 100, Height = 50 },   // Top-left corner
-    new RedactionRegion { X = 0, Y = 480, Width = 640, Height = 40 } // Bottom bar
-});
-```
+        case DeidentificationAction.Z:
+            // Replace with zero-length value
+            dataset.AddOrUpdate(CreateEmptyElement(tag));
+            break;
 
-### High-Risk Modality Detection
+        case DeidentificationAction.X:
+            // Remove entirely
+            dataset.Remove(tag);
+            break;
 
-Warn for modalities with high burned-in PHI risk:
+        case DeidentificationAction.K:
+            // Keep unchanged (but clean if sequence)
+            if (dataset[tag] is DicomSequence seq)
+            {
+                foreach (var item in seq.Items)
+                    await ApplyToDatasetAsync(item, context);
+            }
+            break;
 
-| Modality | Risk | Common Locations |
-|----------|------|------------------|
-| US | High | Corners, top bar, bottom bar |
-| ES | High | Patient info overlay |
-| SC | High | Entire image may be screenshot |
-| XA | Medium | Corners, annotation bars |
-| RF | Medium | Fluoroscopy annotations |
+        case DeidentificationAction.C:
+            // Clean - replace with non-identifying value
+            // Requires VR-specific logic
+            dataset.AddOrUpdate(CleanElement(dataset[tag]!));
+            break;
 
----
-
-## JSON Configuration Format
-
-### Config Schema
-
-```json
-{
-  "$schema": "https://sharpdicom.io/schemas/deidentification-config.json",
-  "$extends": "basic-profile",
-
-  "options": [
-    "RetainPatientCharacteristics",
-    "CleanDescriptors"
-  ],
-
-  "dateShift": {
-    "strategy": "fixed",
-    "offsetDays": -100
-  },
-
-  "uidMapping": {
-    "scope": "study",
-    "persistence": "sqlite",
-    "dbPath": "./uid-mappings.db"
-  },
-
-  "overrides": {
-    "(0008,0080)": "K",
-    "(0008,1030)": "C"
-  },
-
-  "privateTagDefaults": "remove",
-
-  "safePrivateCreators": [
-    "SIEMENS CSA HEADER",
-    "GEMS_PARM_01"
-  ]
+        case DeidentificationAction.U:
+            // Replace UID with consistent remapped UID
+            var originalUid = dataset.GetUID(tag);
+            if (originalUid != null)
+            {
+                var newUid = context.RemapUID(originalUid);
+                dataset.AddOrUpdate(DicomElement.Create(tag, newUid.ToString()));
+            }
+            break;
+    }
 }
 ```
 
-### Inheritance with $extends
-
-```json
+### Date Shifting
+```csharp
+// Source: CONTEXT.md decision - zero time, recalculate age
+public DicomStringElement ShiftDate(DicomTag tag, DicomStringElement original, TimeSpan offset)
 {
-  "$extends": "clinical-trial-base",
-  "overrides": {
-    "(0010,0030)": "K"  // Keep birth date for age-stratified analysis
-  }
+    var date = original.GetDate();
+    if (date == null)
+        return original;
+
+    var shifted = date.Value.Add(offset);
+
+    // Format based on VR
+    return tag.VR switch
+    {
+        DicomVR.DA => DicomElement.Create(tag, shifted.ToString("yyyyMMdd")),
+        DicomVR.DT => DicomElement.Create(tag, shifted.ToString("yyyyMMdd") + "000000"), // Zero time
+        DicomVR.TM => DicomElement.Create(tag, "000000"), // Always zero for privacy
+        _ => original
+    };
+}
+
+public string RecalculatePatientAge(DateOnly birthDate, DateOnly studyDate)
+{
+    var years = studyDate.Year - birthDate.Year;
+    if (studyDate.DayOfYear < birthDate.DayOfYear)
+        years--;
+
+    return years >= 0 ? $"{years:D3}Y" : "000Y"; // AS VR format: nnnD, nnnW, nnnM, or nnnY
 }
 ```
 
----
+### Burned-in PHI Detection Regions
+```csharp
+// Source: Research findings on modality-specific regions
+public static class BurnedInPhiRegions
+{
+    // Ultrasound: corners and header regions typically contain PHI
+    public static readonly (int X, int Y, int Width, int Height)[] UltrasoundRegions = new[]
+    {
+        (0, 0, -1, 80),       // Top banner (full width)
+        (0, -60, -1, 60),     // Bottom banner (full width)
+        (0, 0, 100, 120),     // Top-left corner
+        (-100, 0, 100, 120),  // Top-right corner
+    };
 
-## Implementation Notes
+    // CT/MR: typically corners only if Secondary Capture
+    public static readonly (int X, int Y, int Width, int Height)[] CtMrRegions = new[]
+    {
+        (0, 0, 512, 80),      // Top region
+        (0, 0, 120, 120),     // Top-left corner
+    };
 
-### Threading Considerations
+    public static (int, int, int, int)[] GetRegions(string modality, int width, int height)
+    {
+        var templates = modality switch
+        {
+            "US" => UltrasoundRegions,
+            "CT" or "MR" => CtMrRegions,
+            "SC" => UltrasoundRegions, // Secondary Capture: assume worst case
+            _ => Array.Empty<(int, int, int, int)>()
+        };
 
-- DeidentificationContext must be thread-safe for parallel batch processing
-- SQLite with WAL mode supports concurrent readers
-- Use connection pooling for high-throughput scenarios
-
-### Error Handling
-
-- Fail fast: Validate all rules before processing
-- Continue on warning: Log but continue for non-critical issues
-- Strict mode: Any validation failure aborts
-
-### Audit Logging
-
-Summary-only logging (counts by action type):
+        // Convert relative (-1 = full, negative = from edge) to absolute
+        return templates.Select(r => NormalizeRegion(r, width, height)).ToArray();
+    }
+}
 ```
-De-identification complete:
-  - D (dummy): 15 attributes
-  - Z (zero): 8 attributes
-  - X (removed): 42 attributes
-  - U (UID remap): 12 UIDs
-  - Dates shifted: 6 attributes
-  - Regions redacted: 2
-```
 
----
+## State of the Art
 
-## Success Criteria
+| Old Approach | Current Approach | When Changed | Impact |
+|--------------|------------------|--------------|--------|
+| Manual action table | Source-generated from part15.xml | PS3.15 standardization | Automatic updates with DICOM releases |
+| Hash-based UIDs | Random UUID-based UIDs (2.25) | DICOM PS3.5 B.2 | No correlation risk |
+| Pixel blackout | OCR + heuristic detection | ~2020 | Higher accuracy, fewer false negatives |
+| Single-file processing | Study-context aware | Common practice | Maintains referential integrity |
 
-1. Source generator parses part15.xml and generates ~600 action definitions
-2. Basic Profile removes all required tags per PS3.15
-3. UID remapping maintains referential integrity across study
-4. Date shifting preserves temporal relationships
-5. All profile options implementable via action overrides
-6. De-identified files validate with DICOM validator
-7. Callback integration works with existing validation framework
-8. JSON config enables profile customization without code changes
-9. SQLite persistence supports large batch operations
-10. Bidirectional UID lookup enables re-identification with mapping file
+**Deprecated/outdated:**
+- DICOM Supplement 55 (older de-id guidance): Superseded by PS3.15 Annex E
+- Deterministic UID generation: Privacy risk, discouraged by HIPAA Safe Harbor
 
----
+## Open Questions
 
-*Research completed: 2026-01-29*
+1. **part15.xml Table Parsing Complexity**
+   - What we know: part15.xml is 3.5MB DocBook XML with Table E.1-1 containing action codes
+   - What's unclear: Exact XML structure differs from part06.xml; may need custom parser
+   - Recommendation: Download and inspect part15.xml structure before parser implementation
+
+2. **Tesseract Thread Safety**
+   - What we know: TesseractEngine should be reused, not created per-image
+   - What's unclear: Thread safety guarantees for concurrent image processing
+   - Recommendation: Use object pooling or per-thread instances
+
+3. **GSPS/SR Text Annotation Parsing**
+   - What we know: Clean Graphics profile requires scanning GSPS/SR for PHI
+   - What's unclear: Complexity of parsing all annotation content
+   - Recommendation: Start with basic text content, iterate based on real-world data
+
+## Sources
+
+### Primary (HIGH confidence)
+- [DICOM PS3.15 Chapter E](https://dicom.nema.org/medical/dicom/current/output/chtml/part15/chapter_e.html) - De-identification profiles and action codes
+- [DICOM PS3.15 Section E.2](https://dicom.nema.org/medical/dicom/current/output/chtml/part15/sect_E.2.html) - Basic Application Level Confidentiality Profile
+- [DICOM PS3.5 Section B.2](https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_b.2.html) - UUID Derived UID specification
+- [part15.xml](https://dicom.nema.org/medical/dicom/current/source/docbook/part15/) - Official NEMA source (3.5MB)
+
+### Secondary (MEDIUM confidence)
+- [TesseractOCR NuGet](https://www.nuget.org/packages/TesseractOCR) - Version 5.5.1, wraps Tesseract 5.4.1
+- [charlesw/tesseract GitHub](https://github.com/charlesw/tesseract) - Original .NET wrapper
+- [Burned-in PHI Detection Research](https://pmc.ncbi.nlm.nih.gov/articles/PMC11522224/) - Method for efficient de-identification
+- [EDRN De-identification Process](https://edrn.cancer.gov/data-and-resources/informatics/labcas-help/edrn-dicom-de-identification-process/) - Best practices guidance
+
+### Tertiary (LOW confidence)
+- [John Snow Labs Visual-NLP](https://medium.com/john-snow-labs/de-identifying-dicom-files-a-step-by-step-guide-with-john-snow-labs-visual-nlp-2c21b60f92a8) - Date shifting approaches (commercial tool, patterns applicable)
+- [Deid pydicom](https://pydicom.github.io/deid/getting-started/dicom-pixels/) - Pixel cleaning rules (Python, pattern reference)
+
+## Metadata
+
+**Confidence breakdown:**
+- Standard stack: MEDIUM - PS3.15 is authoritative; Tesseract choice is Claude's discretion per CONTEXT.md
+- Architecture: MEDIUM - Patterns derived from existing SharpDicom codebase and standard practices
+- Pitfalls: HIGH - Well-documented in DICOM community and research papers
+
+**Research date:** 2026-02-02
+**Valid until:** 30 days (DICOM standard stable, library versions may update)
