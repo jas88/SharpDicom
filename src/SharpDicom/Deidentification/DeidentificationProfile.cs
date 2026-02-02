@@ -55,6 +55,13 @@ public enum DeidentificationProfile : uint
     RetainDeviceIdentity = 1 << 3,
 
     /// <summary>
+    /// Retain Institution Identity Option (PS3.15 Annex E, Option).
+    /// Retains institution-related identifying information such as Institution Name,
+    /// Institution Address, and Institutional Department Name.
+    /// </summary>
+    RetainInstitutionIdentity = 1 << 11,
+
+    /// <summary>
     /// Retain Patient Characteristics Option (PS3.15 Annex E, Option).
     /// Retains physical characteristics (height, weight) and demographics
     /// (age, sex, ethnic group) that may be needed for research purposes.

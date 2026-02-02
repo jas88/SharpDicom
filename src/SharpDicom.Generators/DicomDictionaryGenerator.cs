@@ -243,12 +243,12 @@ namespace SharpDicom.Generators
                         SourceText.From(source, Encoding.UTF8));
                 });
 
-            // Filter for part15.xml additional file (De-identification profiles)
+            // Filter for part15.xml additional file
             var part15Xml = context.AdditionalTextsProvider
                 .Where(static file => file.Path.EndsWith("part15.xml", System.StringComparison.Ordinal));
 
-            // Parse de-identification actions from Part 15
-            var deidActions = part15Xml
+            // Parse confidentiality actions from Part 15
+            var confidentialityActions = part15Xml
                 .Select(static (text, ct) =>
                 {
                     try
@@ -256,29 +256,24 @@ namespace SharpDicom.Generators
                         var content = text.GetText(ct)?.ToString();
                         if (string.IsNullOrEmpty(content))
                         {
-                            return ImmutableArray<Parsing.DeidentificationActionDefinition>.Empty;
+                            return ImmutableArray<Parsing.ConfidentialityActionDefinition>.Empty;
                         }
 
                         var doc = XDocument.Parse(content);
-                        return Parsing.Part15Parser.ParseDeidentificationActions(doc).ToImmutableArray();
-                    }
-                    catch (System.OperationCanceledException)
-                    {
-                        // Rethrow cancellation so build can stop cleanly
-                        throw;
+                        return Parsing.Part15Parser.ParseConfidentialityActions(doc).ToImmutableArray();
                     }
                     catch
                     {
                         // Return empty on parse error - don't fail build
-                        return ImmutableArray<Parsing.DeidentificationActionDefinition>.Empty;
+                        return ImmutableArray<Parsing.ConfidentialityActionDefinition>.Empty;
                     }
                 })
                 .Where(static actions => !actions.IsEmpty)
                 .SelectMany(static (actions, _) => actions)
                 .Collect();
 
-            // Register DeidentificationProfiles.Generated.cs output
-            context.RegisterSourceOutput(deidActions,
+            // Register DeidentificationActionTable.Generated.cs output
+            context.RegisterSourceOutput(confidentialityActions,
                 static (spc, actionArray) =>
                 {
                     if (actionArray.IsEmpty)
@@ -286,8 +281,8 @@ namespace SharpDicom.Generators
                         return;
                     }
 
-                    var source = Emitters.DeidentificationEmitter.Emit(actionArray);
-                    spc.AddSource("DeidentificationProfiles.Generated.cs",
+                    var source = Emitters.DeidentificationTableEmitter.Emit(actionArray);
+                    spc.AddSource("DeidentificationActionTable.Generated.cs",
                         SourceText.From(source, Encoding.UTF8));
                 });
         }
