@@ -2,369 +2,327 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using SharpDicom.Data;
 
-namespace SharpDicom.Deidentification
+namespace SharpDicom.Deidentification;
+
+/// <summary>
+/// Applies DICOM de-identification according to PS3.15 profiles.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This is the main de-identification engine that orchestrates action lookup,
+/// UID remapping, date shifting, and sequence traversal. It uses the generated
+/// <see cref="DeidentificationActionTable"/> for profile-based action lookup.
+/// </para>
+/// <para>
+/// Example usage:
+/// <code>
+/// var options = new DeidentificationOptions
+/// {
+///     Profile = DeidentificationProfile.Basic,
+///     DateShiftStrategy = DateShiftStrategy.PerPatient
+/// };
+/// var deidentifier = new DicomDeidentifier(options);
+/// await deidentifier.ApplyAsync(dataset);
+/// </code>
+/// </para>
+/// </remarks>
+public sealed partial class DicomDeidentifier
 {
+    // Patient's Age (0010,1010) - AS VR
+    private static readonly DicomTag PatientAgeTag = new DicomTag(0x0010, 0x1010);
+
+    private readonly DeidentificationOptions _options;
+    private readonly DeidentificationContext _context;
+
     /// <summary>
-    /// Main de-identification engine that applies PS3.15 profiles to DICOM datasets.
+    /// Initializes a new instance of the <see cref="DicomDeidentifier"/> class.
     /// </summary>
-    public sealed class DicomDeidentifier : IDisposable
+    /// <param name="options">The de-identification options.</param>
+    /// <param name="context">Optional context for UID/date mapping. If null, a new context is created.</param>
+    /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
+    public DicomDeidentifier(DeidentificationOptions options, DeidentificationContext? context = null)
     {
-        private readonly DeidentificationOptions _options;
-        private readonly UidRemapper _uidRemapper;
-        private readonly DateShifter? _dateShifter;
-        private readonly HashSet<string> _safePrivateCreators;
-        private readonly DeidentificationProfileOption _profileOptions;
-        private readonly bool _ownsUidRemapper;
+#if NETSTANDARD2_0
+        if (options == null)
+            throw new ArgumentNullException(nameof(options));
+#else
+        ArgumentNullException.ThrowIfNull(options);
+#endif
+        _options = options;
+        _context = context ?? new DeidentificationContext(options);
+    }
 
-        /// <summary>
-        /// Creates a de-identifier with the specified options.
-        /// </summary>
-        /// <param name="options">De-identification options.</param>
-        /// <param name="uidRemapper">Optional UID remapper for consistent UID mapping.</param>
-        /// <param name="dateShifter">Optional date shifter for date modification.</param>
-        public DicomDeidentifier(
-            DeidentificationOptions? options = null,
-            UidRemapper? uidRemapper = null,
-            DateShifter? dateShifter = null)
+    /// <summary>
+    /// Gets the context for UID/date mapping access.
+    /// </summary>
+    /// <remarks>
+    /// Access the context to retrieve UID mappings, date offsets, or persist
+    /// context state for batch processing across multiple sessions.
+    /// </remarks>
+    public DeidentificationContext Context => _context;
+
+    /// <summary>
+    /// Applies de-identification to the dataset in-place.
+    /// </summary>
+    /// <param name="dataset">The dataset to de-identify.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A task that completes when de-identification is done.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when dataset is null.</exception>
+    public ValueTask ApplyAsync(DicomDataset dataset, CancellationToken ct = default)
+    {
+#if NETSTANDARD2_0
+        if (dataset == null)
+            throw new ArgumentNullException(nameof(dataset));
+#else
+        ArgumentNullException.ThrowIfNull(dataset);
+#endif
+
+        ApplyCore(dataset, ct);
+#if NETSTANDARD2_0
+        return default;
+#else
+        return ValueTask.CompletedTask;
+#endif
+    }
+
+    /// <summary>
+    /// Core de-identification logic applied synchronously.
+    /// </summary>
+    private void ApplyCore(DicomDataset dataset, CancellationToken ct)
+    {
+        // Get patient/study identifiers for date offset lookup
+        var patientId = GetStringValue(dataset, DicomTag.PatientID) ?? "";
+        var studyUid = GetUidValue(dataset, DicomTag.StudyInstanceUID);
+
+        // CRITICAL: Retrieve date offset from context based on strategy
+        // This ensures consistent date shifting across all files in a study/patient
+        var dateOffset = _options.DateShiftStrategy switch
         {
-            _options = options ?? DeidentificationOptions.BasicProfile;
-            _uidRemapper = uidRemapper ?? new UidRemapper();
-            _ownsUidRemapper = uidRemapper == null;
-            _dateShifter = dateShifter;
-            _profileOptions = _options.ToProfileOptions();
+            // Per-patient: Same offset for all studies of same patient
+            DateShiftStrategy.PerPatient => _context.GetDateOffset(patientId),
+            // Per-study: Same offset for all files in same study
+            DateShiftStrategy.PerStudy when studyUid != default =>
+                _context.GetStudyDateOffset(studyUid),
+            // Per-element or fallback: No consistent shifting
+            _ => TimeSpan.Zero
+        };
 
-            _safePrivateCreators = _options.SafePrivateCreators != null
-                ? new HashSet<string>(_options.SafePrivateCreators, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
+        // Track dates for PatientAge recalculation
+#if NET6_0_OR_GREATER
+        DateOnly? birthDate = null;
+        DateOnly? studyDate = null;
+#else
+        DateTime? birthDate = null;
+        DateTime? studyDate = null;
+#endif
 
-        /// <summary>
-        /// De-identifies a DICOM dataset in place.
-        /// </summary>
-        /// <param name="dataset">The dataset to de-identify.</param>
-        /// <returns>Result containing statistics and any warnings.</returns>
-        public DeidentificationResult Deidentify(DicomDataset dataset)
+        // Collect elements to modify (can't modify during enumeration)
+        var modifications = new List<(DicomTag Tag, IDicomElement? NewValue)>();
+
+        foreach (var element in dataset)
         {
-            var result = new DeidentificationResult();
+            ct.ThrowIfCancellationRequested();
 
-            try
+            // Apply custom rules first
+            if (TryApplyCustomRule(element, out var customResult))
             {
-                // Get patient ID for consistent shifting/mapping
-                var patientId = dataset.GetString(DicomTag.PatientID);
-
-                // Process all elements
-                ProcessDataset(dataset, patientId, result);
-
-                // Apply date shifting if configured
-                if (_dateShifter != null)
-                {
-                    result.Summary.DatesShifted = _dateShifter.ShiftDates(dataset, patientId);
-                }
-
-                // Add de-identification markers
-                AddDeidentificationMarkers(dataset);
-            }
-            catch (Exception ex)
-            {
-                result.Errors.Add($"De-identification failed: {ex.Message}");
+                modifications.Add((element.Tag, customResult));
+                continue;
             }
 
-            return result;
-        }
+            // Get standard action from generated table
+            var action = DeidentificationActionTable.GetAction(element.Tag, _options.Profile);
 
-        private void ProcessDataset(DicomDataset dataset, string? patientId, DeidentificationResult result)
-        {
-            // Collect tags to process (avoid modifying during enumeration)
-            var tagsToProcess = new List<DicomTag>();
-            foreach (var element in dataset)
+            // Apply action
+            var newValue = ApplyAction(element, action, dateOffset);
+            if (!ReferenceEquals(newValue, element))
             {
-                tagsToProcess.Add(element.Tag);
+                modifications.Add((element.Tag, newValue));
             }
 
-            foreach (var tag in tagsToProcess)
+            // Track birth/study dates for age recalculation
+            if (element.Tag == DicomTag.PatientBirthDate && element is DicomStringElement birthEl)
             {
-                var element = dataset[tag];
-                if (element == null) continue;
-
-                ProcessElement(dataset, element, patientId, result);
+                var shifted = newValue as DicomStringElement ?? birthEl;
+                birthDate = DateShifter.ParseDate(shifted.GetString());
             }
-        }
-
-        private void ProcessElement(
-            DicomDataset dataset,
-            IDicomElement element,
-            string? patientId,
-            DeidentificationResult result)
-        {
-            var tag = element.Tag;
-
-            // Handle private tags
-            if (tag.IsPrivate)
+            if (element.Tag == DicomTag.StudyDate && element is DicomStringElement studyEl)
             {
-                ProcessPrivateTag(dataset, element, result);
-                return;
-            }
-
-            // Handle sequences recursively
-            if (element is DicomSequence seq)
-            {
-                foreach (var item in seq.Items)
-                {
-                    ProcessDataset(item, patientId, result);
-                    result.Summary.SequenceItemsProcessed++;
-                }
-                return;
-            }
-
-            // Check for tag-specific override
-            if (_options.Overrides?.TryGetValue(tag, out var overrideAction) == true)
-            {
-                ApplyAction(dataset, element, overrideAction, patientId, result);
-                return;
-            }
-
-            // Get action from PS3.15 profile
-            var action = DeidentificationProfiles.GetAction(tag, _profileOptions);
-            ApplyAction(dataset, element, action, patientId, result);
-        }
-
-        private void ProcessPrivateTag(
-            DicomDataset dataset,
-            IDicomElement element,
-            DeidentificationResult result)
-        {
-            result.Summary.PrivateTagsProcessed++;
-
-            // Check if private creator is in safe list
-            if (_options.RetainSafePrivate && element.Tag.PrivateCreatorSlot > 0)
-            {
-                var creator = dataset.PrivateCreators.GetCreator(element.Tag);
-                if (creator != null && _safePrivateCreators.Contains(creator))
-                {
-                    return; // Keep safe private tag
-                }
-            }
-
-            // Apply default private tag action
-            if (_options.DefaultPrivateTagAction == PrivateTagAction.Remove)
-            {
-                dataset.Remove(element.Tag);
-                result.Summary.AttributesRemoved++;
+                var shifted = newValue as DicomStringElement ?? studyEl;
+                studyDate = DateShifter.ParseDate(shifted.GetString());
             }
         }
 
-        private void ApplyAction(
-            DicomDataset dataset,
-            IDicomElement element,
-            DeidentificationAction action,
-            string? patientId,
-            DeidentificationResult result)
+        // Apply modifications
+        foreach (var (tag, newValue) in modifications)
         {
-            var resolved = ActionResolver.Resolve(action);
-            var tag = element.Tag;
+            if (newValue == null)
+                dataset.Remove(tag);
+            else
+                dataset.Add(newValue);
+        }
 
-            switch (resolved)
+        // Recalculate PatientAge if enabled
+        if (_options.RecalculatePatientAge && birthDate != null && studyDate != null)
+        {
+            var age = DateShifter.CalculateAge(birthDate, studyDate);
+            if (age != null)
             {
-                case ResolvedAction.Keep:
-                    // Do nothing
-                    break;
-
-                case ResolvedAction.Remove:
-                    dataset.Remove(tag);
-                    result.Summary.AttributesRemoved++;
-                    break;
-
-                case ResolvedAction.ReplaceWithEmpty:
-                    if (ReplaceWithEmpty(dataset, element))
-                        result.Summary.AttributesEmptied++;
-                    break;
-
-                case ResolvedAction.ReplaceWithDummy:
-                    if (ReplaceWithDummy(dataset, element))
-                        result.Summary.AttributesReplaced++;
-                    break;
-
-                case ResolvedAction.Clean:
-                    CleanElement(dataset, element);
-                    result.Summary.AttributesReplaced++;
-                    break;
-
-                case ResolvedAction.RemapUid:
-                    if (element.VR == DicomVR.UI && element is DicomStringElement strElem)
-                    {
-                        var originalUid = strElem.GetString(DicomEncoding.Default);
-                        if (!string.IsNullOrWhiteSpace(originalUid))
-                        {
-                            var trimmedUid = originalUid!.Trim();
-                            // Don't use patientId as scope - UIDs should map consistently across all files in a session
-                            var newUid = _uidRemapper.Remap(trimmedUid);
-                            var bytes = Encoding.ASCII.GetBytes(newUid);
-                            dataset.Add(new DicomStringElement(tag, DicomVR.UI, bytes));
-                            result.Summary.UidsRemapped++;
-                            result.UidRemappings.Add(new UidRemapInfo(tag, trimmedUid, newUid));
-                        }
-                    }
-                    break;
+                dataset.Add(CreateStringElement(PatientAgeTag, DicomVR.AS, age));
             }
         }
 
-        private static bool ReplaceWithEmpty(DicomDataset dataset, IDicomElement element)
+        // Remove private tags if configured
+        if (_options.RemovePrivateTags)
         {
-            if (!element.VR.IsStringVR)
-                return false;
-            dataset.Add(new DicomStringElement(element.Tag, element.VR, Array.Empty<byte>()));
-            return true;
-        }
-
-        private static bool ReplaceWithDummy(DicomDataset dataset, IDicomElement element)
-        {
-            if (!element.VR.IsStringVR)
-                return false;
-            var dummyStr = DummyValueGenerator.GetDummyString(element.VR);
-            if (dummyStr == null)
-                return false;
-            var bytes = Encoding.ASCII.GetBytes(dummyStr);
-            dataset.Add(new DicomStringElement(element.Tag, element.VR, bytes));
-            return true;
-        }
-
-        private static void CleanElement(DicomDataset dataset, IDicomElement element)
-        {
-            // Clean action: Replace with safe value of similar meaning
-            // For most attributes, this means replacing with a generic value
-            ReplaceWithDummy(dataset, element);
-        }
-
-        // De-identification marker tags (PS3.15 Annex E.1.1)
-        private static readonly DicomTag TagPatientIdentityRemoved = new(0x0012, 0x0062);
-        private static readonly DicomTag TagDeidentificationMethod = new(0x0012, 0x0063);
-        private static readonly DicomTag TagDeidentificationMethodCodeSequence = new(0x0012, 0x0064);
-        private static readonly DicomTag TagLongitudinalTemporalInformationModified = new(0x0028, 0x0303);
-
-        // Code Sequence item tags
-        private static readonly DicomTag TagCodeValue = new(0x0008, 0x0100);
-        private static readonly DicomTag TagCodingSchemeDesignator = new(0x0008, 0x0102);
-        private static readonly DicomTag TagCodeMeaning = new(0x0008, 0x0104);
-
-        private void AddDeidentificationMarkers(DicomDataset dataset)
-        {
-            // Add Patient Identity Removed marker (0012,0062)
-            var yesBytes = Encoding.ASCII.GetBytes("YES");
-            dataset.Add(new DicomStringElement(TagPatientIdentityRemoved, DicomVR.CS, yesBytes));
-
-            // Add De-identification Method text (0012,0063)
-            var methodText = BuildMethodText();
-            var methodBytes = Encoding.ASCII.GetBytes(methodText);
-            dataset.Add(new DicomStringElement(TagDeidentificationMethod, DicomVR.LO, methodBytes));
-
-            // Add De-identification Method Code Sequence (0012,0064)
-            var codeSequence = BuildMethodCodeSequence();
-            dataset.Add(codeSequence);
-
-            // Add Longitudinal Temporal Information Modified (0028,0303)
-            var temporalStatus = GetLongitudinalTemporalStatus();
-            if (temporalStatus != null)
+            Func<string, bool>? filter = null;
+            if (_options.SafePrivateCreators != null)
             {
-                var temporalBytes = Encoding.ASCII.GetBytes(temporalStatus);
-                dataset.Add(new DicomStringElement(TagLongitudinalTemporalInformationModified, DicomVR.CS, temporalBytes));
+                var safeCreators = _options.SafePrivateCreators;
+                filter = c => safeCreators.Contains(c);
+            }
+            dataset.StripPrivateTags(filter);
+        }
+    }
+
+    private IDicomElement? ApplyAction(IDicomElement element, DeidentificationAction action,
+        TimeSpan dateOffset)
+    {
+        return action switch
+        {
+            DeidentificationAction.Remove => null,
+            DeidentificationAction.Zero => CreateZeroLength(element),
+            DeidentificationAction.Dummy => CreateDummy(element),
+            DeidentificationAction.UidRemap => RemapUid(element),
+            DeidentificationAction.Clean => CleanElement(element, dateOffset),
+            DeidentificationAction.Keep => ProcessKeep(element, dateOffset),
+            _ => element
+        };
+    }
+
+    private static IDicomElement CreateZeroLength(IDicomElement element)
+    {
+        // Create element with empty value
+        var vrInfo = DicomVRInfo.GetInfo(element.VR);
+        if (vrInfo.IsStringVR)
+            return new DicomStringElement(element.Tag, element.VR, Array.Empty<byte>());
+        return new DicomBinaryElement(element.Tag, element.VR, Array.Empty<byte>());
+    }
+
+    private static IDicomElement CreateDummy(IDicomElement element)
+    {
+        // Type-1 safe dummy values per VR
+        var vr = element.VR;
+        if (vr == DicomVR.PN)
+            return CreateStringElement(element.Tag, vr, "ANONYMOUS");
+        if (vr == DicomVR.LO || vr == DicomVR.SH)
+            return CreateStringElement(element.Tag, vr, "REMOVED");
+        if (vr == DicomVR.DA)
+            return CreateStringElement(element.Tag, vr, "19000101");
+        if (vr == DicomVR.TM)
+            return CreateStringElement(element.Tag, vr, "000000");
+        if (vr == DicomVR.DT)
+            return CreateStringElement(element.Tag, vr, "19000101000000");
+        if (vr == DicomVR.UI)
+            return CreateStringElement(element.Tag, vr, DicomUID.Generate().ToString());
+        if (vr == DicomVR.AS)
+            return CreateStringElement(element.Tag, vr, "000Y");
+        if (vr == DicomVR.CS)
+            return CreateStringElement(element.Tag, vr, "UNKNOWN");
+        if (vr == DicomVR.IS || vr == DicomVR.DS)
+            return CreateStringElement(element.Tag, vr, "0");
+        if (vr == DicomVR.LT || vr == DicomVR.ST || vr == DicomVR.UT)
+            return CreateStringElement(element.Tag, vr, "");
+
+        // For other VRs, return zero-length
+        return CreateZeroLength(element);
+    }
+
+    private IDicomElement? RemapUid(IDicomElement element)
+    {
+        if (element is not DicomStringElement se)
+            return element;
+
+        var original = se.GetString();
+        if (string.IsNullOrEmpty(original))
+            return element;
+
+        var originalUid = new DicomUID(original!);
+        var newUid = _context.RemapUID(originalUid);
+        return CreateStringElement(element.Tag, element.VR, newUid.ToString());
+    }
+
+    private IDicomElement CleanElement(IDicomElement element, TimeSpan dateOffset)
+    {
+        // Clean action varies by VR - dates get shifted, text gets dummy
+        var vr = element.VR;
+        if (vr == DicomVR.DA || vr == DicomVR.TM || vr == DicomVR.DT)
+        {
+            return DateShifter.Shift(element, dateOffset, _options.ZeroTimeComponents);
+        }
+        return CreateDummy(element);
+    }
+
+    private IDicomElement ProcessKeep(IDicomElement element, TimeSpan dateOffset)
+    {
+        // Keep the element but process nested sequences
+        if (element is DicomSequence seq)
+        {
+            foreach (var item in seq.Items)
+            {
+                // Recursively apply de-identification to sequence items
+                ApplyCore(item, default);
             }
         }
+        return element;
+    }
 
-        private string BuildMethodText()
+    private bool TryApplyCustomRule(IDicomElement element, out IDicomElement? result)
+    {
+        result = null;
+        if (_options.CustomRules == null)
+            return false;
+
+        foreach (var rule in _options.CustomRules)
         {
-            var parts = new List<string> { "DICOM PS3.15 Basic Application Level Confidentiality Profile" };
-
-            if (_options.RetainSafePrivate)
-                parts.Add("Retain Safe Private Option");
-            if (_options.RetainUIDs)
-                parts.Add("Retain UIDs Option");
-            if (_options.RetainDeviceIdentity)
-                parts.Add("Retain Device Identity Option");
-            if (_options.RetainInstitutionIdentity)
-                parts.Add("Retain Institution Identity Option");
-            if (_options.RetainPatientCharacteristics)
-                parts.Add("Retain Patient Characteristics Option");
-            if (_options.RetainLongitudinalFullDates)
-                parts.Add("Retain Longitudinal Full Dates Option");
-            if (_options.RetainLongitudinalModifiedDates)
-                parts.Add("Retain Longitudinal Temporal Information with Modified Dates Option");
-            if (_options.CleanDescriptors)
-                parts.Add("Clean Descriptors Option");
-            if (_options.CleanStructuredContent)
-                parts.Add("Clean Structured Content Option");
-            if (_options.CleanGraphics)
-                parts.Add("Clean Graphics Option");
-
-            return string.Join("\\", parts);  // DICOM value separator
-        }
-
-        private DicomSequence BuildMethodCodeSequence()
-        {
-            var items = new List<DicomDataset>();
-
-            // Basic Profile code (CID 7050, DCM 113100)
-            items.Add(CreateCodeItem("113100", "DCM", "Basic Application Confidentiality Profile"));
-
-            // Add codes for active options (CID 7050)
-            if (_options.RetainSafePrivate)
-                items.Add(CreateCodeItem("113101", "DCM", "Retain Safe Private Option"));
-            if (_options.RetainUIDs)
-                items.Add(CreateCodeItem("113110", "DCM", "Retain UIDs Option"));
-            if (_options.RetainDeviceIdentity)
-                items.Add(CreateCodeItem("113109", "DCM", "Retain Device Identity Option"));
-            if (_options.RetainInstitutionIdentity)
-                items.Add(CreateCodeItem("113112", "DCM", "Retain Institution Identity Option"));
-            if (_options.RetainPatientCharacteristics)
-                items.Add(CreateCodeItem("113108", "DCM", "Retain Patient Characteristics Option"));
-            if (_options.RetainLongitudinalFullDates)
-                items.Add(CreateCodeItem("113106", "DCM", "Retain Longitudinal Temporal Information with Full Dates Option"));
-            if (_options.RetainLongitudinalModifiedDates)
-                items.Add(CreateCodeItem("113107", "DCM", "Retain Longitudinal Temporal Information with Modified Dates Option"));
-            if (_options.CleanDescriptors)
-                items.Add(CreateCodeItem("113105", "DCM", "Clean Descriptors Option"));
-            if (_options.CleanStructuredContent)
-                items.Add(CreateCodeItem("113104", "DCM", "Clean Structured Content Option"));
-            if (_options.CleanGraphics)
-                items.Add(CreateCodeItem("113103", "DCM", "Clean Graphics Option"));
-
-            return new DicomSequence(TagDeidentificationMethodCodeSequence, items);
-        }
-
-        private static DicomDataset CreateCodeItem(string codeValue, string codingScheme, string codeMeaning)
-        {
-            var item = new DicomDataset();
-            item.Add(new DicomStringElement(TagCodeValue, DicomVR.SH, Encoding.ASCII.GetBytes(codeValue)));
-            item.Add(new DicomStringElement(TagCodingSchemeDesignator, DicomVR.SH, Encoding.ASCII.GetBytes(codingScheme)));
-            item.Add(new DicomStringElement(TagCodeMeaning, DicomVR.LO, Encoding.ASCII.GetBytes(codeMeaning)));
-            return item;
-        }
-
-        private string? GetLongitudinalTemporalStatus()
-        {
-            // Per PS3.15 Table CID 7050
-            if (_options.RetainLongitudinalFullDates)
+            if (rule.AppliesTo(element.Tag))
             {
-                // Full dates retained - no modification
-                return "UNMODIFIED";
-            }
-            if (_options.RetainLongitudinalModifiedDates || _dateShifter != null)
-            {
-                // Dates shifted but relationships preserved
-                return "MODIFIED";
-            }
-            // Dates removed entirely
-            return "REMOVED";
-        }
-
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            if (_ownsUidRemapper)
-            {
-                _uidRemapper.Dispose();
+                result = rule.Transform(element, _context);
+                return true;
             }
         }
+        return false;
+    }
+
+    private static string? GetStringValue(DicomDataset dataset, DicomTag tag)
+    {
+        return dataset[tag] is DicomStringElement se ? se.GetString() : null;
+    }
+
+    private static DicomUID GetUidValue(DicomDataset dataset, DicomTag tag)
+    {
+        var str = GetStringValue(dataset, tag);
+        return string.IsNullOrEmpty(str) ? default : new DicomUID(str!);
+    }
+
+    /// <summary>
+    /// Creates a string element with properly padded value.
+    /// </summary>
+    private static DicomStringElement CreateStringElement(DicomTag tag, DicomVR vr, string value)
+    {
+        var bytes = Encoding.ASCII.GetBytes(value);
+        // Pad to even length if necessary
+        if (bytes.Length % 2 != 0)
+        {
+            var padded = new byte[bytes.Length + 1];
+            bytes.CopyTo(padded, 0);
+            padded[padded.Length - 1] = DicomVRInfo.GetInfo(vr).PaddingByte;
+            bytes = padded;
+        }
+        return new DicomStringElement(tag, vr, bytes);
     }
 }
