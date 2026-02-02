@@ -212,18 +212,15 @@ Plans:
 
 **Requirements**: FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6
 
-**Plans**: 8 plans in 4 waves
+**Plans**: 6 plans in 4 waves
 
 Plans:
-- [ ] 14-01-PLAN.md — Source generator for action tables from part15.xml
-- [ ] 14-02-PLAN.md — Core types, action resolution, dummy value generation
-- [ ] 14-03-PLAN.md — UID remapping with SQLite persistence
-- [ ] 14-04-PLAN.md — Date/time shifting with configurable strategies
-- [ ] 14-05-PLAN.md — DicomDeidentifier with fluent API and element callback
-- [ ] 14-06-PLAN.md — JSON config format with $extends inheritance and presets
-- [ ] 14-07-PLAN.md — Clean Pixel Data Option with region redaction
-- [ ] 14-08-PLAN.md — Batch processing and integration tests
-
+- [ ] 14-01-PLAN.md — Part15 XML caching, Part15Parser, DeidentificationTableEmitter
+- [ ] 14-02-PLAN.md — Core types (Action, Profile, Options, Context, IDeidentificationRule)
+- [ ] 14-03-PLAN.md — DicomDeidentifier engine, fluent builder, DateShifter
+- [ ] 14-04-PLAN.md — Pixel cleaning infrastructure (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
+- [ ] 14-05-PLAN.md — Integration (PixelDataCleaner, StudyDeidentifier, warnings)
+- [ ] 14-06-PLAN.md — Test suite (action table, context, dates, pixels, integration)
 
 **Must-haves**:
 - [ ] PS3.15 Basic Application Level Confidentiality Profile implementation
@@ -243,7 +240,7 @@ Plans:
 
 **Dependencies**: Phase 4 (encoding for text element processing), Phase 7 (file writing for output)
 
-**Research Needed**: Yes - COMPLETE (14-RESEARCH.md)
+**Research Needed**: Partial (two-pass UID remapping validation) - COMPLETE (14-RESEARCH.md)
 
 **Success Criteria**:
 - [ ] Basic Profile removes all required tags per PS3.15 Annex E
@@ -606,4 +603,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-01-31 (Phase 14b merge)*
+*Last updated: 2026-02-02 (Phase 14 planned)*
