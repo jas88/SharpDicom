@@ -1,120 +1,141 @@
 ---
-phase: 14-de-identification
+phase: 14
 plan: 01
-subsystem: deidentification
-tags: [source-generator, ps3.15, xml-parsing, de-identification, roslyn]
+subsystem: de-identification
+tags: [source-generator, ps3.15, confidentiality, xml-parsing]
 
-# Dependency graph
-requires:
-  - phase: 01-core-types
-    provides: DicomTag, DicomVR structs
-  - phase: 01-core-types
-    provides: Source generator infrastructure (Part6Parser pattern)
-provides:
-  - "Part15Parser parsing PS3.15 Table E.1-1"
-  - "DeidentificationActionDefinition struct for action data"
-  - "DeidentificationEmitter for code generation"
-  - "DeidentificationProfiles.Generated.cs with 654 action entries"
-  - "DeidentificationAction enum (11 action codes)"
-  - "DeidentificationProfileOption flags enum (10 options)"
-  - "GetAction(DicomTag, options) method for action lookup"
-affects: [14-de-identification-api, 14-de-identification-processor]
+dependency-graph:
+  requires: [phase-1-plan-04]  # DicomDictionaryGenerator infrastructure
+  provides: [deidentification-action-table]
+  affects: [phase-14-plan-02, phase-14-plan-03]
 
-# Tech tracking
 tech-stack:
   added: []
-  patterns: [incremental-source-generator, docbook-xml-parsing, frozen-dictionary-lookup]
+  patterns: [incremental-source-generation, frozen-dictionary, xml-parsing]
 
 key-files:
   created:
-    - tests/SharpDicom.Tests/Generators/Part15ParserTests.cs
-    - tests/SharpDicom.Tests/Deidentification/DeidentificationProfilesTests.cs
-  modified:
     - data/dicom-standard/part15.xml
+    - src/SharpDicom.Generators/Parsing/Part15Parser.cs
+    - src/SharpDicom.Generators/Parsing/ConfidentialityActionDefinition.cs
+    - src/SharpDicom.Generators/Emitters/DeidentificationTableEmitter.cs
+  modified:
+    - src/SharpDicom.Generators/DicomDictionaryGenerator.cs
+    - src/SharpDicom/Deidentification/DeidentificationProfile.cs
 
-key-decisions:
-  - "Use existing Part6Parser pattern for Part15Parser consistency"
-  - "654 action definitions parsed from NEMA PS3.15 2025e"
-  - "FrozenDictionary for NET8+ lookup performance"
+decisions:
+  - id: compound-action-codes
+    choice: "Extract primary action from compound codes (X/Z -> X)"
+    rationale: "Simplifies runtime logic; most restrictive action first"
+  - id: frozen-dictionary
+    choice: "FrozenDictionary on NET8+, Dictionary fallback"
+    rationale: "Matches existing DicomDictionary pattern"
+  - id: fully-qualified-enums
+    choice: "Generate DeidentificationAction.X not bare X"
+    rationale: "Compilation without 'using static' directive"
 
-patterns-established:
-  - "De-identification action lookup: GetAction(tag, options) resolves profile options"
-  - "Action enum naming: Remove, ZeroOrDummy, RemapUid, Clean, Keep + conditionals"
-  - "Profile option flags: RetainUIDs, CleanDescriptors, etc."
-
-# Metrics
-duration: 7min
-completed: 2026-01-30
+metrics:
+  duration: ~15 minutes
+  completed: 2026-02-02
 ---
 
-# Phase 14 Plan 01: De-identification Source Generator Summary
+# Phase 14 Plan 01: De-identification Action Table Generator Summary
 
-**Source generator parses NEMA part15.xml to generate 654 de-identification action definitions with 11 action codes and 10 profile options**
+**One-liner:** Source-generated 654-entry de-identification action table from PS3.15 Table E.1-1 with FrozenDictionary lookup.
 
-## Performance
+## What Was Built
 
-- **Duration:** 7 min
-- **Started:** 2026-01-30T03:42:50Z
-- **Completed:** 2026-01-30T03:49:57Z
-- **Tasks:** 3
-- **Files modified:** 9
+### 1. Part 15 XML Cache (data/dicom-standard/part15.xml)
+- Downloaded NEMA PS3.15 2025e XML (~3.5MB)
+- Contains Table E.1-1 "Application Level Confidentiality Profile Attributes"
+- Defines action codes for 654 DICOM attributes across 11 profiles
 
-## Accomplishments
-- Downloaded full NEMA PS3.15 2025e XML (3.5MB with 654 attribute definitions)
-- Source generator parses Table E.1-1 and generates action lookup tables
-- All 11 action codes represented (D, Z, X, K, C, U, Z/D, X/Z, X/D, X/Z/D, X/Z/U)
-- All 10 profile options supported (RetainUIDs, CleanDescriptors, etc.)
-- GetAction method resolves combined profile options correctly
-- 62 tests pass (6 Part15Parser snapshot tests + 25 DeidentificationProfiles unit tests x2)
+### 2. Part15Parser (src/SharpDicom.Generators/Parsing/)
+- `ConfidentialityActionDefinition`: Readonly struct for parsed table rows
+- `Part15Parser.ParseConfidentialityActions`: DocBook XML parser
+- Handles masked tags (e.g., 0008,00xx)
+- Extracts action codes: D, Z, X, K, C, U, and compounds (X/Z, Z/D, etc.)
 
-## Task Commits
+### 3. DeidentificationTableEmitter (src/SharpDicom.Generators/Emitters/)
+- Generates `DeidentificationActionTable.Generated.cs`
+- FrozenDictionary on NET8+ with Dictionary fallback
+- ActionEntry struct with GetAction(profile) method
+- All enum values fully qualified (e.g., `DeidentificationAction.Remove`)
 
-Each task was committed atomically:
+### 4. Generator Integration
+- Added part15.xml to AdditionalTextsProvider filter
+- Parses and emits during incremental build
+- 654 tag entries generated (exceeds 400+ target)
 
-1. **Task 1: Download part15.xml and create parser types** - `a44cdd4` (feat)
-2. **Task 2: Create emitter and integrate into generator** - Already implemented in codebase
-3. **Task 3: Add generator tests** - `d4b1e36` (test)
+## API Generated
 
-## Files Created/Modified
-- `data/dicom-standard/part15.xml` - Full NEMA PS3.15 2025e XML (replaced stub)
-- `tests/SharpDicom.Tests/Generators/Part15ParserTests.cs` - Parser snapshot tests
-- `tests/SharpDicom.Tests/Deidentification/DeidentificationProfilesTests.cs` - Generated code tests
-- `tests/SharpDicom.Tests/Generators/Part15ParserTests.*.verified.cs` - 6 snapshot files
+```csharp
+namespace SharpDicom.Deidentification;
 
-## Pre-existing Implementation
+public static partial class DeidentificationActionTable
+{
+    // Main lookup method
+    public static DeidentificationAction GetAction(DicomTag tag, DeidentificationProfile profile);
 
-The source generator infrastructure was already in place:
-- `src/SharpDicom.Generators/Parsing/Part15Parser.cs` - XML parsing
-- `src/SharpDicom.Generators/Parsing/DeidentificationActionDefinition.cs` - Data structure
-- `src/SharpDicom.Generators/Emitters/DeidentificationEmitter.cs` - Code generation
-- `src/SharpDicom/Deidentification/DeidentificationProfiles.cs` - Partial class stub
-- `src/SharpDicom.Generators/DicomDictionaryGenerator.cs` - Part15 pipeline integrated
+    // Convenience for Basic profile only
+    public static DeidentificationAction GetBasicAction(DicomTag tag);
 
-This plan focused on downloading the full XML and adding comprehensive tests.
+    // Check if tag is in de-identification table
+    public static bool TryGetEntry(DicomTag tag, out ActionEntry entry);
+}
 
-## Decisions Made
-- Used existing Part6Parser pattern for consistent DocBook XML parsing
-- Patient ID (0010,0020) has Z/D action per NEMA spec (not Z)
-- FrozenDictionary on NET8+, Dictionary on netstandard2.0 for compatibility
+public readonly record struct ActionEntry(
+    DeidentificationAction Basic,
+    DeidentificationAction RetainSafePrivate,
+    DeidentificationAction RetainUIDs,
+    DeidentificationAction RetainDeviceIdentity,
+    DeidentificationAction RetainInstitutionIdentity,
+    DeidentificationAction RetainPatientCharacteristics,
+    DeidentificationAction RetainLongFullDates,
+    DeidentificationAction RetainLongModifDates,
+    DeidentificationAction CleanDescriptors,
+    DeidentificationAction CleanStructuredContent,
+    DeidentificationAction CleanGraphics)
+{
+    public DeidentificationAction GetAction(DeidentificationProfile profile);
+}
+```
+
+## Profile Handling
+
+The generated `GetAction` method handles profile option flags with proper precedence:
+1. Clean options checked first (more restrictive)
+2. Retain options checked second (less restrictive)
+3. Falls back to Basic profile action
 
 ## Deviations from Plan
 
-None - plan executed exactly as written. Task 2 was already implemented, so focused on download and tests.
+**1. [Rule 2 - Missing Critical] Added RetainInstitutionIdentity to DeidentificationProfile**
+- Found during: Task 3
+- Issue: PS3.15 Table E.1-1 has "Retain Institution Identity" column not in existing enum
+- Fix: Added `RetainInstitutionIdentity = 1 << 11` to DeidentificationProfile enum
+- Files modified: DeidentificationProfile.cs
+- Commit: b576471
 
-## Issues Encountered
-- EmitCompilerGeneratedFiles property caused duplicate file issues - reverted
-- CA2263 analyzer warnings for non-generic Enum methods - fixed with generic overloads
+## Commits
 
-## User Setup Required
+| Hash | Message | Files |
+|------|---------|-------|
+| 5ea2761 | feat(14-01): download and cache PS3.15 XML for de-identification | part15.xml |
+| ace5f5e | feat(14-01): add Part15Parser and ConfidentialityActionDefinition | Part15Parser.cs, ConfidentialityActionDefinition.cs |
+| b576471 | feat(14-01): add DeidentificationTableEmitter and generator integration | DeidentificationTableEmitter.cs, DicomDictionaryGenerator.cs, DeidentificationProfile.cs |
 
-None - no external service configuration required.
+## Test Results
+
+- **All 1650 tests pass** (25 skipped - optional DCMTK integration)
+- Build succeeds on all target frameworks: netstandard2.0, net8.0, net9.0, net10.0
+- Generated file verified with correct entry count and enum qualification
 
 ## Next Phase Readiness
-- De-identification action lookup foundation complete
-- Ready for Phase 14 Plan 02: DicomDeidentifier class implementation
-- Ready for Plan 03: UID remapping with referential integrity
-- Ready for Plan 04: Date/time shifting
 
----
-*Phase: 14-de-identification*
-*Completed: 2026-01-30*
+This plan provides the foundation for:
+- **14-02**: DicomDeidentifier can use GetAction for attribute processing
+- **14-03**: Date shifting can leverage action table for DA/DT/TM attributes
+- **14-05**: Pixel cleaning knows which attributes need burned-in PHI detection
+
+No blockers or known issues.
