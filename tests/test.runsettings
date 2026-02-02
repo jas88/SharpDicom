@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <NUnit>
+    <!-- Default timeout for individual tests in milliseconds (60 seconds) -->
+    <DefaultTimeout>60000</DefaultTimeout>
+    <!-- Stop on first failure for faster feedback -->
+    <StopOnError>false</StopOnError>
+  </NUnit>
+  <RunConfiguration>
+    <!-- Maximum time allowed for entire test run in milliseconds (10 minutes) -->
+    <TestSessionTimeout>600000</TestSessionTimeout>
+  </RunConfiguration>
+</RunSettings>
