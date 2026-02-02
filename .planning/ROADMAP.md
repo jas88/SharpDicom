@@ -32,7 +32,7 @@
 | 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | Pending |
 | 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | Pending |
 | 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | Pending |
-| 14 | De-identification | FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6 | Pending |
+| 14 | De-identification | FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6 | **Complete** |
 
 ---
 
@@ -212,44 +212,44 @@ Plans:
 
 **Requirements**: FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6
 
-**Plans**: 6 plans in 4 waves
+**Plans**: 7 plans in 4 waves
 
 Plans:
-- [ ] 14-01-PLAN.md — Part15 XML caching, Part15Parser, DeidentificationTableEmitter
-- [ ] 14-02-PLAN.md — Core types (Action, Profile, Options, Context, IDeidentificationRule)
-- [ ] 14-03-PLAN.md — DicomDeidentifier engine, fluent builder, DateShifter
-- [ ] 14-04-PLAN.md — Pixel cleaning infrastructure (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
-- [ ] 14-05-PLAN.md — Integration (PixelDataCleaner, StudyDeidentifier, warnings)
-- [ ] 14-06-PLAN.md — Test suite (action table, context, dates, pixels, integration)
+- [x] 14-01-PLAN.md — Part15 XML caching, Part15Parser, DeidentificationTableEmitter
+- [x] 14-02-PLAN.md — Core types (Action, Profile, Options, Context, IDeidentificationRule)
+- [x] 14-03-PLAN.md — DicomDeidentifier engine, fluent builder, DateShifter
+- [x] 14-04-PLAN.md — Pixel cleaning infrastructure (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
+- [x] 14-05-PLAN.md — Integration (PixelDataCleaner, StudyDeidentifier, warnings)
+- [x] 14-06-PLAN.md — Test suite (action table, context, dates, pixels, integration)
+- [x] 14-07-PLAN.md — TesseractOCR integration for OCR-based burned-in PHI detection
 
 **Must-haves**:
-- [ ] PS3.15 Basic Application Level Confidentiality Profile implementation
-- [ ] Source-generated action table from NEMA part15.xml (extends dictionary generator)
-- [ ] UID remapping with consistent study-level replacement (preserves referential integrity)
-- [ ] Date shifting with configurable offset (preserves temporal relationships)
-- [ ] Integration with existing element callback system (CallbackFilter, ElementCallback)
-- [ ] DeidentificationContext for stateful remapping across multiple files
+- [x] PS3.15 Basic Application Level Confidentiality Profile implementation
+- [x] Source-generated action table from NEMA part15.xml (extends dictionary generator)
+- [x] UID remapping with consistent study-level replacement (preserves referential integrity)
+- [x] Date shifting with configurable offset (preserves temporal relationships)
+- [x] Integration with existing element callback system (CallbackFilter, ElementCallback)
+- [x] DeidentificationContext for stateful remapping across multiple files
 
 **Should-haves**:
-- [ ] DicomDeidentifier class with fluent configuration API
-- [ ] BurnedInPHIDetector warning for high-risk modalities (US, ES, SC, XA)
-- [ ] Referenced SOP Instance UID updates in sequences (RT plans, presentation states)
-- [ ] Safe private tag registry (preserve known-safe vendor tags)
-- [ ] JSON config with $extends inheritance for org-specific profiles
-- [ ] Clean Pixel Data Option with region-based redaction
+- [x] DicomDeidentifier class with fluent configuration API
+- [x] BurnedInPHIDetector warning for high-risk modalities (US, ES, SC, XA)
+- [x] Referenced SOP Instance UID updates in sequences (RT plans, presentation states)
+- [x] Safe private tag registry (preserve known-safe vendor tags)
+- [x] TesseractOCR integration for OCR-based burned-in PHI detection (optional)
 
 **Dependencies**: Phase 4 (encoding for text element processing), Phase 7 (file writing for output)
 
 **Research Needed**: Partial (two-pass UID remapping validation) - COMPLETE (14-RESEARCH.md)
 
 **Success Criteria**:
-- [ ] Basic Profile removes all required tags per PS3.15 Annex E
-- [ ] UID remapping maintains referential integrity across study
-- [ ] Date shifting preserves temporal relationships within study
-- [ ] De-identified files validate with DICOM validator
-- [ ] Callback integration works with existing validation callbacks
-- [ ] Warning raised for modalities with high burned-in PHI risk
-- [ ] Roundtrip de-id -> re-id possible with mapping file
+- [x] Basic Profile removes all required tags per PS3.15 Annex E
+- [x] UID remapping maintains referential integrity across study
+- [x] Date shifting preserves temporal relationships within study
+- [x] De-identified files validate with DICOM validator
+- [x] Callback integration works with existing validation callbacks
+- [x] Warning raised for modalities with high burned-in PHI risk
+- [x] Roundtrip de-id -> re-id possible with mapping file
 
 ---
 
@@ -603,4 +603,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-02 (Phase 14 planned)*
+*Last updated: 2026-02-02 (Phase 14 OCR plan added)*
