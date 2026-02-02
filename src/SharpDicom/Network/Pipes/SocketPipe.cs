@@ -264,6 +264,26 @@ namespace SharpDicom.Network.Pipes
             _cts.Cancel();
 #endif
 
+            // Shutdown and close the socket to unblock any pending ReceiveAsync/SendAsync
+            // This is necessary because netstandard2.0 socket operations don't accept CancellationToken
+            try
+            {
+                _socket.Shutdown(SocketShutdown.Both);
+            }
+            catch
+            {
+                // Ignore errors - socket may already be closed
+            }
+
+            try
+            {
+                _socket.Close();
+            }
+            catch
+            {
+                // Ignore errors
+            }
+
             // Complete the pipes to unblock any waiting operations
             await _readPipe.Reader.CompleteAsync().ConfigureAwait(false);
             await _writePipe.Writer.CompleteAsync().ConfigureAwait(false);
