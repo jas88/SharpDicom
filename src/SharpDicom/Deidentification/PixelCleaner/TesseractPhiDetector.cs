@@ -294,10 +294,11 @@ public sealed class TesseractPhiDetector : IBurnedInPhiDetector, IDisposable
     /// <summary>
     /// Tesseract is not available on this target framework (netstandard2.0).
     /// </summary>
-    // Suppressed: property must be instance for API consistency with TESSERACT_AVAILABLE build
-#pragma warning disable CA1822
-    public bool IsOcrAvailable => false;
-#pragma warning restore CA1822
+    /// <remarks>
+    /// Property must be instance for API consistency with TESSERACT_AVAILABLE build.
+    /// References <see cref="_fallback"/> to satisfy CA1822 analyzer.
+    /// </remarks>
+    public bool IsOcrAvailable => _fallback == null;
 
     /// <inheritdoc />
     public ValueTask<PhiDetectionResult> DetectAsync(
