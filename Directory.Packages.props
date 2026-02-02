@@ -27,6 +27,6 @@
 
     <!-- Source Generator Testing -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
-    <PackageVersion Include="Verify.NUnit" Version="31.9.4" />
+    <PackageVersion Include="Verify.NUnit" Version="31.10.0" />
   </ItemGroup>
 </Project>
