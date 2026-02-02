@@ -1,346 +1,278 @@
 using System;
 using System.Collections.Generic;
-using SharpDicom.Data;
 
-namespace SharpDicom.Deidentification
+namespace SharpDicom.Deidentification;
+
+/// <summary>
+/// Fluent builder for configuring and creating <see cref="DicomDeidentifier"/> instances.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Use this builder to configure de-identification options with a fluent, discoverable API.
+/// </para>
+/// <para>
+/// Example usage:
+/// <code>
+/// var deidentifier = DicomDeidentifier.Create()
+///     .WithProfile(DeidentificationProfile.Basic)
+///     .WithDateShift(-365, 365)
+///     .WithDateStrategy(DateShiftStrategy.PerPatient)
+///     .WithZeroTime()
+///     .Build();
+///
+/// await deidentifier.ApplyAsync(dataset);
+/// </code>
+/// </para>
+/// </remarks>
+public sealed class DicomDeidentifierBuilder
+{
+    private DeidentificationProfile _profile = DeidentificationProfile.Basic;
+    private DateShiftStrategy _dateStrategy = DateShiftStrategy.PerPatient;
+    private (int Min, int Max) _dateRange = (-365, 365);
+    private bool _zeroTime = true;
+    private bool _recalcAge = true;
+    private string _uidPrefix = "2.25";
+    private bool _removePrivate = true;
+    private List<string>? _safePrivate;
+    private List<IDeidentificationRule>? _customRules;
+    private PixelCleaningOptions _pixelOptions = new();
+    private DeidentificationContext? _context;
+
+    private DicomDeidentifierBuilder() { }
+
+    /// <summary>
+    /// Creates a new builder instance.
+    /// </summary>
+    /// <returns>A new builder.</returns>
+    public static DicomDeidentifierBuilder Create() => new();
+
+    /// <summary>
+    /// Sets the base profile (default: Basic).
+    /// </summary>
+    /// <param name="profile">The de-identification profile to use.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithProfile(DeidentificationProfile profile)
+    {
+        _profile = profile;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds an option profile to the base profile using bitwise OR.
+    /// </summary>
+    /// <param name="option">The option to add.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithOption(DeidentificationProfile option)
+    {
+        _profile |= option;
+        return this;
+    }
+
+    /// <summary>
+    /// Configures date shifting range in days (default: -365 to +365).
+    /// </summary>
+    /// <param name="minDays">Minimum days to shift (can be negative).</param>
+    /// <param name="maxDays">Maximum days to shift (can be negative).</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithDateShift(int minDays, int maxDays)
+    {
+        _dateRange = (minDays, maxDays);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures date shift strategy (default: PerPatient).
+    /// </summary>
+    /// <param name="strategy">The date shift strategy to use.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithDateStrategy(DateShiftStrategy strategy)
+    {
+        _dateStrategy = strategy;
+        return this;
+    }
+
+    /// <summary>
+    /// Controls whether time components are zeroed (default: true).
+    /// </summary>
+    /// <param name="zero">True to zero time components; false to preserve them.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithZeroTime(bool zero = true)
+    {
+        _zeroTime = zero;
+        return this;
+    }
+
+    /// <summary>
+    /// Controls PatientAge recalculation (default: true).
+    /// </summary>
+    /// <param name="recalc">True to recalculate PatientAge from shifted dates.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithRecalculateAge(bool recalc = true)
+    {
+        _recalcAge = recalc;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets UID prefix for generated UIDs (default: 2.25).
+    /// </summary>
+    /// <param name="prefix">The UID prefix. "2.25" allows UUID-based generation without registration.</param>
+    /// <returns>This builder for method chaining.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when prefix is null.</exception>
+    public DicomDeidentifierBuilder WithUidPrefix(string prefix)
+    {
+#if NETSTANDARD2_0
+        if (prefix == null)
+            throw new ArgumentNullException(nameof(prefix));
+#else
+        ArgumentNullException.ThrowIfNull(prefix);
+#endif
+        _uidPrefix = prefix;
+        return this;
+    }
+
+    /// <summary>
+    /// Controls private tag removal (default: true).
+    /// </summary>
+    /// <param name="remove">True to remove private tags not in safe list.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithRemovePrivateTags(bool remove = true)
+    {
+        _removePrivate = remove;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a safe private creator to the whitelist.
+    /// </summary>
+    /// <param name="creator">The private creator identification string to keep.</param>
+    /// <returns>This builder for method chaining.</returns>
+    /// <remarks>
+    /// Private tags from safe creators are retained during de-identification.
+    /// Only use this for creators you have verified do not contain PHI.
+    /// </remarks>
+    public DicomDeidentifierBuilder WithSafePrivateCreator(string creator)
+    {
+        _safePrivate ??= new List<string>();
+        _safePrivate.Add(creator);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds multiple safe private creators to the whitelist.
+    /// </summary>
+    /// <param name="creators">The private creator identification strings to keep.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithSafePrivateCreators(IEnumerable<string> creators)
+    {
+        _safePrivate ??= new List<string>();
+        _safePrivate.AddRange(creators);
+        return this;
+    }
+
+    /// <summary>
+    /// Adds a custom de-identification rule.
+    /// </summary>
+    /// <param name="rule">The rule to add.</param>
+    /// <returns>This builder for method chaining.</returns>
+    /// <remarks>
+    /// Custom rules are evaluated before the standard profile actions.
+    /// Use to override behavior for specific tags.
+    /// </remarks>
+    public DicomDeidentifierBuilder WithCustomRule(IDeidentificationRule rule)
+    {
+        _customRules ??= new List<IDeidentificationRule>();
+        _customRules.Add(rule);
+        return this;
+    }
+
+    /// <summary>
+    /// Configures pixel cleaning options.
+    /// </summary>
+    /// <param name="configure">Action to configure pixel cleaning.</param>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithPixelCleaning(Action<PixelCleaningOptions> configure)
+    {
+        var options = new PixelCleaningOptions();
+        configure(options);
+        _pixelOptions = options;
+        return this;
+    }
+
+    /// <summary>
+    /// Enables pixel cleaning with default options.
+    /// </summary>
+    /// <returns>This builder for method chaining.</returns>
+    public DicomDeidentifierBuilder WithPixelCleaning()
+    {
+        _pixelOptions = new PixelCleaningOptions { Enabled = true };
+        return this;
+    }
+
+    /// <summary>
+    /// Uses an existing context for UID/date mapping.
+    /// </summary>
+    /// <param name="context">The context to use.</param>
+    /// <returns>This builder for method chaining.</returns>
+    /// <remarks>
+    /// Use this when processing multiple files and need consistent UID/date mappings
+    /// across all files. The context can also be loaded from a previous session.
+    /// </remarks>
+    public DicomDeidentifierBuilder WithContext(DeidentificationContext context)
+    {
+        _context = context;
+        return this;
+    }
+
+    /// <summary>
+    /// Builds the configured deidentifier.
+    /// </summary>
+    /// <returns>A new <see cref="DicomDeidentifier"/> with the configured options.</returns>
+    public DicomDeidentifier Build()
+    {
+        var options = new DeidentificationOptions
+        {
+            Profile = _profile,
+            DateShiftStrategy = _dateStrategy,
+            DateShiftRange = _dateRange,
+            ZeroTimeComponents = _zeroTime,
+            RecalculatePatientAge = _recalcAge,
+            UidPrefix = _uidPrefix,
+            RemovePrivateTags = _removePrivate,
+#if NETSTANDARD2_0
+            SafePrivateCreators = _safePrivate != null
+                ? (IReadOnlyList<string>)_safePrivate.AsReadOnly()
+                : null,
+            CustomRules = _customRules != null
+                ? (IReadOnlyList<IDeidentificationRule>)_customRules.AsReadOnly()
+                : null,
+#else
+            SafePrivateCreators = _safePrivate?.AsReadOnly(),
+            CustomRules = _customRules?.AsReadOnly(),
+#endif
+            PixelCleaning = _pixelOptions
+        };
+
+        return new DicomDeidentifier(options, _context);
+    }
+}
+
+/// <summary>
+/// Extension methods for <see cref="DicomDeidentifier"/> to provide the fluent API entry point.
+/// </summary>
+public partial class DicomDeidentifier
 {
     /// <summary>
-    /// Fluent builder for configuring DicomDeidentifier instances.
+    /// Creates a new fluent builder for de-identification configuration.
     /// </summary>
-    /// <remarks>
-    /// The builder does not own the UidRemapper passed to <see cref="WithUidRemapper"/>.
-    /// The caller is responsible for disposing the UidRemapper if needed.
-    /// </remarks>
-#pragma warning disable CA1001 // Type owns disposable field - by design, builder doesn't own remapper
-    public sealed class DicomDeidentifierBuilder
-#pragma warning restore CA1001
-    {
-        private bool _retainSafePrivate;
-        private bool _retainUIDs;
-        private bool _retainDeviceIdentity;
-        private bool _retainInstitutionIdentity;
-        private bool _retainPatientCharacteristics;
-        private bool _retainLongitudinalFullDates;
-        private bool _retainLongitudinalModifiedDates;
-        private bool _cleanDescriptors;
-        private bool _cleanStructuredContent;
-        private bool _cleanGraphics;
-        private PrivateTagAction _privateTagAction = PrivateTagAction.Remove;
-        private readonly HashSet<string> _safePrivateCreators = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<DicomTag, DeidentificationAction> _overrides = new();
-        private DateShiftConfig? _dateShiftConfig;
-        private IDateOffsetStore? _dateOffsetStore;
-        private UidRemapper? _uidRemapper;
-
-        /// <summary>
-        /// Applies the Basic Application Level Confidentiality Profile.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithBasicProfile()
-        {
-            // Basic profile uses defaults - most restrictive
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Safe Private Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainSafePrivate()
-        {
-            _retainSafePrivate = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain UIDs Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainUIDs()
-        {
-            _retainUIDs = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Device Identity Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainDeviceIdentity()
-        {
-            _retainDeviceIdentity = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Institution Identity Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainInstitutionIdentity()
-        {
-            _retainInstitutionIdentity = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Patient Characteristics Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainPatientCharacteristics()
-        {
-            _retainPatientCharacteristics = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Longitudinal Temporal Information Full Dates Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainLongitudinalFullDates()
-        {
-            _retainLongitudinalFullDates = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Retain Longitudinal Temporal Information Modified Dates Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RetainLongitudinalModifiedDates()
-        {
-            _retainLongitudinalModifiedDates = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Clean Descriptors Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder CleanDescriptors()
-        {
-            _cleanDescriptors = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Clean Structured Content Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder CleanStructuredContent()
-        {
-            _cleanStructuredContent = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Enables the Clean Graphics Option.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder CleanGraphics()
-        {
-            _cleanGraphics = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Applies a profile option.
-        /// </summary>
-        /// <param name="option">The option to apply.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithOption(DeidentificationProfileOption option)
-        {
-            if ((option & DeidentificationProfileOption.RetainSafePrivate) != 0)
-                _retainSafePrivate = true;
-            if ((option & DeidentificationProfileOption.RetainUIDs) != 0)
-                _retainUIDs = true;
-            if ((option & DeidentificationProfileOption.RetainDeviceIdentity) != 0)
-                _retainDeviceIdentity = true;
-            if ((option & DeidentificationProfileOption.RetainInstitutionIdentity) != 0)
-                _retainInstitutionIdentity = true;
-            if ((option & DeidentificationProfileOption.RetainPatientCharacteristics) != 0)
-                _retainPatientCharacteristics = true;
-            if ((option & DeidentificationProfileOption.RetainLongitudinalFullDates) != 0)
-                _retainLongitudinalFullDates = true;
-            if ((option & DeidentificationProfileOption.RetainLongitudinalModifiedDates) != 0)
-                _retainLongitudinalModifiedDates = true;
-            if ((option & DeidentificationProfileOption.CleanDescriptors) != 0)
-                _cleanDescriptors = true;
-            if ((option & DeidentificationProfileOption.CleanStructuredContent) != 0)
-                _cleanStructuredContent = true;
-            if ((option & DeidentificationProfileOption.CleanGraphics) != 0)
-                _cleanGraphics = true;
-
-            return this;
-        }
-
-        /// <summary>
-        /// Adds a safe private creator that will be retained.
-        /// </summary>
-        /// <param name="creatorName">The private creator name.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithSafePrivateCreator(string creatorName)
-        {
-            _safePrivateCreators.Add(creatorName);
-            _retainSafePrivate = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Adds multiple safe private creators that will be retained.
-        /// </summary>
-        /// <param name="creatorNames">The private creator names.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithSafePrivateCreators(params string[] creatorNames)
-        {
-            foreach (var name in creatorNames)
-            {
-                _safePrivateCreators.Add(name);
-            }
-            _retainSafePrivate = true;
-            return this;
-        }
-
-        /// <summary>
-        /// Configures to remove all private tags.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder RemovePrivateTags()
-        {
-            _privateTagAction = PrivateTagAction.Remove;
-            return this;
-        }
-
-        /// <summary>
-        /// Configures to keep all private tags.
-        /// </summary>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder KeepPrivateTags()
-        {
-            _privateTagAction = PrivateTagAction.Keep;
-            return this;
-        }
-
-        /// <summary>
-        /// Adds a tag-specific override.
-        /// </summary>
-        /// <param name="tag">The tag to override.</param>
-        /// <param name="action">The action to apply.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithOverride(DicomTag tag, DeidentificationAction action)
-        {
-            _overrides[tag] = action;
-            return this;
-        }
-
-        /// <summary>
-        /// Configures date shifting with a fixed offset.
-        /// </summary>
-        /// <param name="offset">The offset to apply to all dates.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithDateShift(TimeSpan offset)
-        {
-            _dateShiftConfig = new DateShiftConfig
-            {
-                Strategy = DateShiftStrategy.Fixed,
-                FixedOffset = offset
-            };
-            return this;
-        }
-
-        /// <summary>
-        /// Configures date shifting with random offsets per patient.
-        /// </summary>
-        /// <param name="minDays">Minimum offset days (typically negative).</param>
-        /// <param name="maxDays">Maximum offset days (typically negative).</param>
-        /// <param name="seed">Optional random seed for reproducibility.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithRandomDateShift(int minDays = -365 * 5, int maxDays = -30, int? seed = null)
-        {
-            _dateShiftConfig = new DateShiftConfig
-            {
-                Strategy = DateShiftStrategy.RandomPerPatient,
-                MinOffsetDays = minDays,
-                MaxOffsetDays = maxDays,
-                RandomSeed = seed
-            };
-            return this;
-        }
-
-        /// <summary>
-        /// Configures a custom date shift configuration.
-        /// </summary>
-        /// <param name="config">The date shift configuration.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithDateShiftConfig(DateShiftConfig config)
-        {
-            _dateShiftConfig = config;
-            return this;
-        }
-
-        /// <summary>
-        /// Uses a shared date offset store for consistent date shifting across files.
-        /// </summary>
-        /// <param name="store">The date offset store to use.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithDateOffsetStore(IDateOffsetStore store)
-        {
-            _dateOffsetStore = store;
-            return this;
-        }
-
-        /// <summary>
-        /// Uses a shared UID remapper for consistent UID mapping across files.
-        /// </summary>
-        /// <param name="remapper">The UID remapper to use.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithUidRemapper(UidRemapper remapper)
-        {
-            _uidRemapper = remapper;
-            return this;
-        }
-
-        /// <summary>
-        /// Uses a shared UID store for consistent UID mapping across files.
-        /// </summary>
-        /// <param name="store">The UID store to use.</param>
-        /// <returns>This builder for chaining.</returns>
-        public DicomDeidentifierBuilder WithUidStore(IUidStore store)
-        {
-            _uidRemapper = new UidRemapper(store);
-            return this;
-        }
-
-        /// <summary>
-        /// Builds the configured DicomDeidentifier.
-        /// </summary>
-        /// <returns>A configured DicomDeidentifier instance.</returns>
-        public DicomDeidentifier Build()
-        {
-            var options = new DeidentificationOptions
-            {
-                RetainSafePrivate = _retainSafePrivate,
-                RetainUIDs = _retainUIDs,
-                RetainDeviceIdentity = _retainDeviceIdentity,
-                RetainInstitutionIdentity = _retainInstitutionIdentity,
-                RetainPatientCharacteristics = _retainPatientCharacteristics,
-                RetainLongitudinalFullDates = _retainLongitudinalFullDates,
-                RetainLongitudinalModifiedDates = _retainLongitudinalModifiedDates,
-                CleanDescriptors = _cleanDescriptors,
-                CleanStructuredContent = _cleanStructuredContent,
-                CleanGraphics = _cleanGraphics,
-                DefaultPrivateTagAction = _privateTagAction,
-                // Create defensive copies to prevent mutation of already-built instances
-                SafePrivateCreators = _safePrivateCreators.Count > 0 ? new HashSet<string>(_safePrivateCreators, StringComparer.OrdinalIgnoreCase) : null,
-                Overrides = _overrides.Count > 0 ? new Dictionary<DicomTag, DeidentificationAction>(_overrides) : null
-            };
-
-            DateShifter? dateShifter = null;
-            if (_dateShiftConfig != null)
-            {
-                dateShifter = new DateShifter(_dateShiftConfig, _dateOffsetStore);
-            }
-
-            return new DicomDeidentifier(options, _uidRemapper, dateShifter);
-        }
-    }
+    /// <returns>A new builder instance.</returns>
+    /// <example>
+    /// <code>
+    /// var deidentifier = DicomDeidentifier.Create()
+    ///     .WithProfile(DeidentificationProfile.Basic)
+    ///     .WithDateShift(-365, 365)
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public static DicomDeidentifierBuilder Create() => DicomDeidentifierBuilder.Create();
 }
