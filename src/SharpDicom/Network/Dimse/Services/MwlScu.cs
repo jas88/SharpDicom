@@ -134,6 +134,9 @@ namespace SharpDicom.Network.Dimse.Services
             // Track if we've sent a cancel request
             var cancelSent = false;
 
+            // Track result count for client-side limiting
+            var resultCount = 0;
+
             // Receive responses until final
             while (true)
             {
@@ -160,6 +163,14 @@ namespace SharpDicom.Network.Dimse.Services
                     if (dataset != null)
                     {
                         yield return new WorklistItem(dataset);
+                        resultCount++;
+
+                        // Check if we've reached the client-side limit
+                        if (_options.MaxResults > 0 && resultCount >= _options.MaxResults && !cancelSent)
+                        {
+                            await SendCCancelAsync(context.Id, messageId, ct).ConfigureAwait(false);
+                            cancelSent = true;
+                        }
                     }
                 }
                 else if (command.Status.IsSuccess)

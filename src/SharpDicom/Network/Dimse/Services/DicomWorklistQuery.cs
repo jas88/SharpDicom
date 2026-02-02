@@ -104,16 +104,16 @@ namespace SharpDicom.Network.Dimse.Services
         /// <param name="patientNameOrId">Patient name pattern or ID.</param>
         /// <returns>A new DicomWorklistQuery for the specified patient.</returns>
         /// <remarks>
-        /// If the value contains a caret (^) or asterisk (*), it's treated as a patient name pattern.
-        /// Otherwise, it's treated as a patient ID.
+        /// If the value contains a caret (^), asterisk (*), or question mark (?),
+        /// it's treated as a patient name pattern. Otherwise, it's treated as a patient ID.
         /// </remarks>
         public static DicomWorklistQuery ForPatient(string patientNameOrId)
         {
             var query = new DicomWorklistQuery();
 #if NET6_0_OR_GREATER
-            if (patientNameOrId.Contains('^') || patientNameOrId.Contains('*'))
+            if (patientNameOrId.Contains('^') || patientNameOrId.Contains('*') || patientNameOrId.Contains('?'))
 #else
-            if (patientNameOrId.IndexOf('^') >= 0 || patientNameOrId.IndexOf('*') >= 0)
+            if (patientNameOrId.IndexOf('^') >= 0 || patientNameOrId.IndexOf('*') >= 0 || patientNameOrId.IndexOf('?') >= 0)
 #endif
             {
                 query.WithPatientName(patientNameOrId);
