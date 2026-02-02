@@ -4,11 +4,11 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification
 **Phase**: 14 - De-identification IN PROGRESS
-**Plan**: 2 of 7 complete
+**Plan**: 4 of 7 complete
 **Status**: In progress
-**Last activity**: 2026-02-02 - Completed 14-02 Core De-identification Types
+**Last activity**: 2026-02-02 - Completed 14-04 Burned-in PHI Detection
 
-**Progress**: [Phase 14: 2/7]
+**Progress**: [Phase 14: 4/7]
 
 **Test Status**: 1650 tests passing, 0 failed, 25 skipped
 
@@ -91,10 +91,12 @@
 - [x] Phase 19 Plan 04: IMwlQueryHandler interface for MWL SCP
 - [x] Phase 14 Plan 01: De-identification action table generator (PS3.15 parser, 654 tags)
 - [x] Phase 14 Plan 02: Core de-identification types (action enum, profiles, context, options)
+- [x] Phase 14 Plan 03: DateShifter for VR-aware date handling
+- [x] Phase 14 Plan 04: Burned-in PHI detection (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
 
 ## In Progress
 
-- [ ] Phase 14 Plans 03-07: De-identification (DicomDeidentifier, date shifting, pixel cleaning)
+- [ ] Phase 14 Plans 05-07: De-identification (DicomDeidentifier engine, pixel cleaning)
 
 ## Blocked
 
@@ -110,7 +112,7 @@
 | 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-31 |
 | 18 | SCP Services | COMPLETE | 6/6 | 2026-02-01 | 2026-02-01 |
 | 19 | Modality Worklist | COMPLETE | 4/4 | 2026-02-01 | 2026-02-01 |
-| 14 | De-identification | IN PROGRESS | 2/7 | 2026-02-02 | - |
+| 14 | De-identification | IN PROGRESS | 4/7 | 2026-02-02 | - |
 
 ## Key Decisions Log
 
@@ -130,20 +132,23 @@
 | 2026-02-02 | 14-02 | Source-generated JSON serializer | AOT/trimming compatibility for context persistence |
 | 2026-02-02 | 14-02 | ConcurrentDictionary for thread safety | Enable parallel batch processing |
 | 2026-02-02 | 14-02 | Random UID generation | Maximum privacy - no correlation possible |
+| 2026-02-02 | 14-04 | Modality-specific region templates | Different equipment vendors place burned-in text predictably |
+| 2026-02-02 | 14-04 | 70% confidence for heuristic regions | Indicates uncertainty without OCR verification |
+| 2026-02-02 | 14-04 | Relative coordinates with negative offsets | Support anchoring regions to any edge |
 
 ## Session Continuity
 
 **Last session**: 2026-02-02
-**Stopped at**: Completed 14-02-PLAN.md (Core De-identification Types)
+**Stopped at**: Completed 14-04-PLAN.md (Burned-in PHI Detection)
 **Resume file**: None
-**Next step**: Continue Phase 14 plans 03-07 (DicomDeidentifier, date shifting, pixel cleaning)
+**Next step**: Continue Phase 14 plans 05-07 (DicomDeidentifier engine, pixel cleaning)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current milestone**: v2.0.0 - Network, Codecs & De-identification
-2. **Current phase**: Phase 14 - De-identification (1/7 plans complete)
+2. **Current phase**: Phase 14 - De-identification (4/7 plans complete)
 3. **v1.0.0 accomplishments**:
    - **Phase 1**: Core data model with source-generated DICOM dictionary (4000+ tags, 1000+ UIDs)
    - **Phase 2**: Basic file reading with streaming async support
@@ -161,9 +166,9 @@ If resuming after a break:
    - **Phase 13**: Native Codecs Package complete (9/9 plans)
    - **Phase 18**: SCP Services complete (6/6 plans)
    - **Phase 19**: Modality Worklist complete (4/4 plans)
-   - **Phase 14**: De-identification in progress (2/7 plans)
+   - **Phase 14**: De-identification in progress (4/7 plans)
 5. **Test coverage**: 1650 tests passing (25 skipped)
 6. **Known issues**: None
 
 ---
-*Last updated: 2026-02-02 (Phase 14 progress - 2/7 plans done)*
+*Last updated: 2026-02-02 (Phase 14 progress - 4/7 plans done)*

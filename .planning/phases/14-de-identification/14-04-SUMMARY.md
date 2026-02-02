@@ -1,124 +1,174 @@
-# Phase 14 Plan 04: Date/Time Shifting Summary
+---
+phase: 14-de-identification
+plan: 04
+subsystem: deidentification
+tags: [pixel-data, phi-detection, overlay-planes, modality]
 
-**Completed:** 2026-01-30
-**Duration:** ~8 minutes
+# Dependency Graph
+requires:
+  - 14-02  # Core de-identification types
+provides:
+  - IBurnedInPhiDetector interface
+  - PhiRegion and PhiDetectionResult types
+  - HeuristicPhiDetector implementation
+  - BurnedInPhiRegions modality definitions
+  - OverlayPlaneProcessor for 60xx groups
+  - HighRiskModalities classification
+affects:
+  - 14-06  # Pixel cleaning implementation
 
+# Tech Tracking
+tech-stack:
+  added: []
+  patterns:
+    - "Heuristic region detection by modality"
+    - "Overlay plane (60xx group) processing"
+    - "Confidence-scored PHI regions"
+
+# File Tracking
+key-files:
+  created:
+    - src/SharpDicom/Deidentification/PixelCleaner/IBurnedInPhiDetector.cs
+    - src/SharpDicom/Deidentification/PixelCleaner/BurnedInPhiRegions.cs
+    - src/SharpDicom/Deidentification/PixelCleaner/HeuristicPhiDetector.cs
+    - src/SharpDicom/Deidentification/PixelCleaner/OverlayPlaneProcessor.cs
+  modified: []
+
+# Decisions
+decisions:
+  - id: 14-04-001
+    choice: "Modality-specific region templates"
+    why: "Different equipment vendors place burned-in text in predictable locations"
+  - id: 14-04-002
+    choice: "70% confidence for heuristic regions"
+    why: "Indicates uncertainty without OCR verification"
+  - id: 14-04-003
+    choice: "Relative coordinates with negative offsets"
+    why: "Support anchoring regions to any edge of variable-size images"
+
+# Metrics
+duration: 15m
+completed: 2026-02-02
+test-results:
+  total: 1675
+  passed: 1650
+  failed: 0
+  skipped: 25
 ---
 
-## One-Liner
+# Phase 14 Plan 04: Burned-in PHI Detection Summary
 
-Date shifter with configurable strategies (Fixed, RandomPerPatient, RemoveTime, Remove), IDateOffsetStore persistence, and DT timezone preservation.
-
----
+PHI region detection infrastructure with modality-specific heuristics and overlay plane processing for DICOM de-identification.
 
 ## What Was Built
 
-### Date Shift Strategies
-- **DateShiftStrategy.Fixed**: Apply consistent offset to all dates
-- **DateShiftStrategy.RandomPerPatient**: Random offset within range, consistent per patient
-- **DateShiftStrategy.RemoveTime**: Shift dates, remove time components
-- **DateShiftStrategy.Remove**: Replace all dates with dummy value (19000101)
+### IBurnedInPhiDetector Interface
 
-### Configuration Types
-- **DateShiftConfig**: Configuration with strategy, offset ranges, random seed
-- **DateShiftConfig.Default**: Fixed strategy, -365 days offset
-- **DateShiftConfig.Research**: Random per patient, +/- 365 days
-- **DateShiftConfig.ClinicalTrial**: RemoveTime strategy, -100 days
+Core abstraction for PHI detection in pixel data:
 
-### Persistence Interface
-- **IDateOffsetStore**: Interface for persistent patient offset storage
-- **InMemoryDateOffsetStore**: Thread-safe in-memory implementation
+```csharp
+public interface IBurnedInPhiDetector
+{
+    ValueTask<PhiDetectionResult> DetectAsync(
+        ReadOnlyMemory<byte> pixelData,
+        int width, int height,
+        int bitsAllocated, int samplesPerPixel,
+        string? modality,
+        CancellationToken ct = default);
+}
+```
 
-### Result Tracking
-- **DateShiftResult**: Statistics (DatesShifted, TimesShifted, DateTimesShifted, AppliedOffset, Warnings)
+Supporting types:
+- `PhiRegion`: Record struct with X, Y, Width, Height, Confidence, Source
+- `PhiDetectionResult`: Regions list, modality info, BurnedInAnnotation status
+- `HighRiskModalities`: Static class with US, SC, XA, ES, RF classification
 
----
+### HeuristicPhiDetector
 
-## Key Files
+Region-based detector without OCR:
+- Returns modality-specific PHI-prone regions
+- No actual text recognition (fast, deterministic)
+- 70% confidence score indicating heuristic detection
+- Suitable for conservative masking approaches
 
-| File | Purpose |
-|------|---------|
-| `src/SharpDicom/Deidentification/DateShifter.cs` | Date shifter, config, strategies, offset store |
-| `tests/SharpDicom.Tests/Deidentification/DateShifterTests.cs` | 30 comprehensive tests |
+### BurnedInPhiRegions
 
----
+Predefined region templates by modality:
+
+| Modality | Regions |
+|----------|---------|
+| US (Ultrasound) | Top/bottom banners, all four corners |
+| SC (Secondary Capture) | Same as US (worst-case assumption) |
+| XA/RF (Angio/Fluoro) | Top/bottom banners, top-left corner |
+| CT/MR/DX/CR/MG | Corner regions only (typically minimal burned-in) |
+| ES (Endoscopy) | Same as US (similar equipment patterns) |
+
+Region template format:
+- Positive coordinates: offset from top-left
+- Negative coordinates: offset from bottom-right
+- -1 dimension: full width or height
+
+### OverlayPlaneProcessor
+
+Handles DICOM overlay planes (60xx groups):
+
+```csharp
+// Detection
+GetOverlayGroups(dataset)    // Enumerate all present overlays
+HasOverlayPlanes(dataset)    // Quick presence check
+
+// Removal
+RemoveAllOverlays(dataset)   // Remove all 60xx elements
+RemoveOverlay(dataset, group) // Remove specific overlay
+
+// Modification
+ClearOverlayData(dataset)    // Zero out data, keep metadata
+
+// Info
+GetOverlayInfo(dataset, group) // Get dimensions, type, label
+```
+
+Overlay planes can contain text annotations separate from pixel data and must be processed for complete PHI removal.
 
 ## Verification Results
 
-```
-Build: 0 warnings, 0 errors
-Tests: 30/30 passing
-```
-
-### Test Coverage
-- Fixed offset shifting (multiple dates, temporal order)
-- Random per-patient strategy (consistent per patient, different between patients)
-- Remove strategy (replaces with 19000101)
-- RemoveTime strategy (shifts date, zeros time)
-- DT timezone preservation (+NNNN and -NNNN formats)
-- Sequence handling (recursive processing)
-- DateShiftResult statistics
-- IDateOffsetStore interface and InMemoryDateOffsetStore
-
----
-
-## Commits
-
-| Hash | Message |
-|------|---------|
-| 1350a5b | feat(14-04): add date shift configuration and strategy types |
-| 95b1b6a | test(14-04): add comprehensive date shifter tests |
-
----
+1. **Build**: All targets (netstandard2.0, net8.0, net9.0, net10.0) compile successfully
+2. **Tests**: 1650 passed, 0 failed, 25 skipped
+3. **High-risk modalities**: US, SC, XA, ES, RF correctly flagged
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 3 - Blocking] Fixed InMemoryUidStore System.Text.Json issues**
-- **Found during:** Task 1 build verification
-- **Issue:** Pre-existing CA1305, IL2026, IL3050 errors in InMemoryUidStore.cs blocking build
-- **Fix:** Replaced System.Text.Json serialization with manual JSON building, used CultureInfo.InvariantCulture
-- **Files modified:** src/SharpDicom/Deidentification/InMemoryUidStore.cs
-- **Commit:** 1350a5b
+**1. [Rule 3 - Blocking] ValueTask.FromResult compatibility**
+- **Found during:** Task 2
+- **Issue:** `ValueTask.FromResult` not available in netstandard2.0
+- **Fix:** Added conditional compilation for netstandard2.0
+- **Files modified:** HeuristicPhiDetector.cs
 
-**2. [Rule 1 - Bug] Fixed RemoveTime strategy not applying date offset**
-- **Found during:** Task 3 test execution
-- **Issue:** RemoveTime strategy returned TimeSpan.Zero instead of FixedOffset
-- **Fix:** Changed GetOffset to return _config.FixedOffset for RemoveTime strategy
-- **Files modified:** src/SharpDicom/Deidentification/DateShifter.cs
-- **Commit:** 95b1b6a
-
----
-
-## API Usage Examples
-
-```csharp
-// Fixed offset shifting
-var config = new DateShiftConfig
-{
-    Strategy = DateShiftStrategy.Fixed,
-    FixedOffset = TimeSpan.FromDays(-100)
-};
-var shifter = new DateShifter(config);
-var result = shifter.ShiftDatesWithResult(dataset);
-
-// Random per-patient with persistence
-var offsetStore = new InMemoryDateOffsetStore(seed: 12345);
-var shifter = new DateShifter(DateShiftConfig.Research, offsetStore);
-
-// Clinical trial preset (shift dates, remove time)
-var shifter = new DateShifter(DateShiftConfig.ClinicalTrial);
-
-// Result inspection
-Console.WriteLine($"Dates shifted: {result.DatesShifted}");
-Console.WriteLine($"Applied offset: {result.AppliedOffset.TotalDays} days");
-```
-
----
+**2. [Rule 3 - Blocking] IReadOnlySet compatibility**
+- **Found during:** Task 1
+- **Issue:** `IReadOnlySet<T>` not available in netstandard2.0
+- **Fix:** Use `HashSet<T>` directly on netstandard2.0
+- **Files modified:** IBurnedInPhiDetector.cs
 
 ## Next Phase Readiness
 
-- DateShifter ready for integration with DicomDeidentifier
-- IDateOffsetStore interface supports future persistent implementations (SQLite)
-- All VR types (DA, TM, DT) handled correctly with timezone preservation
+**Dependencies Met:**
+- IBurnedInPhiDetector interface ready for 14-06 (pixel cleaning)
+- OverlayPlaneProcessor ready for integration with DicomDeidentifier
+- HeuristicPhiDetector provides baseline detection without external dependencies
+
+**Future Enhancements (not in scope):**
+- OCR-based detector implementation
+- Machine learning PHI detection
+- Vendor-specific region profiles
+
+## Commits
+
+| Hash | Description |
+|------|-------------|
+| 0050a09 | feat(14-04): add IBurnedInPhiDetector interface and PhiRegion types |
+| bf8cf65 | feat(14-04): add OverlayPlaneProcessor for 60xx group handling |
+
+Note: BurnedInPhiRegions.cs and HeuristicPhiDetector.cs were committed alongside 14-03 DateShifter due to linter auto-fixes affecting multiple files.
