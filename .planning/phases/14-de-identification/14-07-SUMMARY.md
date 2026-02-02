@@ -1,146 +1,214 @@
 ---
-phase: 14
+phase: 14-de-identification
 plan: 07
 subsystem: deidentification
-tags: [pixel-data, redaction, burned-in-annotation, clean-pixel-data]
+tags: [ocr, tesseract, phi-detection, pixel-data]
 
-dependency-graph:
-  requires: [14-05]
-  provides: [PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector]
-  affects: [14-08]
+# Dependency Graph
+requires:
+  - 14-04  # IBurnedInPhiDetector interface
+provides:
+  - TesseractPhiDetector OCR-based detection
+  - Graceful fallback to heuristics
+  - Multi-format image handling
+affects:
+  - 14-06  # Pixel cleaning can use OCR for better detection
 
+# Tech Tracking
 tech-stack:
-  added: []
-  patterns: [region-based-redaction, modality-risk-assessment]
+  added:
+    - TesseractOCR 5.5.1 (conditional, net6.0+ only)
+  patterns:
+    - "Conditional compilation for optional dependencies"
+    - "Graceful fallback when native libraries unavailable"
+    - "Image format conversion (16-bit, RGB to grayscale)"
 
+# File Tracking
 key-files:
   created:
-    - src/SharpDicom/Deidentification/PixelDataRedactor.cs
-    - src/SharpDicom/Deidentification/RedactionRegion.cs
-    - src/SharpDicom/Deidentification/RedactionOptions.cs
-    - src/SharpDicom/Deidentification/BurnedInAnnotationDetector.cs
-    - tests/SharpDicom.Tests/Deidentification/PixelDataRedactorTests.cs
+    - src/SharpDicom/Deidentification/PixelCleaner/TesseractPhiDetector.cs
+    - tests/SharpDicom.Tests/Deidentification/TesseractPhiDetectorTests.cs
   modified:
-    - src/SharpDicom/Data/DicomTag.WellKnown.cs
+    - src/SharpDicom/SharpDicom.csproj
+    - Directory.Packages.props
 
+# Decisions
 decisions:
-  - id: static-redactor-api
-    description: Made RedactRegions a static method since no instance state needed
-    rationale: Simpler API, no object lifecycle management required
+  - id: 14-07-001
+    choice: "Conditional compilation with TESSERACT_AVAILABLE"
+    why: "TesseractOCR has native dependencies not available on netstandard2.0"
+  - id: 14-07-002
+    choice: "Graceful fallback to HeuristicPhiDetector"
+    why: "System must work without Tesseract installed (optional dependency)"
+  - id: 14-07-003
+    choice: "0.6 default confidence threshold"
+    why: "Balance between detecting text and avoiding false positives"
+  - id: 14-07-004
+    choice: "Combine OCR and heuristic regions"
+    why: "OCR provides precision, heuristics provide coverage for undetected areas"
 
-metrics:
-  duration: ~15 minutes
-  completed: 2026-01-29
+# Metrics
+duration: 16m
+completed: 2026-02-02
+test-results:
+  total: 1689
+  passed: 1663
+  failed: 0
+  skipped: 26
 ---
 
-# Phase 14 Plan 07: Pixel Data Redaction Summary
+# Phase 14 Plan 07: TesseractOCR Integration Summary
 
-**One-liner:** Region-based pixel data redaction for burned-in annotation removal with modality-aware risk detection.
+OCR-based PHI detection using Tesseract, with graceful fallback to heuristics when Tesseract is unavailable.
 
 ## What Was Built
 
-### RedactionRegion (Task 1)
-Struct defining rectangular regions for redaction:
-- X, Y coordinates (0-based, top-left origin)
-- Width and Height in pixels
-- Optional Frame index for frame-specific redaction
-- Factory methods: TopBar, BottomBar, LeftBar, RightBar, FromCorners
-- IEquatable implementation for value comparison
+### TesseractPhiDetector
 
-### RedactionOptions (Task 1)
-Configuration class for redaction operations:
-- Regions list with IReadOnlyList interface
-- FillValue (uint) for 8/16/32-bit pixels, RGB color encoding
-- UpdateBurnedInAnnotationTag toggle
-- SkipCompressed flag for encapsulated pixel data handling
-- Presets: UltrasoundDefault, SecondaryCapture, Endoscopy, FullImage
+OCR-based detector implementing IBurnedInPhiDetector:
 
-### PixelDataRedactor (Task 2)
-Static class implementing Clean Pixel Data Option:
-- `RedactRegions(DicomDataset, RedactionOptions)` entry point
-- Supports 8-bit, 16-bit, 32-bit pixel depths
-- Handles grayscale (1 sample) and RGB (3 samples) images
-- Multi-frame support with per-frame or all-frame redaction
-- Automatic region clamping to image bounds
-- Updates BurnedInAnnotation (0028,0301) tag to "NO"
-- Returns RedactionResult with statistics and warnings
-
-### BurnedInAnnotationDetector (Task 3)
-Static class for modality risk assessment:
-- High risk: US, ES, SC, XC, GM, SM, OP, OPT, ECG, HD
-- Moderate risk: XA, RF, MG, DX, CR, PX, IO
-- Checks BurnedInAnnotation tag value
-- Analyzes ImageType for SECONDARY/CAPTURE indicators
-- Case-insensitive modality matching
-- SuggestRedactionOptions() provides modality-appropriate presets
-
-### Well-Known Tags Added
-- DicomTag.Modality (0008,0060)
-- DicomTag.ImageType (0008,0008)
-- DicomTag.BurnedInAnnotation (0028,0301)
-
-## Technical Details
-
-### Pixel Fill Algorithm
 ```csharp
-// 8-bit grayscale: direct byte assignment
-// 8-bit RGB: R from bits 16-23, G from 8-15, B from 0-7
-// 16-bit: little-endian write of lower 16 bits
-// 32-bit: little-endian write of full uint
+public sealed class TesseractPhiDetector : IBurnedInPhiDetector, IDisposable
+{
+    // On net6.0+ with Tesseract available:
+    // - Uses TesseractOCR engine for text detection
+    // - Returns word-level bounding boxes with confidence scores
+    // - Merges overlapping OCR regions
+    // - Combines with heuristic regions for comprehensive coverage
+
+    // On netstandard2.0 or when Tesseract unavailable:
+    // - Falls back to HeuristicPhiDetector
+    // - No OCR performed
+
+    public bool IsOcrAvailable { get; }  // Check if OCR is operational
+}
 ```
 
-### Multi-Frame Handling
-- Frame size calculated from PixelDataInfo.FrameSize
-- Each frame processed sequentially
-- Region.Frame filters to specific frame (null = all frames)
-- FramesModified count tracks actual changes
+### Conditional Compilation
 
-### netstandard2.0 Compatibility
-- Custom HashCode polyfill for RedactionRegion
-- ContainsIgnoreCase helper for string matching
-- Conditional ThrowIfNull patterns
+TesseractOCR only available on modern .NET:
 
-## Tests Added
+```xml
+<!-- In SharpDicom.csproj -->
+<PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+  <DefineConstants>$(DefineConstants);TESSERACT_AVAILABLE</DefineConstants>
+</PropertyGroup>
 
-55 new tests in PixelDataRedactorTests.cs:
-- Single/multiple region redaction
-- 8-bit, 16-bit, 32-bit pixel depth handling
-- RGB color fill verification
-- Little-endian byte order verification
-- Multi-frame with all-frames and frame-specific regions
-- Bounds clamping (negative coords, exceeding dimensions)
-- BurnedInAnnotation tag update verification
-- BurnedInAnnotationDetector risk level detection
-- Modality-based risk assessment
-- ImageType-based detection (SECONDARY, CAPTURE)
+<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+  <PackageReference Include="TesseractOCR" />
+</ItemGroup>
+```
 
-## Files Created/Modified
+### Image Format Handling
 
-| File | Change |
-|------|--------|
-| RedactionRegion.cs | New - region specification struct |
-| RedactionOptions.cs | New - redaction configuration |
-| PixelDataRedactor.cs | New - redaction implementation |
-| BurnedInAnnotationDetector.cs | New - risk detection |
-| PixelDataRedactorTests.cs | New - comprehensive tests |
-| DicomTag.WellKnown.cs | Added Modality, ImageType, BurnedInAnnotation |
+Converts various DICOM pixel formats to 8-bit grayscale for OCR:
 
-## Commits
+| Input Format | Conversion |
+|-------------|------------|
+| 8-bit grayscale | Direct copy |
+| 16-bit grayscale | High byte extraction |
+| 8-bit RGB | ITU-R BT.601 luma (0.299R + 0.587G + 0.114B) |
 
-| Hash | Message |
-|------|---------|
-| 9ac592f | feat(14-07): add redaction region types for pixel data redaction |
-| 6bd4390 | feat(14-07): add PixelDataRedactor for burned-in annotation removal |
-| a3507ce | test(14-08): add de-identification integration tests (includes BurnedInAnnotationDetector) |
+### Graceful Fallback
+
+Detection strategy when Tesseract unavailable:
+
+1. Constructor catches initialization errors silently
+2. `IsOcrAvailable` returns `false`
+3. `DetectAsync` delegates to `HeuristicPhiDetector`
+4. Returns modality-specific regions without OCR
+
+### Region Combination
+
+When OCR is available, combines detection sources:
+
+1. Run OCR to get word-level bounding boxes
+2. Filter by confidence threshold (default 0.6)
+3. Merge overlapping OCR regions
+4. Get heuristic regions for modality
+5. Add non-overlapping heuristic regions
+6. Return combined result
+
+## Test Coverage
+
+13 unit tests covering:
+
+- Constructor with invalid/null paths
+- Fallback behavior verification
+- Image format conversion (8-bit, 16-bit, RGB)
+- High-risk modality detection
+- Cancellation token handling
+- Interface implementation checks
+- Dispose pattern (multiple calls)
+- Explicit integration test for real Tesseract
+
+## Tesseract Requirements
+
+For OCR to function, users need:
+
+1. **tessdata folder** with trained data files
+2. **eng.traineddata** at minimum (from tesseract-ocr/tessdata or tessdata_best)
+3. **TESSDATA_PREFIX** environment variable or explicit path to constructor
+
+Without these, system automatically falls back to heuristic detection.
+
+## Verification Results
+
+1. **Build**: All targets (netstandard2.0, net8.0, net9.0, net10.0) compile successfully
+2. **Tests**: 1689 total (1663 passed, 26 skipped)
+3. **Interface**: TesseractPhiDetector properly implements IBurnedInPhiDetector
+4. **Fallback**: Works correctly when Tesseract not installed
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 1 - Bug] CA1822 analyzer warning on netstandard2.0**
+- **Found during:** Task 2 build
+- **Issue:** `IsOcrAvailable` property always returns false on netstandard2.0, triggering CA1822
+- **Fix:** Linter auto-fixed by referencing `_fallback` field in expression
+- **Files modified:** TesseractPhiDetector.cs
+
+**2. [Rule 2 - Missing Critical] TesseractOCR API differences**
+- **Found during:** Task 2 implementation
+- **Issue:** Plan used hypothetical API (`TesseractEngine`, `Pix.LoadFromMemory`, `GetIterator`)
+- **Fix:** Used actual TesseractOCR API (`Engine`, `Image.LoadFromMemory`, `page.Layout`)
+- **Files modified:** TesseractPhiDetector.cs
+
+**3. [Rule 2 - Missing Critical] eng.traineddata existence check**
+- **Found during:** Task 2 implementation
+- **Issue:** Constructor would fail if tessdata folder exists but eng.traineddata missing
+- **Fix:** Added explicit check for eng.traineddata file before creating Engine
+- **Files modified:** TesseractPhiDetector.cs
 
 ## Next Phase Readiness
 
-Ready for 14-08 (Integration and Documentation):
-- PixelDataRedactor API complete and tested
-- BurnedInAnnotationDetector provides risk assessment
-- Clean Pixel Data Option can be integrated into DicomDeidentifier
-- Modality-aware default redaction regions available
+**Dependencies Met:**
+- TesseractPhiDetector available for pixel cleaning in 14-06
+- Graceful degradation ensures system works without external dependencies
+- Tests verify both OCR and fallback paths
+
+**Usage Example:**
+```csharp
+// With Tesseract (best accuracy)
+using var detector = new TesseractPhiDetector("/path/to/tessdata");
+
+// Without Tesseract (heuristic fallback)
+using var detector = new TesseractPhiDetector();  // Uses fallback
+
+var result = await detector.DetectAsync(
+    pixelData, width, height, 8, 1, "US");
+
+foreach (var region in result.Regions)
+{
+    // region.Source is "OCR" or "Heuristic"
+    Console.WriteLine($"{region.Source}: ({region.X},{region.Y}) {region.Width}x{region.Height}");
+}
+```
+
+## Commits
+
+| Hash | Description |
+|------|-------------|
+| f957da9 | feat(14-07): add TesseractPhiDetector for OCR-based PHI detection |
+| 82a072f | test(14-07): add TesseractPhiDetector tests |
