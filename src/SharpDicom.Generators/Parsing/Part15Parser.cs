@@ -8,7 +8,7 @@ using System.Xml.Linq;
 namespace SharpDicom.Generators.Parsing
 {
     /// <summary>
-    /// Parses DICOM Part 15 (Security) XML to extract de-identification action definitions.
+    /// Parses DICOM Part 15 (Security and System Management Profiles) XML to extract confidentiality action definitions.
     /// </summary>
     internal static class Part15Parser
     {
@@ -16,16 +16,15 @@ namespace SharpDicom.Generators.Parsing
         private static readonly Regex TagPattern = new Regex(@"\(([0-9A-Fa-fxX]{4}),([0-9A-Fa-fxX]{4})\)", RegexOptions.Compiled);
 
         /// <summary>
-        /// Parses de-identification action definitions from Part 15 XML document.
+        /// Parses confidentiality action definitions from Part 15 XML document (Table E.1-1).
         /// </summary>
         /// <param name="doc">The parsed XML document.</param>
-        /// <returns>Enumerable of de-identification action definitions.</returns>
-        public static IEnumerable<DeidentificationActionDefinition> ParseDeidentificationActions(XDocument doc)
+        /// <returns>Enumerable of confidentiality action definitions.</returns>
+        public static IEnumerable<ConfidentialityActionDefinition> ParseConfidentialityActions(XDocument doc)
         {
-            // Find the de-identification table by looking for xml:id="table_E.1-1"
-            // or caption containing "Application Level Confidentiality Profile Attributes"
+            // Find the table with xml:id="table_E.1-1" or caption containing "Application Level Confidentiality Profile Attributes"
             var tables = doc.Descendants(DocBookNs + "table");
-            var deidTable = tables.FirstOrDefault(t =>
+            var actionTable = tables.FirstOrDefault(t =>
             {
                 var xmlId = t.Attribute(XNamespace.Xml + "id")?.Value;
                 if (xmlId == "table_E.1-1")
@@ -35,13 +34,13 @@ namespace SharpDicom.Generators.Parsing
                 return caption != null && caption.Contains("Application Level Confidentiality Profile Attributes");
             });
 
-            if (deidTable == null)
+            if (actionTable == null)
             {
-                yield break; // No table found
+                yield break; // No table found, return empty
             }
 
             // Find tbody
-            var tbody = deidTable.Descendants(DocBookNs + "tbody").FirstOrDefault();
+            var tbody = actionTable.Descendants(DocBookNs + "tbody").FirstOrDefault();
             if (tbody == null)
             {
                 yield break;
@@ -57,8 +56,8 @@ namespace SharpDicom.Generators.Parsing
                 }
 
                 // Column 0: Attribute Name
-                var attributeName = GetCellText(cells[0]);
-                if (string.IsNullOrWhiteSpace(attributeName))
+                var name = GetCellText(cells[0]);
+                if (string.IsNullOrWhiteSpace(name))
                 {
                     continue;
                 }
@@ -75,7 +74,7 @@ namespace SharpDicom.Generators.Parsing
                 var groupText = tagMatch.Groups[1].Value;
                 var elementText = tagMatch.Groups[2].Value;
 
-                // Handle masked tags (with 'x')
+                // Handle masked tags (with 'x') - use 00 in place of xx
                 if (groupText.Contains('x') || groupText.Contains('X') ||
                     elementText.Contains('x') || elementText.Contains('X'))
                 {
@@ -93,49 +92,50 @@ namespace SharpDicom.Generators.Parsing
                     continue;
                 }
 
-                // Column 2: Retired (Y/N)
-                var isRetired = GetCellText(cells[2]).Equals("Y", StringComparison.OrdinalIgnoreCase);
+                // Table structure (15 columns total):
+                // 0: Attribute Name
+                // 1: Tag
+                // 2: Retired (Y/N)
+                // 3: In Std Composite IOD (Y/N)
+                // 4: Basic Profile
+                // 5: Retain Safe Private Option
+                // 6: Retain UIDs Option
+                // 7: Retain Device Identity Option
+                // 8: Retain Institution Identity Option
+                // 9: Retain Patient Characteristics Option
+                // 10: Retain Long Full Dates Option
+                // 11: Retain Long Modified Dates Option
+                // 12: Clean Description Option
+                // 13: Clean Structured Content Option
+                // 14: Clean Graphics Option
 
-                // Column 3: In Std IOD (Y/N)
-                var inStandardIOD = GetCellText(cells[3]).Equals("Y", StringComparison.OrdinalIgnoreCase);
+                var basicAction = GetActionCode(cells, 4);
+                var retainSafePrivate = GetActionCode(cells, 5);
+                var retainUids = GetActionCode(cells, 6);
+                var retainDeviceIdentity = GetActionCode(cells, 7);
+                var retainInstitutionIdentity = GetActionCode(cells, 8);
+                var retainPatientCharacteristics = GetActionCode(cells, 9);
+                var retainLongFullDates = GetActionCode(cells, 10);
+                var retainLongModifDates = GetActionCode(cells, 11);
+                var cleanDesc = GetActionCode(cells, 12);
+                var cleanStructuredContent = GetActionCode(cells, 13);
+                var cleanGraph = GetActionCode(cells, 14);
 
-                // Column 4: Basic Profile action
-                var basicProfile = ParseAction(GetCellText(cells[4]));
-                if (string.IsNullOrEmpty(basicProfile))
-                {
-                    basicProfile = "X"; // Default to remove if no action specified
-                }
-
-                // Columns 5-14: Optional profile actions (may not all be present)
-                var retainSafePrivate = GetActionOrNull(cells, 5);
-                var retainUids = GetActionOrNull(cells, 6);
-                var retainDeviceId = GetActionOrNull(cells, 7);
-                var retainInstitutionId = GetActionOrNull(cells, 8);
-                var retainPatientChars = GetActionOrNull(cells, 9);
-                var retainLongFull = GetActionOrNull(cells, 10);
-                var retainLongModified = GetActionOrNull(cells, 11);
-                var cleanDescriptors = GetActionOrNull(cells, 12);
-                var cleanStructured = GetActionOrNull(cells, 13);
-                var cleanGraphics = GetActionOrNull(cells, 14);
-
-                yield return new DeidentificationActionDefinition(
+                yield return new ConfidentialityActionDefinition(
                     group,
                     element,
-                    CleanKeyword(attributeName),
-                    isRetired,
-                    inStandardIOD,
-                    basicProfile,
-                    retainSafePrivate ?? string.Empty,
-                    retainUids ?? string.Empty,
-                    retainDeviceId ?? string.Empty,
-                    retainInstitutionId ?? string.Empty,
-                    retainPatientChars ?? string.Empty,
-                    retainLongFull ?? string.Empty,
-                    retainLongModified ?? string.Empty,
-                    cleanDescriptors ?? string.Empty,
-                    cleanStructured ?? string.Empty,
-                    cleanGraphics ?? string.Empty
-                );
+                    name,
+                    basicAction,
+                    retainSafePrivate,
+                    retainUids,
+                    retainDeviceIdentity,
+                    retainInstitutionIdentity,
+                    retainPatientCharacteristics,
+                    retainLongFullDates,
+                    retainLongModifDates,
+                    cleanDesc,
+                    cleanStructuredContent,
+                    cleanGraph);
             }
         }
 
@@ -151,68 +151,25 @@ namespace SharpDicom.Generators.Parsing
             return sb.ToString().Trim();
         }
 
-        private static string? GetActionOrNull(List<XElement> cells, int index)
+        private static string GetActionCode(List<XElement> cells, int index)
         {
             if (index >= cells.Count)
             {
-                return null;
+                return string.Empty;
             }
 
             var text = GetCellText(cells[index]);
             if (string.IsNullOrWhiteSpace(text))
             {
-                return null;
-            }
-
-            return ParseAction(text);
-        }
-
-        private static string ParseAction(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
                 return string.Empty;
             }
 
-            // Clean the text and normalize action codes
-            text = text.Trim().ToUpperInvariant();
-
-            // Handle compound actions
-            text = text.Replace(" ", "");
-
-            // Map common action patterns
-            return text switch
+            // Clean up action codes - remove footnote markers like *, strip whitespace
+            // Valid codes: D, Z, X, K, C, U, and combinations like Z/D, X/Z, X/D, X/Z/D, X/Z/U*
+            var cleaned = new StringBuilder();
+            foreach (var ch in text)
             {
-                "D" => "D",
-                "Z" => "Z",
-                "X" => "X",
-                "K" => "K",
-                "C" => "C",
-                "U" => "U",
-                "U*" => "U",
-                "Z/D" => "ZD",
-                "X/Z" => "XZ",
-                "X/D" => "XD",
-                "X/Z/D" => "XZD",
-                "X/Z/U" => "XZU",
-                "X/Z/U*" => "XZU",
-                _ => text.Length <= 5 ? text : string.Empty // Allow short codes, skip long text
-            };
-        }
-
-        private static string CleanKeyword(string keyword)
-        {
-            if (string.IsNullOrWhiteSpace(keyword))
-            {
-                return string.Empty;
-            }
-
-            // Remove zero-width spaces (U+200B and similar)
-            var cleaned = new StringBuilder(keyword.Length);
-            foreach (var ch in keyword)
-            {
-                // Keep only normal characters, skip zero-width and control chars
-                if (ch >= 32 && ch != '\u200B' && ch != '\u200C' && ch != '\u200D' && ch != '\uFEFF')
+                if (char.IsLetter(ch) || ch == '/')
                 {
                     cleaned.Append(ch);
                 }
