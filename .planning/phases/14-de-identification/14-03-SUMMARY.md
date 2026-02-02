@@ -2,112 +2,186 @@
 phase: 14-de-identification
 plan: 03
 subsystem: deidentification
-tags: [uid-mapping, sqlite, persistence, bidirectional-lookup, ps3.15]
-
-# Dependency graph
-requires:
-  - phase: 14-02
-    provides: Core deidentification types and actions
-provides:
-  - IUidMappingStore interface with scope-aware mapping
-  - InMemoryUidStore implementation with JSON export
-  - SqliteUidStore persistent storage with WAL mode
-  - UidMapper facade with standard UID preservation
-  - UidRemapper enhanced with sequence traversal
-  - Bidirectional UID lookup (original to new, new to original)
-affects: [14-04, 14-05, 14-06, DicomDeidentifier integration]
-
-# Tech tracking
+status: complete
+completed: 2026-02-02
+duration: ~18min
+tags: [de-identification, date-shifting, fluent-api, ps3.15]
 tech-stack:
-  added: [Microsoft.Data.Sqlite]
-  patterns: [UUID-derived UID generation (2.25.xxx), thread-safe stores, WAL mode SQLite]
-
+  patterns: [fluent-builder, vr-aware-processing, strategy-pattern]
+dependency-graph:
+  requires: ["14-01", "14-02"]
+  provides: ["DicomDeidentifier", "DateShifter", "DicomDeidentifierBuilder"]
+  affects: ["14-04", "14-05", "14-06", "14-07"]
 key-files:
   created:
-    - src/SharpDicom/Deidentification/IUidMappingStore.cs
-    - src/SharpDicom/Deidentification/SqliteUidStore.cs
-    - src/SharpDicom/Deidentification/UidMapper.cs
+    - src/SharpDicom/Deidentification/DateShifter.cs
+    - src/SharpDicom/Deidentification/DicomDeidentifier.cs
+    - src/SharpDicom/Deidentification/DicomDeidentifierBuilder.cs
   modified:
-    - src/SharpDicom/Deidentification/InMemoryUidStore.cs
-    - src/SharpDicom/Deidentification/UidRemapper.cs
-    - tests/SharpDicom.Tests/Deidentification/UidRemapperTests.cs
-
-key-decisions:
-  - "Standard UIDs preserved: DICOM root 1.2.840.10008.* never remapped"
-  - "UUID-derived UIDs (2.25.xxx) for globally unique remapped values"
-  - "SQLite with WAL mode for concurrent batch processing"
-  - "Manual JSON serialization to avoid AOT/trim warnings"
-
-patterns-established:
-  - "Standard UID preservation: Check IsStandardUid() before remapping"
-  - "Thread-safe stores: Lock all operations for concurrent access"
-  - "Bidirectional lookup: Maintain both original->mapped and mapped->original dictionaries"
-
-# Metrics
-duration: 10min
-completed: 2026-01-30
+    - src/SharpDicom/Deidentification/PixelCleaner/HeuristicPhiDetector.cs
+    - src/SharpDicom/Deidentification/PixelCleaner/BurnedInPhiRegions.cs
+decisions:
+  - id: d1
+    title: "Direct DicomTag constant for PatientAge"
+    context: "Generated DicomTag constants not available at compile time for some TFMs"
+    decision: "Use private static readonly DicomTag with hex values"
+    rationale: "Avoids source generator timing issues across multi-TFM builds"
+  - id: d2
+    title: "Explicit Func<string,bool> for StripPrivateTags"
+    context: ".NET Standard 2.0 doesn't support target-typed conditionals"
+    decision: "Create explicit filter variable before calling StripPrivateTags"
+    rationale: "Cross-TFM compatibility"
+  - id: d3
+    title: "VR comparison via DicomVR equality"
+    context: "DicomVR.Code returns ushort, not string"
+    decision: "Compare vr == DicomVR.DA instead of vr.Code == 'DA'"
+    rationale: "Proper type-safe VR comparison"
+metrics:
+  tasks-completed: 3
+  commits: 3
+  files-created: 3
+  files-modified: 2
+  tests-passing: 1650
+  tests-skipped: 25
 ---
 
-# Phase 14 Plan 03: UID Mapping Summary
+# Phase 14 Plan 03: DicomDeidentifier Engine Summary
 
-**UUID-derived UID remapping with SQLite persistence and standard UID preservation for consistent de-identification**
+DicomDeidentifier core engine with fluent builder API for PS3.15-compliant de-identification
 
-## Performance
+## One-liner
 
-- **Duration:** 10 min
-- **Started:** 2026-01-30T03:53:28Z
-- **Completed:** 2026-01-30T04:03:18Z
-- **Tasks:** 3
-- **Files modified:** 7
+DicomDeidentifier engine with date shifting, UID remapping, action lookup, and fluent builder API
 
-## Accomplishments
-- IUidMappingStore interface with scope-aware mapping, batch operations, and JSON export
-- SqliteUidStore for persistent cross-session mapping with WAL mode
-- Standard DICOM UID preservation (Transfer Syntax, SOP Class UIDs never remapped)
-- UidRemapper recursively traverses sequences for complete UID remapping
-- Bidirectional lookup enables re-identification with mapping file
-- 105 UID-related tests passing
+## Completed Tasks
 
-## Task Commits
+| # | Task | Commit | Files |
+|---|------|--------|-------|
+| 1 | DateShifter for VR-aware date handling | 4927a2b | DateShifter.cs, HeuristicPhiDetector.cs, BurnedInPhiRegions.cs |
+| 2 | DicomDeidentifier core engine | 56a745c | DicomDeidentifier.cs |
+| 3 | DicomDeidentifierBuilder fluent API | b159205 | DicomDeidentifierBuilder.cs |
 
-Each task was committed atomically:
+## Key Implementations
 
-1. **Task 1: Create UID mapping interfaces and in-memory store** - `ac404e1` (feat)
-2. **Task 2: Create SQLite persistent store** - `72d95ce` (feat)
-3. **Task 3: Create UidRemapper for dataset traversal** - `564c935` (feat)
+### DateShifter (Task 1)
 
-## Files Created/Modified
-- `src/SharpDicom/Deidentification/IUidMappingStore.cs` - Storage abstraction with scope, batch operations, JSON export
-- `src/SharpDicom/Deidentification/SqliteUidStore.cs` - SQLite-backed persistent store with WAL mode
-- `src/SharpDicom/Deidentification/UidMapper.cs` - Facade with standard UID preservation
-- `src/SharpDicom/Deidentification/InMemoryUidStore.cs` - Enhanced with IUidMappingStore implementation
-- `src/SharpDicom/Deidentification/UidRemapper.cs` - Added IsStandardUid, sequence traversal
-- `tests/SharpDicom.Tests/Deidentification/UidRemapperTests.cs` - Comprehensive tests for all stores
+VR-aware date/time shifting for DA, TM, DT value representations:
 
-## Decisions Made
-- **Standard UID check:** UIDs starting with 1.2.840.10008. are DICOM-defined and never remapped
-- **UUID format:** 2.25.{uuid-as-decimal} format ensures globally unique UIDs without registration
-- **Manual JSON:** Avoided System.Text.Json to prevent IL2026/IL3050 AOT warnings
-- **WAL mode:** SQLite journal_mode=WAL for better concurrent read/write performance
+```csharp
+// Shift a date element
+var shifted = DateShifter.Shift(element, TimeSpan.FromDays(-180), zeroTime: true);
+
+// Calculate PatientAge from shifted dates
+var age = DateShifter.CalculateAge(birthDate, studyDate); // Returns "042Y"
+
+// Parse DICOM date
+var date = DateShifter.ParseDate("20240115"); // Returns DateOnly(2024,1,15)
+```
+
+- **ShiftDate**: Shifts DA VR (YYYYMMDD format)
+- **ShiftDateTime**: Shifts DT VR with optional time zeroing
+- **ZeroTime**: Replaces TM with 000000
+- **CalculateAge**: Computes AS format (nnnY) from birth/study dates
+- **ParseDate**: Parses YYYYMMDD to DateOnly/DateTime (TFM-aware)
+
+### DicomDeidentifier (Task 2)
+
+Main de-identification engine orchestrating all operations:
+
+```csharp
+var options = new DeidentificationOptions
+{
+    Profile = DeidentificationProfile.Basic,
+    DateShiftStrategy = DateShiftStrategy.PerPatient,
+    DateShiftRange = (-365, 365)
+};
+var deidentifier = new DicomDeidentifier(options);
+await deidentifier.ApplyAsync(dataset);
+```
+
+**Key Links Verified:**
+- `DeidentificationActionTable.GetAction(tag, profile)` - Profile-based action lookup
+- `_context.GetDateOffset(patientId)` - PerPatient date offset
+- `_context.GetStudyDateOffset(studyUid)` - PerStudy date offset
+- `_context.RemapUID(originalUid)` - Consistent UID remapping
+
+**Actions Supported:**
+- **Remove**: Delete element entirely
+- **Zero**: Replace with zero-length value
+- **Dummy**: Type-1 safe dummy values per VR
+- **UidRemap**: Consistent UID remapping via context
+- **Clean**: Date shifting for DA/TM/DT, dummy for text
+- **Keep**: Preserve element, process nested sequences
+
+### DicomDeidentifierBuilder (Task 3)
+
+Fluent API for discoverable configuration:
+
+```csharp
+var deidentifier = DicomDeidentifier.Create()
+    .WithProfile(DeidentificationProfile.Basic)
+    .WithOption(DeidentificationProfile.RetainLongitudinalModifiedDates)
+    .WithDateShift(-365, 365)
+    .WithDateStrategy(DateShiftStrategy.PerPatient)
+    .WithZeroTime()
+    .WithRecalculateAge()
+    .WithRemovePrivateTags()
+    .WithSafePrivateCreator("SIEMENS MR HEADER")
+    .Build();
+```
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
 
-## Issues Encountered
-- Code analysis warnings for ArgumentNullException.ThrowIfNull required conditional compilation for netstandard2.0
-- CA1305 warning on Convert.ToInt32 required explicit CultureInfo.InvariantCulture
+**1. [Rule 3 - Blocking] Fixed pre-existing PixelCleaner compilation errors**
+- **Found during:** Task 1
+- **Issue:** HeuristicPhiDetector.cs used `ValueTask.FromResult` (not available in netstandard2.0), BurnedInPhiRegions.cs had null dereference
+- **Fix:** Added conditional `#if NETSTANDARD2_0` for ValueTask constructor, added null-forgiving operator
+- **Files:** HeuristicPhiDetector.cs, BurnedInPhiRegions.cs
+- **Commit:** 4927a2b
 
-## User Setup Required
+**2. [Rule 1 - Bug] DicomTag.PatientAge not available in netstandard2.0**
+- **Found during:** Task 2
+- **Issue:** Source-generated DicomTag constants not available at compile time for netstandard2.0 TFM
+- **Fix:** Created private static readonly DicomTag with explicit hex values
+- **Files:** DicomDeidentifier.cs
+- **Commit:** 56a745c
 
-None - no external service configuration required.
+**3. [Rule 1 - Bug] Lambda expression type inference for StripPrivateTags**
+- **Found during:** Task 2
+- **Issue:** Target-typed conditional expression not supported in netstandard2.0
+- **Fix:** Created explicit Func<string, bool> variable before calling StripPrivateTags
+- **Files:** DicomDeidentifier.cs
+- **Commit:** 56a745c
+
+## Verification Results
+
+```
+Build: Succeeded (0 warnings, 0 errors)
+Tests: 1650 passed, 0 failed, 25 skipped
+```
+
+Key links verified:
+- `_context.GetDateOffset` pattern found at line 106
+- `_context.GetStudyDateOffset` pattern found at line 109
+- `DeidentificationActionTable.GetAction` pattern found at line 138
+- `_context.RemapUID` pattern found at line 255
 
 ## Next Phase Readiness
-- UID mapping infrastructure complete and tested
-- Ready for Phase 14-04: Date/time shifting module
-- DicomDeidentifier can use UidMapper/UidRemapper for consistent remapping
 
----
-*Phase: 14-de-identification*
-*Plan: 03*
-*Completed: 2026-01-30*
+**Blockers:** None
+
+**Ready for:**
+- 14-04: Burned-in PHI detection (pixel cleaning)
+- 14-05: De-identification tests
+- 14-06: DicomFile.Anonymize extension
+- 14-07: Integration tests
+
+**Context provides:**
+- DicomDeidentifier class for applying de-identification
+- DateShifter for VR-aware date handling
+- DicomDeidentifierBuilder for fluent configuration
+- Recursive sequence processing
+- PatientAge recalculation
+- Custom rule support via IDeidentificationRule

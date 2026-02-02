@@ -91,7 +91,7 @@
 - [x] Phase 19 Plan 04: IMwlQueryHandler interface for MWL SCP
 - [x] Phase 14 Plan 01: De-identification action table generator (PS3.15 parser, 654 tags)
 - [x] Phase 14 Plan 02: Core de-identification types (action enum, profiles, context, options)
-- [x] Phase 14 Plan 03: DateShifter for VR-aware date handling
+- [x] Phase 14 Plan 03: DicomDeidentifier engine (DateShifter, action lookup, UID remapping, fluent builder)
 - [x] Phase 14 Plan 04: Burned-in PHI detection (IBurnedInPhiDetector, HeuristicPhiDetector, OverlayPlaneProcessor)
 
 ## In Progress
@@ -132,6 +132,8 @@
 | 2026-02-02 | 14-02 | Source-generated JSON serializer | AOT/trimming compatibility for context persistence |
 | 2026-02-02 | 14-02 | ConcurrentDictionary for thread safety | Enable parallel batch processing |
 | 2026-02-02 | 14-02 | Random UID generation | Maximum privacy - no correlation possible |
+| 2026-02-02 | 14-03 | Direct DicomTag constant for PatientAge | Avoids source generator timing issues across multi-TFM builds |
+| 2026-02-02 | 14-03 | VR comparison via DicomVR equality | Proper type-safe VR comparison instead of string codes |
 | 2026-02-02 | 14-04 | Modality-specific region templates | Different equipment vendors place burned-in text predictably |
 | 2026-02-02 | 14-04 | 70% confidence for heuristic regions | Indicates uncertainty without OCR verification |
 | 2026-02-02 | 14-04 | Relative coordinates with negative offsets | Support anchoring regions to any edge |
