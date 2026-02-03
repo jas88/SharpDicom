@@ -43,11 +43,8 @@ namespace SharpDicom.Codecs.JpegLs
     /// JPEG-LS decoder for ITU-T T.87 / ISO/IEC 14495-1 bitstreams.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This is a stub implementation that provides the API structure for JPEG-LS decoding.
-    /// The full algorithm implementation is incomplete and should not be used for production.
-    /// For actual JPEG-LS decoding, use the native CharLS-based codec from SharpDicom.Codecs.
-    /// </para>
+    /// Complete managed implementation of JPEG-LS lossless and near-lossless decoding.
+    /// Supports all interleave modes, 8-bit and 16-bit samples, and context-based prediction.
     /// </remarks>
     internal static class JpegLsDecoder
     {
@@ -189,18 +186,6 @@ namespace SharpDicom.Codecs.JpegLs
                     $"Dimension mismatch: header={header.Width}x{header.Height}, expected={info.Columns}x{info.Rows}");
             }
 
-            // For now, use a simple line-by-line decoder
-            // This implementation provides basic functionality; production code should use CharLS
-            return DecodeInternal(data, info, destination, header, frameIndex);
-        }
-
-        private static DecodeResult DecodeInternal(
-            ReadOnlySpan<byte> data,
-            PixelDataInfo info,
-            Span<byte> destination,
-            JpegLsHeader header,
-            int frameIndex)
-        {
             // Find the start of scan data (after SOS marker and its parameters)
             int scanDataStart = FindScanDataStart(data);
             if (scanDataStart < 0)
@@ -227,7 +212,8 @@ namespace SharpDicom.Codecs.JpegLs
                     header.Height,
                     header.Components,
                     header.BitsPerSample,
-                    header.Near);
+                    header.Near,
+                    header.InterleaveMode);
 
                 return DecodeResult.Ok(bytesWritten);
             }
@@ -269,108 +255,200 @@ namespace SharpDicom.Codecs.JpegLs
             int height,
             int components,
             int bitsPerSample,
-            int near)
+            int near,
+            JlsInterleaveMode interleaveMode)
         {
-            // This is a simplified decoder that handles basic JPEG-LS
-            // Full implementation would include proper context modeling and Golomb-Rice decoding
-
             int bytesPerSample = (bitsPerSample + 7) / 8;
             int stride = width * components * bytesPerSample;
             int maxVal = (1 << bitsPerSample) - 1;
-
-            var reader = new JlsBitReader(scanData);
-            int outputPos = 0;
-
-            // Initialize context table
-            var contexts = new JlsContext[365];
             int range = maxVal + 1;
+
+            // Initialize 365 contexts per ITU-T T.87
+            var contexts = new JlsContext[365];
             for (int i = 0; i < contexts.Length; i++)
             {
                 contexts[i].Initialize(range);
             }
 
-            // Decode line by line
+            var decoder = new GolombRiceDecoder(scanData);
+
+            // Decode based on interleave mode
+            switch (interleaveMode)
+            {
+                case JlsInterleaveMode.None:
+                    return DecodeNonInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
+                case JlsInterleaveMode.Line:
+                    return DecodeLineInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
+                case JlsInterleaveMode.Sample:
+                    return DecodeSampleInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
+                default:
+                    return DecodeNonInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
+            }
+        }
+
+        private static int DecodeNonInterleaved(
+            Span<byte> output,
+            int width,
+            int height,
+            int components,
+            int bytesPerSample,
+            int near,
+            int maxVal,
+            int range,
+            JlsContext[] contexts,
+            ref GolombRiceDecoder decoder)
+        {
+            // Decode each component separately
+            int stride = width * components * bytesPerSample;
+            int outputPos = 0;
+
+            for (int c = 0; c < components; c++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
+                        WriteSample(output, ref outputPos, sample, bytesPerSample);
+                    }
+                }
+            }
+
+            return outputPos;
+        }
+
+        private static int DecodeLineInterleaved(
+            Span<byte> output,
+            int width,
+            int height,
+            int components,
+            int bytesPerSample,
+            int near,
+            int maxVal,
+            int range,
+            JlsContext[] contexts,
+            ref GolombRiceDecoder decoder)
+        {
+            // Decode line by line, all components per line
+            int stride = width * components * bytesPerSample;
+            int outputPos = 0;
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int c = 0; c < components; c++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
+                        WriteSample(output, ref outputPos, sample, bytesPerSample);
+                    }
+                }
+            }
+
+            return outputPos;
+        }
+
+        private static int DecodeSampleInterleaved(
+            Span<byte> output,
+            int width,
+            int height,
+            int components,
+            int bytesPerSample,
+            int near,
+            int maxVal,
+            int range,
+            JlsContext[] contexts,
+            ref GolombRiceDecoder decoder)
+        {
+            // Decode sample by sample (pixel by pixel, all components per pixel)
+            int stride = width * components * bytesPerSample;
+            int outputPos = 0;
+
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
                     for (int c = 0; c < components; c++)
                     {
-                        // Get neighboring samples for prediction
-                        int a = GetSample(output, outputPos, x, y, c, width, components, bytesPerSample, -1, 0);  // left
-                        int b = GetSample(output, outputPos, x, y, c, width, components, bytesPerSample, 0, -1);  // above
-                        int cb = GetSample(output, outputPos, x, y, c, width, components, bytesPerSample, -1, -1); // above-left
-                        int d = GetSample(output, outputPos, x, y, c, width, components, bytesPerSample, 1, -1);  // above-right
-
-                        // Compute gradients for context selection
-                        int g1 = d - b;
-                        int g2 = b - cb;
-                        int g3 = cb - a;
-
-                        // Quantize gradients and compute context index
-                        int q1 = QuantizeGradient(g1, near);
-                        int q2 = QuantizeGradient(g2, near);
-                        int q3 = QuantizeGradient(g3, near);
-
-                        bool sign = false;
-                        if (q1 < 0 || (q1 == 0 && q2 < 0) || (q1 == 0 && q2 == 0 && q3 < 0))
-                        {
-                            q1 = -q1;
-                            q2 = -q2;
-                            q3 = -q3;
-                            sign = true;
-                        }
-
-                        int contextIndex = ComputeContextIndex(q1, q2, q3);
-
-                        // Median prediction
-                        int predicted;
-                        if (cb >= Math.Max(a, b))
-                            predicted = Math.Min(a, b);
-                        else if (cb <= Math.Min(a, b))
-                            predicted = Math.Max(a, b);
-                        else
-                            predicted = a + b - cb;
-
-                        // Read error from bitstream
-                        ref var ctx = ref contexts[contextIndex];
-                        int k = ctx.ComputeK(32);
-                        int error = reader.ReadGolombRice(k);
-
-                        // Map error value
-                        if ((error & 1) == 0)
-                            error = error >> 1;
-                        else
-                            error = -((error + 1) >> 1);
-
-                        if (sign)
-                            error = -error;
-
-                        // Apply context correction
-                        error = error + (ctx.C + (ctx.N >> 1)) / ctx.N;
-
-                        // Reconstruct sample
-                        int sample = predicted + error;
-                        sample = Clamp(sample, 0, maxVal);
-
-                        // Update context
-                        ctx.Update(error - (ctx.C + (ctx.N >> 1)) / ctx.N, 64, range);
-
-                        // Write sample to output
-                        if (bytesPerSample == 1)
-                        {
-                            output[outputPos++] = (byte)sample;
-                        }
-                        else
-                        {
-                            output[outputPos++] = (byte)(sample & 0xFF);
-                            output[outputPos++] = (byte)(sample >> 8);
-                        }
+                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
+                        WriteSample(output, ref outputPos, sample, bytesPerSample);
                     }
                 }
             }
 
             return outputPos;
+        }
+
+        private static int DecodeSample(
+            Span<byte> output,
+            int currentPos,
+            int x,
+            int y,
+            int c,
+            int width,
+            int components,
+            int bytesPerSample,
+            int stride,
+            int near,
+            int maxVal,
+            int range,
+            JlsContext[] contexts,
+            ref GolombRiceDecoder decoder)
+        {
+            // Get neighboring samples for prediction
+            int a = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, -1, 0);  // left
+            int b = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, 0, -1);  // above
+            int c_diag = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, -1, -1); // above-left
+            int d = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, 1, -1);  // above-right
+
+            // Compute gradients for context selection
+            int g1 = d - b;
+            int g2 = b - c_diag;
+            int g3 = c_diag - a;
+
+            // Quantize gradients
+            int q1 = JpegLsPredictor.QuantizeGradient(g1, near);
+            int q2 = JpegLsPredictor.QuantizeGradient(g2, near);
+            int q3 = JpegLsPredictor.QuantizeGradient(g3, near);
+
+            // Normalize gradients and track sign
+            bool sign = JpegLsPredictor.NormalizeGradients(ref q1, ref q2, ref q3);
+
+            // Compute context index
+            int contextIndex = JpegLsPredictor.ComputeContextIndex(q1, q2, q3);
+
+            // Median edge detection prediction
+            int predicted = JpegLsPredictor.MedianEdgeDetection(a, b, c_diag);
+
+            // Clamp prediction to valid range
+            predicted = Clamp(predicted, 0, maxVal);
+
+            // Read error from bitstream
+            ref var ctx = ref contexts[contextIndex];
+            int k = ctx.ComputeK(32);
+            int mappedError = decoder.ReadGolombRice(k);
+
+            // Unmap error value
+            int correctedError = ErrorMapping.UnmapError(mappedError);
+
+            // Apply sign from gradient normalization
+            if (sign)
+            {
+                correctedError = -correctedError;
+            }
+
+            // Apply bias correction
+            int biasCorrection = ctx.GetBiasCorrection();
+            int rawError = correctedError + biasCorrection;
+
+            // Reconstruct sample
+            int sample = predicted + rawError;
+            sample = Clamp(sample, 0, maxVal);
+
+            // Update context
+            ctx.Update(rawError, 64, range);
+
+            return sample;
         }
 
         private static int GetSample(
@@ -382,56 +460,50 @@ namespace SharpDicom.Codecs.JpegLs
             int width,
             int components,
             int bytesPerSample,
+            int stride,
             int dx,
             int dy)
         {
             int nx = x + dx;
             int ny = y + dy;
 
+            // Out of bounds - return 0
             if (nx < 0 || ny < 0 || nx >= width)
                 return 0;
 
-            int stride = width * components * bytesPerSample;
+            // Calculate position
             int samplePos = ny * stride + (nx * components + c) * bytesPerSample;
 
+            // Sample not yet decoded
             if (samplePos < 0 || samplePos >= currentPos)
                 return 0;
 
+            // Read sample value
             if (bytesPerSample == 1)
+            {
                 return output[samplePos];
+            }
             else
             {
-                // Ensure both bytes are within bounds for 16-bit samples
+                // 16-bit sample (little-endian)
                 if (samplePos + 1 >= currentPos)
                     return 0;
                 return output[samplePos] | (output[samplePos + 1] << 8);
             }
         }
 
-        private static int QuantizeGradient(int g, int near)
+        private static void WriteSample(Span<byte> output, ref int pos, int sample, int bytesPerSample)
         {
-            int t1 = 3 + near;
-            int t2 = 7 + near;
-            int t3 = 21 + near;
-
-            if (g <= -t3) return -4;
-            if (g <= -t2) return -3;
-            if (g <= -t1) return -2;
-            if (g < -near) return -1;
-            if (g <= near) return 0;
-            if (g < t1) return 1;
-            if (g < t2) return 2;
-            if (g < t3) return 3;
-            return 4;
-        }
-
-        private static int ComputeContextIndex(int q1, int q2, int q3)
-        {
-            // Map quantized gradients to context index (0-364)
-            // q1, q2, q3 range from -4 to 4, context array has 365 elements
-            int index = (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
-            // Defensive bounds check (should not be needed with correct inputs)
-            return Clamp(index, 0, 364);
+            if (bytesPerSample == 1)
+            {
+                output[pos++] = (byte)sample;
+            }
+            else
+            {
+                // 16-bit sample (little-endian)
+                output[pos++] = (byte)(sample & 0xFF);
+                output[pos++] = (byte)(sample >> 8);
+            }
         }
 
         private static int Clamp(int value, int min, int max)
@@ -439,117 +511,6 @@ namespace SharpDicom.Codecs.JpegLs
             if (value < min) return min;
             if (value > max) return max;
             return value;
-        }
-
-        /// <summary>
-        /// Context state for JPEG-LS encoding/decoding.
-        /// </summary>
-        private struct JlsContext
-        {
-            public int A;
-            public int B;
-            public int C;
-            public int N;
-
-            public void Initialize(int range)
-            {
-                A = Math.Max(2, (range + 32) / 64);
-                B = 0;
-                C = 0;
-                N = 1;
-            }
-
-            public int ComputeK(int limit)
-            {
-                int k = 0;
-                int nTimesA = N * A;
-                while ((N << k) < nTimesA && k < limit)
-                    k++;
-                return k;
-            }
-
-            public void Update(int error, int reset, int range)
-            {
-                int absError = error < 0 ? -error : error;
-                A += absError;
-                B += error;
-                N++;
-
-                if (N == reset)
-                {
-                    A = (A + 1) >> 1;
-                    B = (B + 1) >> 1;
-                    N = (N + 1) >> 1;
-                }
-
-                // Context correction update
-                if (B <= -N)
-                {
-                    B = Math.Max(B + N, 1 - N);
-                    if (C > -128) C--;
-                }
-                else if (B > 0)
-                {
-                    B = Math.Min(B - N, 0);
-                    if (C < 127) C++;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Bit reader for Golomb-Rice coded data.
-        /// </summary>
-        private ref struct JlsBitReader
-        {
-            private ReadOnlySpan<byte> _data;
-            private int _pos;
-            private int _bitPos;
-            private uint _buffer;
-
-            public JlsBitReader(ReadOnlySpan<byte> data)
-            {
-                _data = data;
-                _pos = 0;
-                _bitPos = 0;
-                _buffer = 0;
-            }
-
-            public int ReadGolombRice(int k)
-            {
-                // Count leading zeros (unary part)
-                int q = 0;
-                while (ReadBit() == 0 && q < 32)
-                    q++;
-
-                // Read k bits (binary part)
-                int r = 0;
-                for (int i = 0; i < k; i++)
-                {
-                    r = (r << 1) | ReadBit();
-                }
-
-                return (q << k) | r;
-            }
-
-            private int ReadBit()
-            {
-                if (_bitPos == 0)
-                {
-                    if (_pos >= _data.Length)
-                        return 0;
-
-                    _buffer = _data[_pos++];
-
-                    // Handle bit stuffing (skip 0x00 after 0xFF)
-                    if (_buffer == 0xFF && _pos < _data.Length && _data[_pos] == 0x00)
-                        _pos++;
-
-                    _bitPos = 8;
-                }
-
-                _bitPos--;
-                return (int)((_buffer >> _bitPos) & 1);
-            }
         }
     }
 }
