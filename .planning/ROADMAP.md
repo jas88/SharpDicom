@@ -64,28 +64,32 @@ Plans:
 
 **Goal**: Complete pure C# JPEG-LS and HTJ2K codecs (infrastructure added in v2.0)
 
-**Plans:** 6 plans (4 original + 2 gap closure)
+**Plans:** 8 plans (4 original + 4 gap closure)
 
 Plans:
 - [x] 21-01-PLAN.md — JPEG-LS codec implementation (predictors, contexts, Golomb-Rice, all interleave modes)
 - [x] 21-02-PLAN.md — HTJ2K codec shell (J2K delegation, HT block coder deferred)
 - [x] 21-03-PLAN.md — SIMD optimization and auto-parallelization for performance
 - [x] 21-04-PLAN.md — Conformance testing against CharLS/OpenJPH reference implementations
-- [ ] 21-05-PLAN.md — Gap closure: Fix JPEG-LS roundtrip test failures
-- [ ] 21-06-PLAN.md — Gap closure: Fix J2K encoder bugs, enable HTJ2K tests
+- [x] 21-05-PLAN.md — Gap closure: Fix JPEG-LS roundtrip test failures (complete - 16/16 tests pass)
+- [x] 21-06-PLAN.md — Gap closure: Fix MQ coder uniform coding (partial - MQ fixed, EBCOT/tier-2 deferred)
+- [ ] 21-07-PLAN.md — Gap closure: Fix EBCOT encoder/decoder state tracking asymmetry
+- [ ] 21-08-PLAN.md — Gap closure: Fix tier-2 packet encoding, enable HTJ2K tests
 
 **Verification Status** (from 21-VERIFICATION.md):
-- 6/9 must-haves verified
-- Gaps identified requiring gap closure plans
+- 7/9 must-haves verified (improved from 6/9 after 21-05)
+- Remaining gaps require plans 21-07 and 21-08
 
 **Gap Closure Summary:**
-1. **JPEG-LS test failures** (12 tests) — Encoder/decoder mismatch causing off-by-one errors
-2. **HTJ2K tests blocked** (11 tests) — J2K encoder bugs prevent roundtrip verification
-3. **HT block coder** — Deferred to Phase 30 (3000-5000 LOC, multi-week effort)
+1. **JPEG-LS test failures** — FIXED in 21-05 (16/16 tests pass)
+2. **MQ coder uniform coding** — FIXED in 21-06
+3. **EBCOT state tracking asymmetry** — Planned in 21-07
+4. **Tier-2 packet encoding mismatch** — Planned in 21-08
+5. **HT block coder** — Deferred to Phase 30 (3000-5000 LOC, multi-week effort)
 
 **Must-haves**:
 - [x] Complete JPEG-LS encoder/decoder (ITU-T T.87 / ISO/IEC 14495-1)
-  - [x] Lossless mode (NEAR=0) — implemented, needs debugging
+  - [x] Lossless mode (NEAR=0) — implemented and verified
   - [x] Near-lossless mode (NEAR>0) — implemented
   - [x] Context modeling and Golomb-Rice coding — implemented
   - [x] All 8 predictors from ITU-T T.87 — implemented
@@ -94,7 +98,7 @@ Plans:
   - [x] High-Throughput JPEG 2000 shell — implemented via J2K delegation
   - [ ] ~~HT block coder replacing EBCOT for 10x performance~~ — DEFERRED to Phase 30
   - [x] Both 5/3 (lossless) and 9/7 (lossy) DWT modes — via J2K
-- [ ] Roundtrip encode/decode tests passing for all bit depths (8, 12, 16) — gap closure pending
+- [ ] Roundtrip encode/decode tests passing for all bit depths (8, 12, 16) — plans 21-07, 21-08
 
 **Should-haves**:
 - [x] SIMD optimization using Vector128/256 — completed in 21-03
@@ -102,8 +106,8 @@ Plans:
 - [ ] Configurable strict/lenient error handling
 
 **Success Criteria**:
-- [ ] JPEG-LS roundtrip tests pass (16 tests) — gap closure 21-05
-- [ ] HTJ2K roundtrip tests pass (11 tests) — gap closure 21-06
+- [x] JPEG-LS roundtrip tests pass (16 tests) — completed in 21-05
+- [ ] HTJ2K roundtrip tests pass (11 tests) — pending 21-07, 21-08
 - [ ] Performance within 10x of native implementations (CharLS, OpenJPH)
 - [x] Output decodable by reference implementations — conformance tests in 21-04
 
@@ -344,4 +348,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-03 (Phase 21 gap closure plans added)*
+*Last updated: 2026-02-03 (Phase 21 gap closure plans 21-07 and 21-08 added)*
