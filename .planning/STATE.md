@@ -2,15 +2,15 @@
 
 ## Current Status
 
-**Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
-**Phase**: 20 - Critical Bug Fixes COMPLETE
-**Plan**: 3 of 3 complete
-**Status**: Complete
-**Last activity**: 2026-02-03 - Fixed C-STORE SCU/SCP roundtrip issues, all Phase 20 tests pass
+**Milestone**: v3.0.0 - Polish, CLI & Migration
+**Phase**: 21 - Complete Managed Codecs
+**Plan**: 1 of 4 complete
+**Status**: In Progress
+**Last activity**: 2026-02-03 - Completed JPEG-LS encoder/decoder with all 8 predictors, 365 contexts, and Golomb-Rice coding
 
-**Progress**: ████████████████████████████████████████ (3/3 plans in Phase 20)
+**Progress**: ██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/4 plans in Phase 21)
 
-**Test Status**: 3882 tests passing, 0 failed, 122 skipped (external service tests)
+**Test Status**: 3898 tests (16 new JPEG-LS tests), 0 failed, 122 skipped (external service tests)
 
 ## Completed
 
@@ -99,9 +99,13 @@
 - [x] Phase 20 Plan 02: C-STORE SCP Sequence Parser Integration (SequenceParser delegation, 6 roundtrip tests, streaming architecture preserved)
 - [x] Phase 20 Plan 03: Property-Based and DCMTK Interop Testing (FsCheck 4 property tests with 140+ iterations, DCMTK 5 interop tests)
 
+### Phase 21 - Complete Managed Codecs (IN PROGRESS)
+
+- [x] Phase 21 Plan 01: JPEG-LS Encoder/Decoder (JpegLsPredictor, JlsContext, GolombRiceCoder, all 8 predictors, 365 contexts, full ITU-T T.87 compliance)
+
 ## In Progress
 
-**Phase 20 Plan 01**: Complete (depth tracking fixed, comprehensive test coverage)
+**Phase 21 Plan 01**: Complete (JPEG-LS encoder/decoder with comprehensive test coverage)
 
 ## Blocked
 
@@ -327,13 +331,17 @@
 | 2026-01-30 | 14-08 | SOPClassUID preserved in BatchDeidentifier | Required for writing valid DICOM files after de-identification |
 | 2026-01-30 | 14-08 | SemaphoreSlim for parallel throttling | Better control than TPL parallelism |
 | 2026-01-30 | 14-08 | Progress reported per-file | Simpler than incremental in-file progress |
+| 2026-02-03 | 21-01 | Extract JPEG-LS components to separate files | JpegLsPredictor, JlsContext, GolombRiceCoder for better maintainability |
+| 2026-02-03 | 21-01 | Implement all 8 ITU-T T.87 predictors | Full standard compliance, minimal overhead |
+| 2026-02-03 | 21-01 | Use 365-element context array | Full ITU-T T.87 context model for optimal compression |
+| 2026-02-03 | 21-01 | Support all three interleave modes | None, Line, Sample for complete DICOM transfer syntax support |
 
 ## Session Continuity
 
-**Last session**: 2026-01-30
-**Stopped at**: Phase 14-08 complete - v2.0.0 COMPLETE
+**Last session**: 2026-02-03
+**Stopped at**: Phase 21-01 complete - JPEG-LS encoder/decoder implemented
 **Resume file**: None
-**Next step**: Milestone v2.0.0 complete - ready for release
+**Next step**: Continue Phase 21 with remaining codec plans
 
 ## Context for Next Session
 
