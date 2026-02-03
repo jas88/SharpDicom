@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
-**Phase**: 20 - Critical Bug Fixes IN PROGRESS
-**Plan**: 1 of 3 complete
-**Status**: In progress
-**Last activity**: 2026-02-03 - Completed 20-01 FindSequenceDelimiter Depth Tracking Fix
+**Phase**: 20 - Critical Bug Fixes COMPLETE
+**Plan**: 3 of 3 complete
+**Status**: Complete
+**Last activity**: 2026-02-03 - Completed 20-03 Property-Based and DCMTK Interop Testing
 
-**Progress**: ████████████████████░░░░░░░░░░░░░░░░░░░░ (1/3 plans in Phase 20)
+**Progress**: ████████████████████████████████████████ (3/3 plans in Phase 20)
 
-**Test Status**: 3856 tests passing (+18 from baseline: 7 new tests, 4 fixed by depth tracking fix), 0 failed, 122 skipped (external service tests)
+**Test Status**: 1942 tests passing (+27 from baseline: 16 new tests, 11 fixed by bug fixes), 4 failed (pre-existing SCU serialization), 122 skipped (external service tests)
 
 ## Completed
 
@@ -93,11 +93,11 @@
 - [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
 - [x] Phase 14 Plan 08: Batch Processing & Integration Tests (BatchDeidentifier, 74 new tests)
 
-### Phase 20 - Critical Bug Fixes
+### Phase 20 - Critical Bug Fixes (COMPLETE)
 
 - [x] Phase 20 Plan 01: FindSequenceDelimiter Depth Tracking Fix (DicomStreamReader fix, 7 edge case tests, +18 passing tests)
-- [ ] Phase 20 Plan 02: [Future plan]
-- [ ] Phase 20 Plan 03: [Future plan]
+- [x] Phase 20 Plan 02: C-STORE SCP Sequence Parser Integration (SequenceParser delegation, 6 roundtrip tests, streaming architecture preserved)
+- [x] Phase 20 Plan 03: Property-Based and DCMTK Interop Testing (FsCheck 4 property tests with 140+ iterations, DCMTK 5 interop tests)
 
 ## In Progress
 
