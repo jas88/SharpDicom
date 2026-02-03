@@ -404,20 +404,24 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <summary>
         /// Writes zero bitplane count using simplified coding.
         /// </summary>
+        /// <remarks>
+        /// Format: 3-bit value for 0-6, extended (111 + 5 bits) for 7+.
+        /// Must match ReadZeroBitPlanes in PacketDecoder.
+        /// </remarks>
         private void WriteZeroBitPlanes(int count)
         {
             // Use simple binary coding for small values
             // In a full implementation, this would use tag trees
-            if (count <= 7)
+            if (count < 7)
             {
-                // 3-bit value
+                // 3-bit value for 0-6
                 WriteBit((count >> 2) & 1);
                 WriteBit((count >> 1) & 1);
                 WriteBit(count & 1);
             }
             else
             {
-                // Extended: 3 bits of 1, then 5 more bits
+                // Extended: 111 prefix + 5-bit value for 7+
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
