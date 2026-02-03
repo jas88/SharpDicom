@@ -281,7 +281,11 @@ namespace SharpDicom.Codecs.JpegLs
 
         private static int ComputeContextIndex(int q1, int q2, int q3)
         {
-            return (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
+            // Map quantized gradients to context index (0-364)
+            // q1, q2, q3 range from 0 to 4 (after sign normalization), context array has 365 elements
+            int index = (q1 * 9 + q2) * 9 + q3 + (9 * 9 * 4);
+            // Clamp to valid range to prevent out-of-bounds access
+            return index < 0 ? 0 : (index > 364 ? 364 : index);
         }
 
         /// <summary>

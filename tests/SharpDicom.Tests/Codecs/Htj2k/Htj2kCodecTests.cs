@@ -47,7 +47,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("HTJ2K roundtrip depends on JPEG 2000 encoder - known issue with managed implementation")]
+        [Ignore("Managed JPEG 2000 implementation incomplete - see TODO for Phase 18")]
         public void Htj2kLosslessCodec_EncodeRoundtrip_8Bit()
         {
             var codec = new Htj2kLosslessCodec();
@@ -77,7 +77,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("HTJ2K roundtrip depends on JPEG 2000 encoder - known issue with managed implementation")]
+        [Ignore("Managed JPEG 2000 implementation incomplete - see TODO for Phase 18")]
         public void Htj2kLosslessCodec_EncodeRoundtrip_16Bit()
         {
             var codec = new Htj2kLosslessCodec();
@@ -106,7 +106,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("HTJ2K roundtrip depends on JPEG 2000 encoder - known issue with managed implementation")]
+        [Ignore("Managed JPEG 2000 implementation incomplete - see TODO for Phase 18")]
         public void Htj2kLossyCodec_EncodeDecode_ProducesOutput()
         {
             var codec = new Htj2kLossyCodec();

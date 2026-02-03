@@ -35,7 +35,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Ignore("JPEG-LS managed implementation is a stub - full implementation requires CharLS native library")]
+        [Ignore("Managed JPEG-LS implementation incomplete - see TODO for Phase 18")]
         public void JpegLsLosslessCodec_EncodeRoundtrip_8Bit()
         {
             var codec = new JpegLsLosslessCodec();
@@ -66,7 +66,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Ignore("JPEG-LS managed implementation is a stub - full implementation requires CharLS native library")]
+        [Ignore("Managed JPEG-LS implementation incomplete - see TODO for Phase 18")]
         public void JpegLsLosslessCodec_EncodeRoundtrip_16Bit()
         {
             var codec = new JpegLsLosslessCodec();
@@ -95,7 +95,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Ignore("JPEG-LS managed implementation is a stub - full implementation requires CharLS native library")]
+        [Ignore("Managed JPEG-LS implementation incomplete - see TODO for Phase 18")]
         public void JpegLsNearLosslessCodec_EncodeRoundtrip_HasBoundedError()
         {
             var codec = new JpegLsNearLosslessCodec();

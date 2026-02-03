@@ -85,6 +85,16 @@ namespace SharpDicom.Codecs.Htj2k
         {
             var htj2kOptions = options is Htj2kCodecOptions opt ? opt : GetDefaultOptions();
 
+            // Build J2K encoder options respecting UseRpcl setting
+            var j2kOptions = new J2kEncoderOptions
+            {
+                DecompositionLevels = htj2kOptions.DecompositionLevels,
+                Progression = htj2kOptions.UseRpcl ? ProgressionOrder.RPCL : ProgressionOrder.LRCP,
+                NumberOfLayers = 1,
+                CodeBlockWidth = 64,
+                CodeBlockHeight = 64
+            };
+
             int frameSize = info.FrameSize;
             int frameCount = pixelData.Length / frameSize;
             var fragments = new List<ReadOnlyMemory<byte>>(frameCount);
@@ -93,8 +103,8 @@ namespace SharpDicom.Codecs.Htj2k
             {
                 var frameData = pixelData.Slice(i * frameSize, frameSize);
 
-                // Use J2K encoder and inject CAP marker for HTJ2K identification
-                var encoded = J2kEncoder.EncodeFrame(frameData, info, IsLossless).ToArray();
+                // Use J2K encoder with options and inject CAP marker for HTJ2K identification
+                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless).ToArray();
                 var htj2kEncoded = InjectCapMarker(encoded);
                 fragments.Add(htj2kEncoded);
             }

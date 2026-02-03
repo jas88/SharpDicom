@@ -82,6 +82,11 @@ namespace SharpDicom.Codecs.JpegLs
             int pos = 2;
             int near = 0;
             int interleave = 0;
+            int width = 0;
+            int height = 0;
+            int components = 0;
+            int precision = 0;
+            bool foundSof55 = false;
 
             while (pos + 4 <= data.Length)
             {
@@ -110,6 +115,7 @@ namespace SharpDicom.Codecs.JpegLs
                             }
                         }
                     }
+                    // After SOS comes entropy data, stop parsing markers
                     break;
                 }
 
@@ -132,30 +138,32 @@ namespace SharpDicom.Codecs.JpegLs
                         return false;
                     }
 
-                    int precision = data[pos];
-                    int height = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 1));
-                    int width = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 3));
-                    int components = data[pos + 5];
-
-                    header = new JpegLsHeader
-                    {
-                        Width = width,
-                        Height = height,
-                        Components = components,
-                        BitsPerSample = precision,
-                        Near = near,
-                        InterleaveMode = (JlsInterleaveMode)interleave
-                    };
+                    precision = data[pos];
+                    height = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 1));
+                    width = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 3));
+                    components = data[pos + 5];
+                    foundSof55 = true;
                 }
 
                 pos += segLen - 2;
             }
 
-            if (header.Width == 0)
+            if (!foundSof55)
             {
                 error = "SOF55 marker not found";
                 return false;
             }
+
+            // Build header after parsing both SOF55 and SOS markers
+            header = new JpegLsHeader
+            {
+                Width = width,
+                Height = height,
+                Components = components,
+                BitsPerSample = precision,
+                Near = near,
+                InterleaveMode = (JlsInterleaveMode)interleave
+            };
 
             return true;
         }
