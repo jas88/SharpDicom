@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 21 - Complete Managed Codecs
-**Plan**: 6 of 6 (partial)
-**Status**: Gap closure partially complete
-**Last activity**: 2026-02-03 - Fixed MQ coder uniform coding; identified EBCOT and tier-2 issues
+**Plan**: 7 of 8 (gap closure)
+**Status**: EBCOT pass tracking fixed; complex patterns need investigation
+**Last activity**: 2026-02-03 - Fixed EBCOT pass tracking asymmetry; added roundtrip tests
 
-**Progress**: █████████████████████████████████████░░░ (5.5/6 plans in Phase 21)
+**Progress**: █████████████████████████████████████░░░ (7/8 plans in Phase 21)
 
-**Test Status**: All 16 JPEG-LS tests pass; MQ coder tests pass; HTJ2K roundtrip tests still disabled pending EBCOT/tier-2 fixes
+**Test Status**: 170 Jpeg2000 tests pass; 22 new EBCOT roundtrip tests (3 known limitations documented)
 
 ## Completed
 
@@ -106,10 +106,12 @@
 - [x] Phase 21 Plan 03: SIMD Optimization (SimdHelpers, Vector128-optimized DWT 5/3 and 9/7, AggressiveInlining, performance benchmarks)
 - [x] Phase 21 Plan 04: Codec Conformance Tests (JPEG-LS vs CharLS, HTJ2K vs OpenJPH, 18 new tests: 10 conformance + 8 integration, documented known issues)
 - [x] Phase 21 Plan 05: JPEG-LS Bug Fixes (Golomb-Rice limit escape per ITU-T T.87 A.5.3, context update symmetry, non-interleaved decode fix)
+- [x] Phase 21 Plan 06: Partial J2K Bug Fix (MQ coder uniform coding symmetry)
+- [x] Phase 21 Plan 07: EBCOT Pass Tracking Fix (visitedThisBitplane, refinedCount, three-context magnitude refinement)
 
 ## In Progress
 
-None - Phase 21 Complete (all 5 plans)
+None - Phase 21 gap closure complete
 
 ## Blocked
 
