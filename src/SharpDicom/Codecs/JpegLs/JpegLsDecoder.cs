@@ -271,6 +271,7 @@ namespace SharpDicom.Codecs.JpegLs
             }
 
             var decoder = new GolombRiceDecoder(scanData);
+            decoder.SetBitsPerPixel(bitsPerSample);
 
             // Decode based on interleave mode
             switch (interleaveMode)
@@ -298,23 +299,166 @@ namespace SharpDicom.Codecs.JpegLs
             JlsContext[] contexts,
             ref GolombRiceDecoder decoder)
         {
-            // Decode each component separately
+            // Decode each component separately into a temp buffer, then interleave
             int stride = width * components * bytesPerSample;
-            int outputPos = 0;
+            int componentSize = width * height * bytesPerSample;
+
+            // Use a temporary buffer for each component
+            byte[] componentBuffer = new byte[componentSize];
+            int componentStride = width * bytesPerSample;
 
             for (int c = 0; c < components; c++)
             {
+                int componentPos = 0;
                 for (int y = 0; y < height; y++)
                 {
                     for (int x = 0; x < width; x++)
                     {
-                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
-                        WriteSample(output, ref outputPos, sample, bytesPerSample);
+                        int sample = DecodeSampleSingleComponent(componentBuffer, componentPos, x, y, width, bytesPerSample, componentStride, near, maxVal, range, contexts, ref decoder);
+                        WriteSampleAt(componentBuffer, componentPos, sample, bytesPerSample);
+                        componentPos += bytesPerSample;
+                    }
+                }
+
+                // Copy component data to output at correct interleaved positions
+                for (int y = 0; y < height; y++)
+                {
+                    for (int x = 0; x < width; x++)
+                    {
+                        int srcPos = y * componentStride + x * bytesPerSample;
+                        int dstPos = y * stride + (x * components + c) * bytesPerSample;
+                        for (int b = 0; b < bytesPerSample; b++)
+                        {
+                            output[dstPos + b] = componentBuffer[srcPos + b];
+                        }
                     }
                 }
             }
 
-            return outputPos;
+            return height * stride;
+        }
+
+        private static int DecodeSampleSingleComponent(
+            byte[] componentBuffer,
+            int currentPos,
+            int x,
+            int y,
+            int width,
+            int bytesPerSample,
+            int stride,
+            int near,
+            int maxVal,
+            int range,
+            JlsContext[] contexts,
+            ref GolombRiceDecoder decoder)
+        {
+            // Get neighboring samples for prediction (single component, no interleaving)
+            int a = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, -1, 0);  // left
+            int b = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, 0, -1);  // above
+            int c_diag = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, -1, -1); // above-left
+            int d = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, 1, -1);  // above-right
+
+            // Compute gradients for context selection
+            int g1 = d - b;
+            int g2 = b - c_diag;
+            int g3 = c_diag - a;
+
+            // Quantize gradients
+            int q1 = JpegLsPredictor.QuantizeGradient(g1, near);
+            int q2 = JpegLsPredictor.QuantizeGradient(g2, near);
+            int q3 = JpegLsPredictor.QuantizeGradient(g3, near);
+
+            // Normalize gradients and track sign
+            bool sign = JpegLsPredictor.NormalizeGradients(ref q1, ref q2, ref q3);
+
+            // Compute context index
+            int contextIndex = JpegLsPredictor.ComputeContextIndex(q1, q2, q3);
+
+            // Median edge detection prediction
+            int predicted = JpegLsPredictor.MedianEdgeDetection(a, b, c_diag);
+
+            // Clamp prediction to valid range
+            predicted = Clamp(predicted, 0, maxVal);
+
+            // Read error from bitstream
+            ref var ctx = ref contexts[contextIndex];
+            int k = ctx.ComputeK(32);
+            int mappedError = decoder.ReadGolombRice(k);
+
+            // Unmap error value
+            int correctedError = ErrorMapping.UnmapError(mappedError);
+
+            // Apply sign from gradient normalization
+            if (sign)
+            {
+                correctedError = -correctedError;
+            }
+
+            // Apply bias correction
+            int biasCorrection = ctx.GetBiasCorrection();
+            int rawError = correctedError + biasCorrection;
+
+            // Reconstruct sample
+            int sample = predicted + rawError;
+            sample = Clamp(sample, 0, maxVal);
+
+            // Update context
+            ctx.Update(rawError, 64, range);
+
+            return sample;
+        }
+
+        private static int GetSampleSingleComponent(
+            byte[] buffer,
+            int currentPos,
+            int x,
+            int y,
+            int width,
+            int bytesPerSample,
+            int stride,
+            int dx,
+            int dy)
+        {
+            int nx = x + dx;
+            int ny = y + dy;
+
+            // Out of bounds - return 0
+            if (nx < 0 || ny < 0 || nx >= width)
+                return 0;
+
+            // Calculate position in component buffer
+            int samplePos = ny * stride + nx * bytesPerSample;
+
+            // Sample not yet decoded
+            if (samplePos < 0 || samplePos >= currentPos)
+                return 0;
+
+            // Read sample value
+            if (bytesPerSample == 1)
+            {
+                return buffer[samplePos];
+            }
+            else
+            {
+                // 16-bit sample (little-endian)
+                if (samplePos + 1 >= currentPos)
+                    return 0;
+                return buffer[samplePos] | (buffer[samplePos + 1] << 8);
+            }
+        }
+
+        private static void WriteSampleAt(byte[] buffer, int pos, int sample, int bytesPerSample)
+        {
+            if (bytesPerSample == 1)
+            {
+                buffer[pos] = (byte)sample;
+            }
+            else
+            {
+                // 16-bit sample (little-endian)
+                buffer[pos] = (byte)(sample & 0xFF);
+                buffer[pos + 1] = (byte)(sample >> 8);
+            }
         }
 
         private static int DecodeLineInterleaved(

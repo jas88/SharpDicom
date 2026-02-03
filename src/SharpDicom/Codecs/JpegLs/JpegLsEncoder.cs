@@ -147,6 +147,7 @@ namespace SharpDicom.Codecs.JpegLs
             }
 
             var encoder = new GolombRiceEncoder(output);
+            encoder.SetBitsPerPixel(bitsPerSample);
             int stride = width * components * bytesPerSample;
 
             // Encode based on interleave mode
@@ -319,8 +320,8 @@ namespace SharpDicom.Codecs.JpegLs
             int k = ctx.ComputeK(32);
             encoder.WriteGolombRice(mappedError, k);
 
-            // Update context with uncorrected error (for next prediction)
-            ctx.Update(rawError - biasCorrection, 64, range);
+            // Update context with prediction error (for statistics tracking)
+            ctx.Update(rawError, 64, range);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -340,7 +341,7 @@ namespace SharpDicom.Codecs.JpegLs
             int ny = y + dy;
 
             // Out of bounds - return 0
-            if (nx < 0 || ny < 0 || nx >= width || ny < 0)
+            if (nx < 0 || ny < 0 || nx >= width || ny >= data.Length / stride)
                 return 0;
 
             // Calculate position
