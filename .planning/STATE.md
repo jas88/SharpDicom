@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 21 - Complete Managed Codecs
-**Plan**: 5 of 5 complete
-**Status**: Phase Complete
-**Last activity**: 2026-02-03 - Fixed JPEG-LS encoder/decoder roundtrip bugs (Golomb-Rice limit escape, context update symmetry, non-interleaved decode)
+**Plan**: 6 of 6 (partial)
+**Status**: Gap closure partially complete
+**Last activity**: 2026-02-03 - Fixed MQ coder uniform coding; identified EBCOT and tier-2 issues
 
-**Progress**: ████████████████████████████████████████ (5/5 plans in Phase 21)
+**Progress**: █████████████████████████████████████░░░ (5.5/6 plans in Phase 21)
 
-**Test Status**: All 16 JPEG-LS tests now pass; all codec roundtrip tests functional
+**Test Status**: All 16 JPEG-LS tests pass; MQ coder tests pass; HTJ2K roundtrip tests still disabled pending EBCOT/tier-2 fixes
 
 ## Completed
 
