@@ -167,7 +167,9 @@ namespace SharpDicom.Tests.Codecs
 
             var syntaxes = CodecRegistry.GetRegisteredTransferSyntaxes();
 
-            Assert.That(syntaxes.Count, Is.EqualTo(5));
+            // 10 codecs: RLE, JPEG Baseline, JPEG Lossless, JPEG 2000 Lossless/Lossy,
+            // JPEG-LS Lossless/NearLossless, HTJ2K Lossless/LosslessRPCL/Lossy
+            Assert.That(syntaxes.Count, Is.EqualTo(10));
         }
 
         #endregion

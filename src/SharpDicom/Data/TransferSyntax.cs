@@ -66,14 +66,20 @@ namespace SharpDicom.Data
                 return JPEG2000Lossless;
             if (uid == JPEG2000Lossy.UID)
                 return JPEG2000Lossy;
-            if (uid == JPEGLSLossless.UID)
-                return JPEGLSLossless;
-            if (uid == JPEGLSNearLossless.UID)
-                return JPEGLSNearLossless;
             if (uid == RLELossless.UID)
                 return RLELossless;
             if (uid == DeflatedExplicitVRLittleEndian.UID)
                 return DeflatedExplicitVRLittleEndian;
+            if (uid == JPEGLSLossless.UID)
+                return JPEGLSLossless;
+            if (uid == JPEGLSNearLossless.UID)
+                return JPEGLSNearLossless;
+            if (uid == HTJ2KLossless.UID)
+                return HTJ2KLossless;
+            if (uid == HTJ2KLosslessRPCL.UID)
+                return HTJ2KLosslessRPCL;
+            if (uid == HTJ2KLossy.UID)
+                return HTJ2KLossy;
 
             // Unknown transfer syntax - return with IsKnown=false
             return new TransferSyntax
@@ -230,10 +236,6 @@ namespace SharpDicom.Data
         /// <summary>
         /// JPEG-LS Lossless Image Compression (1.2.840.10008.1.2.4.80).
         /// </summary>
-        /// <remarks>
-        /// JPEG-LS lossless compression using LOCO-I/JPEG-LS algorithm (ISO/IEC 14495-1).
-        /// Provides better compression ratios than traditional lossless JPEG for medical images.
-        /// </remarks>
         public static readonly TransferSyntax JPEGLSLossless = new()
         {
             UID = new DicomUID("1.2.840.10008.1.2.4.80"),
@@ -248,10 +250,6 @@ namespace SharpDicom.Data
         /// <summary>
         /// JPEG-LS Lossy (Near-Lossless) Image Compression (1.2.840.10008.1.2.4.81).
         /// </summary>
-        /// <remarks>
-        /// JPEG-LS near-lossless compression with configurable NEAR parameter.
-        /// Provides controlled quality loss with specified maximum pixel error.
-        /// </remarks>
         public static readonly TransferSyntax JPEGLSNearLossless = new()
         {
             UID = new DicomUID("1.2.840.10008.1.2.4.81"),
@@ -260,6 +258,48 @@ namespace SharpDicom.Data
             IsEncapsulated = true,
             IsLossy = true,
             Compression = CompressionType.JPEGLSNearLossless,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// HTJ2K (High Throughput JPEG 2000) Lossless (1.2.840.10008.1.2.4.201).
+        /// </summary>
+        public static readonly TransferSyntax HTJ2KLossless = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.201"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = false,
+            Compression = CompressionType.HTJ2KLossless,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// HTJ2K (High Throughput JPEG 2000) Lossless RPCL (1.2.840.10008.1.2.4.202).
+        /// </summary>
+        public static readonly TransferSyntax HTJ2KLosslessRPCL = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.202"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = false,
+            Compression = CompressionType.HTJ2KLossless,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// HTJ2K (High Throughput JPEG 2000) Lossy (1.2.840.10008.1.2.4.203).
+        /// </summary>
+        public static readonly TransferSyntax HTJ2KLossy = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.203"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.HTJ2KLossy,
             IsKnown = true
         };
     }

@@ -256,6 +256,41 @@ Plans:
 
 ---
 
+## Phase 18: Complete Managed Codec Implementations
+
+**Goal**: Complete the managed (pure C#) implementations of JPEG-LS and HTJ2K codecs for full AOT/trimming compatibility without native dependencies
+
+**Requirements**: Extension of FR-11 (Pure C# codecs)
+
+**Must-haves**:
+- [ ] Complete JPEG-LS encoder/decoder (ITU-T T.87 / ISO/IEC 14495-1)
+  - [ ] Lossless mode (NEAR=0)
+  - [ ] Near-lossless mode (NEAR>0)
+  - [ ] Context modeling and Golomb-Rice coding
+  - [ ] Proper bounds checking and error handling
+- [ ] Complete JPEG 2000 encoder/decoder for HTJ2K support
+  - [ ] Wavelet transform (5/3 reversible, 9/7 irreversible)
+  - [ ] EBCOT tier-1/tier-2 coding
+  - [ ] Proper progression order support (LRCP, RPCL)
+- [ ] Roundtrip encode/decode tests passing for all bit depths
+
+**Should-haves**:
+- [ ] Performance optimization (SIMD where applicable)
+- [ ] Multi-threaded encoding for large images
+
+**Dependencies**: Phase 12 (codec interface), Phase 17 (codec infrastructure scaffolding)
+
+**Research Needed**: Yes (JPEG-LS algorithm details, J2K tier-1 coding)
+
+**Success Criteria**:
+- [ ] JPEG-LS roundtrip tests pass (currently skipped)
+- [ ] HTJ2K roundtrip tests pass (currently skipped)
+- [ ] No native library dependencies required
+- [ ] AOT/trimming compatible
+- [ ] Performance within 10x of native implementations (acceptable for portability trade-off)
+
+---
+
 ## Critical Path
 
 ```
