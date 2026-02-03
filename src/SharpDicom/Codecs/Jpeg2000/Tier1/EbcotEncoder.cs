@@ -76,6 +76,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         // State arrays (lazily allocated per code-block size)
         private byte[]? _significanceState;
         private byte[]? _signState;
+        private byte[]? _visitedThisBitplane; // Track which samples were coded in sig prop
+        private byte[]? _refinedCount; // Track number of times each sample has been refined
         private int _currentWidth;
         private int _currentHeight;
         private bool _disposed;
@@ -128,6 +130,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             EnsureStateArrays(width, height);
             Array.Clear(_significanceState!, 0, _significanceState!.Length);
             Array.Clear(_signState!, 0, _signState!.Length);
+            Array.Clear(_visitedThisBitplane!, 0, _visitedThisBitplane!.Length);
+            Array.Clear(_refinedCount!, 0, _refinedCount!.Length);
             _currentWidth = width;
             _currentHeight = height;
 
@@ -140,6 +144,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
             for (int bitplane = msbPosition; bitplane >= 0; bitplane--)
             {
+                // Clear visited state for this bitplane
+                Array.Clear(_visitedThisBitplane!, 0, _visitedThisBitplane!.Length);
+
                 // Pass 1: Significance Propagation
                 EncodeSignificancePropagationPass(coefficients, width, height, bitplane, subbandType);
                 RecordPassLength();
@@ -231,6 +238,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             {
                 _significanceState = new byte[size];
                 _signState = new byte[size];
+                _visitedThisBitplane = new byte[size];
+                _refinedCount = new byte[size];
             }
         }
 
@@ -262,6 +271,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     {
                         continue;
                     }
+
+                    // Mark this sample as visited in significance propagation
+                    // (so cleanup pass knows not to process it)
+                    _visitedThisBitplane![idx] = 1;
 
                     // This sample is in the significance propagation pass
                     int value = coefficients[idx];
@@ -323,8 +336,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
                     // Encode refinement bit
                     int bit = (magnitude >> bitplane) & 1;
-                    int context = GetMagnitudeRefinementContext(x, y, width, height);
+                    bool isFirstRefinement = _refinedCount![idx] == 0;
+                    int context = GetMagnitudeRefinementContext(x, y, width, height, isFirstRefinement);
                     _mqEncoder.Encode(context, bit);
+                    _refinedCount[idx]++;
                 }
             }
         }
@@ -347,7 +362,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 {
                     // Check if we can use run-length coding
                     bool allInsignificant = true;
-                    bool allNoSignificantNeighbors = true;
+                    bool noneVisitedBySigProp = true;
 
                     for (int dy = 0; dy < stripeHeight && allInsignificant; dy++)
                     {
@@ -358,13 +373,14 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                         {
                             allInsignificant = false;
                         }
-                        else if (HasSignificantNeighbor(x, y, width, height))
+                        else if (_visitedThisBitplane![idx] != 0)
                         {
-                            allNoSignificantNeighbors = false;
+                            // Was visited by significance propagation pass
+                            noneVisitedBySigProp = false;
                         }
                     }
 
-                    if (allInsignificant && allNoSignificantNeighbors && stripeHeight == 4)
+                    if (allInsignificant && noneVisitedBySigProp && stripeHeight == 4)
                     {
                         // Try run-length coding
                         EncodeRunLengthMode(coefficients, width, x, stripeY, bitplane, subbandType);
@@ -466,8 +482,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return;
             }
 
-            // Skip if processed by significance propagation (has significant neighbor)
-            if (HasSignificantNeighbor(x, y, width, height))
+            // Skip if already processed by significance propagation pass this bitplane
+            // (samples with significant neighbors at the START of sig prop are visited there)
+            if (_visitedThisBitplane![idx] != 0)
             {
                 return;
             }
@@ -677,14 +694,26 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <summary>
         /// Gets magnitude refinement context (ITU-T T.800 Table D.4).
         /// </summary>
+        /// <param name="x">X coordinate.</param>
+        /// <param name="y">Y coordinate.</param>
+        /// <param name="width">Code-block width.</param>
+        /// <param name="height">Code-block height.</param>
+        /// <param name="isFirstRefinement">True if this is the first refinement for this sample.</param>
+        /// <returns>Context index for MQ coding.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int GetMagnitudeRefinementContext(int x, int y, int width, int height)
+        private int GetMagnitudeRefinementContext(int x, int y, int width, int height, bool isFirstRefinement)
         {
-            // Simplified: check if any neighbor is significant
-            bool hasSignificantNeighbor = HasSignificantNeighbor(x, y, width, height);
+            // ITU-T T.800 Table D.4 specifies three contexts for magnitude refinement:
+            // - Context 14: First refinement, no significant neighbors
+            // - Context 15: First refinement, has significant neighbors
+            // - Context 16: Subsequent refinements
+            if (!isFirstRefinement)
+            {
+                return CtxMag + 2; // Context 16 for subsequent refinements
+            }
 
-            // Context 14-16 based on neighbor status
-            return hasSignificantNeighbor ? CtxMag + 1 : CtxMag;
+            bool hasSignificantNeighbor = HasSignificantNeighbor(x, y, width, height);
+            return hasSignificantNeighbor ? CtxMag + 1 : CtxMag; // Context 14 or 15
         }
     }
 }
