@@ -21,22 +21,27 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 - [x] Validation framework (Strict/Lenient/Permissive) — v1.0
 - [x] Private tag support with vendor dictionaries — v1.0
 - [x] Character encoding (ISO-IR 6 through UTF-8) — v1.0
+- [x] DICOM networking (C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET) — v2.0
+- [x] Pure C# image codecs (JPEG Baseline, JPEG Lossless, JPEG 2000) — v2.0
+- [x] Native codecs package (libjpeg-turbo, OpenJPEG, CharLS) — v2.0
+- [x] De-identification (PS3.15 Basic Profile) — v2.0
+- [x] Zero-copy PDU infrastructure — v2.0
+- [x] JPEG-LS and HTJ2K codec infrastructure — v2.0
+- [x] Modality Worklist (MWL) SCU support — v2.0
 
 ### Active
 
-- [ ] DICOM networking (C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET) — v2.0
-- [ ] Pure C# image codecs (JPEG, JPEG 2000) — v2.0
-- [ ] Native codecs package (libjpeg-turbo, OpenJPEG) — v2.0
-- [ ] De-identification (PS3.15 Basic Profile) — v2.0
+- [ ] Complete managed JPEG-LS codec (full ITU-T T.87) — v3.0
+- [ ] Complete managed HTJ2K codec — v3.0
+- [ ] TLS networking support — v3.0
 - [ ] Basic CLI tool (dcmdump equivalent)
 
 ### Out of Scope
 
 - fo-dicom API compatibility in core library — clean break, best design wins
-- MongoDB/BSON serialization — v3+
-- Full CLI suite (storescu, findscu, etc.) — v3+
+- MongoDB/BSON serialization — v4+
+- Full CLI suite (storescu, findscu, etc.) — v4+
 - Federation daemon — future vision
-- TLS networking support — v3+ (orthogonal to core networking)
 
 ## Context
 
@@ -69,12 +74,16 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 | Two-layer reader (ref struct + async) | Zero-allocation + streaming | ✓ Good (v1.0) |
 | Span<T>-first design | Minimize allocations in hot paths | ✓ Good (v1.0) |
 | FrozenDictionary on .NET 8+ | 40-50% faster dictionary lookups | ✓ Good (v1.0) |
+| 13-state association machine | Match PS3.8 Section 9.2 | ✓ Good (v2.0) |
+| IAsyncEnumerable for Q/R | Memory-efficient streaming | ✓ Good (v2.0) |
+| Zig cross-compilation | Single toolchain for 6 targets | ✓ Good (v2.0) |
+| UUID-derived UIDs (2.25.xxx) | No registered root needed | ✓ Good (v2.0) |
 
 ## Context
 
-Shipped v1.0 with 89,000 LOC C#.
+Shipped v2.0 with ~89,000 LOC C#.
 Tech stack: .NET multi-target (netstandard2.0, net8.0, net9.0, net10.0), Roslyn source generators.
-1030 tests at v1.0 release.
+3660 tests at v2.0 release.
 
 ---
-*Last updated: 2026-02-02 after v1.0 milestone*
+*Last updated: 2026-02-02 after v2.0 milestone*

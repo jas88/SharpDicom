@@ -1,5 +1,34 @@
 # Project Milestones: SharpDicom
 
+## v2.0.0 Network, Codecs & De-identification (Shipped: 2026-02-02)
+
+**Delivered:** Full DICOM networking stack, comprehensive image codecs (pure C# and native), and PS3.15-compliant de-identification
+
+**Phases completed:** 10-14 (38 plans total)
+
+**Key accomplishments:**
+
+- Full DICOM networking (DicomClient/DicomServer with C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET)
+- Pure C# image codecs (JPEG Baseline, JPEG Lossless, JPEG 2000 Lossless/Lossy)
+- Native codecs package with libjpeg-turbo, OpenJPEG, CharLS, FFmpeg wrappers
+- PS3.15 de-identification with UID remapping and date shifting
+- Zero-copy PDU infrastructure with SlabMemoryPool and SocketPipe
+- JPEG-LS and HTJ2K codec infrastructure
+
+**Stats:**
+
+- 326 files created/modified
+- ~137,600 lines added
+- 5 phases, 38 plans
+- 3 days (2026-01-28 to 2026-01-30)
+- 3660 tests passing at release
+
+**Git range:** `v1.0.1` → `v2.0.0`
+
+**What's next:** v3.0.0 - Complete managed JPEG-LS/HTJ2K codecs, TLS support, advanced features
+
+---
+
 ## v1.0.0 Core DICOM Toolkit (Shipped: 2026-01-28)
 
 **Delivered:** Complete DICOM Part 10 file I/O toolkit with streaming architecture, source-generated dictionary, and RLE codec
@@ -29,4 +58,4 @@
 
 ---
 
-*Last updated: 2026-02-02*
+*Last updated: 2026-02-02 after v2.0 milestone*
