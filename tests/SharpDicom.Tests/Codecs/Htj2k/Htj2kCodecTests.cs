@@ -49,7 +49,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_EncodeRoundtrip_8Bit()
         {
             var codec = new Htj2kLosslessCodec();
@@ -79,7 +79,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_EncodeRoundtrip_16Bit()
         {
             var codec = new Htj2kLosslessCodec();
@@ -108,7 +108,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLossyCodec_EncodeDecode_ProducesOutput()
         {
             var codec = new Htj2kLossyCodec();
@@ -173,7 +173,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_12Bit_RoundtripCorrect()
         {
             var codec = new Htj2kLosslessCodec();
@@ -210,7 +210,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_RGB_RoundtripCorrect()
         {
             var codec = new Htj2kLosslessCodec();
@@ -247,7 +247,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessRpclCodec_Roundtrip_Correct()
         {
             var codec = new Htj2kLosslessRpclCodec();
@@ -273,7 +273,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_MultiFrame_RoundtripCorrect()
         {
             var codec = new Htj2kLosslessCodec();
@@ -307,7 +307,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLosslessCodec_LargeImage_Roundtrip()
         {
             var codec = new Htj2kLosslessCodec();
@@ -333,7 +333,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kCodec_HasCapMarker_InOutput()
         {
             var codec = new Htj2kLosslessCodec();
@@ -364,7 +364,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kLossyCodec_QualityAcceptable_PSNR()
         {
             var codec = new Htj2kLossyCodec();
@@ -402,7 +402,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("Managed JPEG 2000 encoder has known bugs - deferred to Phase 21-04")]
+        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
         public void Htj2kDecoder_StandardJ2K_StillDecodes()
         {
             // Use standard J2K encoder
