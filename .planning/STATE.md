@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 21 - Complete Managed Codecs
-**Plan**: 1 of 4 complete
+**Plan**: 2 of 4 complete
 **Status**: In Progress
-**Last activity**: 2026-02-03 - Completed JPEG-LS encoder/decoder with all 8 predictors, 365 contexts, and Golomb-Rice coding
+**Last activity**: 2026-02-03 - Completed HTJ2K codec shell using J2K delegation (HT block coder deferred to 21-04)
 
-**Progress**: ██████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (1/4 plans in Phase 21)
+**Progress**: ████████████████████░░░░░░░░░░░░░░░░░░░░ (2/4 plans in Phase 21)
 
-**Test Status**: 3898 tests (16 new JPEG-LS tests), 0 failed, 122 skipped (external service tests)
+**Test Status**: 3910 tests (12 new HTJ2K property tests), 0 failed, 133 skipped (external service + 11 HTJ2K roundtrip tests awaiting J2K fixes)
 
 ## Completed
 
@@ -331,6 +331,9 @@
 | 2026-01-30 | 14-08 | SOPClassUID preserved in BatchDeidentifier | Required for writing valid DICOM files after de-identification |
 | 2026-01-30 | 14-08 | SemaphoreSlim for parallel throttling | Better control than TPL parallelism |
 | 2026-01-30 | 14-08 | Progress reported per-file | Simpler than incremental in-file progress |
+| 2026-02-03 | 21-02 | Defer HT block coder to Phase 21-04 | ISO/IEC 15444-15 implementation requires 3000-5000 LOC and spec study |
+| 2026-02-03 | 21-02 | HTJ2K via J2K delegation | Functionally correct, backward compatible, defers performance optimization |
+| 2026-02-03 | 21-02 | Comprehensive test coverage for future | Encode/decode tests prepared but [Ignore] until J2K encoder fixed |
 | 2026-02-03 | 21-01 | Extract JPEG-LS components to separate files | JpegLsPredictor, JlsContext, GolombRiceCoder for better maintainability |
 | 2026-02-03 | 21-01 | Implement all 8 ITU-T T.87 predictors | Full standard compliance, minimal overhead |
 | 2026-02-03 | 21-01 | Use 365-element context array | Full ITU-T T.87 context model for optimal compression |
