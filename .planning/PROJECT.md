@@ -12,24 +12,31 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Parse DICOM Part 10 files with streaming support — v1.0
+- [x] Write DICOM Part 10 files — v1.0
+- [x] Source-generated DICOM dictionary from NEMA XML — v1.0
+- [x] Multi-target: netstandard2.0, net8.0, net9.0 — v1.0
+- [x] Trim/AOT compatible (no reflection) — v1.0
+- [x] RLE Lossless codec with SIMD optimization — v1.0
+- [x] Validation framework (Strict/Lenient/Permissive) — v1.0
+- [x] Private tag support with vendor dictionaries — v1.0
+- [x] Character encoding (ISO-IR 6 through UTF-8) — v1.0
 
 ### Active
 
-- [ ] Parse DICOM Part 10 files with streaming support
-- [ ] Write DICOM Part 10 files
-- [ ] Source-generated DICOM dictionary from NEMA XML
-- [ ] Multi-target: netstandard2.0, net8.0, net9.0
-- [ ] Trim/AOT compatible (no reflection)
+- [ ] DICOM networking (C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET) — v2.0
+- [ ] Pure C# image codecs (JPEG, JPEG 2000) — v2.0
+- [ ] Native codecs package (libjpeg-turbo, OpenJPEG) — v2.0
+- [ ] De-identification (PS3.15 Basic Profile) — v2.0
 - [ ] Basic CLI tool (dcmdump equivalent)
 
 ### Out of Scope
 
 - fo-dicom API compatibility in core library — clean break, best design wins
-- MongoDB/BSON serialization — v2
-- Networking (C-STORE, C-FIND, C-MOVE) — v2
-- Full CLI suite (storescu, findscu, etc.) — v2
+- MongoDB/BSON serialization — v3+
+- Full CLI suite (storescu, findscu, etc.) — v3+
 - Federation daemon — future vision
+- TLS networking support — v3+ (orthogonal to core networking)
 
 ## Context
 
@@ -56,10 +63,18 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Clean break from fo-dicom API | Best design wins, migration via tooling | — Pending |
-| Source generator for dictionary | Trim/AOT compatibility, no reflection | — Pending |
-| Multi-target from start | Broad compatibility required for migration | — Pending |
-| Build migration tools alongside | Validate migration path as features develop | — Pending |
+| Clean break from fo-dicom API | Best design wins, migration via tooling | ✓ Good (v1.0) |
+| Source generator for dictionary | Trim/AOT compatibility, no reflection | ✓ Good (v1.0) |
+| Multi-target from start | Broad compatibility required for migration | ✓ Good (v1.0) |
+| Two-layer reader (ref struct + async) | Zero-allocation + streaming | ✓ Good (v1.0) |
+| Span<T>-first design | Minimize allocations in hot paths | ✓ Good (v1.0) |
+| FrozenDictionary on .NET 8+ | 40-50% faster dictionary lookups | ✓ Good (v1.0) |
+
+## Context
+
+Shipped v1.0 with 89,000 LOC C#.
+Tech stack: .NET multi-target (netstandard2.0, net8.0, net9.0, net10.0), Roslyn source generators.
+1030 tests at v1.0 release.
 
 ---
-*Last updated: 2025-01-26 after initialization*
+*Last updated: 2026-02-02 after v1.0 milestone*
