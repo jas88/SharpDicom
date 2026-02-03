@@ -12,24 +12,54 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Parse DICOM Part 10 files with streaming support — v1.0
+- [x] Write DICOM Part 10 files — v1.0
+- [x] Source-generated DICOM dictionary from NEMA XML — v1.0
+- [x] Multi-target: netstandard2.0, net8.0, net9.0 — v1.0
+- [x] Trim/AOT compatible (no reflection) — v1.0
+- [x] RLE Lossless codec with SIMD optimization — v1.0
+- [x] Validation framework (Strict/Lenient/Permissive) — v1.0
+- [x] Private tag support with vendor dictionaries — v1.0
+- [x] Character encoding (ISO-IR 6 through UTF-8) — v1.0
+- [x] DICOM networking (C-ECHO, C-STORE, C-FIND, C-MOVE, C-GET) — v2.0
+- [x] Pure C# image codecs (JPEG Baseline, JPEG Lossless, JPEG 2000) — v2.0
+- [x] Native codecs package (libjpeg-turbo, OpenJPEG, CharLS) — v2.0
+- [x] De-identification (PS3.15 Basic Profile) — v2.0
+- [x] Zero-copy PDU infrastructure — v2.0
+- [x] JPEG-LS and HTJ2K codec infrastructure — v2.0
+- [x] Modality Worklist (MWL) SCU support — v2.0
 
 ### Active
 
-- [ ] Parse DICOM Part 10 files with streaming support
-- [ ] Write DICOM Part 10 files
-- [ ] Source-generated DICOM dictionary from NEMA XML
-- [ ] Multi-target: netstandard2.0, net8.0, net9.0
-- [ ] Trim/AOT compatible (no reflection)
-- [ ] Basic CLI tool (dcmdump equivalent)
+**Critical (v3.0 Phase 20)**:
+- [ ] Fix FindSequenceDelimiter for nested undefined-length sequences — **URGENT**
+- [ ] Fix streaming C-STORE SCP for full roundtrip fidelity — **URGENT**
+
+**High Priority (v3.0)**:
+- [ ] Complete managed JPEG-LS codec (full ITU-T T.87)
+- [ ] Complete managed HTJ2K codec
+- [ ] TLS networking support (TLS 1.2/1.3)
+- [ ] CLI tools (`sharpdcm` with dump, store, find, lint, fix subcommands)
+
+**Medium Priority (v3.0)**:
+- [ ] C-FIND SCP / C-MOVE SCP (server-side query/retrieve)
+- [ ] OCR-based burned-in PHI detection (Tesseract)
+- [ ] Referenced SOP Instance UID updates (RT Plans, Presentation States)
+- [ ] SharpDicom.FoDicom.Compat — adapter layer for migration
+- [ ] SharpDicom.Analyzers — Roslyn analyzer for fo-dicom patterns
+- [ ] MongoDB/BSON serialization in core library
+
+**Low Priority (v3.0)**:
+- [ ] 12-bit JPEG support
+- [ ] MPEG2/H.264/HEVC encoding
+- [ ] DIMSE-N services (MPPS, Storage Commitment)
 
 ### Out of Scope
 
-- fo-dicom API compatibility in core library — clean break, best design wins
-- MongoDB/BSON serialization — v2
-- Networking (C-STORE, C-FIND, C-MOVE) — v2
-- Full CLI suite (storescu, findscu, etc.) — v2
-- Federation daemon — future vision
+- fo-dicom API compatibility in core library — clean break, best design wins (compat layer separate)
+- PACS federation daemon — v4+ future vision
+- Web DICOM viewer — v4+
+- Cloud storage backends — v4+
 
 ## Context
 
@@ -56,10 +86,22 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Clean break from fo-dicom API | Best design wins, migration via tooling | — Pending |
-| Source generator for dictionary | Trim/AOT compatibility, no reflection | — Pending |
-| Multi-target from start | Broad compatibility required for migration | — Pending |
-| Build migration tools alongside | Validate migration path as features develop | — Pending |
+| Clean break from fo-dicom API | Best design wins, migration via tooling | ✓ Good (v1.0) |
+| Source generator for dictionary | Trim/AOT compatibility, no reflection | ✓ Good (v1.0) |
+| Multi-target from start | Broad compatibility required for migration | ✓ Good (v1.0) |
+| Two-layer reader (ref struct + async) | Zero-allocation + streaming | ✓ Good (v1.0) |
+| Span<T>-first design | Minimize allocations in hot paths | ✓ Good (v1.0) |
+| FrozenDictionary on .NET 8+ | 40-50% faster dictionary lookups | ✓ Good (v1.0) |
+| 13-state association machine | Match PS3.8 Section 9.2 | ✓ Good (v2.0) |
+| IAsyncEnumerable for Q/R | Memory-efficient streaming | ✓ Good (v2.0) |
+| Zig cross-compilation | Single toolchain for 6 targets | ✓ Good (v2.0) |
+| UUID-derived UIDs (2.25.xxx) | No registered root needed | ✓ Good (v2.0) |
+
+## Context
+
+Shipped v2.0 with ~89,000 LOC C#.
+Tech stack: .NET multi-target (netstandard2.0, net8.0, net9.0, net10.0), Roslyn source generators.
+3660 tests at v2.0 release.
 
 ---
-*Last updated: 2025-01-26 after initialization*
+*Last updated: 2026-02-02 after v2.0 milestone*

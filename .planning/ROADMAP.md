@@ -1,266 +1,58 @@
 # SharpDicom Roadmap
 
-## Milestone: v1.0.0 — Core DICOM Toolkit
+## Milestones
 
-**Goal**: Production-ready DICOM file I/O with streaming architecture
+- **v1.0.0 Core DICOM Toolkit** — Phases 1-9 (shipped 2026-01-28) — see [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
+- **v2.0.0 Network, Codecs & De-identification** — Phases 10-14 (shipped 2026-02-02) — see [milestones/v2.0-ROADMAP.md](milestones/v2.0-ROADMAP.md)
+- **v3.0.0 Polish, CLI & Migration** — Phases 20-29 (planned)
+
+---
+
+## Milestone: v3.0.0 — Polish, CLI & Migration
+
+**Goal**: Fix known issues, complete codec implementations, add CLI tools, and provide fo-dicom migration path
 
 ### Phase Overview
 
-| Phase | Name | Requirements | Status |
-|-------|------|--------------|--------|
-| 1 | Core Data Model & Dictionary | FR-01, FR-02 | **Complete** |
-| 2 | Basic File Reading | FR-03.1-3.3, FR-03.6 | **Complete** |
-| 3 | Implicit VR & Sequences | FR-03.4, FR-03.7-3.8 | **Complete** |
-| 4 | Character Encoding | FR-04 | **Complete** |
-| 5 | Pixel Data & Lazy Loading | FR-05 | **Complete** |
-| 6 | Private Tags | FR-06 | **Complete** |
-| 7 | File Writing | FR-07 | **Complete** |
-| 8 | Validation & Strictness | FR-08 | **Complete** |
-| 9 | RLE Codec | FR-09 | **Complete** |
+| Phase | Name | Priority | Status |
+|-------|------|----------|--------|
+| 20 | Critical Bug Fixes | **URGENT** | Pending |
+| 21 | Complete Managed Codecs | High | Pending |
+| 22 | TLS Networking | High | Pending |
+| 23 | CLI Tools (sharpdcm) | High | Pending |
+| 24 | Server-Side DIMSE | Medium | Pending |
+| 25 | Advanced De-identification | Medium | Pending |
+| 26 | Migration Tooling | Medium | Pending |
+| 27 | Extended Codec Support | Low | Pending |
+| 28 | DIMSE-N Services | Low | Pending |
+| 29 | MongoDB/BSON Serialization | Medium | Pending |
 
 ---
 
-## Milestone: v2.0.0 — Network, Codecs & De-identification
+## Phase 20: Critical Bug Fixes (URGENT)
 
-**Goal**: Full DICOM networking stack, pluggable image codecs, and standards-compliant de-identification
+**Goal**: Fix known bugs blocking production use
 
-### Phase Overview
-
-| Phase | Name | Requirements | Status |
-|-------|------|--------------|--------|
-| 10 | Network Foundation | FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11 | **Complete** |
-| 11 | DIMSE Services | FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12 | Pending |
-| 12 | Pure C# Codecs | FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7 | Pending |
-| 13 | Native Codecs Package | FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5 | Pending |
-| 14 | De-identification | FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6 | Pending |
-
----
-
-## Phase 10: Network Foundation
-
-**Goal**: Establish DICOM networking infrastructure with PDU handling, association negotiation, and basic connectivity verification
-
-**Requirements**: FR-10.1, FR-10.2, FR-10.3, FR-10.4, FR-10.10, FR-10.11
-
-**Plans**: 7 plans in 4 waves
-
-Plans:
-- [x] 10-01-PLAN.md — PDU types, constants, DicomStatus, network exceptions
-- [x] 10-02-PLAN.md — Presentation context, user information, association options
-- [x] 10-03-PLAN.md — PduReader/PduWriter ref structs for PDU I/O
-- [x] 10-04-PLAN.md — DicomAssociation state machine (13 states)
-- [x] 10-05-PLAN.md — DicomClient SCU with async connect/release
-- [x] 10-06-PLAN.md — DicomServer SCP with event-based handlers
-- [x] 10-07-PLAN.md — C-ECHO SCU/SCP and integration tests
+**Priority**: URGENT — Must be first phase of v3.0
 
 **Must-haves**:
-- [x] PDU parsing and building (A-ASSOCIATE-RQ/AC/RJ, P-DATA-TF, A-RELEASE-RQ/RP, A-ABORT)
-- [x] PduReader/PduWriter ref structs following DicomStreamReader pattern
-- [x] DicomAssociation state machine with presentation context negotiation
-- [x] DicomClient class with async API for SCU operations
-- [x] DicomServer class with event-based handlers for SCP operations
-- [x] C-ECHO SCU implementation (verify remote connectivity)
-- [x] C-ECHO SCP handler (respond to verification requests)
-
-**Should-haves**:
-- [x] Configurable ARTIM timer (association request/release timeout)
-- [x] Configurable PDU size (16KB-1MB range)
-- [x] Association abort with reason codes
-
-**Dependencies**: Phase 4 (character encoding for DIMSE text VRs), Phase 7 (dataset serialization for command sets)
-
-**Research Needed**: No (foundation layer; C-MOVE investigation deferred to Phase 11)
+- [ ] Fix FindSequenceDelimiter for deeply nested undefined-length sequences
+  - Reader bug causes roundtrip failures with undefined-length nested sequences
+  - Writer is correct; reader parsing logic needs fix
+  - Currently causes 2 skipped roundtrip tests
+- [ ] Fix streaming C-STORE SCP parser for full roundtrip fidelity
+  - Simplified parser doesn't preserve all elements perfectly
+  - Need full DicomFileReader integration for server-side receive
 
 **Success Criteria**:
-- [x] Can establish association with DCMTK storescp
-- [x] Can accept association from DCMTK storescu
-- [x] C-ECHO roundtrip succeeds (SCU and SCP)
-- [x] PDU parsing handles fragmented reads correctly
-- [x] Association state machine rejects malformed PDUs
-- [x] Tests pass with real PACS simulator
+- [ ] All previously skipped undefined-length sequence tests pass
+- [ ] C-STORE SCP roundtrip produces byte-identical datasets
 
 ---
 
-## Phase 11: DIMSE Services
+## Phase 21: Complete Managed Codecs
 
-**Goal**: Complete DIMSE-C services for image storage, query, and retrieval operations
-
-**Requirements**: FR-10.5, FR-10.6, FR-10.7, FR-10.8, FR-10.9, FR-10.12
-
-**Plans**: 7 plans in 4 waves
-
-Plans:
-- [ ] 11-01-PLAN.md — Common DIMSE types (QueryRetrieveLevel, progress structs, DicomCommand extensions)
-- [ ] 11-02-PLAN.md — CStoreScu service with streaming send and progress reporting
-- [ ] 11-03-PLAN.md — CFindScu service with IAsyncEnumerable and DicomQuery builder
-- [ ] 11-04-PLAN.md — C-STORE SCP handler support in DicomServer (buffered and streaming modes)
-- [ ] 11-05-PLAN.md — CMoveScu service for third-party retrieval
-- [ ] 11-06-PLAN.md — CGetScu service with inline C-STORE sub-operation handling
-- [ ] 11-07-PLAN.md — Integration tests (roundtrip and DCMTK interoperability)
-
-**Must-haves**:
-- [ ] C-STORE SCU (send DICOM files to remote AE)
-- [ ] C-STORE SCP with streaming support (receive without full buffering)
-- [ ] C-FIND SCU (query PACS/RIS for studies/series/instances)
-- [ ] C-MOVE SCU (retrieve from PACS via sub-operations)
-- [ ] C-GET SCU (retrieve via C-STORE sub-ops on same association)
-- [ ] IAsyncEnumerable for C-FIND/C-MOVE/C-GET responses
-
-**Should-haves**:
-- [ ] Zero-copy PDU parsing via System.IO.Pipelines
-- [ ] Streaming C-STORE SCP handler with CopyToAsync pattern
-- [ ] Element callback during network receive (validate/transform on arrival)
-- [ ] Transfer syntax negotiation with transcoding capability
-
-**Dependencies**: Phase 10 (association and PDU infrastructure)
-
-**Research Needed**: Yes (C-MOVE third-party destination coordination, streaming receive patterns) - COMPLETE (11-RESEARCH.md)
-
-**Success Criteria**:
-- [ ] Can send DICOM file to DCMTK storescp
-- [ ] Can receive DICOM file from DCMTK storescu
-- [ ] C-FIND returns matching studies from test PACS
-- [ ] C-MOVE triggers sub-operations to third-party destination
-- [ ] C-GET retrieves instances directly
-- [ ] Streaming receive does not buffer entire file in memory
-- [ ] Association marked corrupted after PDU timeout (prevents data interleaving)
-
----
-
-## Phase 12: Pure C# Codecs
-
-**Goal**: JPEG and JPEG 2000 codecs implemented in pure C# for maximum portability and AOT compatibility
-
-**Requirements**: FR-11.1, FR-11.2, FR-11.3, FR-11.4, FR-11.5, FR-11.6, FR-11.7
-
-**Must-haves**:
-- [ ] JPEG Baseline codec (8-bit lossy, Process 1 - TS 1.2.840.10008.1.2.4.50)
-- [ ] JPEG Lossless codec (Process 14 SV1 - TS 1.2.840.10008.1.2.4.70)
-- [ ] JPEG 2000 Lossless codec (TS 1.2.840.10008.1.2.4.90)
-- [ ] Pure C# implementations with no native dependencies
-- [ ] Trim/AOT compatible (no reflection, no dynamic code)
-- [ ] Register via existing IPixelDataCodec interface and CodecRegistry
-
-**Should-haves**:
-- [ ] JPEG 2000 Lossy codec (TS 1.2.840.10008.1.2.4.91)
-- [ ] Photometric interpretation handling (RGB/YBR conversion with metadata update)
-- [ ] Multi-frame support with frame-level decode
-
-**Dependencies**: Phase 9 (IPixelDataCodec interface and CodecRegistry)
-
-**Research Needed**: No (well-documented JPEG/J2K specs, reference implementations available)
-
-**Success Criteria**:
-- [ ] Decode JPEG Baseline test files from NEMA WG-04 conformance suite
-- [ ] Decode JPEG Lossless test files from NEMA WG-04 conformance suite
-- [ ] Decode JPEG 2000 test files from NEMA WG-04 conformance suite (bit-perfect roundtrip)
-- [ ] Encode to all supported transfer syntaxes
-- [ ] Codecs discoverable via CodecRegistry.GetCodec(TransferSyntax)
-- [ ] Passes AOT compilation test (no trimming warnings)
-- [ ] Photometric Interpretation tag matches actual pixel data after encode
-
----
-
-## Phase 13: Native Codecs Package
-
-**Goal**: Optional high-performance codec package with native library wrappers for production workloads
-
-**Requirements**: FR-12.1, FR-12.2, FR-12.3, FR-12.4, FR-12.5
-
-**Plans**: 9 plans in 5 waves
-
-Plans:
-- [ ] 13-01-PLAN.md — Zig build system, C API header, version/feature detection, CI workflow
-- [ ] 13-02-PLAN.md — libjpeg-turbo wrapper for JPEG baseline/extended (8-bit, 12-bit)
-- [ ] 13-03-PLAN.md — OpenJPEG wrapper for JPEG 2000 with resolution level and ROI decode
-- [ ] 13-04-PLAN.md — CharLS wrapper for JPEG-LS and FFmpeg wrapper for video codecs
-- [ ] 13-05-PLAN.md — GPU acceleration with nvJPEG2000 and CPU fallback
-- [ ] 13-06-PLAN.md — Managed P/Invoke layer, NativeCodecs static class, exception types
-- [ ] 13-07-PLAN.md — IPixelDataCodec implementations and CodecRegistry priority integration
-- [ ] 13-08-PLAN.md — NuGet package structure (meta + runtime packages for 6 RIDs)
-- [ ] 13-09-PLAN.md — Test suite for native codec initialization and decode/encode operations
-
-**Must-haves**:
-- [ ] SharpDicom.Codecs NuGet package (separate from core)
-- [ ] Native JPEG codec wrapping libjpeg-turbo (2-6x faster than pure C#)
-- [ ] Native JPEG 2000 codec wrapping OpenJPEG
-- [ ] Override registration that replaces pure C# codecs when loaded
-- [ ] Cross-platform native binaries (win-x64, linux-x64, osx-arm64)
-
-**Should-haves**:
-- [ ] ModuleInitializer auto-registration on assembly load
-- [ ] Fallback to pure C# if native load fails
-- [ ] Native library version detection and logging
-
-**Dependencies**: Phase 12 (establishes codec interface patterns)
-
-**Research Needed**: Yes - COMPLETE (13-RESEARCH.md)
-
-**Success Criteria**:
-- [ ] SharpDicom.Codecs package installable via NuGet
-- [ ] Native codecs auto-register when package referenced
-- [ ] Native codecs override pure C# registrations
-- [ ] Decode/encode works on Windows, Linux, macOS
-- [ ] Performance benchmark shows 2-6x improvement over pure C# (note: NFR-05.2's 10-50x range is for specific workloads; typical improvement is 2-6x)
-- [ ] Package does not bloat core SharpDicom library
-
----
-
-## Phase 14: De-identification
-
-**Goal**: Standards-compliant DICOM de-identification with PS3.15 Basic Profile and consistent UID/date handling
-
-**Requirements**: FR-13.1, FR-13.2, FR-13.3, FR-13.4, FR-13.5, FR-13.6
-
-**Plans**: 8 plans in 4 waves
-
-Plans:
-- [ ] 14-01-PLAN.md — Source generator for action tables from part15.xml
-- [ ] 14-02-PLAN.md — Core types, action resolution, dummy value generation
-- [ ] 14-03-PLAN.md — UID remapping with SQLite persistence
-- [ ] 14-04-PLAN.md — Date/time shifting with configurable strategies
-- [ ] 14-05-PLAN.md — DicomDeidentifier with fluent API and element callback
-- [ ] 14-06-PLAN.md — JSON config format with $extends inheritance and presets
-- [ ] 14-07-PLAN.md — Clean Pixel Data Option with region redaction
-- [ ] 14-08-PLAN.md — Batch processing and integration tests
-
-
-**Must-haves**:
-- [ ] PS3.15 Basic Application Level Confidentiality Profile implementation
-- [ ] Source-generated action table from NEMA part15.xml (extends dictionary generator)
-- [ ] UID remapping with consistent study-level replacement (preserves referential integrity)
-- [ ] Date shifting with configurable offset (preserves temporal relationships)
-- [ ] Integration with existing element callback system (CallbackFilter, ElementCallback)
-- [ ] DeidentificationContext for stateful remapping across multiple files
-
-**Should-haves**:
-- [ ] DicomDeidentifier class with fluent configuration API
-- [ ] BurnedInPHIDetector warning for high-risk modalities (US, ES, SC, XA)
-- [ ] Referenced SOP Instance UID updates in sequences (RT plans, presentation states)
-- [ ] Safe private tag registry (preserve known-safe vendor tags)
-- [ ] JSON config with $extends inheritance for org-specific profiles
-- [ ] Clean Pixel Data Option with region-based redaction
-
-**Dependencies**: Phase 4 (encoding for text element processing), Phase 7 (file writing for output)
-
-**Research Needed**: Yes - COMPLETE (14-RESEARCH.md)
-
-**Success Criteria**:
-- [ ] Basic Profile removes all required tags per PS3.15 Annex E
-- [ ] UID remapping maintains referential integrity across study
-- [ ] Date shifting preserves temporal relationships within study
-- [ ] De-identified files validate with DICOM validator
-- [ ] Callback integration works with existing validation callbacks
-- [ ] Warning raised for modalities with high burned-in PHI risk
-- [ ] Roundtrip de-id -> re-id possible with mapping file
-
----
-
-## Phase 18: Complete Managed Codec Implementations
-
-**Goal**: Complete the managed (pure C#) implementations of JPEG-LS and HTJ2K codecs for full AOT/trimming compatibility without native dependencies
-
-**Requirements**: Extension of FR-11 (Pure C# codecs)
+**Goal**: Complete pure C# JPEG-LS and HTJ2K codecs (infrastructure added in v2.0)
 
 **Must-haves**:
 - [ ] Complete JPEG-LS encoder/decoder (ITU-T T.87 / ISO/IEC 14495-1)
@@ -268,377 +60,227 @@ Plans:
   - [ ] Near-lossless mode (NEAR>0)
   - [ ] Context modeling and Golomb-Rice coding
   - [ ] Proper bounds checking and error handling
-- [ ] Complete JPEG 2000 encoder/decoder for HTJ2K support
-  - [ ] Wavelet transform (5/3 reversible, 9/7 irreversible)
-  - [ ] EBCOT tier-1/tier-2 coding
-  - [ ] Proper progression order support (LRCP, RPCL)
+- [ ] Complete HTJ2K encoder/decoder
+  - [ ] High-Throughput JPEG 2000 (ISO/IEC 15444-15)
+  - [ ] Block coder optimization
 - [ ] Roundtrip encode/decode tests passing for all bit depths
 
 **Should-haves**:
-- [ ] Performance optimization (SIMD where applicable)
+- [ ] SIMD optimization where applicable
 - [ ] Multi-threaded encoding for large images
-
-**Dependencies**: Phase 12 (codec interface), Phase 17 (codec infrastructure scaffolding)
-
-**Research Needed**: Yes (JPEG-LS algorithm details, J2K tier-1 coding)
 
 **Success Criteria**:
 - [ ] JPEG-LS roundtrip tests pass (currently skipped)
 - [ ] HTJ2K roundtrip tests pass (currently skipped)
-- [ ] No native library dependencies required
-- [ ] AOT/trimming compatible
-- [ ] Performance within 10x of native implementations (acceptable for portability trade-off)
+- [ ] Performance within 10x of native implementations
 
 ---
 
-## Critical Path
+## Phase 22: TLS Networking
 
-```
-v1.0.0 Complete (Phases 1-9)
-         |
-         v
-Phase 10 (Network Foundation)
-         |
-         v
-Phase 11 (DIMSE Services)
-         |
-         +------------------------+
-         |                        |
-         v                        v
-Phase 12 (Pure Codecs)      Phase 14 (De-id)
-         |
-         v
-Phase 13 (Native Codecs)*
-         |
-         +------------------------+
-                                  |
-                                  v
-                            v2.0.0 Release
+**Goal**: Secure DICOM networking with TLS support
 
-* Phase 13 depends on Phase 12 for codec interface patterns
-```
+**Must-haves**:
+- [ ] TLS 1.2/1.3 support for DicomClient
+- [ ] TLS 1.2/1.3 support for DicomServer
+- [ ] Certificate validation options (system store, custom CA, self-signed)
+- [ ] Client certificate authentication
 
-**Parallelization opportunities**:
-- Phase 12 (Pure Codecs) and Phase 14 (De-identification) can run in parallel
-- Phase 13 must follow Phase 12 (needs codec interface patterns)
-- Networking phases (10, 11) are sequential
-
-**Estimated effort**:
-- Phase 10: 5-7 days (PDU/Association/C-ECHO)
-- Phase 11: 8-10 days (C-STORE/FIND/MOVE/GET with streaming)
-- Phase 12: 6-8 days (three codec implementations)
-- Phase 13: 4-5 days (native wrappers, packaging)
-- Phase 14: 5-6 days (de-id profiles, UID remapping)
-- **Total**: 28-36 days (with parallelization: 20-26 days)
-
----
-
-## v1.0.0 Phase Details (Archived)
-
-### Phase 1: Core Data Model & Dictionary
-
-**Goal**: Foundation data structures and source-generated dictionary
-
-**Requirements**: FR-01.1-6, FR-02.1-5
-
-**Plans**: 7 plans in 4 waves
-
-Plans:
-- [x] 01-01-PLAN.md — Project scaffolding + DicomTag, DicomVR primitives
-- [x] 01-02-PLAN.md — NEMA XML caching + generator infrastructure
-- [x] 01-03-PLAN.md — DicomUID, TransferSyntax, DicomDictionaryEntry
-- [x] 01-04-PLAN.md — XML parsing and code emission
-- [x] 01-05-PLAN.md — DicomElement hierarchy + DicomSequence
-- [x] 01-06-PLAN.md — DicomDataset + integration
-- [x] 01-07-PLAN.md — Generator tests + full verification
-
-**Delivers**:
-- DicomTag, DicomVR, DicomElement structs
-- DicomDataset, DicomSequence classes
-- DicomUID struct with inline storage
-- Source generator parsing Part 6 XML
-- Generated tag/UID/VR lookup tables
-
-**Dependencies**: None (foundation)
-
-**Research Needed**: No (well-documented patterns)
+**Should-haves**:
+- [ ] Certificate pinning option
+- [ ] DICOM TLS connection profile conformance
 
 **Success Criteria**:
-- [x] DicomTag equality/comparison/hashing works
-- [x] Source generator produces ~4000 tag definitions
-- [x] Dictionary lookup O(1) via FrozenDictionary
-- [x] Unit tests pass on all TFMs
+- [ ] Secure connection to DCMTK with TLS
+- [ ] Mutual TLS authentication working
 
 ---
 
-### Phase 2: Basic File Reading
+## Phase 23: CLI Tools (sharpdcm)
 
-**Goal**: Parse Explicit VR Little Endian files
+**Goal**: Comprehensive command-line toolkit as single binary with subcommands
 
-**Requirements**: FR-03.1-3, FR-03.6
+**Must-haves**:
+- [ ] `sharpdcm` unified CLI with subcommands
+- [ ] `sharpdcm dump` — Display DICOM file contents (dcmdump equivalent)
+  - [ ] Tag display with names and values
+  - [ ] Configurable output format (text, JSON, XML)
+  - [ ] Sequence depth limiting
+  - [ ] Private tag display with vendor names
+- [ ] `sharpdcm store` — Send DICOM files (storescu equivalent)
+  - [ ] Single file and directory send
+  - [ ] Progress reporting
+  - [ ] Retry on failure
+- [ ] `sharpdcm find` — Query DICOM server (findscu equivalent)
+  - [ ] Patient/Study/Series/Instance level queries
+  - [ ] Output as text, JSON, or CSV
+- [ ] `sharpdcm lint` — Validate DICOM files (dcmlint)
+  - [ ] Strict/Lenient/Permissive profiles
+  - [ ] Machine-readable output (JSON)
+  - [ ] Exit codes for CI integration
+- [ ] `sharpdcm fix` — Repair common DICOM issues (dcmfix)
+  - [ ] Fix invalid UIDs
+  - [ ] Fix invalid dates/times
+  - [ ] Fix character encoding issues
+  - [ ] Remove invalid elements
+  - [ ] Dry-run mode
 
-**Plans**: 4 plans in 2 waves
-
-Plans:
-- [x] 02-01-PLAN.md — DicomStreamReader for low-level Span-based parsing
-- [x] 02-02-PLAN.md — Part10Reader for file structure parsing
-- [x] 02-03-PLAN.md — DicomFileReader with async IAsyncEnumerable streaming
-- [x] 02-04-PLAN.md — DicomFile class and integration tests
-
-**Delivers**:
-- DicomStreamReader ref struct for zero-copy parsing
-- DicomReaderOptions with Strict/Lenient/Permissive presets
-- Part 10 structure parsing (preamble, DICM, FMI)
-- Explicit VR LE parsing
-- DicomFile class for file I/O
-- DicomFileReader with IAsyncEnumerable streaming
-
-**Dependencies**: Phase 1 (data model)
-
-**Research Needed**: No (Pipelines patterns established)
+**Should-haves**:
+- [ ] `sharpdcm move` — Retrieve via C-MOVE (movescu equivalent)
+- [ ] `sharpdcm get` — Retrieve via C-GET (getscu equivalent)
+- [ ] `sharpdcm echo` — Verify connectivity (echoscu equivalent)
+- [ ] `sharpdcm deid` — De-identify files
+- [ ] `sharpdcm convert` — Transcode between transfer syntaxes
+- [ ] Shell completion (bash, zsh, PowerShell)
+- [ ] Single-file deployment (AOT compiled)
 
 **Success Criteria**:
-- [x] Part 10 structure parsing (preamble, DICM, FMI)
-- [x] Explicit VR element reading
-- [x] Transfer Syntax detection from File Meta Information
-- [x] Tests pass with sample data (333 tests total)
+- [ ] All subcommands functional
+- [ ] AOT compilation produces single executable
+- [ ] Works on Windows, Linux, macOS
 
 ---
 
-### Phase 3: Implicit VR & Sequences
+## Phase 24: Server-Side DIMSE (SCP)
 
-**Goal**: Handle real-world files with implicit VR and sequences
+**Goal**: Complete server-side query/retrieve implementation
 
-**Requirements**: FR-03.4, FR-03.7-8
+**Must-haves**:
+- [ ] C-FIND SCP — Respond to queries
+  - [ ] Patient/Study/Series/Instance level
+  - [ ] Pluggable data source interface
+- [ ] C-MOVE SCP — Handle retrieve requests
+  - [ ] Forward to third-party destination
+  - [ ] Sub-operation tracking
 
-**Plans**: 4 plans in 3 waves
-
-Plans:
-- [x] 03-01-PLAN.md — DicomReaderOptions extensions + implicit VR verification
-- [x] 03-02-PLAN.md — SequenceParser for nested dataset parsing
-- [x] 03-03-PLAN.md — DicomFileReader sequence integration
-- [x] 03-04-PLAN.md — Context-dependent VR resolution + Phase 3 verification
-
-**Delivers**:
-- Implicit VR Little Endian support
-- VR lookup from dictionary
-- Defined length sequences
-- Undefined length sequences with delimiters
-- Nested sequence support
-
-**Dependencies**: Phase 2 (file reading)
-
-**Research Needed**: Partial (context-dependent VR edge cases)
+**Should-haves**:
+- [ ] C-GET SCP — Respond to C-GET requests
+- [ ] Query result pagination for large datasets
 
 **Success Criteria**:
-- [x] Parse implicit VR test files
-- [x] Nested sequences to depth 5+
-- [x] Undefined length with delimiters
-- [x] Context-dependent VR resolution
+- [ ] Can serve as mini-PACS for testing
+- [ ] DCMTK findscu/movescu work against SharpDicom SCP
 
 ---
 
-### Phase 4: Character Encoding
+## Phase 25: Advanced De-identification
 
-**Goal**: Correct text decoding for international data
+**Goal**: Enhanced de-identification capabilities
 
-**Requirements**: FR-04.1-5
+**Must-haves**:
+- [ ] OCR-based burned-in PHI detection (Tesseract integration)
+  - [ ] Detect text regions in pixel data
+  - [ ] Configurable confidence threshold
+  - [ ] Region reporting for manual review
+- [ ] Referenced SOP Instance UID updates in sequences
+  - [ ] RT Plan references
+  - [ ] Presentation State references
+  - [ ] Structured Report references
 
-**Plans**: 2 plans in 2 waves
-
-Plans:
-- [x] 04-01-PLAN.md — DicomEncoding core, character set registry, UTF-8 detection
-- [x] 04-02-PLAN.md — DicomDataset encoding property, string element integration, inheritance
-
-**Delivers**:
-- DicomEncoding class with Primary/Extensions properties
-- DicomCharacterSets registry (~30 standard DICOM character sets)
-- UTF-8 zero-copy fast path via IsUtf8Compatible and TryGetUtf8
-- Latin-1, ASCII, and ISO 2022 support
-- Specific Character Set (0008,0005) parsing
-- Sequence item encoding inheritance via Parent property
-- DicomStringValue ref struct for zero-copy scenarios
-
-**Dependencies**: Phase 3 (Parent property for inheritance)
-
-**Research Needed**: Yes (ISO 2022 complexity) - COMPLETE
+**Should-haves**:
+- [ ] Additional de-identification profiles
+  - [ ] Retain longitudinal temporal information
+  - [ ] Retain modified dates
+  - [ ] Clean structured content
+- [ ] Re-identification support with mapping file
 
 **Success Criteria**:
-- [x] UTF-8 files decode correctly
-- [x] Latin-1 files decode correctly
-- [x] Multi-encoding datasets handled
-- [x] Japanese/Chinese test files (stretch)
+- [ ] OCR detects burned-in text in test images
+- [ ] RT Plan de-identification maintains referential integrity
 
 ---
 
-### Phase 5: Pixel Data & Lazy Loading
+## Phase 26: Migration Tooling
 
-**Goal**: Handle large elements efficiently
+**Goal**: Provide migration path from fo-dicom
 
-**Requirements**: FR-05.1-5
+**Must-haves**:
+- [ ] SharpDicom.FoDicom.Compat — Adapter layer
+  - [ ] DicomFile compatibility shim
+  - [ ] DicomDataset API mapping
+  - [ ] DicomClient/DicomServer adapters
+  - [ ] Common extension method equivalents
+- [ ] SharpDicom.Analyzers — Roslyn analyzer
+  - [ ] Detect fo-dicom API usage
+  - [ ] Suggest SharpDicom equivalents
+  - [ ] Code fix providers for automated migration
 
-**Plans**: 3 plans in 3 waves
+**Should-haves**:
+- [ ] Migration guide documentation
+- [ ] Benchmark comparisons (performance, memory)
 
-Plans:
-- [x] 05-01-PLAN.md — Core pixel data types (PixelDataInfo, PixelDataHandling, FragmentParser)
-- [x] 05-02-PLAN.md — Lazy loading infrastructure (IPixelDataSource, DicomPixelDataElement)
-- [x] 05-03-PLAN.md — Integration with DicomFileReader and DicomFile
-
-**Delivers**:
-- PixelDataInfo struct with frame size calculation
-- PixelDataHandling enum (LoadInMemory, LazyLoad, Skip, Callback)
-- DicomFragmentSequence with Basic Offset Table parsing
-- FragmentParser for encapsulated pixel data
-- IPixelDataSource interface with Immediate, Lazy, Skipped implementations
-- DicomPixelDataElement with frame-level access
-- DicomReaderOptions.PixelDataHandling configuration
-- DicomFile.PixelData property for convenient access
-
-**Dependencies**: Phase 3 (fragment sequences like SQ), Phase 4 (encoding for metadata)
-
-**Research Needed**: Partial (fragment edge cases) - COMPLETE
+**Migration targets** (in order):
+1. dcm2csv
+2. nccid
+3. SmiServices
+4. RdmpDicom
 
 **Success Criteria**:
-- [x] Load uncompressed pixel data
-- [x] Parse encapsulated fragments
-- [x] Lazy loading skips pixel data
-- [x] Multi-frame datasets work
+- [ ] dcm2csv migrated and passing tests
+- [ ] Analyzer detects 90%+ of fo-dicom patterns
 
 ---
 
-### Phase 6: Private Tags
+## Phase 27: Extended Codec Support
 
-**Goal**: Preserve vendor-specific data with proper creator tracking
+**Goal**: Additional codec capabilities
 
-**Requirements**: FR-06.1-4
-
-**Plans**: 2 plans in 2 waves
-
-Plans:
-- [x] 06-01-PLAN.md — Vendor dictionary source generator (parse malaterre XMLs, generate code)
-- [x] 06-02-PLAN.md — PrivateCreatorDictionary enhancements (slot allocation, compaction, lookup)
-
-**Delivers**:
-- VendorDictionary source-generated from malaterre/dicom-private-dicts
-- PrivateTagInfo and PrivateCreatorInfo record structs
-- Enhanced PrivateCreatorDictionary with AllocateSlot, Compact methods
-- DicomDatasetExtensions for StripPrivateTags and AddPrivateElement
-- DicomReaderOptions extensions for private tag handling
-- Siemens, GE, Philips vendor dictionaries bundled
-
-**Dependencies**: Phase 3 (private tags in sequences)
-
-**Research Needed**: No (patterns clear) - COMPLETE (06-RESEARCH.md)
+**Should-haves**:
+- [ ] 12-bit JPEG support (libjpeg-turbo with WITH_12BIT)
+- [ ] MPEG2 encoding (currently decode-only)
+- [ ] H.264/HEVC encoding for video DICOM
 
 **Success Criteria**:
-- [x] Private creator tracking
-- [x] Siemens/GE/Philips tags recognized
-- [x] Strip-private callback works
-- [x] Roundtrip preserves private data
+- [ ] 12-bit JPEG roundtrip works
+- [ ] Can create video DICOM from frame sequence
 
 ---
 
-### Phase 7: File Writing
+## Phase 28: DIMSE-N Services
 
-**Goal**: Write valid DICOM Part 10 files
+**Goal**: Normalized object services (low priority, <5% use cases)
 
-**Requirements**: FR-07.1-5
-
-**Plans**: 3 plans in 3 waves
-
-Plans:
-- [x] 07-01-PLAN.md — DicomStreamWriter for low-level IBufferWriter-based element writing
-- [x] 07-02-PLAN.md — DicomFileWriter and File Meta Information generation
-- [x] 07-03-PLAN.md — Sequence length handling and roundtrip tests
-
-**Delivers**:
-- DicomStreamWriter for IBufferWriter<byte> element serialization
-- DicomFileWriter for Part 10 file output
-- FileMetaInfoGenerator with group length calculation
-- DicomWriterOptions (transfer syntax, length encoding, FMI settings)
-- SequenceLengthCalculator for defined-length mode
-- Undefined length (delimiter) and defined length sequence writing
-- Full roundtrip read-write-read verification
-
-**Dependencies**: Phase 4 (encoding for string writing), Phase 3 (sequences)
-
-**Research Needed**: No (mirror of reading) - COMPLETE
+**Should-haves**:
+- [ ] N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT
+- [ ] Modality Performed Procedure Step (MPPS)
+- [ ] Storage Commitment
 
 **Success Criteria**:
-- [x] Written files validate with dcmtk
-- [x] Roundtrip read->write->read identical
-- [x] Streaming write to network
-- [x] Both length modes work
+- [ ] MPPS workflow functional
 
 ---
 
-### Phase 8: Validation & Strictness
+## Phase 29: MongoDB/BSON Serialization
 
-**Goal**: Configurable parsing behavior with comprehensive validation options
+**Goal**: Native MongoDB/BSON serialization for the metadata → MongoDB, pixels → disk architecture pattern
 
-**Requirements**: FR-08.1-4
+**Must-haves**:
+- [ ] DicomDataset → BsonDocument serialization (in core library)
+- [ ] BsonDocument → DicomDataset deserialization
+- [ ] Streaming serialization (avoid full materialization)
+- [ ] Private tag preservation
+- [ ] Sequence flattening options for query optimization
 
-**Plans**: 3 plans in 3 waves
-
-Plans:
-- [x] 08-01-PLAN.md — ValidationIssue, ValidationResult, IValidationRule
-- [x] 08-02-PLAN.md — Built-in VR validators (date, time, UID, character constraints)
-- [x] 08-03-PLAN.md — ValidationProfile presets and integration
-
-**Delivers**:
-- ValidationIssue record with full context (tag, VR, position, message, code)
-- ValidationResult collection with severity filtering
-- IValidationRule interface for pluggable validation
-- ValidationCodes constants (DICOM-001 through DICOM-025)
-- ElementValidationContext for validation rule input
-- 9 built-in VR validators (DA, TM, DT, AS, UI, PN, CS, length, characters)
-- ValidationProfile presets (Strict, Lenient, Permissive, None)
-- DicomReaderOptions validation integration (ValidationProfile, ValidationCallback)
-- StandardRules.All and StandardRules.StructuralOnly collections
-
-**Dependencies**: Phase 4 (encoding for character validation)
-
-**Research Needed**: Yes - COMPLETE (08-RESEARCH.md)
+**Should-haves**:
+- [ ] MongoDB.Driver integration helpers
+- [ ] Index recommendations for common query patterns
+- [ ] Bulk import/export utilities
 
 **Success Criteria**:
-- [x] Strict mode rejects bad files
-- [x] Lenient mode recovers gracefully
-- [x] Validation callback invoked
-- [x] Issues reported with context
+- [ ] Roundtrip serialization maintains all DICOM elements
+- [ ] Performance comparable to direct BSON serialization
+- [ ] SmiServices integration path documented
 
 ---
 
-### Phase 9: RLE Codec
+## v4.0.0+ Future Vision
 
-**Goal**: Validate codec interface with built-in codec
-
-**Requirements**: FR-09.1-3
-
-**Plans**: 2 plans in 2 waves
-
-Plans:
-- [x] 09-01-PLAN.md — IPixelDataCodec interface, CodecRegistry, CodecCapabilities
-- [x] 09-02-PLAN.md — RLE decoder/encoder implementation with SIMD optimization
-
-**Delivers**:
-- IPixelDataCodec interface
-- CodecRegistry with FrozenDictionary lookup
-- CodecCapabilities, DecodeResult, PixelDataInfo types
-- DicomCodecException for codec errors
-- RleCodec with SIMD-optimized encoding
-- RleSegmentHeader for 64-byte header parsing
-- PackBits encode/decode (TIFF 6.0 algorithm)
-
-**Dependencies**: Phase 5 (pixel data infrastructure)
-
-**Research Needed**: No (RLE spec straightforward) - COMPLETE
-
-**Success Criteria**:
-- [x] Decode RLE-compressed files
-- [x] Encode to RLE format
-- [x] Codec interface extensible
-- [x] No external dependencies
+| Feature | Notes |
+|---------|-------|
+| PACS federation daemon | Usenet-style push/pull redundancy |
+| Web DICOM viewer | DICOMweb + browser-based viewer |
+| Cloud storage backends | S3, Azure Blob, GCS for pixel data |
 
 ---
 
-*Last updated: 2026-01-31 (Phase 14b merge)*
+*Last updated: 2026-02-02 (v3.0.0 scope defined)*
