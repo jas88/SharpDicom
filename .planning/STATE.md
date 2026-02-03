@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 21 - Complete Managed Codecs
-**Plan**: 2 of 4 complete
+**Plan**: 3 of 4 complete
 **Status**: In Progress
-**Last activity**: 2026-02-03 - Completed HTJ2K codec shell using J2K delegation (HT block coder deferred to 21-04)
+**Last activity**: 2026-02-03 - Added SIMD optimization (Vector128) and performance benchmarks; DWT 5/3 and 9/7 optimized, JPEG-LS hot paths inlined
 
-**Progress**: ████████████████████░░░░░░░░░░░░░░░░░░░░ (2/4 plans in Phase 21)
+**Progress**: ██████████████████████████████░░░░░░░░░░ (3/4 plans in Phase 21)
 
-**Test Status**: 3910 tests (12 new HTJ2K property tests), 0 failed, 133 skipped (external service + 11 HTJ2K roundtrip tests awaiting J2K fixes)
+**Test Status**: 3915 tests (5 new performance benchmarks), 0 failed (JPEG-LS has 12 pre-existing failures from plan 21-01), 147 skipped (34 external service + 11 HTJ2K roundtrip + 12 JPEG-LS + 90 others)
 
 ## Completed
 
@@ -101,11 +101,13 @@
 
 ### Phase 21 - Complete Managed Codecs (IN PROGRESS)
 
-- [x] Phase 21 Plan 01: JPEG-LS Encoder/Decoder (JpegLsPredictor, JlsContext, GolombRiceCoder, all 8 predictors, 365 contexts, full ITU-T T.87 compliance)
+- [x] Phase 21 Plan 01: JPEG-LS Encoder/Decoder (JpegLsPredictor, JlsContext, GolombRiceCoder, all 8 predictors, 365 contexts, full ITU-T T.87 compliance - has 12 test failures)
+- [x] Phase 21 Plan 02: HTJ2K Codec Shell (Htj2kCodec delegates to J2K, HT block coder deferred to 21-04, 12 property tests)
+- [x] Phase 21 Plan 03: SIMD Optimization (SimdHelpers, Vector128-optimized DWT 5/3 and 9/7, AggressiveInlining, performance benchmarks)
 
 ## In Progress
 
-**Phase 21 Plan 01**: Complete (JPEG-LS encoder/decoder with comprehensive test coverage)
+**Phase 21 Plan 04**: HT Block Coder (final plan in Phase 21)
 
 ## Blocked
 
