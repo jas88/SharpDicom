@@ -462,10 +462,8 @@ namespace SharpDicom.Network
             var options = new DicomWriterOptions { TransferSyntax = ts };
             var writer = new DicomStreamWriter(buffer, options);
 
-            foreach (var element in dataset)
-            {
-                writer.WriteElement(element);
-            }
+            // Use WriteDataset which properly handles sequences
+            writer.WriteDataset(dataset);
 
             return buffer.WrittenMemory.ToArray();
         }

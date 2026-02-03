@@ -239,7 +239,9 @@ public class CStoreScpRoundtripTests
 
             var contexts = new[]
             {
-                new PresentationContext(1, sopClassUid, TransferSyntax.ImplicitVRLittleEndian)
+                // Use Explicit VR Little Endian for roundtrip tests
+                // This preserves VR information for all tags including private tags
+                new PresentationContext(1, sopClassUid, TransferSyntax.ExplicitVRLittleEndian)
             };
 
             await client.ConnectAsync(contexts);
@@ -247,7 +249,7 @@ public class CStoreScpRoundtripTests
             var response = await storeScu.SendAsync(dataset, null);
             await client.ReleaseAsync();
 
-            Assert.That(response.IsSuccess, Is.True, "C-STORE should succeed");
+            Assert.That(response.IsSuccess, Is.True, $"C-STORE should succeed. Status: 0x{response.Status.Code:X4}, Message: {response.ErrorComment}");
 
             // Wait for server to receive
             var timeoutTask = Task.Delay(5000);

@@ -707,9 +707,67 @@ namespace SharpDicom.Network
                 }
                 else
                 {
-                    // Regular element - need to skip it
-                    // This is simplified - a full implementation would parse the header properly
-                    position += 4; // Minimum advance past tag
+                    // Regular element - skip it properly
+                    if (explicitVR)
+                    {
+                        // Explicit VR: tag(4) + VR(2)
+                        if (position + 8 > buffer.Length)
+                            throw new DicomDataException("Unexpected end of data in sequence");
+
+                        var vr = DicomVR.FromBytes(buffer.Slice(position + 4, 2));
+                        if (vr.Is32BitLength)
+                        {
+                            // Long VR: tag(4) + VR(2) + reserved(2) + length(4) = 12 bytes header
+                            if (position + 12 > buffer.Length)
+                                throw new DicomDataException("Unexpected end of data in sequence");
+
+                            uint elemLen = littleEndian
+                                ? BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(position + 8))
+                                : BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(position + 8));
+                            position += 12;
+
+                            if (elemLen != 0xFFFFFFFF)
+                            {
+                                position += (int)elemLen;
+                            }
+                            else if (vr == DicomVR.SQ)
+                            {
+                                // Nested sequence with undefined length - increment depth
+                                depth++;
+                            }
+                        }
+                        else
+                        {
+                            // Short VR: tag(4) + VR(2) + length(2) = 8 bytes header
+                            ushort elemLen = littleEndian
+                                ? BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(position + 6))
+                                : BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(position + 6));
+                            position += 8 + elemLen;
+                        }
+                    }
+                    else
+                    {
+                        // Implicit VR: tag(4) + length(4) = 8 bytes header
+                        uint elemLen = littleEndian
+                            ? BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(position + 4))
+                            : BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(position + 4));
+                        position += 8;
+
+                        if (elemLen != 0xFFFFFFFF)
+                        {
+                            position += (int)elemLen;
+                        }
+                        else
+                        {
+                            // Implicit VR undefined length - must be SQ, increment depth
+                            var entry = DicomDictionary.Default.GetEntry(tag);
+                            var vr = entry?.DefaultVR ?? DicomVR.UN;
+                            if (vr == DicomVR.SQ)
+                            {
+                                depth++;
+                            }
+                        }
+                    }
                 }
             }
 
