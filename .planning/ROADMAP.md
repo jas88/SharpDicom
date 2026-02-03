@@ -255,8 +255,7 @@
 **Goal**: Native MongoDB/BSON serialization for the metadata → MongoDB, pixels → disk architecture pattern
 
 **Must-haves**:
-- [ ] `SharpDicom.MongoDB` package
-- [ ] DicomDataset → BsonDocument serialization
+- [ ] DicomDataset → BsonDocument serialization (in core library)
 - [ ] BsonDocument → DicomDataset deserialization
 - [ ] Streaming serialization (avoid full materialization)
 - [ ] Private tag preservation

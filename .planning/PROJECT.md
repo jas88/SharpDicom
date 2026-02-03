@@ -47,7 +47,7 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 - [ ] Referenced SOP Instance UID updates (RT Plans, Presentation States)
 - [ ] SharpDicom.FoDicom.Compat — adapter layer for migration
 - [ ] SharpDicom.Analyzers — Roslyn analyzer for fo-dicom patterns
-- [ ] MongoDB/BSON serialization (metadata → MongoDB, pixels → disk)
+- [ ] MongoDB/BSON serialization in core library
 
 **Low Priority (v3.0)**:
 - [ ] 12-bit JPEG support
