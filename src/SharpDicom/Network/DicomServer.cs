@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.Data.Exceptions;
 using SharpDicom.IO;
 using SharpDicom.Network.Association;
 using SharpDicom.Network.Dimse.Services;
@@ -584,21 +585,51 @@ namespace SharpDicom.Network
             var span = data.AsSpan();
             var reader = new DicomStreamReader(span, transferSyntax.IsExplicitVR, transferSyntax.IsLittleEndian);
 
+            // Create SequenceParser for handling sequences
+            var sequenceParser = new SequenceParser(
+                transferSyntax.IsExplicitVR,
+                transferSyntax.IsLittleEndian,
+                null); // default options
+
             while (reader.TryReadElementHeader(out var tag, out var vr, out var valueLength))
             {
                 if (valueLength == 0xFFFFFFFF)
                 {
-                    // Undefined length element (sequences or encapsulated pixel data)
+                    // Undefined length element
                     if (tag == DicomTag.PixelData && reader.Remaining > 0)
                     {
-                        // For pixel data with undefined length, store all remaining bytes
-                        // This handles encapsulated pixel data (fragments)
+                        // Encapsulated pixel data - store all remaining bytes
                         var remainingData = reader.ReadBytes(reader.Remaining);
                         var pixelElement = new DicomBinaryElement(tag, vr, remainingData.ToArray());
                         dataset.Add(pixelElement);
                     }
-                    // For sequences, skip for now - a full implementation would parse them
-                    // Continue parsing after undefined-length elements that aren't pixel data
+                    else if (vr == DicomVR.SQ)
+                    {
+                        // Sequence with undefined length - parse using SequenceParser
+                        var remainingBuffer = span.Slice(reader.Position);
+                        var sequence = sequenceParser.ParseSequence(remainingBuffer, tag, valueLength, dataset);
+                        dataset.Add(sequence);
+
+                        // Advance reader position past the sequence content and delimiter
+                        var bytesConsumed = FindSequenceEndPosition(remainingBuffer, transferSyntax.IsExplicitVR, transferSyntax.IsLittleEndian);
+                        reader.Skip(bytesConsumed);
+                    }
+                    else
+                    {
+                        // Undefined length for non-SQ/non-PixelData is not supported
+                        throw new DicomDataException($"Undefined length for non-sequence element {tag} not supported");
+                    }
+                    continue;
+                }
+
+                // Handle defined-length sequences
+                if (vr == DicomVR.SQ)
+                {
+                    // Sequence with defined length
+                    var seqBuffer = span.Slice(reader.Position, (int)valueLength);
+                    var sequence = sequenceParser.ParseSequence(seqBuffer, tag, valueLength, dataset);
+                    dataset.Add(sequence);
+                    reader.Skip((int)valueLength);
                     continue;
                 }
 
@@ -611,6 +642,136 @@ namespace SharpDicom.Network
             }
 
             return dataset;
+        }
+
+        private static int FindSequenceEndPosition(ReadOnlySpan<byte> buffer, bool explicitVR, bool littleEndian)
+        {
+            // Scan for SequenceDelimitationItem (FFFE,E0DD) accounting for nesting
+            // Returns bytes consumed including the delimiter (8 bytes: tag + zero length)
+            int contentLength = FindSequenceContentLengthStatic(buffer, explicitVR, littleEndian);
+            return contentLength + 8; // Add 8 bytes for SequenceDelimitationItem
+        }
+
+        private static int FindSequenceContentLengthStatic(ReadOnlySpan<byte> buffer, bool explicitVR, bool littleEndian)
+        {
+            // Scan for SequenceDelimitationItem (FFFE,E0DD)
+            int position = 0;
+            int depth = 0;
+
+            while (position + 8 <= buffer.Length)
+            {
+                ushort group = littleEndian
+                    ? BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(position))
+                    : BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(position));
+                ushort element = littleEndian
+                    ? BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(position + 2))
+                    : BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(position + 2));
+
+                var tag = new DicomTag(group, element);
+
+                if (tag == DicomTag.Item)
+                {
+                    // Read item length
+                    uint itemLength = littleEndian
+                        ? BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(position + 4))
+                        : BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(position + 4));
+                    position += 8;
+
+                    if (itemLength == 0xFFFFFFFF)
+                    {
+                        depth++;
+                    }
+                    else
+                    {
+                        position += (int)itemLength;
+                    }
+                }
+                else if (tag == DicomTag.ItemDelimitationItem)
+                {
+                    if (depth > 0)
+                    {
+                        depth--;
+                    }
+                    position += 8; // tag + zero length
+                }
+                else if (tag == DicomTag.SequenceDelimitationItem)
+                {
+                    if (depth == 0)
+                    {
+                        // Found the end of our sequence
+                        return position;
+                    }
+                    // Nested sequence ended
+                    depth--;
+                    position += 8;
+                }
+                else
+                {
+                    // Regular element - skip it properly
+                    if (explicitVR)
+                    {
+                        // Explicit VR: tag(4) + VR(2)
+                        if (position + 8 > buffer.Length)
+                            throw new DicomDataException("Unexpected end of data in sequence");
+
+                        var vr = DicomVR.FromBytes(buffer.Slice(position + 4, 2));
+                        if (vr.Is32BitLength)
+                        {
+                            // Long VR: tag(4) + VR(2) + reserved(2) + length(4) = 12 bytes header
+                            if (position + 12 > buffer.Length)
+                                throw new DicomDataException("Unexpected end of data in sequence");
+
+                            uint elemLen = littleEndian
+                                ? BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(position + 8))
+                                : BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(position + 8));
+                            position += 12;
+
+                            if (elemLen != 0xFFFFFFFF)
+                            {
+                                position += (int)elemLen;
+                            }
+                            else if (vr == DicomVR.SQ)
+                            {
+                                // Nested sequence with undefined length - increment depth
+                                depth++;
+                            }
+                        }
+                        else
+                        {
+                            // Short VR: tag(4) + VR(2) + length(2) = 8 bytes header
+                            ushort elemLen = littleEndian
+                                ? BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(position + 6))
+                                : BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(position + 6));
+                            position += 8 + elemLen;
+                        }
+                    }
+                    else
+                    {
+                        // Implicit VR: tag(4) + length(4) = 8 bytes header
+                        uint elemLen = littleEndian
+                            ? BinaryPrimitives.ReadUInt32LittleEndian(buffer.Slice(position + 4))
+                            : BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(position + 4));
+                        position += 8;
+
+                        if (elemLen != 0xFFFFFFFF)
+                        {
+                            position += (int)elemLen;
+                        }
+                        else
+                        {
+                            // Implicit VR undefined length - must be SQ, increment depth
+                            var entry = DicomDictionary.Default.GetEntry(tag);
+                            var vr = entry?.DefaultVR ?? DicomVR.UN;
+                            if (vr == DicomVR.SQ)
+                            {
+                                depth++;
+                            }
+                        }
+                    }
+                }
+            }
+
+            throw new DicomDataException("Could not find SequenceDelimitationItem");
         }
 
         /// <summary>

@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
-**Phase**: 14 - De-identification COMPLETE
-**Plan**: 8 of 8 complete
-**Status**: Phase complete
-**Last activity**: 2026-01-30 - Completed 14-08 Batch Processing & Integration Tests
+**Phase**: 20 - Critical Bug Fixes COMPLETE
+**Plan**: 3 of 3 complete
+**Status**: Complete
+**Last activity**: 2026-02-03 - Fixed C-STORE SCU/SCP roundtrip issues, all Phase 20 tests pass
 
-**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 14)
+**Progress**: ████████████████████████████████████████ (3/3 plans in Phase 20)
 
-**Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
+**Test Status**: 3882 tests passing, 0 failed, 122 skipped (external service tests)
 
 ## Completed
 
@@ -93,9 +93,15 @@
 - [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
 - [x] Phase 14 Plan 08: Batch Processing & Integration Tests (BatchDeidentifier, 74 new tests)
 
+### Phase 20 - Critical Bug Fixes (COMPLETE)
+
+- [x] Phase 20 Plan 01: FindSequenceDelimiter Depth Tracking Fix (DicomStreamReader fix, 7 edge case tests, +18 passing tests)
+- [x] Phase 20 Plan 02: C-STORE SCP Sequence Parser Integration (SequenceParser delegation, 6 roundtrip tests, streaming architecture preserved)
+- [x] Phase 20 Plan 03: Property-Based and DCMTK Interop Testing (FsCheck 4 property tests with 140+ iterations, DCMTK 5 interop tests)
+
 ## In Progress
 
-*None*
+**Phase 20 Plan 01**: Complete (depth tracking fixed, comprehensive test coverage)
 
 ## Blocked
 

@@ -310,11 +310,7 @@ namespace SharpDicom.IO
 
                 var tag = new DicomTag(group, element);
 
-                if (tag == DicomTag.SequenceDelimitationItem && depth == 0)
-                {
-                    return searchPos;
-                }
-                else if (tag == DicomTag.Item)
+                if (tag == DicomTag.Item)
                 {
                     uint itemLength = _littleEndian
                         ? BinaryPrimitives.ReadUInt32LittleEndian(searchBuffer.Slice(searchPos + 4))
@@ -338,6 +334,11 @@ namespace SharpDicom.IO
                 }
                 else if (tag == DicomTag.SequenceDelimitationItem)
                 {
+                    if (depth == 0)
+                    {
+                        // Found the end of our sequence
+                        return searchPos;
+                    }
                     // Nested sequence delimiter
                     depth--;
                     searchPos += 8;

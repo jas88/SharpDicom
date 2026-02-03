@@ -2,29 +2,26 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
-
   <!-- Import shared package versions -->
   <Import Project="build-standards/Directory.Packages.props.shared" />
-
   <ItemGroup>
     <!-- Test Framework -->
+    <PackageVersion Include="FsCheck" Version="2.16.6" />
+    <PackageVersion Include="FsCheck.NUnit" Version="3.0.0-rc3" />
     <PackageVersion Include="NUnit" Version="4.4.0" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.1.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
     <!-- Explicit version to fix NUnit3TestAdapter binding issue -->
     <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.2" />
-
     <!-- Runtime Dependencies -->
     <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.2" />
     <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.2" />
     <PackageVersion Include="System.Text.Json" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.2" />
-
     <!-- Source Generator Dependencies -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
-
     <!-- Source Generator Testing -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
     <PackageVersion Include="Verify.NUnit" Version="31.10.0" />
