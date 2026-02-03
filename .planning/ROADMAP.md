@@ -17,7 +17,7 @@
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
 | 20 | Critical Bug Fixes | **URGENT** | **COMPLETE** |
-| 21 | Complete Managed Codecs | High | Pending |
+| 21 | Complete Managed Codecs | High | Planned |
 | 22 | TLS Networking | High | Pending |
 | 23 | CLI Tools (sharpdcm) | High | Pending |
 | 24 | Server-Side DIMSE | Medium | Pending |
@@ -63,25 +63,37 @@ Plans:
 
 **Goal**: Complete pure C# JPEG-LS and HTJ2K codecs (infrastructure added in v2.0)
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 21-01-PLAN.md — JPEG-LS codec completion (predictors, contexts, Golomb-Rice, all interleave modes)
+- [ ] 21-02-PLAN.md — HTJ2K codec completion (HT block coder replacing EBCOT)
+- [ ] 21-03-PLAN.md — SIMD optimization and auto-parallelization for performance
+- [ ] 21-04-PLAN.md — Conformance testing against CharLS/OpenJPH reference implementations
+
 **Must-haves**:
 - [ ] Complete JPEG-LS encoder/decoder (ITU-T T.87 / ISO/IEC 14495-1)
   - [ ] Lossless mode (NEAR=0)
   - [ ] Near-lossless mode (NEAR>0)
   - [ ] Context modeling and Golomb-Rice coding
-  - [ ] Proper bounds checking and error handling
+  - [ ] All 8 predictors from ITU-T T.87
+  - [ ] All three interleave modes (none, line, sample)
 - [ ] Complete HTJ2K encoder/decoder
   - [ ] High-Throughput JPEG 2000 (ISO/IEC 15444-15)
-  - [ ] Block coder optimization
-- [ ] Roundtrip encode/decode tests passing for all bit depths
+  - [ ] HT block coder replacing EBCOT for 10x performance
+  - [ ] Both 5/3 (lossless) and 9/7 (lossy) DWT modes
+- [ ] Roundtrip encode/decode tests passing for all bit depths (8, 12, 16)
 
 **Should-haves**:
-- [ ] SIMD optimization where applicable
-- [ ] Multi-threaded encoding for large images
+- [ ] SIMD optimization using Vector128/256
+- [ ] Multi-threaded encoding for large images (auto-parallel > 512x512)
+- [ ] Configurable strict/lenient error handling
 
 **Success Criteria**:
 - [ ] JPEG-LS roundtrip tests pass (currently skipped)
 - [ ] HTJ2K roundtrip tests pass (currently skipped)
-- [ ] Performance within 10x of native implementations
+- [ ] Performance within 10x of native implementations (CharLS, OpenJPH)
+- [ ] Output decodable by reference implementations
 
 ---
 
@@ -292,4 +304,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-03 (Phase 20 complete)*
+*Last updated: 2026-02-03 (Phase 21 planned)*
