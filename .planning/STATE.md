@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
-**Phase**: 14 - De-identification COMPLETE
-**Plan**: 8 of 8 complete
-**Status**: Phase complete
-**Last activity**: 2026-01-30 - Completed 14-08 Batch Processing & Integration Tests
+**Phase**: 20 - Critical Bug Fixes IN PROGRESS
+**Plan**: 2 of 3 complete
+**Status**: In progress
+**Last activity**: 2026-02-03 - Completed 20-02 C-STORE SCP Sequence Parser Integration
 
-**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 14)
+**Progress**: ████████████████████████████████████████████████████████████████ (2/3 plans in Phase 20)
 
-**Test Status**: 3660 tests passing (313 deidentification tests), 0 failed, 126 skipped (external service tests)
+**Test Status**: 3856 tests passing (2 new roundtrip tests), 8 failed (4 reveal SCU limitation), 122 skipped (external service tests)
 
 ## Completed
 
@@ -93,9 +93,15 @@
 - [x] Phase 14 Plan 07: Pixel Data Redaction (PixelDataRedactor, RedactionRegion, BurnedInAnnotationDetector)
 - [x] Phase 14 Plan 08: Batch Processing & Integration Tests (BatchDeidentifier, 74 new tests)
 
+### Phase 20 - Critical Bug Fixes
+
+- [x] Phase 20 Plan 01: [Previous plan - not shown]
+- [x] Phase 20 Plan 02: C-STORE SCP Sequence Parser Integration (SequenceParser delegation, 6 roundtrip tests)
+- [ ] Phase 20 Plan 03: [Future plan]
+
 ## In Progress
 
-*None*
+**Phase 20 Plan 02**: Complete (SCP parser fixed, revealed SCU sequence serialization gap)
 
 ## Blocked
 
