@@ -16,7 +16,7 @@
 
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
-| 20 | Critical Bug Fixes | **URGENT** | Pending |
+| 20 | Critical Bug Fixes | **URGENT** | Planned |
 | 21 | Complete Managed Codecs | High | Pending |
 | 22 | TLS Networking | High | Pending |
 | 23 | CLI Tools (sharpdcm) | High | Pending |
@@ -35,18 +35,27 @@
 
 **Priority**: URGENT — Must be first phase of v3.0
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 20-01-PLAN.md — Fix FindSequenceDelimiter depth tracking in DicomStreamReader and DicomFileReader
+- [ ] 20-02-PLAN.md — Fix C-STORE SCP parser to use full DicomFileReader for sequence parsing
+- [ ] 20-03-PLAN.md — Add property-based testing and DCMTK interoperability verification
+
 **Must-haves**:
 - [ ] Fix FindSequenceDelimiter for deeply nested undefined-length sequences
   - Reader bug causes roundtrip failures with undefined-length nested sequences
   - Writer is correct; reader parsing logic needs fix
-  - Currently causes 2 skipped roundtrip tests
+  - Off-by-one in depth tracking (decrements before checking depth == 0)
 - [ ] Fix streaming C-STORE SCP parser for full roundtrip fidelity
-  - Simplified parser doesn't preserve all elements perfectly
+  - Current parser skips sequences entirely (line 600: "For sequences, skip for now")
   - Need full DicomFileReader integration for server-side receive
 
 **Success Criteria**:
 - [ ] All previously skipped undefined-length sequence tests pass
 - [ ] C-STORE SCP roundtrip produces byte-identical datasets
+- [ ] Property-based tests cover arbitrary nesting depths
+- [ ] DCMTK interop tests pass
 
 ---
 
@@ -252,11 +261,11 @@
 
 ## Phase 29: MongoDB/BSON Serialization
 
-**Goal**: Native MongoDB/BSON serialization for the metadata → MongoDB, pixels → disk architecture pattern
+**Goal**: Native MongoDB/BSON serialization for the metadata -> MongoDB, pixels -> disk architecture pattern
 
 **Must-haves**:
-- [ ] DicomDataset → BsonDocument serialization (in core library)
-- [ ] BsonDocument → DicomDataset deserialization
+- [ ] DicomDataset -> BsonDocument serialization (in core library)
+- [ ] BsonDocument -> DicomDataset deserialization
 - [ ] Streaming serialization (avoid full materialization)
 - [ ] Private tag preservation
 - [ ] Sequence flattening options for query optimization
@@ -283,4 +292,4 @@
 
 ---
 
-*Last updated: 2026-02-02 (v3.0.0 scope defined)*
+*Last updated: 2026-02-02 (Phase 20 planned)*
