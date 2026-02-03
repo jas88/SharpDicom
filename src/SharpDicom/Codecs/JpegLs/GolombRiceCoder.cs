@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Numerics;
+#endif
 
 namespace SharpDicom.Codecs.JpegLs
 {
@@ -40,6 +44,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// </summary>
         /// <param name="value">The mapped error value (non-negative).</param>
         /// <param name="k">The Golomb-Rice parameter.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteGolombRice(int value, int k)
         {
             // Split value into quotient and remainder
@@ -64,6 +69,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// Writes a single bit to the output stream.
         /// </summary>
         /// <param name="bit">The bit value (0 or 1).</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteBit(int bit)
         {
             // Accumulate bit into buffer
@@ -142,6 +148,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// </summary>
         /// <param name="k">The Golomb-Rice parameter.</param>
         /// <returns>The decoded value.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadGolombRice(int k)
         {
             // Read unary quotient (count zeros until 1)
@@ -166,6 +173,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// Reads a single bit from the input stream.
         /// </summary>
         /// <returns>The bit value (0 or 1).</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadBit()
         {
             // Refill buffer when empty

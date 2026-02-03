@@ -1,6 +1,8 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace SharpDicom.Codecs.JpegLs
 {
@@ -251,6 +253,7 @@ namespace SharpDicom.Codecs.JpegLs
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void EncodeSample(
             ReadOnlySpan<byte> pixelData,
             int sample,
@@ -320,6 +323,7 @@ namespace SharpDicom.Codecs.JpegLs
             ctx.Update(rawError - biasCorrection, 64, range);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetSample(
             ReadOnlySpan<byte> data,
             int x,
@@ -359,6 +363,7 @@ namespace SharpDicom.Codecs.JpegLs
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int Clamp(int value, int min, int max)
         {
             if (value < min) return min;
