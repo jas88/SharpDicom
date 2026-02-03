@@ -261,11 +261,11 @@ Plans:
 
 ## Phase 29: MongoDB/BSON Serialization
 
-**Goal**: Native MongoDB/BSON serialization for the metadata -> MongoDB, pixels -> disk architecture pattern
+**Goal**: Native MongoDB/BSON serialization for the metadata → MongoDB, pixels → disk architecture pattern
 
 **Must-haves**:
-- [ ] DicomDataset -> BsonDocument serialization (in core library)
-- [ ] BsonDocument -> DicomDataset deserialization
+- [ ] DicomDataset → BsonDocument serialization (in core library)
+- [ ] BsonDocument → DicomDataset deserialization
 - [ ] Streaming serialization (avoid full materialization)
 - [ ] Private tag preservation
 - [ ] Sequence flattening options for query optimization
