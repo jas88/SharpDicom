@@ -297,8 +297,18 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Reads number of coding passes.
+        /// Reads number of coding passes per ITU-T T.800 Table B.4.
         /// </summary>
+        /// <remarks>
+        /// ITU-T T.800 Table B.4 specifies:
+        /// | Passes | Coding                        |
+        /// |--------|-------------------------------|
+        /// | 1      | 0                             |
+        /// | 2      | 10                            |
+        /// | 3-5    | 11xx (00=3, 01=4, 10=5)       |
+        /// | 6-36   | 1111 + 5-bit (0-30)           |
+        /// | 37-164 | 1111 1111 + 7-bit (0-127)     |
+        /// </remarks>
         private int ReadNumPasses()
         {
             // ITU-T T.800 Table B.4
@@ -312,40 +322,32 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 return 2;
             }
 
-            // 11xx
+            // At this point we've read "11"
+            // Read 2 more bits to determine which case
             int next2 = ReadBits(2);
             if (next2 < 3)
             {
+                // 11xx where xx = 00, 01, 10 -> passes 3, 4, 5
                 return 3 + next2;
             }
 
-            // 1111xxxxx or 11111111xxxxxxx
-            if (ReadBit() == 0)
+            // next2 == 3 means we read "1111"
+            // Now check if this is 1111 + 5-bit or 1111 1111 + 7-bit
+            // Read 4 more bits to check for 1111 1111
+            int next4 = ReadBits(4);
+            if (next4 < 15)
             {
-                // 11110xxxx
-                return 6 + ReadBits(4);
+                // This is 1111 + 5-bit where we've read 4 of 5 bits
+                // We need to read 1 more bit to complete the 5-bit suffix
+                int lastBit = ReadBit();
+                int suffix = (next4 << 1) | lastBit;
+                return 6 + suffix;
             }
 
-            if (ReadBit() == 0)
-            {
-                // 111110xxxx
-                return 22 + ReadBits(4);
-            }
-
-            if (ReadBit() == 0)
-            {
-                // 1111110xxxxx
-                return 38 + ReadBits(5);
-            }
-
-            if (ReadBit() == 0)
-            {
-                // 11111110xxxxxx
-                return 70 + ReadBits(6);
-            }
-
-            // 11111111xxxxxxx
-            return 134 + ReadBits(7);
+            // next4 == 15 means we've read "1111 1111"
+            // Read 7-bit suffix for passes 37-164
+            int suffix7 = ReadBits(7);
+            return 37 + suffix7;
         }
 
         /// <summary>
