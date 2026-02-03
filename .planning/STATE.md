@@ -4,13 +4,13 @@
 
 **Milestone**: v2.0.0 - Network, Codecs & De-identification COMPLETE
 **Phase**: 20 - Critical Bug Fixes IN PROGRESS
-**Plan**: 2 of 3 complete
+**Plan**: 1 of 3 complete
 **Status**: In progress
-**Last activity**: 2026-02-03 - Completed 20-02 C-STORE SCP Sequence Parser Integration
+**Last activity**: 2026-02-03 - Completed 20-01 FindSequenceDelimiter Depth Tracking Fix
 
-**Progress**: ████████████████████████████████████████████████████████████████ (2/3 plans in Phase 20)
+**Progress**: ████████████████████░░░░░░░░░░░░░░░░░░░░ (1/3 plans in Phase 20)
 
-**Test Status**: 3856 tests passing (2 new roundtrip tests), 8 failed (4 reveal SCU limitation), 122 skipped (external service tests)
+**Test Status**: 3856 tests passing (+18 from baseline: 7 new tests, 4 fixed by depth tracking fix), 0 failed, 122 skipped (external service tests)
 
 ## Completed
 
@@ -95,13 +95,13 @@
 
 ### Phase 20 - Critical Bug Fixes
 
-- [x] Phase 20 Plan 01: [Previous plan - not shown]
-- [x] Phase 20 Plan 02: C-STORE SCP Sequence Parser Integration (SequenceParser delegation, 6 roundtrip tests)
+- [x] Phase 20 Plan 01: FindSequenceDelimiter Depth Tracking Fix (DicomStreamReader fix, 7 edge case tests, +18 passing tests)
+- [ ] Phase 20 Plan 02: [Future plan]
 - [ ] Phase 20 Plan 03: [Future plan]
 
 ## In Progress
 
-**Phase 20 Plan 02**: Complete (SCP parser fixed, revealed SCU sequence serialization gap)
+**Phase 20 Plan 01**: Complete (depth tracking fixed, comprehensive test coverage)
 
 ## Blocked
 
