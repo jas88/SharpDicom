@@ -31,17 +31,35 @@ Efficient streaming of DICOM data between network, disk, and document databases 
 
 ### Active
 
-- [ ] Complete managed JPEG-LS codec (full ITU-T T.87) — v3.0
-- [ ] Complete managed HTJ2K codec — v3.0
-- [ ] TLS networking support — v3.0
-- [ ] Basic CLI tool (dcmdump equivalent)
+**Critical (v3.0 Phase 20)**:
+- [ ] Fix FindSequenceDelimiter for nested undefined-length sequences — **URGENT**
+- [ ] Fix streaming C-STORE SCP for full roundtrip fidelity — **URGENT**
+
+**High Priority (v3.0)**:
+- [ ] Complete managed JPEG-LS codec (full ITU-T T.87)
+- [ ] Complete managed HTJ2K codec
+- [ ] TLS networking support (TLS 1.2/1.3)
+- [ ] CLI tools (`sharpdcm` with dump, store, find, lint, fix subcommands)
+
+**Medium Priority (v3.0)**:
+- [ ] C-FIND SCP / C-MOVE SCP (server-side query/retrieve)
+- [ ] OCR-based burned-in PHI detection (Tesseract)
+- [ ] Referenced SOP Instance UID updates (RT Plans, Presentation States)
+- [ ] SharpDicom.FoDicom.Compat — adapter layer for migration
+- [ ] SharpDicom.Analyzers — Roslyn analyzer for fo-dicom patterns
+- [ ] MongoDB/BSON serialization (metadata → MongoDB, pixels → disk)
+
+**Low Priority (v3.0)**:
+- [ ] 12-bit JPEG support
+- [ ] MPEG2/H.264/HEVC encoding
+- [ ] DIMSE-N services (MPPS, Storage Commitment)
 
 ### Out of Scope
 
-- fo-dicom API compatibility in core library — clean break, best design wins
-- MongoDB/BSON serialization — v4+
-- Full CLI suite (storescu, findscu, etc.) — v4+
-- Federation daemon — future vision
+- fo-dicom API compatibility in core library — clean break, best design wins (compat layer separate)
+- PACS federation daemon — v4+ future vision
+- Web DICOM viewer — v4+
+- Cloud storage backends — v4+
 
 ## Context
 
