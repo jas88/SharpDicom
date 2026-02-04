@@ -1,6 +1,6 @@
 ---
 phase: 21-complete-managed-codecs
-verified: 2026-02-03T21:45:00Z
+verified: 2026-02-04T21:53:11Z
 status: gaps_found
 score: 7/9 must-haves verified
 
@@ -12,12 +12,14 @@ re_verification:
     - "HTJ2K uses HT block coder for 10x performance improvement"
     - "HTJ2K roundtrip tests pass for all bit depths"
   regressions: []
-  plan_21_08_status: partial_fix
-  plan_21_08_notes: |
-    Fixed tier-2 encoding symmetry issues (ReadNumPasses, WriteZeroBitPlanes).
-    Investigation revealed deeper pipeline issues beyond tier-2.
-    EBCOT roundtrip works in isolation; full J2K pipeline fails.
-    Root cause: packet assembly/parsing in J2kEncoder/J2kDecoder.
+  plan_21_09_status: investigation_complete
+  plan_21_09_notes: |
+    Created 6 pipeline stage isolation tests.
+    Root cause identified: J2K encoder/decoder lack multi-resolution subband support.
+    NOT a tier-2 bug - architectural gap in DWT coefficient handling.
+    EBCOT fails on DWT-transformed data (max error 466, expected ≤1).
+    Fix requires architectural rewrite (2000-3000 LOC) beyond plan scope.
+    HTJ2K roundtrip deferred to Phase 30.
 
 gaps:
   - truth: "HTJ2K uses HT block coder for 10x performance improvement"
@@ -35,19 +37,28 @@ gaps:
 
   - truth: "HTJ2K roundtrip tests pass for all bit depths"
     status: failed
-    reason: "16 HTJ2K encode/decode tests marked [Ignore] - tier-2 fixes applied but full pipeline issues remain"
+    reason: "27 HTJ2K encode/decode tests marked [Ignore] - architectural gap in J2K encoder/decoder (21-09 investigation)"
     artifacts:
       - path: "tests/SharpDicom.Tests/Codecs/Htj2k/Htj2kCodecTests.cs"
-        issue: "11 tests ignored - reason updated to reflect 21-08 investigation findings"
+        issue: "11 tests ignored - architectural issue (multi-resolution subband support missing)"
       - path: "tests/SharpDicom.Tests/Codecs/Htj2k/Htj2kConformanceTests.cs"
-        issue: "5 additional tests ignored - RPCL roundtrip and OpenJPH conformance"
+        issue: "5 tests ignored - same architectural issue blocks conformance"
+      - path: "tests/SharpDicom.Tests/Codecs/Jpeg2000/J2kPipelineTests.cs"
+        issue: "6 isolation tests created: 3 pass, 3 fail - pinpoints integration failures"
     fixed_in_21_08:
       - "Tier-2 ReadNumPasses/WriteNumPasses symmetry per ITU-T T.800 Table B.4"
       - "Tier-2 WriteZeroBitPlanes boundary condition (count >= 7 uses extended)"
+    identified_in_21_09:
+      - "DWT+EBCOT integration broken (max error 466 on roundtrip)"
+      - "J2kEncoder hardcodes subbandType=0 for all code-blocks (should vary by DWT subband)"
+      - "J2kDecoder hardcodes subbandType=0 (same issue)"
+      - "Missing subband geometry calculation (LL, LH, HL, HH boundaries)"
+      - "Code-blocks partitioned across flat array instead of within subbands"
     remaining_issues:
-      - "Full J2K pipeline doesn't produce correct lossless roundtrip"
-      - "EBCOT works in isolation but integration with DWT/tier-2 fails"
-      - "Requires deeper investigation of J2kEncoder/J2kDecoder packet handling"
+      - "ARCHITECTURAL: J2K encoder/decoder lack multi-resolution support"
+      - "Fix requires: subband geometry module (~500 LOC), refactored encoder (~800 LOC), refactored decoder (~700 LOC)"
+      - "Estimated effort: 3-4 days for complete multi-resolution J2K implementation"
+      - "Deferred to Phase 30"
 ---
 
 # Phase 21: Complete Managed Codecs Verification Report
@@ -198,6 +209,23 @@ No explicit requirements file for Phase 21. Verification based on ROADMAP.md goa
 3. **Investigation findings:**
    - Tier-2 fixes alone don't enable HTJ2K roundtrip
    - EBCOT roundtrip works in isolation (11/14 tests pass)
+
+### Plan 21-09 Accomplishments (Pipeline Investigation)
+
+1. **Created J2K pipeline stage isolation tests** - 6 tests systematically verify each integration point
+2. **Identified root cause** - J2K encoder/decoder lack multi-resolution subband support (architectural issue)
+3. **Updated 27 test ignore reasons** - Reflect architectural findings from 21-09 investigation
+4. **Documented for Phase 30** - Comprehensive investigation summary with fix scope estimate (3-4 days)
+
+**Test results:**
+- ✅ DWT roundtrip works (pixel-perfect)
+- ❌ DWT+EBCOT integration fails (max error 466)
+- ❌ Full pipeline fails (4051/4096 pixels differ)
+- ✅ Encoder produces non-zero output
+- ✅ Multi-component decoding works
+- ❌ Tile assembly fails (2851 pixels differ)
+
+**Conclusion:** HTJ2K codec is shell only - API exists but requires complete J2K multi-resolution architecture to function
    - Full J2K pipeline (DWT + EBCOT + tier-2) produces all-zero output
    - Root cause: packet assembly/parsing in J2kEncoder/J2kDecoder needs work
    - Updated test ignore reasons to reflect investigation findings

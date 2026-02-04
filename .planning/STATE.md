@@ -3,12 +3,12 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 21 - Complete Managed Codecs
-**Plan**: 8 of 8 (gap closure complete)
-**Status**: Tier-2 encoding fixed; deeper J2K pipeline issues identified
-**Last activity**: 2026-02-03 - Fixed tier-2 encoding; investigated HTJ2K roundtrip failures
+**Phase**: 21 - Complete Managed Codecs (COMPLETE)
+**Plan**: 9 of 9 (investigation complete - HTJ2K deferred to Phase 30)
+**Status**: JPEG-LS complete; HTJ2K architectural gap identified
+**Last activity**: 2026-02-04 - J2K pipeline investigation; HTJ2K requires multi-resolution architecture
 
-**Progress**: ████████████████████████████████████████ (8/8 plans in Phase 21)
+**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 21)
 
 **Test Status**: All 2026 tests pass (1977 succeeded, 49 skipped)
 
@@ -109,10 +109,11 @@
 - [x] Phase 21 Plan 06: Partial J2K Bug Fix (MQ coder uniform coding symmetry)
 - [x] Phase 21 Plan 07: EBCOT Pass Tracking Fix (visitedThisBitplane, refinedCount, three-context magnitude refinement)
 - [x] Phase 21 Plan 08: Tier-2 Packet Encoding Fixes (ReadNumPasses, WriteZeroBitPlanes symmetry; J2K pipeline investigation)
+- [x] Phase 21 Plan 09: J2K Pipeline Investigation (6 stage isolation tests; identified architectural gap: multi-resolution subband support missing; HTJ2K deferred to Phase 30)
 
 ## In Progress
 
-None - Phase 21 complete
+None - Phase 21 complete (JPEG-LS functional, HTJ2K architectural gap documented for Phase 30)
 
 ## Blocked
 
@@ -354,13 +355,16 @@ None - Phase 21 complete
 | 2026-02-03 | 21-05 | Adjusted compression ratio test thresholds | Current implementation lacks run-length mode; tests reflect realistic expectations |
 | 2026-02-03 | 21-08 | Tier-2 fixes don't enable HTJ2K roundtrip | EBCOT works in isolation; J2kEncoder/J2kDecoder integration has deeper issues |
 | 2026-02-03 | 21-08 | Keep tests ignored with updated reason | Document investigation findings rather than leave failing tests |
+| 2026-02-04 | 21-09 | Created pipeline stage isolation tests | 6 tests systematically identify J2K integration failure points |
+| 2026-02-04 | 21-09 | HTJ2K deferred to Phase 30 | Requires multi-resolution subband architecture (~2000 LOC), beyond quick fix scope |
+| 2026-02-04 | 21-09 | J2K encoder/decoder are shell implementations | API exists but lacks DWT subband structure handling; architectural rewrite needed |
 
 ## Session Continuity
 
-**Last session**: 2026-02-03
-**Stopped at**: Phase 21-08 complete - Tier-2 encoding fixes; HTJ2K roundtrip blocked by J2K pipeline issues
+**Last session**: 2026-02-04
+**Stopped at**: Phase 21-09 complete - J2K pipeline investigation; HTJ2K architectural gap documented
 **Resume file**: None
-**Next step**: Phase 21 complete (8/8 plans); ready for next milestone
+**Next step**: Phase 21 complete (9/9 plans); JPEG-LS functional, HTJ2K deferred to Phase 30
 
 ## Context for Next Session
 
@@ -418,4 +422,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-03 (Phase 21 complete - all 8 plans done, JPEG-LS functional, HTJ2K pending J2K pipeline fixes)*
+*Last updated: 2026-02-04 (Phase 21 complete - 9/9 plans done, JPEG-LS functional, HTJ2K architectural gap documented for Phase 30)*
