@@ -17,7 +17,7 @@
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
 | 20 | Critical Bug Fixes | **URGENT** | **COMPLETE** |
-| 21 | Complete Managed Codecs | High | **IN PROGRESS** |
+| 21 | Complete Managed Codecs | High | **COMPLETE** |
 | 22 | TLS Networking | High | Pending |
 | 23 | CLI Tools (sharpdcm) | High | Pending |
 | 24 | Server-Side DIMSE | Medium | Pending |
@@ -117,21 +117,29 @@ Plans:
 
 ## Phase 22: TLS Networking
 
-**Goal**: Secure DICOM networking with TLS support
+**Goal**: Secure DICOM networking with TLS 1.2/1.3 support via SslStream wrapping
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — TLS configuration types, exception hierarchy, and certificate validator
+- [ ] 22-02-PLAN.md — DicomClient TLS integration (SslStream wrapping in ConnectAsync)
+- [ ] 22-03-PLAN.md — DicomServer TLS integration (SslStream wrapping in HandleAssociationAsync)
+- [ ] 22-04-PLAN.md — TLS integration tests (C-ECHO, C-STORE, mTLS, certificate validation)
 
 **Must-haves**:
 - [ ] TLS 1.2/1.3 support for DicomClient
 - [ ] TLS 1.2/1.3 support for DicomServer
 - [ ] Certificate validation options (system store, custom CA, self-signed)
 - [ ] Client certificate authentication
-
-**Should-haves**:
-- [ ] Certificate pinning option
-- [ ] DICOM TLS connection profile conformance
+- [ ] Certificate pinning via thumbprint whitelist
+- [ ] DICOM BCP 195 TLS profile conformance
 
 **Success Criteria**:
-- [ ] Secure connection to DCMTK with TLS
+- [ ] TLS C-ECHO roundtrip between DicomClient and DicomServer
 - [ ] Mutual TLS authentication working
+- [ ] Self-signed certificate accepted via thumbprint whitelist
+- [ ] Invalid certificates rejected
 
 ---
 
@@ -350,4 +358,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-03 (Phase 21 gap closure plans 21-07 and 21-08 added)*
+*Last updated: 2026-02-04 (Phase 22 TLS Networking planned — 4 plans in 3 waves)*
