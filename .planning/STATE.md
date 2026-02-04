@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 22 - TLS Networking (IN PROGRESS)
-**Plan**: 1 of X (TLS configuration and validation foundation complete)
-**Status**: TLS configuration types, certificate validation strategies, and DICOM BCP 195 compliance complete
-**Last activity**: 2026-02-04 - Completed 22-01-PLAN.md (TLS configuration foundation)
+**Plan**: 2 of X (DicomClient TLS integration complete)
+**Status**: DicomClient supports optional TLS with DICOM BCP 195 compliance
+**Last activity**: 2026-02-04 - Completed 22-02-PLAN.md (DicomClient TLS integration)
 
-**Progress**: █ (1/X plans in Phase 22)
+**Progress**: ██ (2/X plans in Phase 22)
 
-**Test Status**: All 2064 tests pass (2015 succeeded, 49 skipped) - 38 new TLS tests added
+**Test Status**: All 4014 tests pass (succeeded), 176 skipped - TLS client support added
 
 ## Completed
 
@@ -114,10 +114,11 @@
 ### Phase 22 - TLS Networking (IN PROGRESS)
 
 - [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
+- [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
 
 ## In Progress
 
-Phase 22 - TLS Networking (1 of X plans complete)
+Phase 22 - TLS Networking (2 of X plans complete)
 
 ## Blocked
 
