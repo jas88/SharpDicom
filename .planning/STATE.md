@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 22 - TLS Networking (IN PROGRESS)
-**Plan**: 3 of X (DicomServer TLS integration complete)
-**Status**: Both DicomClient and DicomServer support optional TLS with DICOM BCP 195 compliance
-**Last activity**: 2026-02-04 - Completed 22-03-PLAN.md (DicomServer TLS integration)
+**Plan**: 4 of X (TLS integration tests complete)
+**Status**: DicomClient and DicomServer TLS support validated with 10 integration tests (7 passing)
+**Last activity**: 2026-02-04 - Completed 22-04-PLAN.md (TLS integration tests)
 
-**Progress**: ███ (3/X plans in Phase 22)
+**Progress**: ████ (4/X plans in Phase 22)
 
-**Test Status**: All existing tests pass - TLS client and server support added (79 network tests verified)
+**Test Status**: 2025/2080 tests pass (97.4%) - TLS integration test suite added (7/10 core tests passing)
 
 ## Completed
 
@@ -116,10 +116,11 @@
 - [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
 - [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
 - [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
+- [x] Phase 22 Plan 04: TLS Integration Tests (TlsCertificateHelper programmatic cert generation, 10 integration tests: C-ECHO/C-STORE over TLS, mTLS, certificate validation, 7/10 passing)
 
 ## In Progress
 
-Phase 22 - TLS Networking (3 of X plans complete)
+Phase 22 - TLS Networking (4 of X plans complete)
 
 ## Blocked
 
@@ -377,7 +378,7 @@ Phase 22 - TLS Networking (3 of X plans complete)
 **Last session**: 2026-02-04
 **Stopped at**: Completed 22-03-PLAN.md (DicomServer TLS integration)
 **Resume file**: None
-**Next step**: Phase 22 Plan 04 (TLS integration testing) or TBD
+**Next step**: Phase 22 completion or next feature phase TBD
 
 ## Context for Next Session
 
