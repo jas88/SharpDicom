@@ -64,7 +64,7 @@ Plans:
 
 **Goal**: Complete pure C# JPEG-LS and HTJ2K codecs (infrastructure added in v2.0)
 
-**Plans:** 8 plans (4 original + 4 gap closure)
+**Plans:** 9 plans (4 original + 5 gap closure)
 
 Plans:
 - [x] 21-01-PLAN.md — JPEG-LS codec implementation (predictors, contexts, Golomb-Rice, all interleave modes)
@@ -73,19 +73,21 @@ Plans:
 - [x] 21-04-PLAN.md — Conformance testing against CharLS/OpenJPH reference implementations
 - [x] 21-05-PLAN.md — Gap closure: Fix JPEG-LS roundtrip test failures (complete - 16/16 tests pass)
 - [x] 21-06-PLAN.md — Gap closure: Fix MQ coder uniform coding (partial - MQ fixed, EBCOT/tier-2 deferred)
-- [ ] 21-07-PLAN.md — Gap closure: Fix EBCOT encoder/decoder state tracking asymmetry
-- [ ] 21-08-PLAN.md — Gap closure: Fix tier-2 packet encoding, enable HTJ2K tests
+- [x] 21-07-PLAN.md — Gap closure: Fix EBCOT encoder/decoder state tracking asymmetry
+- [x] 21-08-PLAN.md — Gap closure: Fix tier-2 packet encoding (partial - tier-2 fixed, deeper pipeline issues identified)
+- [ ] 21-09-PLAN.md — Gap closure: Fix J2K encoder/decoder packet assembly/parsing, enable HTJ2K roundtrip tests
 
 **Verification Status** (from 21-VERIFICATION.md):
-- 7/9 must-haves verified (improved from 6/9 after 21-05)
-- Remaining gaps require plans 21-07 and 21-08
+- 7/9 must-haves verified (after 21-05, 21-06, 21-07, 21-08)
+- Remaining gap: HTJ2K roundtrip tests blocked by J2K pipeline integration issues (21-09)
 
 **Gap Closure Summary:**
 1. **JPEG-LS test failures** — FIXED in 21-05 (16/16 tests pass)
 2. **MQ coder uniform coding** — FIXED in 21-06
-3. **EBCOT state tracking asymmetry** — Planned in 21-07
-4. **Tier-2 packet encoding mismatch** — Planned in 21-08
-5. **HT block coder** — Deferred to Phase 30 (3000-5000 LOC, multi-week effort)
+3. **EBCOT state tracking asymmetry** — FIXED in 21-07 (11/14 EBCOT tests pass)
+4. **Tier-2 packet encoding mismatch** — FIXED in 21-08 (ReadNumPasses, WriteZeroBitPlanes)
+5. **J2K pipeline integration** — PLANNED in 21-09 (encoder/decoder packet assembly/parsing)
+6. **HT block coder** — Deferred to Phase 30 (3000-5000 LOC, multi-week effort)
 
 **Must-haves**:
 - [x] Complete JPEG-LS encoder/decoder (ITU-T T.87 / ISO/IEC 14495-1)
@@ -98,7 +100,7 @@ Plans:
   - [x] High-Throughput JPEG 2000 shell — implemented via J2K delegation
   - [ ] ~~HT block coder replacing EBCOT for 10x performance~~ — DEFERRED to Phase 30
   - [x] Both 5/3 (lossless) and 9/7 (lossy) DWT modes — via J2K
-- [ ] Roundtrip encode/decode tests passing for all bit depths (8, 12, 16) — plans 21-07, 21-08
+- [ ] Roundtrip encode/decode tests passing for all bit depths (8, 12, 16) — plan 21-09
 
 **Should-haves**:
 - [x] SIMD optimization using Vector128/256 — completed in 21-03
@@ -107,7 +109,7 @@ Plans:
 
 **Success Criteria**:
 - [x] JPEG-LS roundtrip tests pass (16 tests) — completed in 21-05
-- [ ] HTJ2K roundtrip tests pass (11 tests) — pending 21-07, 21-08
+- [ ] HTJ2K roundtrip tests pass (16 tests) — pending 21-09
 - [ ] Performance within 10x of native implementations (CharLS, OpenJPH)
 - [x] Output decodable by reference implementations — conformance tests in 21-04
 
