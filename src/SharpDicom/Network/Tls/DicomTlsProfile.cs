@@ -133,11 +133,15 @@ namespace SharpDicom.Network.Tls
                 return false;
 
             // Check if at least TLS 1.2 or higher is present
-#if NET6_0_OR_GREATER
-            var compliantProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
-#else
+            // Use runtime check rather than compile-time to handle running netstandard2.0
+            // build on newer .NET runtime that supports TLS 1.3
             var compliantProtocols = SslProtocols.Tls12;
-#endif
+
+            // Check for TLS 1.3 by numeric value (0x3000) for runtime compatibility
+            // This handles netstandard2.0 builds running on .NET 5+ runtimes
+            const int Tls13Value = 0x3000;
+            if (((int)protocol & Tls13Value) != 0)
+                return true;
 
             return (protocol & compliantProtocols) != 0;
         }
