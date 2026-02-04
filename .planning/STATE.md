@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 22 - TLS Networking (IN PROGRESS)
-**Plan**: 2 of X (DicomClient TLS integration complete)
-**Status**: DicomClient supports optional TLS with DICOM BCP 195 compliance
-**Last activity**: 2026-02-04 - Completed 22-02-PLAN.md (DicomClient TLS integration)
+**Plan**: 3 of X (DicomServer TLS integration complete)
+**Status**: Both DicomClient and DicomServer support optional TLS with DICOM BCP 195 compliance
+**Last activity**: 2026-02-04 - Completed 22-03-PLAN.md (DicomServer TLS integration)
 
-**Progress**: ██ (2/X plans in Phase 22)
+**Progress**: ███ (3/X plans in Phase 22)
 
-**Test Status**: All 4014 tests pass (succeeded), 176 skipped - TLS client support added
+**Test Status**: All existing tests pass - TLS client and server support added (79 network tests verified)
 
 ## Completed
 
@@ -115,10 +115,11 @@
 
 - [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
 - [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
+- [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
 
 ## In Progress
 
-Phase 22 - TLS Networking (2 of X plans complete)
+Phase 22 - TLS Networking (3 of X plans complete)
 
 ## Blocked
 
@@ -367,13 +368,16 @@ Phase 22 - TLS Networking (2 of X plans complete)
 | 2026-02-04 | 22-01 | Separate TlsOptions and TlsServerOptions | Clear client/server distinction prevents confusion about which properties apply to which role |
 | 2026-02-04 | 22-01 | CertificateValidator with factory methods | SystemOnly, AcceptThumbprints, AcceptSelfSigned, WithCustomCAs enable common validation strategies |
 | 2026-02-04 | 22-01 | DicomTlsProfile enforces BCP 195 by default | DICOM PS3.15 Annex B.3 compliance (TLS 1.2+, compliant cipher suites) with opt-out |
+| 2026-02-04 | 22-03 | TLS handshake before ARTIM timer | Server performs TLS handshake after TCP accept but before ARTIM timer to ensure encrypted association |
+| 2026-02-04 | 22-03 | Stream abstraction for TLS transparency | All DicomServer methods use Stream instead of NetworkStream for unified TLS/plain TCP paths |
+| 2026-02-04 | 22-03 | SslStreamCertificateContext pre-building | Cache certificate context in Start() for NET6+ connection performance |
 
 ## Session Continuity
 
 **Last session**: 2026-02-04
-**Stopped at**: Completed 22-01-PLAN.md (TLS configuration and validation foundation)
+**Stopped at**: Completed 22-03-PLAN.md (DicomServer TLS integration)
 **Resume file**: None
-**Next step**: Phase 22 Plan 02 (DicomClient TLS integration)
+**Next step**: Phase 22 Plan 04 (TLS integration testing) or TBD
 
 ## Context for Next Session
 
