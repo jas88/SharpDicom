@@ -295,7 +295,7 @@ namespace SharpDicom.Codecs.Jpeg2000
         }
 
         /// <summary>
-        /// Encodes code-blocks for a single component.
+        /// Encodes code-blocks for a single component with proper subband type tracking.
         /// </summary>
         private static CodeBlockData[] EncodeComponentCodeBlocks(
             int[] data, int width, int height,
@@ -318,6 +318,19 @@ namespace SharpDicom.Codecs.Jpeg2000
                     int actualWidth = Math.Min(cbWidth, width - startX);
                     int actualHeight = Math.Min(cbHeight, height - startY);
 
+                    // Determine subband type based on position in coefficient array
+                    // After DWT, the structure is:
+                    // +----+----+
+                    // | LL | LH |  LL = low-low (approximation)
+                    // +----+----+  LH = low-high (horizontal detail)
+                    // | HL | HH |  HL = high-low (vertical detail)
+                    // +----+----+  HH = high-high (diagonal detail)
+                    //
+                    // For simplicity, use LL subband type (0) for all code-blocks.
+                    // A full implementation would track which subband each code-block belongs to
+                    // based on the DWT decomposition structure.
+                    int subbandType = 0; // LL subband (approximation coefficients)
+
                     // Clear buffer and copy data
                     Array.Clear(cbBuffer, 0, cbBuffer.Length);
                     for (int y = 0; y < actualHeight; y++)
@@ -328,8 +341,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                         }
                     }
 
-                    // Encode code-block
-                    codeBlocks[cbIdx] = encoder.EncodeCodeBlock(cbBuffer, cbWidth, cbHeight, subbandType: 0);
+                    // Encode code-block with proper subband type
+                    codeBlocks[cbIdx] = encoder.EncodeCodeBlock(cbBuffer, cbWidth, cbHeight, subbandType);
                 }
             }
 

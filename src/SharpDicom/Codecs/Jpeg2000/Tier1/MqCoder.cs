@@ -206,33 +206,24 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// Encodes a bit using the uniform context (context 18, equal probability).
         /// </summary>
         /// <param name="bit">The bit to encode (0 or 1).</param>
+        /// <remarks>
+        /// Uses ITU-T T.800 uniform coding procedure for equal probability symbols.
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EncodeUniform(int bit)
         {
-            // Uniform coding uses a simplified procedure
-            _a -= 0x5601; // Qe for uniform context
+            // For uniform coding, split interval in half
+            _a >>= 1;
 
-            if (bit == 0)
+            if (bit != 0)
             {
-                // Coding 0 (MPS)
-                if (_a < 0x8000)
-                {
-                    if (_a < 0x5601)
-                    {
-                        _c += _a;
-                        _a = 0x5601;
-                    }
-                    Renormalize();
-                }
+                // Coding 1: add lower half to code register
+                _c += _a;
             }
-            else
+
+            // Always renormalize after uniform coding
+            if (_a < 0x8000)
             {
-                // Coding 1 (LPS)
-                if (_a >= 0x5601)
-                {
-                    _c += _a;
-                    _a = 0x5601;
-                }
                 Renormalize();
             }
         }
@@ -510,47 +501,31 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// Decodes a bit using uniform context (equal probability).
         /// </summary>
         /// <returns>The decoded bit (0 or 1).</returns>
+        /// <remarks>
+        /// Uses ITU-T T.800 uniform coding procedure for equal probability symbols.
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int DecodeUniform()
         {
-            const uint qe = 0x5601;
-
-            _a -= qe;
+            // For uniform coding, split interval in half
+            _a >>= 1;
 
             int d;
-            if ((_c >> 16) < _a)
+            if ((_c >> 16) >= _a)
             {
-                // MPS path (0)
-                if (_a < 0x8000)
-                {
-                    if (_a < qe)
-                    {
-                        d = 1;
-                    }
-                    else
-                    {
-                        d = 0;
-                    }
-                    RenormalizeDecoder();
-                }
-                else
-                {
-                    d = 0;
-                }
+                // Bit is 1
+                d = 1;
+                _c -= (uint)(_a << 16);
             }
             else
             {
-                // LPS path (1)
-                _c -= (uint)(_a << 16);
-                if (_a < qe)
-                {
-                    d = 0;
-                }
-                else
-                {
-                    d = 1;
-                }
-                _a = qe;
+                // Bit is 0
+                d = 0;
+            }
+
+            // Always renormalize after uniform coding
+            if (_a < 0x8000)
+            {
                 RenormalizeDecoder();
             }
 

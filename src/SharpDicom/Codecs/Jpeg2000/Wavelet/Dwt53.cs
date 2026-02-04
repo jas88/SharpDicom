@@ -1,5 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 
 namespace SharpDicom.Codecs.Jpeg2000.Wavelet
 {
@@ -79,7 +82,27 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
                 return;
             }
 
-            // Apply lifting steps in-place
+#if NET8_0_OR_GREATER
+            // Use SIMD for longer rows
+            if (Vector128.IsHardwareAccelerated && n >= 16)
+            {
+                ForwardHorizontalSimd(row);
+                return;
+            }
+#endif
+
+            // Scalar fallback
+            ForwardHorizontalScalar(row);
+        }
+
+        /// <summary>
+        /// Scalar implementation of forward horizontal transform.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ForwardHorizontalScalar(Span<int> row)
+        {
+            int n = row.Length;
+
             // Step 1: Update odd samples (high-pass)
             // y[2n+1] = x[2n+1] - floor((x[2n] + x[2n+2]) / 2)
             for (int i = 1; i < n; i += 2)
@@ -101,6 +124,67 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
             // Deinterleave: separate low and high-pass samples
             Deinterleave(row);
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// SIMD-optimized implementation of forward horizontal transform.
+        /// </summary>
+        private static void ForwardHorizontalSimd(Span<int> row)
+        {
+            int n = row.Length;
+
+            // Step 1: Update odd samples (high-pass) with SIMD where possible
+            // We need to access indices: i-1, i, i+1, i+2, ..., i+7
+            // So we need i+7 < n, which means i < n-7
+            int i = 1;
+
+            while (i + 7 < n) // Ensure i+7 is valid
+            {
+                // Check all indices are valid and odd
+                if (i % 2 == 1 && (i+2) % 2 == 1 && (i+4) % 2 == 1 && (i+6) % 2 == 1)
+                {
+                    // Load 4 odd samples and their neighbors
+                    var center = Vector128.Create(row[i], row[i + 2], row[i + 4], row[i + 6]);
+                    var left = Vector128.Create(row[i - 1], row[i + 1], row[i + 3], row[i + 5]);
+                    var right = Vector128.Create(row[i + 1], row[i + 3], row[i + 5], row[i + 7]);
+
+                    // Compute (left + right) >> 1
+                    var avg = (left + right) >> 1;
+                    var result = center - avg;
+
+                    // Store back
+                    row[i] = result.GetElement(0);
+                    row[i + 2] = result.GetElement(1);
+                    row[i + 4] = result.GetElement(2);
+                    row[i + 6] = result.GetElement(3);
+
+                    i += 8;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Handle remaining odd samples
+            for (; i < n; i += 2)
+            {
+                int left = row[i - 1];
+                int right = (i + 1 < n) ? row[i + 1] : row[i - 1];
+                row[i] -= (left + right) >> 1;
+            }
+
+            // Step 2: Update even samples (low-pass) - use scalar for simplicity
+            for (i = 0; i < n; i += 2)
+            {
+                int left = (i > 0) ? row[i - 1] : row[1];
+                int right = (i + 1 < n) ? row[i + 1] : left;
+                row[i] += (left + right + 2) >> 2;
+            }
+
+            Deinterleave(row);
+        }
+#endif
 
         /// <summary>
         /// Performs inverse horizontal 1D transform (in-place).

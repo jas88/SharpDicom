@@ -1,5 +1,8 @@
 using System;
 using System.Runtime.CompilerServices;
+#if NET8_0_OR_GREATER
+using System.Runtime.Intrinsics;
+#endif
 
 namespace SharpDicom.Codecs.Jpeg2000.Wavelet
 {
@@ -126,19 +129,39 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
                 return;
             }
 
+#if NET8_0_OR_GREATER
+            // Use SIMD for longer rows
+            if (Vector128.IsHardwareAccelerated && n >= 16)
+            {
+                ForwardHorizontalSimd(row);
+                return;
+            }
+#endif
+
+            ForwardHorizontalScalar(row);
+        }
+
+        /// <summary>
+        /// Scalar implementation of forward horizontal transform.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ForwardHorizontalScalar(Span<float> row)
+        {
+            int n = row.Length;
+
             // Step 1: y[2n+1] += alpha * (y[2n] + y[2n+2])
             for (int i = 1; i < n; i += 2)
             {
                 float left = row[i - 1];
-                float right = (i + 1 < n) ? row[i + 1] : row[i - 1]; // Symmetric extension
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
                 row[i] += Alpha * (left + right);
             }
 
             // Step 2: y[2n] += beta * (y[2n-1] + y[2n+1])
             for (int i = 0; i < n; i += 2)
             {
-                float left = (i > 0) ? row[i - 1] : row[1]; // Symmetric extension
-                float right = (i + 1 < n) ? row[i + 1] : left; // Symmetric extension
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
                 row[i] += Beta * (left + right);
             }
 
@@ -146,15 +169,15 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
             for (int i = 1; i < n; i += 2)
             {
                 float left = row[i - 1];
-                float right = (i + 1 < n) ? row[i + 1] : row[i - 1]; // Symmetric extension
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
                 row[i] += Gamma * (left + right);
             }
 
             // Step 4: y[2n] += delta * (y[2n-1] + y[2n+1])
             for (int i = 0; i < n; i += 2)
             {
-                float left = (i > 0) ? row[i - 1] : row[1]; // Symmetric extension
-                float right = (i + 1 < n) ? row[i + 1] : left; // Symmetric extension
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
                 row[i] += Delta * (left + right);
             }
 
@@ -168,9 +191,86 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
                 row[i] *= InvK;
             }
 
-            // Deinterleave
             Deinterleave(row);
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// SIMD-optimized implementation of forward horizontal transform.
+        /// </summary>
+        private static void ForwardHorizontalSimd(Span<float> row)
+        {
+            int n = row.Length;
+            var alphaVec = Vector128.Create(Alpha);
+            var kVec = Vector128.Create(K);
+            var invKVec = Vector128.Create(InvK);
+
+            // Step 1: Process odd samples with SIMD
+            int i = 1;
+
+            while (i + 7 < n) // Ensure all indices are valid
+            {
+                if (i % 2 == 1)
+                {
+                    var center = Vector128.Create(row[i], row[i + 2], row[i + 4], row[i + 6]);
+                    var left = Vector128.Create(row[i - 1], row[i + 1], row[i + 3], row[i + 5]);
+                    var right = Vector128.Create(row[i + 1], row[i + 3], row[i + 5], row[i + 7]);
+                    var result = center + alphaVec * (left + right);
+
+                    row[i] = result.GetElement(0);
+                    row[i + 2] = result.GetElement(1);
+                    row[i + 4] = result.GetElement(2);
+                    row[i + 6] = result.GetElement(3);
+                    i += 8;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            for (; i < n; i += 2)
+            {
+                float left = row[i - 1];
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
+                row[i] += Alpha * (left + right);
+            }
+
+            // Remaining steps use scalar (beta, gamma, delta, scaling)
+            for (i = 0; i < n; i += 2)
+            {
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
+                row[i] += Beta * (left + right);
+            }
+
+            for (i = 1; i < n; i += 2)
+            {
+                float left = row[i - 1];
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
+                row[i] += Gamma * (left + right);
+            }
+
+            for (i = 0; i < n; i += 2)
+            {
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
+                row[i] += Delta * (left + right);
+            }
+
+            // Scaling
+            for (i = 0; i < n; i += 2)
+            {
+                row[i] *= K;
+            }
+            for (i = 1; i < n; i += 2)
+            {
+                row[i] *= InvK;
+            }
+
+            Deinterleave(row);
+        }
+#endif
 
         /// <summary>
         /// Performs inverse horizontal 1D transform (in-place).
