@@ -96,7 +96,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K pipeline issues: SIZ marker length error - tier-2 packet assembly needs work (21-08 investigation)")]
+        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OurEncode_OjphDecode_Grayscale8_Matches()
         {
             if (OjphExpandPath == null)
@@ -157,7 +157,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K pipeline issues: decoder fails on external HTJ2K files (21-08 investigation)")]
+        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OjphEncode_OurDecode_Grayscale8_Matches()
         {
             if (OjphCompressPath == null)
@@ -228,7 +228,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K pipeline issues: SIZ marker length error - tier-2 packet assembly needs work (21-08 investigation)")]
+        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OurEncode_OjphDecode_Grayscale16_Matches()
         {
             if (OjphExpandPath == null)
@@ -289,7 +289,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K pipeline issues: decoder fails on external HTJ2K files (21-08 investigation)")]
+        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OjphEncode_OurDecode_Grayscale16_Matches()
         {
             if (OjphCompressPath == null)
@@ -385,7 +385,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K pipeline issues: tier-2 packet assembly/parsing needs work (21-08 investigation)")]
+        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_LosslessRpcl_UsesCorrectProgressionOrder()
         {
             var codec = new Htj2kLosslessRpclCodec();
