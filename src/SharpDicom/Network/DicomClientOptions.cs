@@ -1,5 +1,6 @@
 using System;
 using SharpDicom.Network.Pdu;
+using SharpDicom.Network.Tls;
 
 namespace SharpDicom.Network
 {
@@ -13,6 +14,15 @@ namespace SharpDicom.Network
         public TimeSpan AssociationTimeout { get; set; } = TimeSpan.FromSeconds(30);
         public TimeSpan DimseTimeout { get; set; } = TimeSpan.FromSeconds(60);
         public uint MaxPduLength { get; set; } = PduConstants.DefaultMaxPduLength;
+
+        /// <summary>
+        /// Gets or sets the TLS options for secure DICOM connections.
+        /// </summary>
+        /// <remarks>
+        /// When null (default), plain TCP is used. When set, TLS handshake is performed
+        /// after TCP connection and before DICOM association.
+        /// </remarks>
+        public TlsOptions? Tls { get; set; }
 
         public void Validate()
         {
@@ -36,6 +46,9 @@ namespace SharpDicom.Network
                 throw new ArgumentOutOfRangeException(nameof(DimseTimeout), "DimseTimeout must be positive.");
             if (MaxPduLength < 4096)
                 throw new ArgumentOutOfRangeException(nameof(MaxPduLength), "MaxPduLength must be at least 4096 bytes.");
+
+            // Validate TLS options if configured
+            Tls?.Validate();
         }
     }
 }
