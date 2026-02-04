@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using SharpDicom.Data;
 using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Pdu;
+using SharpDicom.Network.Tls;
 
 namespace SharpDicom.Network
 {
@@ -85,6 +86,13 @@ namespace SharpDicom.Network
         /// for bulk data transfers but use more memory per connection.
         /// </remarks>
         public uint MaxPduLength { get; init; } = PduConstants.DefaultMaxPduLength;
+
+        /// <summary>
+        /// Gets or sets the TLS configuration for secure connections.
+        /// When null, the server accepts plain TCP connections.
+        /// When set, the server requires TLS from all connecting clients.
+        /// </summary>
+        public TlsServerOptions? Tls { get; init; }
 
         /// <summary>
         /// Gets the handler called when an A-ASSOCIATE-RQ is received.
@@ -224,6 +232,8 @@ namespace SharpDicom.Network
                     nameof(MaxBufferedDatasetSize),
                     MaxBufferedDatasetSize,
                     "MaxBufferedDatasetSize must be positive.");
+
+            Tls?.Validate();
         }
 
         /// <summary>
