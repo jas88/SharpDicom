@@ -120,7 +120,7 @@
 
 ## In Progress
 
-Phase 22 - TLS Networking (4 of X plans complete)
+None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 
 ## Blocked
 
