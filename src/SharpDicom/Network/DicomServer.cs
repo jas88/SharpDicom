@@ -5,7 +5,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +20,7 @@ using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
+using SharpDicom.Network.Tls;
 
 #if NETSTANDARD2_0
 using BufferWriter = SharpDicom.Internal.ArrayBufferWriterPolyfill<byte>;
@@ -65,6 +69,9 @@ namespace SharpDicom.Network
         private readonly SemaphoreSlim _semaphore;
         private Task? _acceptTask;
         private bool _disposed;
+#if NET6_0_OR_GREATER
+        private SslStreamCertificateContext? _certificateContext;
+#endif
 
         /// <summary>
         /// Initializes a new instance of <see cref="DicomServer"/>.
@@ -127,6 +134,18 @@ namespace SharpDicom.Network
 
             if (IsListening)
                 throw new InvalidOperationException("Server is already listening.");
+
+            // Pre-build certificate context if TLS is configured
+            if (_options.Tls != null)
+            {
+#if NET6_0_OR_GREATER
+                _certificateContext = _options.Tls.ServerCertificateContext
+                    ?? SslStreamCertificateContext.Create(
+                        _options.Tls.ServerCertificate!,
+                        additionalCertificates: null,
+                        offline: false);
+#endif
+            }
 
             _listener.Start();
             _acceptTask = AcceptLoopAsync(_cts.Token);
@@ -195,8 +214,73 @@ namespace SharpDicom.Network
                 using (client)
                 {
                     var stream = client.GetStream();
+                    Stream activeStream = stream;
+                    SslStream? sslStream = null;
 
-                    // Start ARTIM timer
+                    // Perform TLS handshake if configured
+                    if (_options.Tls != null)
+                    {
+                        sslStream = new SslStream(
+                            stream,
+                            leaveInnerStreamOpen: false,
+                            _options.Tls.ClientCertificateValidationCallback);
+
+                        try
+                        {
+                            using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                            handshakeCts.CancelAfter(_options.Tls.HandshakeTimeout);
+
+#if NET6_0_OR_GREATER
+                            var serverAuthOptions = new SslServerAuthenticationOptions
+                            {
+                                ServerCertificateContext = _certificateContext,
+                                ServerCertificate = _options.Tls.ServerCertificate,
+                                ClientCertificateRequired = _options.Tls.RequireClientCertificate,
+                                EnabledSslProtocols = _options.Tls.EnabledProtocols ?? SslProtocols.None,
+                                CertificateRevocationCheckMode = _options.Tls.RevocationMode,
+                            };
+
+                            await sslStream.AuthenticateAsServerAsync(serverAuthOptions, handshakeCts.Token)
+                                .ConfigureAwait(false);
+#else
+                            await sslStream.AuthenticateAsServerAsync(
+                                _options.Tls.ServerCertificate!,
+                                clientCertificateRequired: _options.Tls.RequireClientCertificate,
+                                enabledSslProtocols: _options.Tls.EnabledProtocols ?? SslProtocols.None,
+                                checkCertificateRevocation: _options.Tls.RevocationMode != X509RevocationMode.NoCheck)
+                                .ConfigureAwait(false);
+#endif
+                        }
+                        catch (Exception ex) when (ex is AuthenticationException or OperationCanceledException)
+                        {
+                            sslStream.Dispose();
+                            return; // Connection failed TLS, close silently
+                        }
+
+                        // Validate DICOM TLS profile compliance
+                        if (_options.Tls.EnforceDicomTlsProfile)
+                        {
+                            if (!DicomTlsProfile.IsCompliantProtocol(sslStream.SslProtocol))
+                            {
+                                sslStream.Dispose();
+                                return;
+                            }
+
+#if NET6_0_OR_GREATER
+                            if (!DicomTlsProfile.IsCompliant(sslStream.NegotiatedCipherSuite.ToString()))
+                            {
+                                sslStream.Dispose();
+                                return;
+                            }
+#endif
+                        }
+
+                        activeStream = sslStream;
+                    }
+
+                    try
+                    {
+                        // Start ARTIM timer
                     using var artimCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     artimCts.CancelAfter(_options.ArtimTimeout);
 
@@ -204,7 +288,7 @@ namespace SharpDicom.Network
                     {
                         // Read A-ASSOCIATE-RQ first to get AE titles
                         var (callingAE, calledAE, requestedContexts) =
-                            await ReadAssociateRequestAsync(stream, artimCts.Token).ConfigureAwait(false);
+                            await ReadAssociateRequestAsync(activeStream, artimCts.Token).ConfigureAwait(false);
 
                         // Now create association for SCP path with actual AE titles
                         var assocOptions = new AssociationOptions(
@@ -238,24 +322,31 @@ namespace SharpDicom.Network
 
                         if (result.Accept && result.AcceptedContexts != null)
                         {
-                            await SendAssociateAcceptAsync(stream, callingAE, calledAE, result.AcceptedContexts, ct)
+                            await SendAssociateAcceptAsync(activeStream, callingAE, calledAE, result.AcceptedContexts, ct)
                                 .ConfigureAwait(false);
                             association.ProcessEvent(AssociationEvent.AAssociateResponse);
                             association.SetAcceptedContexts(result.AcceptedContexts);
 
                             // Run DIMSE loop
-                            await RunDimseLoopAsync(stream, association, ct).ConfigureAwait(false);
+                            await RunDimseLoopAsync(activeStream, association, ct).ConfigureAwait(false);
                         }
                         else
                         {
-                            await SendAssociateRejectAsync(stream, result, ct).ConfigureAwait(false);
+                            await SendAssociateRejectAsync(activeStream, result, ct).ConfigureAwait(false);
                             // Association rejected - connection closes
                         }
                     }
-                    catch (OperationCanceledException) when (artimCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                        catch (OperationCanceledException) when (artimCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                        {
+                            // ARTIM timeout - no A-ASSOCIATE-RQ received in time
+                            // Connection will be closed
+                        }
+                    }
+                    finally
                     {
-                        // ARTIM timeout - no A-ASSOCIATE-RQ received in time
-                        // Connection will be closed
+                        // Dispose SslStream if it was created (sends TLS close_notify)
+                        // The using(client) block will dispose the NetworkStream
+                        sslStream?.Dispose();
                     }
                 }
             }
@@ -280,7 +371,7 @@ namespace SharpDicom.Network
         }
 
         private async Task RunDimseLoopAsync(
-            NetworkStream stream,
+            Stream stream,
             DicomAssociation association,
             CancellationToken ct)
         {
@@ -313,7 +404,7 @@ namespace SharpDicom.Network
         }
 
         private async Task HandlePDataAsync(
-            NetworkStream stream,
+            Stream stream,
             DicomAssociation association,
             byte[] pduBody,
             CancellationToken ct)
@@ -373,7 +464,7 @@ namespace SharpDicom.Network
         }
 
         private async Task HandleCEchoAsync(
-            NetworkStream stream,
+            Stream stream,
             DicomAssociation association,
             byte presentationContextId,
             ushort messageId,
@@ -391,7 +482,7 @@ namespace SharpDicom.Network
         }
 
         private async Task HandleCStoreAsync(
-            NetworkStream stream,
+            Stream stream,
             DicomAssociation association,
             CStoreCommandInfo command,
             CancellationToken ct)
@@ -496,12 +587,12 @@ namespace SharpDicom.Network
             }
         }
 
-        private static Task<byte[]> ReadDatasetAsync(NetworkStream stream, CancellationToken ct)
+        private static Task<byte[]> ReadDatasetAsync(Stream stream, CancellationToken ct)
         {
             return ReadDatasetAsync(stream, long.MaxValue, ct);
         }
 
-        private static async Task<byte[]> ReadDatasetAsync(NetworkStream stream, long maxSize, CancellationToken ct)
+        private static async Task<byte[]> ReadDatasetAsync(Stream stream, long maxSize, CancellationToken ct)
         {
             // Read P-DATA PDUs until we get the last fragment
             using var ms = new MemoryStream();
@@ -544,7 +635,7 @@ namespace SharpDicom.Network
             return ms.ToArray();
         }
 
-        private static async Task ReadAndDiscardDatasetAsync(NetworkStream stream, CancellationToken ct)
+        private static async Task ReadAndDiscardDatasetAsync(Stream stream, CancellationToken ct)
         {
             // Read and discard P-DATA PDUs until we get the last fragment
             bool lastFragment = false;
@@ -636,8 +727,12 @@ namespace SharpDicom.Network
                 if (!reader.TryReadValue(valueLength, out var value))
                     break;
 
-                // Create element based on VR
-                var element = new DicomBinaryElement(tag, vr, value.ToArray());
+                // Create element based on VR type (string, numeric, or binary)
+                var valueData = value.ToArray();
+                var vrInfo = DicomVRInfo.GetInfo(vr);
+                IDicomElement element = vrInfo.IsStringVR
+                    ? new DicomStringElement(tag, vr, valueData)
+                    : new DicomNumericElement(tag, vr, valueData);
                 dataset.Add(element);
             }
 
@@ -848,7 +943,7 @@ namespace SharpDicom.Network
         #region PDU I/O Helpers
 
         private static async Task<(string CallingAE, string CalledAE, List<PresentationContext> Contexts)>
-            ReadAssociateRequestAsync(NetworkStream stream, CancellationToken ct)
+            ReadAssociateRequestAsync(Stream stream, CancellationToken ct)
         {
             var (pduType, body) = await ReadPduAsync(stream, ct).ConfigureAwait(false);
 
@@ -940,12 +1035,12 @@ namespace SharpDicom.Network
             return (abstractSyntax, transferSyntaxes);
         }
 
-        private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(NetworkStream stream, CancellationToken ct)
+        private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(Stream stream, CancellationToken ct)
         {
             return await ReadPduAsync(stream, PduConstants.AbsoluteMaxPduLength, ct).ConfigureAwait(false);
         }
 
-        private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(NetworkStream stream, uint maxLength, CancellationToken ct)
+        private static async Task<(PduType Type, byte[] Body)> ReadPduAsync(Stream stream, uint maxLength, CancellationToken ct)
         {
             // Read 6-byte PDU header
             var header = new byte[Pdu.PduConstants.HeaderLength];
@@ -977,7 +1072,7 @@ namespace SharpDicom.Network
             return (pduType, body);
         }
 
-        private static async Task ReadExactlyAsync(NetworkStream stream, byte[] buffer, CancellationToken ct)
+        private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, CancellationToken ct)
         {
             int totalRead = 0;
             while (totalRead < buffer.Length)
@@ -996,7 +1091,7 @@ namespace SharpDicom.Network
         }
 
         private static async Task SendAssociateAcceptAsync(
-            NetworkStream stream,
+            Stream stream,
             string callingAE,
             string calledAE,
             IReadOnlyList<PresentationContext> acceptedContexts,
@@ -1019,7 +1114,7 @@ namespace SharpDicom.Network
         }
 
         private static async Task SendAssociateRejectAsync(
-            NetworkStream stream,
+            Stream stream,
             AssociationRequestResult result,
             CancellationToken ct)
         {
@@ -1035,7 +1130,7 @@ namespace SharpDicom.Network
 #endif
         }
 
-        private static async Task SendReleaseResponseAsync(NetworkStream stream, CancellationToken ct)
+        private static async Task SendReleaseResponseAsync(Stream stream, CancellationToken ct)
         {
             var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
@@ -1050,7 +1145,7 @@ namespace SharpDicom.Network
         }
 
         private static async Task SendCEchoResponseAsync(
-            NetworkStream stream,
+            Stream stream,
             byte presentationContextId,
             ushort messageId,
             DicomStatus status,
@@ -1080,7 +1175,7 @@ namespace SharpDicom.Network
         }
 
         private static async Task SendCStoreResponseAsync(
-            NetworkStream stream,
+            Stream stream,
             byte presentationContextId,
             ushort messageIdBeingRespondedTo,
             DicomUID affectedSopClassUid,

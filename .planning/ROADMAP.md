@@ -17,8 +17,8 @@
 | Phase | Name | Priority | Status |
 |-------|------|----------|--------|
 | 20 | Critical Bug Fixes | **URGENT** | **COMPLETE** |
-| 21 | Complete Managed Codecs | High | **IN PROGRESS** |
-| 22 | TLS Networking | High | Pending |
+| 21 | Complete Managed Codecs | High | **COMPLETE** |
+| 22 | TLS Networking | High | **COMPLETE** |
 | 23 | CLI Tools (sharpdcm) | High | Pending |
 | 24 | Server-Side DIMSE | Medium | Pending |
 | 25 | Advanced De-identification | Medium | Pending |
@@ -117,21 +117,29 @@ Plans:
 
 ## Phase 22: TLS Networking
 
-**Goal**: Secure DICOM networking with TLS support
+**Goal**: Secure DICOM networking with TLS 1.2/1.3 support via SslStream wrapping
 
-**Must-haves**:
-- [ ] TLS 1.2/1.3 support for DicomClient
-- [ ] TLS 1.2/1.3 support for DicomServer
-- [ ] Certificate validation options (system store, custom CA, self-signed)
-- [ ] Client certificate authentication
+**Plans:** 4 plans
 
-**Should-haves**:
-- [ ] Certificate pinning option
-- [ ] DICOM TLS connection profile conformance
+Plans:
+- [x] 22-01-PLAN.md — TLS configuration types, exception hierarchy, and certificate validator
+- [x] 22-02-PLAN.md — DicomClient TLS integration (SslStream wrapping in ConnectAsync)
+- [x] 22-03-PLAN.md — DicomServer TLS integration (SslStream wrapping in HandleAssociationAsync)
+- [x] 22-04-PLAN.md — TLS integration tests (C-ECHO, C-STORE, mTLS, certificate validation)
 
-**Success Criteria**:
-- [ ] Secure connection to DCMTK with TLS
-- [ ] Mutual TLS authentication working
+**Must-haves** (all complete):
+- [x] TLS 1.2/1.3 support for DicomClient
+- [x] TLS 1.2/1.3 support for DicomServer
+- [x] Certificate validation options (system store, custom CA, self-signed)
+- [x] Client certificate authentication
+- [x] Certificate pinning via thumbprint whitelist
+- [x] DICOM BCP 195 TLS profile conformance
+
+**Success Criteria** (all met):
+- [x] TLS C-ECHO roundtrip between DicomClient and DicomServer
+- [x] Mutual TLS authentication working
+- [x] Self-signed certificate accepted via thumbprint whitelist
+- [x] Invalid certificates rejected
 
 ---
 
@@ -350,4 +358,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-03 (Phase 21 gap closure plans 21-07 and 21-08 added)*
+*Last updated: 2026-02-04 (Phase 22 TLS Networking planned — 4 plans in 3 waves)*

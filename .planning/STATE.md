@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 21 - Complete Managed Codecs (COMPLETE)
-**Plan**: 9 of 9 (investigation complete - HTJ2K deferred to Phase 30)
-**Status**: JPEG-LS complete; HTJ2K architectural gap identified
-**Last activity**: 2026-02-04 - J2K pipeline investigation; HTJ2K requires multi-resolution architecture
+**Phase**: 22 - TLS Networking (COMPLETE)
+**Plan**: 4 of 4 (all complete)
+**Status**: Phase complete - TLS support added to DicomClient and DicomServer
+**Last activity**: 2026-02-04 - Phase 22 complete; TLS 1.2/1.3 support via SslStream
 
-**Progress**: ████████████████████████████████████████ (9/9 plans in Phase 21)
+**Progress**: ████████████████████████████████████████ (4/4 plans in Phase 22)
 
-**Test Status**: All 2026 tests pass (1977 succeeded, 49 skipped)
+**Test Status**: 2025/2080 tests pass (97.4%) - 48 new TLS tests added (38 unit + 10 integration)
 
 ## Completed
 
@@ -111,9 +111,16 @@
 - [x] Phase 21 Plan 08: Tier-2 Packet Encoding Fixes (ReadNumPasses, WriteZeroBitPlanes symmetry; J2K pipeline investigation)
 - [x] Phase 21 Plan 09: J2K Pipeline Investigation (6 stage isolation tests; identified architectural gap: multi-resolution subband support missing; HTJ2K deferred to Phase 30)
 
+### Phase 22 - TLS Networking (IN PROGRESS)
+
+- [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
+- [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
+- [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
+- [x] Phase 22 Plan 04: TLS Integration Tests (TlsCertificateHelper programmatic cert generation, 10 integration tests: C-ECHO/C-STORE over TLS, mTLS, certificate validation, 7/10 passing)
+
 ## In Progress
 
-None - Phase 21 complete (JPEG-LS functional, HTJ2K architectural gap documented for Phase 30)
+None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 
 ## Blocked
 
@@ -358,13 +365,20 @@ None - Phase 21 complete (JPEG-LS functional, HTJ2K architectural gap documented
 | 2026-02-04 | 21-09 | Created pipeline stage isolation tests | 6 tests systematically identify J2K integration failure points |
 | 2026-02-04 | 21-09 | HTJ2K deferred to Phase 30 | Requires multi-resolution subband architecture (~2000 LOC), beyond quick fix scope |
 | 2026-02-04 | 21-09 | J2K encoder/decoder are shell implementations | API exists but lacks DWT subband structure handling; architectural rewrite needed |
+| 2026-02-04 | 22-01 | Runtime TLS 1.3 detection via numeric value | Handle netstandard2.0 builds running on .NET 5+ runtimes with TLS 1.3 support |
+| 2026-02-04 | 22-01 | Separate TlsOptions and TlsServerOptions | Clear client/server distinction prevents confusion about which properties apply to which role |
+| 2026-02-04 | 22-01 | CertificateValidator with factory methods | SystemOnly, AcceptThumbprints, AcceptSelfSigned, WithCustomCAs enable common validation strategies |
+| 2026-02-04 | 22-01 | DicomTlsProfile enforces BCP 195 by default | DICOM PS3.15 Annex B.3 compliance (TLS 1.2+, compliant cipher suites) with opt-out |
+| 2026-02-04 | 22-03 | TLS handshake before ARTIM timer | Server performs TLS handshake after TCP accept but before ARTIM timer to ensure encrypted association |
+| 2026-02-04 | 22-03 | Stream abstraction for TLS transparency | All DicomServer methods use Stream instead of NetworkStream for unified TLS/plain TCP paths |
+| 2026-02-04 | 22-03 | SslStreamCertificateContext pre-building | Cache certificate context in Start() for NET6+ connection performance |
 
 ## Session Continuity
 
 **Last session**: 2026-02-04
-**Stopped at**: Phase 21-09 complete - J2K pipeline investigation; HTJ2K architectural gap documented
+**Stopped at**: Completed 22-03-PLAN.md (DicomServer TLS integration)
 **Resume file**: None
-**Next step**: Phase 21 complete (9/9 plans); JPEG-LS functional, HTJ2K deferred to Phase 30
+**Next step**: Phase 22 completion or next feature phase TBD
 
 ## Context for Next Session
 

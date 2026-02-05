@@ -5,6 +5,7 @@ using System.Threading;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
+using SharpDicom.Network.Tls;
 
 namespace SharpDicom.Network.Association
 {
@@ -89,6 +90,14 @@ namespace SharpDicom.Network.Association
         /// Gets the association options.
         /// </summary>
         public AssociationOptions Options => _options;
+
+        /// <summary>
+        /// Gets the TLS connection information if the association uses TLS.
+        /// </summary>
+        /// <remarks>
+        /// Null when using plain TCP. Populated after successful TLS handshake.
+        /// </remarks>
+        public TlsConnectionInfo? TlsInfo { get; internal set; }
 
         /// <summary>
         /// Event raised when the ARTIM timer should be started.

@@ -2,8 +2,12 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
@@ -12,6 +16,7 @@ using SharpDicom.Network.Dimse;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
 using SharpDicom.Network.Pdu;
+using SharpDicom.Network.Tls;
 using SharpDicom.IO;
 
 #if NETSTANDARD2_0
@@ -39,7 +44,8 @@ namespace SharpDicom.Network
     {
         private readonly DicomClientOptions _options;
         private TcpClient? _tcp;
-        private NetworkStream? _stream;
+        private Stream? _stream;
+        private SslStream? _sslStream;
         private DicomAssociation? _association;
         private ushort _messageId;
         private bool _disposed;
@@ -117,6 +123,156 @@ namespace SharpDicom.Network
 
             _stream = _tcp.GetStream();
 
+            // TLS handshake if configured
+            if (_options.Tls != null)
+            {
+                var networkStream = _stream;
+                _sslStream = new SslStream(
+                    networkStream,
+                    leaveInnerStreamOpen: false,
+                    _options.Tls.ServerCertificateValidationCallback
+                        ?? (_options.Tls.AcceptedThumbprints?.Count > 0 || _options.Tls.CustomCAs?.Count > 0
+                            ? new CertificateValidator(
+                                _options.Tls.AcceptedThumbprints,
+                                _options.Tls.CustomCAs,
+                                allowSelfSigned: false).Validate
+                            : null));
+
+#if NET6_0_OR_GREATER
+                var clientAuthOptions = new SslClientAuthenticationOptions
+                {
+                    TargetHost = _options.Host,
+                    EnabledSslProtocols = _options.Tls.EnabledProtocols ?? SslProtocols.None,
+                    ClientCertificates = _options.Tls.ClientCertificates,
+                    CertificateRevocationCheckMode = _options.Tls.RevocationMode,
+                };
+
+                // Set CertificateChainPolicy if explicitly configured
+                // Note: Don't set this if we're using a validation callback (lines 133-139),
+                // as the callback takes precedence and CertificateChainPolicy would be ignored.
+                if (_options.Tls.CertificateChainPolicy != null)
+                {
+                    clientAuthOptions.CertificateChainPolicy = _options.Tls.CertificateChainPolicy;
+                }
+                // CustomCAs are handled via CertificateValidator callback (lines 134-139),
+                // not via CertificateChainPolicy, to maintain compatibility with netstandard2.0
+
+                try
+                {
+                    using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    handshakeCts.CancelAfter(_options.Tls.HandshakeTimeout);
+
+                    await _sslStream.AuthenticateAsClientAsync(clientAuthOptions, handshakeCts.Token)
+                        .ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+                {
+                    _sslStream.Dispose();
+                    _sslStream = null;
+                    throw new TlsHandshakeException(
+                        $"TLS handshake timed out after {_options.Tls.HandshakeTimeout}.");
+                }
+                catch (AuthenticationException ex)
+                {
+                    _sslStream.Dispose();
+                    _sslStream = null;
+                    throw new TlsHandshakeException("TLS handshake failed.", ex);
+                }
+
+                // Validate negotiated protocol/cipher if enforcing DICOM TLS profile
+                if (_options.Tls.EnforceDicomTlsProfile)
+                {
+                    if (!DicomTlsProfile.IsCompliantProtocol(_sslStream.SslProtocol))
+                    {
+                        var protocol = _sslStream.SslProtocol;
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Negotiated TLS protocol {protocol} does not meet DICOM BCP 195 requirements (TLS 1.2 minimum).");
+                    }
+
+                    var cipherSuite = _sslStream.NegotiatedCipherSuite.ToString();
+                    if (!DicomTlsProfile.IsCompliant(cipherSuite))
+                    {
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Negotiated cipher suite {cipherSuite} does not meet DICOM BCP 195 requirements.");
+                    }
+                }
+
+                // Check for protocol downgrade
+                if (!_options.Tls.AllowProtocolDowngrade &&
+                    _options.Tls.EnabledProtocols.HasValue)
+                {
+                    var negotiated = _sslStream.SslProtocol;
+                    var requested = _options.Tls.EnabledProtocols.Value;
+
+                    // Skip downgrade check if SslProtocols.None (OS default negotiation)
+                    // Check if negotiated protocol is one of the enabled protocols
+                    // Can't use < on flags enum - need to check if negotiated is in the set
+                    if (requested != SslProtocols.None && (requested & negotiated) == 0)
+                    {
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+                    }
+                }
+#else
+                // netstandard2.0: Use older API (no CancellationToken support for auth)
+                try
+                {
+                    await _sslStream.AuthenticateAsClientAsync(
+                        _options.Host,
+                        _options.Tls.ClientCertificates,
+                        _options.Tls.EnabledProtocols ?? SslProtocols.None,
+                        checkCertificateRevocation: _options.Tls.RevocationMode != X509RevocationMode.NoCheck)
+                        .ConfigureAwait(false);
+                }
+                catch (AuthenticationException ex)
+                {
+                    _sslStream.Dispose();
+                    _sslStream = null;
+                    throw new TlsHandshakeException("TLS handshake failed.", ex);
+                }
+
+                // Validate negotiated protocol if enforcing DICOM TLS profile
+                if (_options.Tls.EnforceDicomTlsProfile)
+                {
+                    if (!DicomTlsProfile.IsCompliantProtocol(_sslStream.SslProtocol))
+                    {
+                        var protocol = _sslStream.SslProtocol;
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Negotiated TLS protocol {protocol} does not meet DICOM BCP 195 requirements (TLS 1.2 minimum).");
+                    }
+                }
+
+                // Check for protocol downgrade
+                if (!_options.Tls.AllowProtocolDowngrade &&
+                    _options.Tls.EnabledProtocols.HasValue)
+                {
+                    var negotiated = _sslStream.SslProtocol;
+                    var requested = _options.Tls.EnabledProtocols.Value;
+
+                    // Skip downgrade check if SslProtocols.None (OS default negotiation)
+                    // Check if negotiated protocol is one of the enabled protocols
+                    // Can't use < on flags enum - need to check if negotiated is in the set
+                    if (requested != SslProtocols.None && (requested & negotiated) == 0)
+                    {
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+                    }
+                }
+#endif
+
+                _stream = _sslStream;
+            }
+
             // Create association options
             var assocOptions = new AssociationOptions(
                 _options.CalledAE,
@@ -127,6 +283,12 @@ namespace SharpDicom.Network
                 _options.DimseTimeout);
 
             _association = new DicomAssociation(assocOptions);
+
+            // Populate TLS connection info if TLS was used
+            if (_sslStream != null)
+            {
+                _association.TlsInfo = TlsConnectionInfo.FromSslStream(_sslStream);
+            }
             // SCU state machine: Idle -> AwaitingTransportConnectionOpen -> AwaitingAssociateResponse
             _association.ProcessEvent(AssociationEvent.AAssociateRequest);
             _association.ProcessEvent(AssociationEvent.TransportConnectionConfirm);
@@ -250,7 +412,11 @@ namespace SharpDicom.Network
             finally
             {
                 _association?.Dispose();
-                _stream?.Dispose();
+                // If TLS was used, SslStream owns and disposes the NetworkStream
+                if (_sslStream != null)
+                    _sslStream.Dispose();
+                else
+                    _stream?.Dispose();
                 _tcp?.Dispose();
             }
         }
