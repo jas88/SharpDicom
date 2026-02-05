@@ -10,11 +10,13 @@ on:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
+  ZIG_VERSION: '0.13.0'
+  CUDA_VERSION: '12.3.2'
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     services:
       orthanc:
@@ -22,13 +24,13 @@ jobs:
         ports:
           - 4242:4242  # DICOM port
           - 8042:8042  # HTTP API
-        # No health check - Orthanc starts quickly, we'll wait in step
 
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
 
+      # .NET Setup
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -36,26 +38,88 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      - name: Restore
+      # Zig Setup for native codecs
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+
+      # CUDA Setup for GPU codecs
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.21
+        id: cuda-toolkit
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'network'
+          sub-packages: '["nvjpeg", "cudart"]'
+          linux-local-args: '["--toolkit"]'
+
+      # DCMTK Setup for integration tests
+      - name: Install DCMTK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dcmtk
+          # Verify installation
+          dcmsend --version || true
+          dcmrecv --version || true
+          echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
+
+      # Build Phase 1: .NET
+      - name: Restore .NET dependencies
         run: dotnet restore
 
-      - name: Build
+      - name: Build .NET projects
         run: dotnet build --no-restore --configuration Release
 
+      # Build Phase 2: Native codecs (Zig)
+      - name: Build native codecs (all platforms)
+        working-directory: native
+        run: zig build
+
+      - name: Run native codec tests
+        working-directory: native
+        run: zig build test
+
+      # Build Phase 3: CUDA wrapper (if nvJPEG2000 available)
+      - name: Check for nvJPEG2000
+        id: nvjpeg2k-check
+        run: |
+          if [ -f "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+            echo "✓ nvJPEG2000 found at ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "⚠ nvJPEG2000 not found - CUDA wrapper will be skipped"
+          fi
+
+      - name: Build CUDA nvJPEG2000 wrapper
+        if: steps.nvjpeg2k-check.outputs.available == 'true'
+        working-directory: native/cuda
+        env:
+          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
+        run: |
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DCUDA_TOOLKIT_ROOT_DIR=$CUDA_PATH \
+                ..
+          cmake --build . --parallel
+
+      # Test Phase: .NET tests with coverage
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
 
+      # Integration Tests: Orthanc
       - name: Wait for Orthanc
         run: |
           for i in {1..30}; do
             if curl -s http://localhost:8042/system > /dev/null 2>&1; then
-              echo "Orthanc is ready"
+              echo "✓ Orthanc is ready"
               exit 0
             fi
             echo "Waiting for Orthanc... ($i/30)"
             sleep 2
           done
-          echo "Orthanc may not be ready, continuing anyway"
+          echo "⚠ Orthanc may not be ready, continuing anyway"
 
       - name: Integration tests with Orthanc
         continue-on-error: true  # Orthanc tests are optional for now
@@ -65,6 +129,14 @@ jobs:
           ORTHANC_DICOM_PORT: 4242
           ORTHANC_AE_TITLE: ORTHANC
 
+      # Integration Tests: DCMTK
+      - name: Integration tests with DCMTK
+        continue-on-error: true  # DCMTK tests are optional for now
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK"
+        env:
+          DCMTK_ROOT: /usr
+
+      # Upload coverage
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -73,6 +145,23 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+      # Upload Artifacts
+      - name: Upload native codec artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-codecs
+          path: native/zig-out/
+          retention-days: 7
+
+      - name: Upload CUDA wrapper artifacts
+        if: steps.nvjpeg2k-check.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-wrapper
+          path: native/cuda/build/lib/
+          retention-days: 7
+
+      # NuGet Package (on tags only)
       - name: Pack
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -96,73 +185,3 @@ jobs:
       - name: Push to NuGet
         if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-
-  # Native codecs build (Zig)
-  native-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.13.0
-
-      # Note: Vendor library downloads disabled for Phase 13a
-      # Cross-compilation of vendor libraries requires proper sysroot setup
-      # which will be addressed in Phase 13b. For now, all codecs build as stubs.
-
-      - name: Build native codecs (all platforms)
-        working-directory: native
-        run: zig build
-
-      - name: Run native tests
-        working-directory: native
-        run: zig build test
-
-      - name: Upload native artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-codecs
-          path: native/zig-out/
-          retention-days: 7
-
-  # CUDA nvJPEG2000 wrapper build (optional, only on GPU runners)
-  cuda-build:
-    runs-on: ubuntu-latest
-    container:
-      image: nvidia/cuda:12.3.2-devel-ubuntu22.04
-    continue-on-error: true  # GPU builds are optional
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          apt-get install -y cmake build-essential
-
-      - name: Check for nvJPEG2000
-        id: nvjpeg2k-check
-        run: |
-          if [ -f "/usr/local/cuda/include/nvjpeg2k.h" ]; then
-            echo "nvjpeg2k_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "nvjpeg2k_available=false" >> $GITHUB_OUTPUT
-            echo "nvJPEG2000 not available in this container"
-          fi
-
-      - name: Build CUDA wrapper
-        if: steps.nvjpeg2k-check.outputs.nvjpeg2k_available == 'true'
-        working-directory: native/cuda
-        run: |
-          mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
-          cmake --build . --parallel
-
-      - name: Upload CUDA artifacts
-        if: steps.nvjpeg2k-check.outputs.nvjpeg2k_available == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuda-wrapper
-          path: native/cuda/build/lib/
-          retention-days: 7
