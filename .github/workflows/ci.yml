@@ -11,7 +11,6 @@ env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   ZIG_VERSION: '0.13.0'
-  CUDA_VERSION: '12.6.3'  # Updated to 12.6 (12.3 not available in Ubuntu 24.04 repos)
 
 jobs:
   build:
@@ -44,36 +43,16 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
 
-      # CUDA Setup for GPU codecs
-      - name: Setup CUDA Toolkit
-        uses: Jimver/cuda-toolkit@v0.2.21
-        id: cuda-toolkit
-        with:
-          cuda: ${{ env.CUDA_VERSION }}
-          method: 'network'
-          # Note: nvJPEG2000 uses different package naming (libnvjpeg2k0-cuda-12)
-          # and cannot be installed via sub-packages parameter
-          linux-local-args: '["--toolkit"]'
-
-      # Install additional packages with caching
-      # Note: This must run AFTER cuda-toolkit action because nvJPEG2000 packages
-      # are in the CUDA repository that the cuda-toolkit action adds
+      # Install packages with caching
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 dcmtk libcharls-dev libcharls2
-          version: 1.1
+          packages: dcmtk libcharls-dev libcharls2
+          version: 1.2
           execute_install_scripts: true
 
       - name: Verify package installations
         run: |
-          # nvJPEG2000
-          if [ -f "/usr/include/libnvjpeg2k/12/nvjpeg2k.h" ]; then
-            echo "✓ nvJPEG2000 header found"
-          else
-            echo "⚠ nvJPEG2000 not found - CUDA wrapper will be skipped"
-          fi
-
           # DCMTK
           dcmsend --version || true
           dcmrecv --version || true
@@ -118,42 +97,10 @@ jobs:
         working-directory: native
         run: zig build test
 
-      # Build Phase 3: CUDA wrapper (if nvJPEG2000 available)
-      - name: Check for nvJPEG2000
-        id: nvjpeg2k-check
-        run: |
-          # nvJPEG2000 header can be in multiple locations depending on package installation
-          NVJPEG2K_PATHS=(
-            "/usr/include/libnvjpeg2k/12/nvjpeg2k.h"                    # Ubuntu package location
-            "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h"  # Standard CUDA location
-            "/usr/local/cuda/include/nvjpeg2k.h"                        # Alternative CUDA location
-            "/usr/include/nvjpeg2k.h"                                   # Fallback location
-          )
-
-          for path in "${NVJPEG2K_PATHS[@]}"; do
-            if [ -f "$path" ]; then
-              echo "available=true" >> $GITHUB_OUTPUT
-              echo "nvjpeg2k_header=$path" >> $GITHUB_OUTPUT
-              echo "✓ nvJPEG2000 found at $path"
-              exit 0
-            fi
-          done
-
-          echo "available=false" >> $GITHUB_OUTPUT
-          echo "⚠ nvJPEG2000 not found in any expected location - CUDA wrapper will be skipped"
-
-      - name: Build CUDA nvJPEG2000 wrapper
-        if: steps.nvjpeg2k-check.outputs.available == 'true'
-        working-directory: native/cuda
-        env:
-          CUDA_PATH: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}
-        run: |
-          mkdir -p build && cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DCUDA_TOOLKIT_ROOT_DIR=$CUDA_PATH \
-                -DCMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/libnvjpeg2k/12;/usr/include/libnvjpeg2k/12" \
-                ..
-          cmake --build . --parallel
+      # Build Phase 3: CUDA wrapper - DISABLED
+      # TODO: Phase 22.1 - Fix CUDA nvJPEG2000 wrapper build
+      # Current issue: Ubuntu libnvjpeg2k0-dev-cuda-12 package has incomplete headers
+      # (missing nvjpeg2kProgOrder and nvjpeg2kQualityType type definitions)
 
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
@@ -202,14 +149,6 @@ jobs:
         with:
           name: native-codecs
           path: native/zig-out/
-          retention-days: 7
-
-      - name: Upload CUDA wrapper artifacts
-        if: steps.nvjpeg2k-check.outputs.available == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cuda-wrapper
-          path: native/cuda/build/lib/
           retention-days: 7
 
       # NuGet Package (on tags only)
