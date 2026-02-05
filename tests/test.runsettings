@@ -6,8 +6,6 @@
     <!-- Stop on first failure for faster feedback -->
     <StopOnError>false</StopOnError>
   </NUnit>
-  <RunConfiguration>
-    <!-- Maximum time allowed for entire test run in milliseconds (10 minutes) -->
-    <TestSessionTimeout>600000</TestSessionTimeout>
-  </RunConfiguration>
+  <!-- Note: TestSessionTimeout removed - not supported by Microsoft.Testing.Platform -->
+  <!-- Session timeout is controlled by CI workflow timeout-minutes setting -->
 </RunSettings>
