@@ -72,6 +72,16 @@ jobs:
             echo "⚠ nvJPEG2000 packages not available - CUDA wrapper will be skipped"
           }
 
+          # Debug: Show where nvJPEG2000 files were installed
+          echo "=== nvJPEG2000 installation locations ==="
+          dpkg -L libnvjpeg2k0-cuda-12 2>/dev/null | grep -E '\.(h|so)' | head -20 || echo "Package not installed"
+          dpkg -L libnvjpeg2k0-dev-cuda-12 2>/dev/null | grep -E '\.(h|a)' | head -20 || echo "Package not installed"
+
+          # Search for nvjpeg2k.h
+          echo "=== Searching for nvjpeg2k.h ==="
+          find /usr -name "nvjpeg2k.h" 2>/dev/null || echo "Header not found in /usr"
+          find /opt -name "nvjpeg2k.h" 2>/dev/null || echo "Header not found in /opt"
+
       - name: Verify package installations
         run: |
           dcmsend --version || true
