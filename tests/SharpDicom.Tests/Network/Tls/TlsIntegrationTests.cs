@@ -140,12 +140,21 @@ namespace SharpDicom.Tests.Network.Tls
             // Assert
             Assert.That(association, Is.Not.Null, "Association should exist");
             Assert.That(association!.TlsInfo, Is.Not.Null, "TlsInfo should be populated");
+#if NET6_0_OR_GREATER
             Assert.That(association.TlsInfo!.Value.Protocol, Is.Not.EqualTo(SslProtocols.None),
                 "Protocol should be set");
             Assert.That(association.TlsInfo.Value.CipherSuiteName, Is.Not.Null.And.Not.Empty,
                 "Cipher suite should be set");
             Assert.That(association.TlsInfo.Value.RemoteCertificate, Is.Not.Null,
                 "Remote certificate should be available");
+#else
+            Assert.That(association.TlsInfo!.Protocol, Is.Not.EqualTo(SslProtocols.None),
+                "Protocol should be set");
+            Assert.That(association.TlsInfo.CipherSuiteName, Is.Not.Null.And.Not.Empty,
+                "Cipher suite should be set");
+            Assert.That(association.TlsInfo.RemoteCertificate, Is.Not.Null,
+                "Remote certificate should be available");
+#endif
         }
 
         [Test]
@@ -329,8 +338,13 @@ namespace SharpDicom.Tests.Network.Tls
 
             // Assert
             Assert.That(status.IsSuccess, Is.True, "C-ECHO with mutual TLS should succeed");
+#if NET6_0_OR_GREATER
             Assert.That(association!.TlsInfo!.Value.IsMutuallyAuthenticated, Is.True,
                 "Connection should be mutually authenticated");
+#else
+            Assert.That(association!.TlsInfo!.IsMutuallyAuthenticated, Is.True,
+                "Connection should be mutually authenticated");
+#endif
         }
 
         [Test]

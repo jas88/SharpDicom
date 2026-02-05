@@ -32,6 +32,6 @@
 
   <!-- Share test source files from main test project, excluding obj/bin and NET5+ only tests -->
   <ItemGroup>
-    <Compile Include="..\SharpDicom.Tests\**\*.cs" Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs;..\SharpDicom.Tests\Network\Tls\TlsServerOptionsTests.cs" LinkBase="Tests" />
+    <Compile Include="..\SharpDicom.Tests\**\*.cs" Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs;..\SharpDicom.Tests\Network\Tls\TlsServerOptionsTests.cs;..\SharpDicom.Tests\Network\Tls\TlsIntegrationTests.cs" LinkBase="Tests" />
   </ItemGroup>
 </Project>
