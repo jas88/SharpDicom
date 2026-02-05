@@ -155,11 +155,25 @@ namespace SharpDicom.Network.Tls
                     // Build the chain - may return false even with valid custom CA
                     var buildResult = customChain.Build(cert2);
 
+                    // DIAGNOSTIC: Log chain build result
+                    Console.WriteLine($"[CertificateValidator] Build result: {buildResult}, ChainElements: {customChain.ChainElements.Count}");
+                    if (customChain.ChainStatus.Length > 0)
+                    {
+                        Console.WriteLine($"[CertificateValidator] Chain statuses ({customChain.ChainStatus.Length}):");
+                        foreach (var status in customChain.ChainStatus)
+                            Console.WriteLine($"  - {status.Status}: {status.StatusInformation}");
+                    }
+
                     // Check if chain was built and terminates at one of our custom CAs
                     if (customChain.ChainElements.Count > 0)
                     {
                         var rootCert = customChain.ChainElements[customChain.ChainElements.Count - 1].Certificate;
                         bool chainEndsWithCustomCA = _customCAs.Any(ca => ca.Thumbprint == rootCert.Thumbprint);
+
+                        Console.WriteLine($"[CertificateValidator] Chain ends with custom CA: {chainEndsWithCustomCA}");
+                        Console.WriteLine($"[CertificateValidator] Root cert thumbprint: {rootCert.Thumbprint}");
+                        foreach (var ca in _customCAs)
+                            Console.WriteLine($"[CertificateValidator] Expected CA thumbprint: {ca.Thumbprint}");
 
                         if (chainEndsWithCustomCA)
                         {
@@ -192,6 +206,8 @@ namespace SharpDicom.Network.Tls
                                 if (combined == expected)
                                     return true;
                             }
+
+                            Console.WriteLine($"[CertificateValidator] Rejecting - status count: {statuses.Length}");
 #else
                             // On netstandard2.0 with ExtraStore, Build() often fails with UntrustedRoot
                             // Accept if chain ends at our CA and only error is UntrustedRoot
