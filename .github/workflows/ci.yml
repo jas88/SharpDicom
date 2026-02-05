@@ -44,17 +44,6 @@ jobs:
         with:
           version: ${{ env.ZIG_VERSION }}
 
-      # Cache apt packages to speed up CUDA/DCMTK/CharLS installation
-      - name: Cache apt packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/ci.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-apt-
-
       # CUDA Setup for GPU codecs
       - name: Setup CUDA Toolkit
         uses: Jimver/cuda-toolkit@v0.2.21
@@ -66,28 +55,28 @@ jobs:
           # and cannot be installed via sub-packages parameter
           linux-local-args: '["--toolkit"]'
 
-      # Install all additional packages in one step (faster with cache)
-      - name: Install additional packages (nvJPEG2000, DCMTK, CharLS)
-        run: |
-          # Single apt-get update for all packages
-          sudo apt-get update
+      # Install additional packages with caching
+      - name: Cache and install apt packages
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: dcmtk libcharls-dev libcharls2
+          version: 1.0
+          execute_install_scripts: true
 
-          # nvJPEG2000 - non-standard package naming
+      - name: Install nvJPEG2000
+        run: |
+          # nvJPEG2000 - non-standard package naming, installed separately
+          # (comes from CUDA repository added by Jimver/cuda-toolkit action)
+          sudo apt-get update
           sudo apt-get install -y libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 || {
             echo "⚠ nvJPEG2000 packages not available - CUDA wrapper will be skipped"
           }
 
-          # DCMTK - DICOM toolkit for integration tests
-          sudo apt-get install -y dcmtk
-
-          # CharLS - JPEG-LS codec for conformance tests
-          sudo apt-get install -y libcharls-dev libcharls2
-
-          # Verify installations
+      - name: Verify package installations
+        run: |
           dcmsend --version || true
           dcmrecv --version || true
           pkg-config --modversion charls || true
-
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
       - name: Start DCMTK services for integration tests
