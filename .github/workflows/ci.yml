@@ -67,20 +67,11 @@ jobs:
         run: |
           # nvJPEG2000 - non-standard package naming, installed separately
           # (comes from CUDA repository added by Jimver/cuda-toolkit action)
+          # Installs to: /usr/include/libnvjpeg2k/12/ and /usr/lib/x86_64-linux-gnu/libnvjpeg2k/12/
           sudo apt-get update
           sudo apt-get install -y libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 || {
             echo "⚠ nvJPEG2000 packages not available - CUDA wrapper will be skipped"
           }
-
-          # Debug: Show where nvJPEG2000 files were installed
-          echo "=== nvJPEG2000 installation locations ==="
-          dpkg -L libnvjpeg2k0-cuda-12 2>/dev/null | grep -E '\.(h|so)' | head -20 || echo "Package not installed"
-          dpkg -L libnvjpeg2k0-dev-cuda-12 2>/dev/null | grep -E '\.(h|a)' | head -20 || echo "Package not installed"
-
-          # Search for nvjpeg2k.h
-          echo "=== Searching for nvjpeg2k.h ==="
-          find /usr -name "nvjpeg2k.h" 2>/dev/null || echo "Header not found in /usr"
-          find /opt -name "nvjpeg2k.h" 2>/dev/null || echo "Header not found in /opt"
 
       - name: Verify package installations
         run: |
@@ -130,14 +121,16 @@ jobs:
         run: |
           # nvJPEG2000 header can be in multiple locations depending on package installation
           NVJPEG2K_PATHS=(
-            "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h"
-            "/usr/local/cuda/include/nvjpeg2k.h"
-            "/usr/include/nvjpeg2k.h"
+            "/usr/include/libnvjpeg2k/12/nvjpeg2k.h"                    # Ubuntu package location
+            "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h"  # Standard CUDA location
+            "/usr/local/cuda/include/nvjpeg2k.h"                        # Alternative CUDA location
+            "/usr/include/nvjpeg2k.h"                                   # Fallback location
           )
 
           for path in "${NVJPEG2K_PATHS[@]}"; do
             if [ -f "$path" ]; then
               echo "available=true" >> $GITHUB_OUTPUT
+              echo "nvjpeg2k_header=$path" >> $GITHUB_OUTPUT
               echo "✓ nvJPEG2000 found at $path"
               exit 0
             fi
@@ -155,6 +148,7 @@ jobs:
           mkdir -p build && cd build
           cmake -DCMAKE_BUILD_TYPE=Release \
                 -DCUDA_TOOLKIT_ROOT_DIR=$CUDA_PATH \
+                -DCMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/libnvjpeg2k/12;/usr/include/libnvjpeg2k/12" \
                 ..
           cmake --build . --parallel
 
