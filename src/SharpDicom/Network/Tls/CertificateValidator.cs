@@ -170,6 +170,15 @@ namespace SharpDicom.Network.Tls
 
                             // On some platforms, Build() may still fail - check if only error is UntrustedRoot
                             var statuses = customChain.ChainStatus;
+
+                            // DEBUG: Log what we're seeing (will be visible in test output)
+                            System.Diagnostics.Debug.WriteLine($"[CertificateValidator] CustomCA validation: buildResult={buildResult}, chainLength={customChain.ChainElements.Count}, statusCount={statuses.Length}");
+                            if (statuses.Length > 0)
+                            {
+                                foreach (var status in statuses)
+                                    System.Diagnostics.Debug.WriteLine($"[CertificateValidator]   Status: {status.Status} - {status.StatusInformation}");
+                            }
+
                             if (statuses.Length == 0 ||
                                 (statuses.Length == 1 && statuses[0].Status == X509ChainStatusFlags.UntrustedRoot))
                                 return true;
@@ -184,6 +193,18 @@ namespace SharpDicom.Network.Tls
                                 return true;
 #endif
                         }
+                        else
+                        {
+                            // DEBUG: Chain doesn't end with our CA
+                            System.Diagnostics.Debug.WriteLine($"[CertificateValidator] Chain does not end with custom CA. Root thumbprint: {rootCert.Thumbprint}");
+                            foreach (var ca in _customCAs)
+                                System.Diagnostics.Debug.WriteLine($"[CertificateValidator]   Expected CA: {ca.Thumbprint}");
+                        }
+                    }
+                    else
+                    {
+                        // DEBUG: No chain elements
+                        System.Diagnostics.Debug.WriteLine($"[CertificateValidator] Chain has no elements. Build result: {buildResult}");
                     }
                 }
 
