@@ -243,7 +243,7 @@ namespace SharpDicom.Tests.Network.Tls
         public async Task MutualTls_BothCertsValid_Succeeds()
         {
             // Arrange - Create CA and sign both server and client certs
-            using var ca = TlsCertificateHelper.CreateSelfSignedCertificate("TestCA", TimeSpan.FromHours(1));
+            using var ca = TlsCertificateHelper.CreateSelfSignedCertificate("TestCA", TimeSpan.FromHours(1), isCA: true);
             using var serverCert = TlsCertificateHelper.CreateClientCertificate("localhost", ca);
             using var clientCert = TlsCertificateHelper.CreateClientCertificate("TestClient", ca);
 
@@ -495,7 +495,7 @@ namespace SharpDicom.Tests.Network.Tls
         public async Task CustomCA_AcceptedWithCAInTrustStore()
         {
             // Arrange
-            using var ca = TlsCertificateHelper.CreateSelfSignedCertificate("TestCA", TimeSpan.FromHours(1));
+            using var ca = TlsCertificateHelper.CreateSelfSignedCertificate("TestCA", TimeSpan.FromHours(1), isCA: true);
             using var serverCert = TlsCertificateHelper.CreateClientCertificate("localhost", ca);
 
             var port = GetFreePort();

@@ -20,7 +20,7 @@ namespace SharpDicom.Tests.Network.Tls
         /// <param name="subjectName">The subject name (CN) for the certificate.</param>
         /// <param name="validity">How long the certificate should be valid.</param>
         /// <returns>A self-signed certificate with private key.</returns>
-        public static X509Certificate2 CreateSelfSignedCertificate(string subjectName, TimeSpan validity)
+        public static X509Certificate2 CreateSelfSignedCertificate(string subjectName, TimeSpan validity, bool isCA = false)
         {
             using var rsa = RSA.Create(2048);
 
@@ -30,15 +30,21 @@ namespace SharpDicom.Tests.Network.Tls
                 HashAlgorithmName.SHA256,
                 RSASignaturePadding.Pkcs1);
 
-            // Add basic constraints (CA=false)
+            // Add basic constraints
             request.CertificateExtensions.Add(
-                new X509BasicConstraintsExtension(false, false, 0, true));
+                new X509BasicConstraintsExtension(
+                    certificateAuthority: isCA,
+                    hasPathLengthConstraint: false,
+                    pathLengthConstraint: 0,
+                    critical: true));
 
             // Add key usage
+            var keyUsage = isCA
+                ? X509KeyUsageFlags.KeyCertSign | X509KeyUsageFlags.CrlSign
+                : X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment;
+
             request.CertificateExtensions.Add(
-                new X509KeyUsageExtension(
-                    X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment,
-                    true));
+                new X509KeyUsageExtension(keyUsage, critical: true));
 
             // Add enhanced key usage for server authentication
             request.CertificateExtensions.Add(
