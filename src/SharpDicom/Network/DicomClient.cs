@@ -214,9 +214,10 @@ namespace SharpDicom.Network
                     var negotiated = _sslStream.SslProtocol;
                     var requested = _options.Tls.EnabledProtocols.Value;
 
+                    // Skip downgrade check if SslProtocols.None (OS default negotiation)
                     // Check if negotiated protocol is one of the enabled protocols
                     // Can't use < on flags enum - need to check if negotiated is in the set
-                    if ((requested & negotiated) == 0)
+                    if (requested != SslProtocols.None && (requested & negotiated) == 0)
                     {
                         _sslStream.Dispose();
                         _sslStream = null;
@@ -262,9 +263,10 @@ namespace SharpDicom.Network
                     var negotiated = _sslStream.SslProtocol;
                     var requested = _options.Tls.EnabledProtocols.Value;
 
+                    // Skip downgrade check if SslProtocols.None (OS default negotiation)
                     // Check if negotiated protocol is one of the enabled protocols
                     // Can't use < on flags enum - need to check if negotiated is in the set
-                    if ((requested & negotiated) == 0)
+                    if (requested != SslProtocols.None && (requested & negotiated) == 0)
                     {
                         _sslStream.Dispose();
                         _sslStream = null;
