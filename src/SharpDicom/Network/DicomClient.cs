@@ -147,21 +147,15 @@ namespace SharpDicom.Network
                     CertificateRevocationCheckMode = _options.Tls.RevocationMode,
                 };
 
-                // Set CertificateChainPolicy if custom CAs configured
+                // Set CertificateChainPolicy if explicitly configured
+                // Note: Don't set this if we're using a validation callback (lines 133-139),
+                // as the callback takes precedence and CertificateChainPolicy would be ignored.
                 if (_options.Tls.CertificateChainPolicy != null)
                 {
                     clientAuthOptions.CertificateChainPolicy = _options.Tls.CertificateChainPolicy;
                 }
-                else if (_options.Tls.CustomCAs?.Count > 0)
-                {
-                    clientAuthOptions.CertificateChainPolicy = new X509ChainPolicy
-                    {
-                        TrustMode = X509ChainTrustMode.CustomRootTrust,
-                        RevocationMode = _options.Tls.RevocationMode,
-                    };
-                    foreach (var ca in _options.Tls.CustomCAs)
-                        clientAuthOptions.CertificateChainPolicy.CustomTrustStore.Add(ca);
-                }
+                // CustomCAs are handled via CertificateValidator callback (lines 134-139),
+                // not via CertificateChainPolicy, to maintain compatibility with netstandard2.0
 
                 try
                 {

@@ -240,7 +240,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        [Ignore("Custom CA chain validation fails - requires platform-specific X509Chain trust configuration")]
+        [Platform(Exclude = "MacOsX", Reason = "macOS X509Chain.Build() with CustomTrustStore fails due to dotnet/runtime#1923")]
         public async Task MutualTls_BothCertsValid_Succeeds()
         {
             // Arrange - Create CA and sign both server and client certs
@@ -302,25 +302,8 @@ namespace SharpDicom.Tests.Network.Tls
                     ClientCertificate = clientCert,
                     CustomCAs = new System.Collections.Generic.List<X509Certificate2> { caCopy2 },
                     EnforceDicomTlsProfile = false,
-                    RevocationMode = X509RevocationMode.NoCheck,
-                    ServerCertificateValidationCallback = (sender, cert, chain, errors) =>
-                    {
-                        // Accept server certs signed by our test CA
-                        if (chain != null)
-                        {
-#if NET9_0_OR_GREATER
-                            using var caCopy3 = X509CertificateLoader.LoadCertificate(ca.RawData);
-#else
-                            using var caCopy3 = new X509Certificate2(ca.RawData);
-#endif
-                            chain.ChainPolicy.ExtraStore.Add(caCopy3);
-                            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                            chain.ChainPolicy.CustomTrustStore.Add(caCopy3);
-                            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                            return chain.Build((X509Certificate2)cert!);
-                        }
-                        return false;
-                    }
+                    RevocationMode = X509RevocationMode.NoCheck
+                    // No callback - let DicomClient use CustomCAs via CertificateChainPolicy
                 }
             };
 
@@ -518,7 +501,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        [Ignore("Custom CA chain validation fails - requires platform-specific X509Chain trust configuration")]
+        [Platform(Exclude = "MacOsX", Reason = "macOS X509Chain.Build() with CustomTrustStore fails due to dotnet/runtime#1923")]
         public async Task CustomCA_AcceptedWithCAInTrustStore()
         {
             // Arrange
@@ -559,25 +542,8 @@ namespace SharpDicom.Tests.Network.Tls
                 {
                     CustomCAs = new System.Collections.Generic.List<X509Certificate2> { caCopy },
                     EnforceDicomTlsProfile = false,
-                    RevocationMode = X509RevocationMode.NoCheck,
-                    ServerCertificateValidationCallback = (sender, cert, chain, errors) =>
-                    {
-                        // Custom validation with CA trust
-                        if (chain != null)
-                        {
-#if NET9_0_OR_GREATER
-                            using var caCopy2 = X509CertificateLoader.LoadCertificate(ca.RawData);
-#else
-                            using var caCopy2 = new X509Certificate2(ca.RawData);
-#endif
-                            chain.ChainPolicy.ExtraStore.Add(caCopy2);
-                            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                            chain.ChainPolicy.CustomTrustStore.Add(caCopy2);
-                            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                            return chain.Build((X509Certificate2)cert!);
-                        }
-                        return false;
-                    }
+                    RevocationMode = X509RevocationMode.NoCheck
+                    // No callback - let DicomClient use CustomCAs via CertificateChainPolicy
                 }
             };
 
