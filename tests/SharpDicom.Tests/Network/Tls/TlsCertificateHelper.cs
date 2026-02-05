@@ -19,6 +19,7 @@ namespace SharpDicom.Tests.Network.Tls
         /// </summary>
         /// <param name="subjectName">The subject name (CN) for the certificate.</param>
         /// <param name="validity">How long the certificate should be valid.</param>
+        /// <param name="isCA">Whether this certificate should be a CA certificate (with KeyCertSign usage).</param>
         /// <returns>A self-signed certificate with private key.</returns>
         public static X509Certificate2 CreateSelfSignedCertificate(string subjectName, TimeSpan validity, bool isCA = false)
         {
