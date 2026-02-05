@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 
 /*============================================================================
  * CUDA and nvJPEG2000 includes
@@ -175,7 +176,7 @@ static void fill_device_info(int device_id, nvj2k_device_info_t* info) {
     memset(info, 0, sizeof(*info));
     info->device_id = device_id;
 
-    cudaDeviceProp prop;
+    struct cudaDeviceProp prop;
     if (cudaGetDeviceProperties(&prop, device_id) == cudaSuccess) {
         info->compute_major = prop.major;
         info->compute_minor = prop.minor;
@@ -260,8 +261,8 @@ NVJ2K_API int nvj2k_init(int device_id) {
         return NVJ2K_ERR_CUDA_ERROR;
     }
 
-    /* Create nvJPEG2000 handle */
-    nvjpeg2kStatus_t nv_status = nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, NULL, &g_handle);
+    /* Create nvJPEG2000 handle (NULL allocators use default) */
+    nvjpeg2kStatus_t nv_status = nvjpeg2kCreate(NVJPEG2K_BACKEND_DEFAULT, NULL, NULL, &g_handle);
     if (nv_status != NVJPEG2K_STATUS_SUCCESS) {
         cudaStreamDestroy(g_stream);
         g_stream = NULL;
@@ -425,7 +426,7 @@ NVJ2K_API int nvj2k_decode(
 
     /* Allocate device memory */
     uint8_t* d_output = NULL;
-    cudaError_t cuda_err = cudaMalloc(&d_output, expected_size);
+    cudaError_t cuda_err = cudaMalloc((void**)&d_output, expected_size);
     if (cuda_err != cudaSuccess) {
         nvjpeg2kStreamDestroy(j2k_stream);
         set_error_fmt("Failed to allocate GPU memory: %s", cudaGetErrorString(cuda_err));
@@ -449,15 +450,17 @@ NVJ2K_API int nvj2k_decode(
     /* For interleaved output, we use a single buffer */
     size_t comp_size = safe_mul3_size((size_t)decode_width, (size_t)decode_height, (size_t)bytes_per_sample);
     size_t pitch = safe_mul_size((size_t)decode_width, (size_t)bytes_per_sample);
-    for (uint32_t c = 0; c < image_info.num_components && c < NVJPEG2K_MAX_COMPONENT; c++) {
+    /* nvJPEG2000 supports up to 4 components typically (RGBA) */
+    const uint32_t max_components = 4;
+    for (uint32_t c = 0; c < image_info.num_components && c < max_components; c++) {
         output_image.pixel_data[c] = d_output + c * comp_size;
         output_image.pitch_in_bytes[c] = pitch;
         output_image.pixel_type = (bytes_per_sample == 1) ? NVJPEG2K_UINT8 :
                                    (bytes_per_sample == 2) ? NVJPEG2K_UINT16 : NVJPEG2K_UINT8;
     }
 
-    /* Decode */
-    status = nvjpeg2kDecode(g_handle, g_state, j2k_stream, decode_params, &output_image, g_stream);
+    /* Decode (CUDA 12.6 API: handle, state, stream, output, cudaStream) */
+    status = nvjpeg2kDecode(g_handle, g_state, j2k_stream, &output_image, g_stream);
     if (status != NVJPEG2K_STATUS_SUCCESS) {
         nvjpeg2kDecodeParamsDestroy(decode_params);
         cudaFree(d_output);
