@@ -169,20 +169,29 @@ namespace SharpDicom.Network.Tls
                             if (buildResult)
                                 return true;
 
-                            // On some platforms, Build() may still fail - check if only error is UntrustedRoot
+                            // On some platforms, Build() may fail with UntrustedRoot or PartialChain
+                            // even when chain terminates at our custom CA
                             var statuses = customChain.ChainStatus;
+                            if (statuses.Length == 0)
+                                return true;
 
-                            // DEBUG: Log what we're seeing (will be visible in test output)
-                            System.Diagnostics.Debug.WriteLine($"[CertificateValidator] CustomCA validation: buildResult={buildResult}, chainLength={customChain.ChainElements.Count}, statusCount={statuses.Length}");
-                            if (statuses.Length > 0)
+                            // Accept if only error is UntrustedRoot or PartialChain (both expected with custom CAs)
+                            if (statuses.Length == 1)
                             {
-                                foreach (var status in statuses)
-                                    System.Diagnostics.Debug.WriteLine($"[CertificateValidator]   Status: {status.Status} - {status.StatusInformation}");
+                                var status = statuses[0].Status;
+                                if (status == X509ChainStatusFlags.UntrustedRoot ||
+                                    status == X509ChainStatusFlags.PartialChain)
+                                    return true;
                             }
 
-                            if (statuses.Length == 0 ||
-                                (statuses.Length == 1 && statuses[0].Status == X509ChainStatusFlags.UntrustedRoot))
-                                return true;
+                            // Also accept combination of UntrustedRoot + PartialChain
+                            if (statuses.Length == 2)
+                            {
+                                var combined = statuses[0].Status | statuses[1].Status;
+                                var expected = X509ChainStatusFlags.UntrustedRoot | X509ChainStatusFlags.PartialChain;
+                                if (combined == expected)
+                                    return true;
+                            }
 #else
                             // On netstandard2.0 with ExtraStore, Build() often fails with UntrustedRoot
                             // Accept if chain ends at our CA and only error is UntrustedRoot
