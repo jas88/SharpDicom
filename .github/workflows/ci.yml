@@ -75,6 +75,14 @@ jobs:
           dcmrecv --version || true
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
+      # CharLS Setup for JPEG-LS conformance tests
+      - name: Install CharLS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcharls-dev libcharls2
+          # Verify installation
+          pkg-config --modversion charls || echo "CharLS installed but pkg-config not configured"
+
       # Build Phase 1: .NET
       - name: Restore .NET dependencies
         run: dotnet restore
