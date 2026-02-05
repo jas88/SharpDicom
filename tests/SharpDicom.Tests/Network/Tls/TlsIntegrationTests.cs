@@ -263,20 +263,12 @@ namespace SharpDicom.Tests.Network.Tls
                     ClientCertificateValidationCallback = (sender, cert, chain, errors) =>
                     {
                         // Accept client certs signed by our test CA
-                        if (chain != null)
-                        {
-#if NET9_0_OR_GREATER
-                            using var caCopy = X509CertificateLoader.LoadCertificate(ca.RawData);
-#else
-                            using var caCopy = new X509Certificate2(ca.RawData);
-#endif
-                            chain.ChainPolicy.ExtraStore.Add(caCopy);
-                            chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                            chain.ChainPolicy.CustomTrustStore.Add(caCopy);
-                            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                            return chain.Build((X509Certificate2)cert!);
-                        }
-                        return false;
+                        // Use CertificateValidator to properly validate with custom CA
+                        var validator = new CertificateValidator(
+                            acceptedThumbprints: null,
+                            customCAs: new[] { ca },
+                            allowSelfSigned: false);
+                        return validator.Validate(sender, cert, chain, errors);
                     }
                 }
             };
