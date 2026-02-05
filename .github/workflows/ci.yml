@@ -56,28 +56,31 @@ jobs:
           linux-local-args: '["--toolkit"]'
 
       # Install additional packages with caching
+      # Note: This must run AFTER cuda-toolkit action because nvJPEG2000 packages
+      # are in the CUDA repository that the cuda-toolkit action adds
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2
-          version: 1.0
+          packages: libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 dcmtk libcharls-dev libcharls2
+          version: 1.1
           execute_install_scripts: true
-
-      - name: Install nvJPEG2000
-        run: |
-          # nvJPEG2000 - non-standard package naming, installed separately
-          # (comes from CUDA repository added by Jimver/cuda-toolkit action)
-          # Installs to: /usr/include/libnvjpeg2k/12/ and /usr/lib/x86_64-linux-gnu/libnvjpeg2k/12/
-          sudo apt-get update
-          sudo apt-get install -y libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 || {
-            echo "⚠ nvJPEG2000 packages not available - CUDA wrapper will be skipped"
-          }
 
       - name: Verify package installations
         run: |
+          # nvJPEG2000
+          if [ -f "/usr/include/libnvjpeg2k/12/nvjpeg2k.h" ]; then
+            echo "✓ nvJPEG2000 header found"
+          else
+            echo "⚠ nvJPEG2000 not found - CUDA wrapper will be skipped"
+          fi
+
+          # DCMTK
           dcmsend --version || true
           dcmrecv --version || true
+
+          # CharLS
           pkg-config --modversion charls || true
+
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
       - name: Start DCMTK services for integration tests
