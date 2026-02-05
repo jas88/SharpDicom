@@ -727,8 +727,12 @@ namespace SharpDicom.Network
                 if (!reader.TryReadValue(valueLength, out var value))
                     break;
 
-                // Create element based on VR
-                var element = new DicomBinaryElement(tag, vr, value.ToArray());
+                // Create element based on VR type (string, numeric, or binary)
+                var valueData = value.ToArray();
+                var vrInfo = DicomVRInfo.GetInfo(vr);
+                IDicomElement element = vrInfo.IsStringVR
+                    ? new DicomStringElement(tag, vr, valueData)
+                    : new DicomNumericElement(tag, vr, valueData);
                 dataset.Add(element);
             }
 

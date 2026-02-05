@@ -158,7 +158,6 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        [Ignore("Dataset retrieval complexity in streaming C-STORE over TLS - edge case")]
         public async Task CStore_OverTls_RoundtripPreservesData()
         {
             // Arrange
@@ -241,7 +240,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        [Ignore("Mutual TLS with CA-signed certificates - complex chain validation edge case")]
+        [Ignore("Custom CA chain validation fails - requires platform-specific X509Chain trust configuration")]
         public async Task MutualTls_BothCertsValid_Succeeds()
         {
             // Arrange - Create CA and sign both server and client certs
@@ -519,7 +518,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        [Ignore("Certificate chain validation with custom CA trust - platform-dependent edge case")]
+        [Ignore("Custom CA chain validation fails - requires platform-specific X509Chain trust configuration")]
         public async Task CustomCA_AcceptedWithCAInTrustStore()
         {
             // Arrange
