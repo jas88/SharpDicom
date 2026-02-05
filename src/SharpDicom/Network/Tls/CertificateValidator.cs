@@ -149,11 +149,31 @@ namespace SharpDicom.Network.Tls
                     customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
                     customChain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
 
-                    if (customChain.Build(cert2))
+                    // Build the chain - may return false even with valid custom CA
+                    var buildResult = customChain.Build(cert2);
+
+                    // Check if chain was built and terminates at one of our custom CAs
+                    if (customChain.ChainElements.Count > 0)
                     {
-                        // Verify the chain terminates at one of our custom CAs
                         var rootCert = customChain.ChainElements[customChain.ChainElements.Count - 1].Certificate;
-                        return _customCAs.Any(ca => ca.Thumbprint == rootCert.Thumbprint);
+                        bool chainEndsWithCustomCA = _customCAs.Any(ca => ca.Thumbprint == rootCert.Thumbprint);
+
+                        if (chainEndsWithCustomCA)
+                        {
+#if NET5_0_OR_GREATER
+                            // With CustomRootTrust, the build should succeed
+                            return buildResult;
+#else
+                            // On netstandard2.0, build may fail with UntrustedRoot even with valid chain
+                            // Accept if the only error is UntrustedRoot
+                            if (buildResult)
+                                return true;
+
+                            var statuses = customChain.ChainStatus;
+                            if (statuses.Length == 1 && statuses[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                                return true;
+#endif
+                        }
                     }
                 }
 
