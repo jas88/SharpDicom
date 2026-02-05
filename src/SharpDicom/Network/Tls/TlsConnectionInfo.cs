@@ -81,7 +81,11 @@ namespace SharpDicom.Network.Tls
         /// <returns>A new <see cref="TlsConnectionInfo"/> instance with the connection details.</returns>
         public static TlsConnectionInfo FromSslStream(SslStream sslStream)
         {
-            var remoteCert = sslStream.RemoteCertificate as X509Certificate2;
+            // Convert to X509Certificate2 to preserve certificate data
+            var remoteCert = sslStream.RemoteCertificate != null
+                ? sslStream.RemoteCertificate as X509Certificate2
+                  ?? new X509Certificate2(sslStream.RemoteCertificate)
+                : null;
 
 #if NET6_0_OR_GREATER
             // On .NET 6+, we can get the actual cipher suite enum

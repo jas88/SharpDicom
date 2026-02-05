@@ -100,72 +100,94 @@ namespace SharpDicom.Network.Tls
             if (certificate == null)
                 return false;
 
-            var cert2 = certificate as X509Certificate2 ?? new X509Certificate2(certificate);
+            // Convert to X509Certificate2 if needed, disposing wrapper if created
+            X509Certificate2 cert2;
+            bool createdWrapper;
 
-            // 2. Thumbprint whitelist has highest priority (pin-based trust)
-            if (_acceptedThumbprints != null)
+            if (certificate is X509Certificate2 x509Cert2)
             {
+                cert2 = x509Cert2;
+                createdWrapper = false;
+            }
+            else
+            {
+                cert2 = new X509Certificate2(certificate);
+                createdWrapper = true;
+            }
+
+            try
+            {
+                // 2. Thumbprint whitelist has highest priority (pin-based trust)
+                if (_acceptedThumbprints != null)
+                {
 #if NET6_0_OR_GREATER
-                var thumbprint = cert2.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                    var thumbprint = cert2.GetCertHashString(System.Security.Cryptography.HashAlgorithmName.SHA256);
 #else
-                // On netstandard2.0, compute SHA256 thumbprint manually
-                using var sha256 = System.Security.Cryptography.SHA256.Create();
-                var hash = sha256.ComputeHash(cert2.RawData);
-                var thumbprint = BitConverter.ToString(hash).Replace("-", "");
+                    // On netstandard2.0, compute SHA256 thumbprint manually
+                    using var sha256 = System.Security.Cryptography.SHA256.Create();
+                    var hash = sha256.ComputeHash(cert2.RawData);
+                    var thumbprint = BitConverter.ToString(hash).Replace("-", "");
 #endif
-                return _acceptedThumbprints.Contains(thumbprint);
-            }
-
-            // 3. If system validation passed, accept
-            if (sslPolicyErrors == SslPolicyErrors.None)
-                return true;
-
-            // 4. If custom CAs configured, try building chain with custom trust
-            if (_customCAs != null && _customCAs.Count > 0)
-            {
-                using var customChain = new X509Chain();
-#if NET5_0_OR_GREATER
-                customChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-                customChain.ChainPolicy.CustomTrustStore.AddRange(_customCAs.ToArray());
-#else
-                // On netstandard2.0, add custom CAs to ExtraStore (less reliable)
-                customChain.ChainPolicy.ExtraStore.AddRange(_customCAs.ToArray());
-#endif
-                customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-                customChain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
-
-                if (customChain.Build(cert2))
-                {
-                    // Verify the chain terminates at one of our custom CAs
-                    var rootCert = customChain.ChainElements[customChain.ChainElements.Count - 1].Certificate;
-                    return _customCAs.Any(ca => ca.Thumbprint == rootCert.Thumbprint);
+                    return _acceptedThumbprints.Contains(thumbprint);
                 }
-            }
 
-            // 5. If self-signed allowed, check specific conditions
-            if (_allowSelfSigned)
-            {
-                // Self-signed cert must:
-                // - Have only the RemoteCertificateChainErrors flag
-                // - Have chain length == 1 (self-signed)
-                // - Have only UntrustedRoot as the chain status
-                if (sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors &&
-                    chain != null &&
-                    chain.ChainElements.Count == 1)
+                // 3. If system validation passed, accept
+                if (sslPolicyErrors == SslPolicyErrors.None)
+                    return true;
+
+                // 4. If custom CAs configured, try building chain with custom trust
+                if (_customCAs != null && _customCAs.Count > 0)
                 {
-                    // Check that the only error is UntrustedRoot
-                    var statuses = chain.ChainStatus;
-                    if (statuses.Length == 1 &&
-                        statuses[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                    using var customChain = new X509Chain();
+#if NET5_0_OR_GREATER
+                    customChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                    customChain.ChainPolicy.CustomTrustStore.AddRange(_customCAs.ToArray());
+#else
+                    // On netstandard2.0, add custom CAs to ExtraStore (less reliable)
+                    customChain.ChainPolicy.ExtraStore.AddRange(_customCAs.ToArray());
+#endif
+                    customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                    customChain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+
+                    if (customChain.Build(cert2))
                     {
-                        // Additionally verify subject == issuer (self-signed)
-                        return cert2.Subject == cert2.Issuer;
+                        // Verify the chain terminates at one of our custom CAs
+                        var rootCert = customChain.ChainElements[customChain.ChainElements.Count - 1].Certificate;
+                        return _customCAs.Any(ca => ca.Thumbprint == rootCert.Thumbprint);
                     }
                 }
-            }
 
-            // 6. Reject otherwise
-            return false;
+                // 5. If self-signed allowed, check specific conditions
+                if (_allowSelfSigned)
+                {
+                    // Self-signed cert must:
+                    // - Have only the RemoteCertificateChainErrors flag
+                    // - Have chain length == 1 (self-signed)
+                    // - Have only UntrustedRoot as the chain status
+                    if (sslPolicyErrors == SslPolicyErrors.RemoteCertificateChainErrors &&
+                        chain != null &&
+                        chain.ChainElements.Count == 1)
+                    {
+                        // Check that the only error is UntrustedRoot
+                        var statuses = chain.ChainStatus;
+                        if (statuses.Length == 1 &&
+                            statuses[0].Status == X509ChainStatusFlags.UntrustedRoot)
+                        {
+                            // Additionally verify subject == issuer (self-signed)
+                            return cert2.Subject == cert2.Issuer;
+                        }
+                    }
+                }
+
+                // 6. Reject otherwise
+                return false;
+            }
+            finally
+            {
+                // Dispose X509Certificate2 wrapper if we created it
+                if (createdWrapper)
+                    cert2.Dispose();
+            }
         }
     }
 }

@@ -209,15 +209,20 @@ namespace SharpDicom.Network
 
                 // Check for protocol downgrade
                 if (!_options.Tls.AllowProtocolDowngrade &&
-                    _options.Tls.EnabledProtocols.HasValue &&
-                    _sslStream.SslProtocol < _options.Tls.EnabledProtocols.Value)
+                    _options.Tls.EnabledProtocols.HasValue)
                 {
                     var negotiated = _sslStream.SslProtocol;
                     var requested = _options.Tls.EnabledProtocols.Value;
-                    _sslStream.Dispose();
-                    _sslStream = null;
-                    throw new TlsHandshakeException(
-                        $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+
+                    // Check if negotiated protocol is one of the enabled protocols
+                    // Can't use < on flags enum - need to check if negotiated is in the set
+                    if ((requested & negotiated) == 0)
+                    {
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+                    }
                 }
 #else
                 // netstandard2.0: Use older API (no CancellationToken support for auth)
@@ -252,15 +257,20 @@ namespace SharpDicom.Network
 
                 // Check for protocol downgrade
                 if (!_options.Tls.AllowProtocolDowngrade &&
-                    _options.Tls.EnabledProtocols.HasValue &&
-                    _sslStream.SslProtocol < _options.Tls.EnabledProtocols.Value)
+                    _options.Tls.EnabledProtocols.HasValue)
                 {
                     var negotiated = _sslStream.SslProtocol;
                     var requested = _options.Tls.EnabledProtocols.Value;
-                    _sslStream.Dispose();
-                    _sslStream = null;
-                    throw new TlsHandshakeException(
-                        $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+
+                    // Check if negotiated protocol is one of the enabled protocols
+                    // Can't use < on flags enum - need to check if negotiated is in the set
+                    if ((requested & negotiated) == 0)
+                    {
+                        _sslStream.Dispose();
+                        _sslStream = null;
+                        throw new TlsHandshakeException(
+                            $"Protocol downgrade detected: requested {requested}, got {negotiated}.");
+                    }
                 }
 #endif
 

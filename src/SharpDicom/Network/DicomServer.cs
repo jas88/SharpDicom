@@ -215,11 +215,12 @@ namespace SharpDicom.Network
                 {
                     var stream = client.GetStream();
                     Stream activeStream = stream;
+                    SslStream? sslStream = null;
 
                     // Perform TLS handshake if configured
                     if (_options.Tls != null)
                     {
-                        var sslStream = new SslStream(
+                        sslStream = new SslStream(
                             stream,
                             leaveInnerStreamOpen: false,
                             _options.Tls.ClientCertificateValidationCallback);
@@ -277,7 +278,9 @@ namespace SharpDicom.Network
                         activeStream = sslStream;
                     }
 
-                    // Start ARTIM timer
+                    try
+                    {
+                        // Start ARTIM timer
                     using var artimCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     artimCts.CancelAfter(_options.ArtimTimeout);
 
@@ -333,10 +336,17 @@ namespace SharpDicom.Network
                             // Association rejected - connection closes
                         }
                     }
-                    catch (OperationCanceledException) when (artimCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                        catch (OperationCanceledException) when (artimCts.IsCancellationRequested && !ct.IsCancellationRequested)
+                        {
+                            // ARTIM timeout - no A-ASSOCIATE-RQ received in time
+                            // Connection will be closed
+                        }
+                    }
+                    finally
                     {
-                        // ARTIM timeout - no A-ASSOCIATE-RQ received in time
-                        // Connection will be closed
+                        // Dispose SslStream if it was created (sends TLS close_notify)
+                        // The using(client) block will dispose the NetworkStream
+                        sslStream?.Dispose();
                     }
                 }
             }
