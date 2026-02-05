@@ -51,8 +51,19 @@ jobs:
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'network'
-          sub-packages: '["nvjpeg", "cudart"]'
+          # Note: nvJPEG2000 uses different package naming (libnvjpeg2k0-cuda-12)
+          # and cannot be installed via sub-packages parameter
           linux-local-args: '["--toolkit"]'
+
+      - name: Install nvJPEG2000
+        run: |
+          # nvJPEG2000 uses non-standard package naming: libnvjpeg2k0-cuda-{major}
+          # Cannot use sub-packages parameter which expects cuda-{name}-{major}-{minor} format
+          sudo apt-get update
+          sudo apt-get install -y libnvjpeg2k0-cuda-12 libnvjpeg2k0-dev-cuda-12 || {
+            echo "⚠ nvJPEG2000 packages not available - CUDA wrapper will be skipped"
+            exit 0
+          }
 
       # DCMTK Setup for integration tests
       - name: Install DCMTK
@@ -84,13 +95,23 @@ jobs:
       - name: Check for nvJPEG2000
         id: nvjpeg2k-check
         run: |
-          if [ -f "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h" ]; then
-            echo "available=true" >> $GITHUB_OUTPUT
-            echo "✓ nvJPEG2000 found at ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
-          else
-            echo "available=false" >> $GITHUB_OUTPUT
-            echo "⚠ nvJPEG2000 not found - CUDA wrapper will be skipped"
-          fi
+          # nvJPEG2000 header can be in multiple locations depending on package installation
+          NVJPEG2K_PATHS=(
+            "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include/nvjpeg2k.h"
+            "/usr/local/cuda/include/nvjpeg2k.h"
+            "/usr/include/nvjpeg2k.h"
+          )
+
+          for path in "${NVJPEG2K_PATHS[@]}"; do
+            if [ -f "$path" ]; then
+              echo "available=true" >> $GITHUB_OUTPUT
+              echo "✓ nvJPEG2000 found at $path"
+              exit 0
+            fi
+          done
+
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "⚠ nvJPEG2000 not found in any expected location - CUDA wrapper will be skipped"
 
       - name: Build CUDA nvJPEG2000 wrapper
         if: steps.nvjpeg2k-check.outputs.available == 'true'
