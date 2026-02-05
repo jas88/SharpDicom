@@ -75,6 +75,25 @@ jobs:
           dcmrecv --version || true
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
+      - name: Start DCMTK services for integration tests
+        run: |
+          # Create output directory for received DICOM files
+          mkdir -p /tmp/dcmtk-received
+
+          # Start storescp on port 11120 (for C-STORE SCU tests)
+          storescp -v -od /tmp/dcmtk-received 11120 > /tmp/storescp-11120.log 2>&1 &
+
+          # Start storescp on port 11113 (for C-ECHO tests)
+          storescp -v 11113 > /tmp/storescp-11113.log 2>&1 &
+
+          # Give services time to start
+          sleep 2
+
+          # Verify they're listening
+          netstat -ln | grep -E ":(11120|11113)" || echo "⚠ Some DCMTK services may not have started"
+
+          echo "✓ DCMTK services started (storescp on ports 11120, 11113)"
+
       # CharLS Setup for JPEG-LS conformance tests
       - name: Install CharLS
         run: |
