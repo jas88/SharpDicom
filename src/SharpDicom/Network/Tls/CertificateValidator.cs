@@ -142,12 +142,14 @@ namespace SharpDicom.Network.Tls
 #if NET5_0_OR_GREATER
                     customChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
                     customChain.ChainPolicy.CustomTrustStore.AddRange(_customCAs.ToArray());
+                    customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                    // Don't set VerificationFlags with CustomRootTrust - it's not needed
 #else
                     // On netstandard2.0, add custom CAs to ExtraStore (less reliable)
                     customChain.ChainPolicy.ExtraStore.AddRange(_customCAs.ToArray());
-#endif
                     customChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
                     customChain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+#endif
 
                     // Build the chain - may return false even with valid custom CA
                     var buildResult = customChain.Build(cert2);
@@ -160,12 +162,20 @@ namespace SharpDicom.Network.Tls
 
                         if (chainEndsWithCustomCA)
                         {
+                            // Chain terminates at our custom CA - this is valid
 #if NET5_0_OR_GREATER
-                            // With CustomRootTrust, the build should succeed
-                            return buildResult;
+                            // With CustomRootTrust, Build() should succeed if chain is valid
+                            if (buildResult)
+                                return true;
+
+                            // On some platforms, Build() may still fail - check if only error is UntrustedRoot
+                            var statuses = customChain.ChainStatus;
+                            if (statuses.Length == 0 ||
+                                (statuses.Length == 1 && statuses[0].Status == X509ChainStatusFlags.UntrustedRoot))
+                                return true;
 #else
-                            // On netstandard2.0, build may fail with UntrustedRoot even with valid chain
-                            // Accept if the only error is UntrustedRoot
+                            // On netstandard2.0 with ExtraStore, Build() often fails with UntrustedRoot
+                            // Accept if chain ends at our CA and only error is UntrustedRoot
                             if (buildResult)
                                 return true;
 
