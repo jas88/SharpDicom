@@ -259,6 +259,10 @@ public sealed class PropertyBasedSequenceTests
                 dataset.Add(sequence);
             }
 
+            // Add required DICOM file meta information elements
+            dataset.Add(CreateStringElement(new DicomTag(0x0008, 0x0016), DicomVR.UI, "1.2.840.10008.5.1.4.1.1.2")); // SOPClassUID (CT Image Storage)
+            dataset.Add(CreateStringElement(new DicomTag(0x0008, 0x0018), DicomVR.UI, $"1.2.3.{System.DateTime.UtcNow.Ticks}")); // SOPInstanceUID (generated)
+
             // Add a few top-level elements for more realistic datasets
             dataset.Add(CreateStringElement(new DicomTag(0x0010, 0x0010), DicomVR.PN, "Test^Patient"));
             dataset.Add(CreateStringElement(new DicomTag(0x0008, 0x0060), DicomVR.CS, "CT"));
