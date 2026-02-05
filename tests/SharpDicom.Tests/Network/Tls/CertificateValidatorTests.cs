@@ -245,10 +245,16 @@ namespace SharpDicom.Tests.Network.Tls
             var serialNumber = new byte[16];
             System.Security.Cryptography.RandomNumberGenerator.Fill(serialNumber);
 
+            // Ensure leaf certificate validity is within issuer's validity period
+            // notBefore: 1 day after issuer start (to account for clock skew)
+            // notAfter: 1 day before issuer end (to ensure leaf expires first)
+            var notBefore = issuer.NotBefore.AddDays(1);
+            var notAfter = issuer.NotAfter.AddDays(-1);
+
             return request.Create(
                 issuer,
-                DateTimeOffset.UtcNow.AddDays(-1),
-                DateTimeOffset.UtcNow.AddDays(365),
+                notBefore,
+                notAfter,
                 serialNumber).CopyWithPrivateKey(rsa);
 #else
             // For netstandard2.0, just return self-signed (chain validation won't work perfectly but tests structure)
