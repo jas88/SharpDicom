@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 25 - Advanced De-identification (In Progress)
-**Plan**: 3 of 4 in current phase
-**Status**: In progress - OcrScanner for burned-in PHI detection complete
-**Last activity**: 2026-02-06 - Completed 25-03-PLAN.md
+**Phase**: 25 - Advanced De-identification (COMPLETE)
+**Plan**: 4 of 4 in current phase
+**Status**: Phase complete - Advanced de-identification test suite delivered
+**Last activity**: 2026-02-06 - Completed 25-04-PLAN.md
 
-**Progress**: ███░ (3/4 plans in Phase 25)
+**Progress**: ████ (4/4 plans in Phase 25)
 
-**Test Status**: 4225/4405 tests pass (180 skipped, 0 failed)
+**Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 
 ## Completed
 
@@ -139,10 +139,11 @@
 - [x] Phase 25 Plan 01: UidReferenceWalker for comprehensive VR=UI traversal and pipeline integration
 - [x] Phase 25 Plan 02: Tesseract native wrapper and P/Invoke layer (stub mode, SafeHandle, dual LibraryImport/DllImport)
 - [x] Phase 25 Plan 03: OcrScanner for burned-in PHI detection (OCR scanning, dual-threshold confidence, allow/deny filtering, pipeline integration)
+- [x] Phase 25 Plan 04: Advanced de-identification test suite (50 tests: UidReferenceWalker, OcrScanner, pipeline integration)
 
 ## In Progress
 
-- [ ] Phase 25 Plan 04: Test suite for advanced de-identification
+*None*
 
 ## Blocked
 
@@ -162,7 +163,7 @@
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 25 | Advanced De-identification | IN PROGRESS | 3/4 | 2026-02-06 | - |
+| 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -451,22 +452,21 @@
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 25-03-PLAN.md (OcrScanner for burned-in PHI detection)
+**Stopped at**: Completed 25-04-PLAN.md (Advanced de-identification test suite)
 **Resume file**: None
-**Next step**: Phase 25 Plan 04 (Test suite for advanced de-identification)
+**Next step**: Next phase after Phase 25
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 25 IN PROGRESS (Advanced De-identification)
-2. **Phase 25-03 deliverables**:
-   - OcrScannerOptions.cs: Configuration for OCR scanning (dual thresholds, allow/deny lists, modality filtering)
-   - OcrScanResult.cs: OcrDetection record struct and OcrScanResult with filtering and RedactionRegion conversion
-   - OcrScanner.cs: Full Tesseract OCR integration (pixel data preparation, compressed data support, allow/deny filtering)
-   - DicomDeidentifier pipeline updated: OCR scan + redaction before primary de-identification
-   - DeidentificationSummary extended with OCR statistics (frames scanned, detections, PHI candidates, regions redacted)
-3. **Test coverage**: 4225 tests passing, 0 failed, 180 skipped
+1. **Current phase**: Phase 25 COMPLETE (Advanced De-identification)
+2. **Phase 25-04 deliverables**:
+   - UidReferenceWalkerTests.cs: 18 tests for recursive VR=UI traversal
+   - OcrScannerOptionsTests.cs: 14 tests for OCR configuration defaults and allowlist
+   - OcrScannerTests.cs: 9 tests for OCR scanner behavior (stub mode)
+   - AdvancedDeidentificationIntegrationTests.cs: 9 integration tests for combined pipeline
+3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -507,4 +507,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 25-03 complete - OcrScanner for burned-in PHI detection)*
+*Last updated: 2026-02-06 (Phase 25-04 complete - Advanced de-identification test suite)*
