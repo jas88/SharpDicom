@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 25 - Advanced De-identification (In Progress)
-**Plan**: 1 of 4 in current phase
-**Status**: In progress - UidReferenceWalker and pipeline integration complete
-**Last activity**: 2026-02-06 - Completed 25-01-PLAN.md
+**Plan**: 2 of 4 in current phase
+**Status**: In progress - Tesseract native wrapper and P/Invoke layer complete
+**Last activity**: 2026-02-06 - Completed 25-02-PLAN.md
 
-**Progress**: █░░░ (1/4 plans in Phase 25)
+**Progress**: ██░░ (2/4 plans in Phase 25)
 
 **Test Status**: 2159/2213 tests pass (54 skipped, 0 failed)
 
@@ -137,10 +137,11 @@
 ### Phase 25 - Advanced De-identification (In Progress)
 
 - [x] Phase 25 Plan 01: UidReferenceWalker for comprehensive VR=UI traversal and pipeline integration
+- [x] Phase 25 Plan 02: Tesseract native wrapper and P/Invoke layer (stub mode, SafeHandle, dual LibraryImport/DllImport)
 
 ## In Progress
 
-- [ ] Phase 25 Plan 02-04: Remaining advanced de-identification plans
+- [ ] Phase 25 Plan 03-04: Remaining advanced de-identification plans
 
 ## Blocked
 
@@ -160,7 +161,7 @@
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 25 | Advanced De-identification | IN PROGRESS | 1/4 | 2026-02-06 | - |
+| 25 | Advanced De-identification | IN PROGRESS | 2/4 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -439,24 +440,29 @@
 | 2026-02-06 | 25-01 | Pipeline ordering: walk after primary de-id | UidRemapper has already mapped primary UIDs so references get consistent mapping |
 | 2026-02-06 | 25-01 | Separate UidReferencesRemapped counter | Distinguishes PS3.15 profile remaps from walker-discovered remaps for diagnostics |
 | 2026-02-06 | 25-01 | Opt-in via builder WithUidReferenceWalking() | Backward compatible; no behavioral change for existing callers |
+| 2026-02-06 | 25-02 | SHARPDICOM_HAS_TESSERACT = 1 << 8 in native, Tesseract = 1 << 5 in managed | Native bits 0-7 allocated to existing features; managed enum uses own numbering |
+| 2026-02-06 | 25-02 | Internal constructor for TesseractHandle SafeHandle | CA1419 compliance: parameterless constructor must be as visible as containing type |
+| 2026-02-06 | 25-02 | BestFitMapping=false for DllImport string marshalling | CA2101 compliance for netstandard2.0 P/Invoke string parameters |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 25-01-PLAN.md (UidReferenceWalker)
+**Stopped at**: Completed 25-02-PLAN.md (Tesseract native wrapper and P/Invoke layer)
 **Resume file**: None
-**Next step**: Phase 25 Plan 02 (next plan in advanced de-identification)
+**Next step**: Phase 25 Plan 03 (OcrTextScanner managed layer)
 
 ## Context for Next Session
 
 If resuming after a break:
 
 1. **Current phase**: Phase 25 IN PROGRESS (Advanced De-identification)
-2. **Phase 25-01 deliverables**:
-   - UidReferenceWalker: recursive VR=UI traversal at unlimited sequence depth
-   - UidRemapResult: traversal statistics type
-   - DicomDeidentifier pipeline integration (opt-in via WithUidReferenceWalking())
-   - DeidentificationSummary.UidReferencesRemapped counter
+2. **Phase 25-02 deliverables**:
+   - tesseract_wrapper.h/c: Thin C wrapper around Tesseract 5.x C API (10 functions, full + stub mode)
+   - build.zig: Tesseract wrapper added to all build targets (stub mode default)
+   - sharpdicom_codecs.c: includes tesseract_wrapper.h, reports Tesseract feature flag
+   - TesseractNativeMethods.cs: P/Invoke declarations (LibraryImport + DllImport)
+   - TesseractHandle.cs: SafeHandle for TessBaseAPI lifecycle
+   - NativeFeatures.Tesseract flag added to managed enum
 3. **Test coverage**: 2159 tests passing, 0 failed, 54 skipped
 4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
@@ -498,4 +504,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 25-01 complete - UidReferenceWalker and pipeline integration)*
+*Last updated: 2026-02-06 (Phase 25-02 complete - Tesseract native wrapper and P/Invoke layer)*
