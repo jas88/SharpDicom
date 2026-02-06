@@ -27,9 +27,13 @@
     <PackageVersion Include="Fallenwood.PublishAotCross" Version="0.3.0" />
     <!-- Source Generator Dependencies -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <!-- Source Generator Testing -->
     <PackageVersion Include="Verify.SourceGenerators" Version="2.5.0" />
     <PackageVersion Include="Verify.NUnit" Version="31.10.0" />
+    <!-- Analyzer Testing (pinned to match Microsoft.CodeAnalysis.CSharp 5.0.0) -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
   </ItemGroup>
 </Project>
