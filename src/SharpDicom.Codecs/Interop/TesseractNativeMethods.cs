@@ -165,11 +165,14 @@ namespace SharpDicom.Codecs.Native.Interop
         internal static extern void tess_delete(IntPtr handle);
 
         // Initialization
-        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "tess_init",
-            BestFitMapping = false, ThrowOnUnmappableChar = true)]
+        // UnmanagedType.LPUTF8Str = 48; use raw value for netstandard2.0 compat.
+        // CA2101 cannot statically verify the raw integer is UTF-8 safe.
+#pragma warning disable CA2101 // Marshalling is UTF-8 via (UnmanagedType)48
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "tess_init")]
         internal static extern int tess_init(IntPtr handle,
-            [MarshalAs(UnmanagedType.LPStr)] string? datapath,
-            [MarshalAs(UnmanagedType.LPStr)] string? language);
+            [MarshalAs((UnmanagedType)48)] string? datapath,
+            [MarshalAs((UnmanagedType)48)] string? language);
+#pragma warning restore CA2101
 
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "tess_set_image")]
         internal static extern void tess_set_image(
