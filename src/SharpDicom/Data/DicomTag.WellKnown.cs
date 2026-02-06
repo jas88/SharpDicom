@@ -150,6 +150,10 @@ namespace SharpDicom.Data
         /// <summary>(0008,0020) Study Date</summary>
         public static readonly DicomTag StudyDate = new(0x0008, 0x0020);
 
+        /// <summary>(0008,0030) Study Time</summary>
+        /// <remarks>TM VR. Time the study started.</remarks>
+        public static readonly DicomTag StudyTime = new(0x0008, 0x0030);
+
         /// <summary>(0008,0050) Accession Number</summary>
         public static readonly DicomTag AccessionNumber = new(0x0008, 0x0050);
 
@@ -165,6 +169,18 @@ namespace SharpDicom.Data
         /// <remarks>CS VR. All modalities present in the study.</remarks>
         public static readonly DicomTag ModalitiesInStudy = new(0x0008, 0x0061);
 
+        /// <summary>(0008,0090) Referring Physician's Name</summary>
+        /// <remarks>PN VR. Name of the referring physician.</remarks>
+        public static readonly DicomTag ReferringPhysicianName = new(0x0008, 0x0090);
+
+        /// <summary>(0008,1030) Study Description</summary>
+        /// <remarks>LO VR. Institution-generated description of the study.</remarks>
+        public static readonly DicomTag StudyDescription = new(0x0008, 0x1030);
+
+        /// <summary>(0008,103E) Series Description</summary>
+        /// <remarks>LO VR. Description of the series.</remarks>
+        public static readonly DicomTag SeriesDescription = new(0x0008, 0x103E);
+
         /// <summary>(0010,0010) Patient Name</summary>
         public static readonly DicomTag PatientName = new(0x0010, 0x0010);
 
@@ -178,6 +194,18 @@ namespace SharpDicom.Data
 
         /// <summary>(0020,000E) Series Instance UID</summary>
         public static readonly DicomTag SeriesInstanceUID = new(0x0020, 0x000E);
+
+        /// <summary>(0020,0011) Series Number</summary>
+        /// <remarks>IS VR. Number that identifies this series.</remarks>
+        public static readonly DicomTag SeriesNumber = new(0x0020, 0x0011);
+
+        /// <summary>(0020,0013) Instance Number</summary>
+        /// <remarks>IS VR. Number that identifies this instance.</remarks>
+        public static readonly DicomTag InstanceNumber = new(0x0020, 0x0013);
+
+        /// <summary>(0018,0015) Body Part Examined</summary>
+        /// <remarks>CS VR. Body part examined (e.g., HEAD, CHEST, KNEE).</remarks>
+        public static readonly DicomTag BodyPartExamined = new(0x0018, 0x0015);
 
         /// <summary>(7FE0,0001) Extended Offset Table</summary>
         public static readonly DicomTag ExtendedOffsetTable = new(0x7FE0, 0x0001);
