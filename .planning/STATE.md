@@ -498,7 +498,7 @@ If resuming after a break:
    - dcm2csv validation: 9 integration tests (file I/O phase gate)
    - nccid validation: 17 integration tests (networking phase gate)
 3. **Both phase gates met**: dcm2csv (file I/O) + nccid (networking) validated
-4. **Test coverage**: 4623 tests (0 failed)
+4. **Test coverage**: 4632 tests (4451 pass, 181 skipped, 0 failed)
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
