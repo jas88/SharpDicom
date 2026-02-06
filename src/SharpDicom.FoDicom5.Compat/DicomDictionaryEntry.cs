@@ -26,5 +26,18 @@ namespace FellowOakDicom
             Keyword = inner.Keyword;
             Tag = tag;
         }
+
+        private DicomDictionaryEntry(string name, string keyword, DicomTag tag)
+        {
+            Name = name;
+            Keyword = keyword;
+            Tag = tag;
+        }
+
+        /// <summary>
+        /// Creates a fallback entry for unknown tags, matching fo-dicom behavior.
+        /// </summary>
+        internal static DicomDictionaryEntry CreateUnknown(DicomTag tag) =>
+            new DicomDictionaryEntry("Unknown Tag", "UnknownTag", tag);
     }
 }

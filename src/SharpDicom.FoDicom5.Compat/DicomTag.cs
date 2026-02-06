@@ -10,7 +10,6 @@ namespace FellowOakDicom
     {
         private readonly SharpDicom.Data.DicomTag _inner;
         private DicomDictionaryEntry? _dictionaryEntry;
-        private bool _dictionaryEntryResolved;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DicomTag"/> class.
@@ -49,20 +48,20 @@ namespace FellowOakDicom
         public ushort Element => _inner.Element;
 
         /// <summary>
-        /// Gets the dictionary entry for this tag, or null if unknown.
+        /// Gets the dictionary entry for this tag.
+        /// Returns a fallback entry with "Unknown Tag" for tags not in the dictionary,
+        /// matching fo-dicom's behavior where DictionaryEntry is never null.
         /// </summary>
-        public DicomDictionaryEntry? DictionaryEntry
+        public DicomDictionaryEntry DictionaryEntry
         {
             get
             {
-                if (!_dictionaryEntryResolved)
+                if (_dictionaryEntry == null)
                 {
                     var entry = SharpDicom.Data.DicomDictionary.Default.GetEntry(_inner);
-                    if (entry.HasValue)
-                    {
-                        _dictionaryEntry = new DicomDictionaryEntry(entry.Value, this);
-                    }
-                    _dictionaryEntryResolved = true;
+                    _dictionaryEntry = entry.HasValue
+                        ? new DicomDictionaryEntry(entry.Value, this)
+                        : DicomDictionaryEntry.CreateUnknown(this);
                 }
                 return _dictionaryEntry;
             }

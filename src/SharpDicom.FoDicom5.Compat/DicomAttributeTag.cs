@@ -54,8 +54,7 @@ namespace FellowOakDicom
         public override string ToString()
         {
             var tags = GetTagValues();
-            var name = Tag.DictionaryEntry?.Name ?? "Unknown Tag";
-            return $"{Tag} AT [{string.Join(", ", (object[])tags)}] {name}";
+            return $"{Tag} AT [{string.Join(", ", (object[])tags)}] {Tag.DictionaryEntry.Name}";
         }
 
         private DicomTag[] GetTagValues()

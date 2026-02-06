@@ -61,8 +61,7 @@ namespace FellowOakDicom
         /// <inheritdoc />
         public override string ToString()
         {
-            var name = Tag.DictionaryEntry?.Name ?? "Unknown Tag";
-            return $"{Tag} {ValueRepresentation} {name}";
+            return $"{Tag} {ValueRepresentation} {Tag.DictionaryEntry.Name}";
         }
     }
 }

@@ -49,9 +49,8 @@ namespace FellowOakDicom
         /// <inheritdoc />
         public override string ToString()
         {
-            var name = Tag.DictionaryEntry?.Name ?? "Unknown Tag";
             var length = Inner.Length;
-            return $"{Tag} {ValueRepresentation} [{length} bytes] {name}";
+            return $"{Tag} {ValueRepresentation} [{length} bytes] {Tag.DictionaryEntry.Name}";
         }
     }
 }

@@ -45,8 +45,7 @@ namespace FellowOakDicom
         public override string ToString()
         {
             var str = _stringElement.GetString();
-            var name = Tag.DictionaryEntry?.Name ?? "Unknown Tag";
-            return $"{Tag} {ValueRepresentation} [{str}] {name}";
+            return $"{Tag} {ValueRepresentation} [{str}] {Tag.DictionaryEntry.Name}";
         }
 
         private string[]? GetValues()
