@@ -23,8 +23,6 @@ namespace FellowOakDicom.Network.Client
         private readonly string _callingAE;
         private readonly string _calledAE;
         private readonly List<DicomRequest> _requests = new List<DicomRequest>();
-        private int _asyncOpsInvoked;
-        private int _asyncOpsPerformed;
         private volatile bool _isBusy;
 
         /// <summary>
@@ -62,10 +60,21 @@ namespace FellowOakDicom.Network.Client
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// SharpDicom does not yet support the Asynchronous Operations Window sub-item
+        /// (PS3.8 D.3.3.3) in association negotiation. Values of (0,0) are accepted as
+        /// they represent the default 1:1 window. Non-zero values are rejected because
+        /// they would be silently ignored rather than negotiated with the remote AE.
+        /// </remarks>
         public Task NegotiateAsyncOps(int invoked = 0, int performed = 0)
         {
-            _asyncOpsInvoked = invoked;
-            _asyncOpsPerformed = performed;
+            if (invoked != 0 || performed != 0)
+            {
+                throw new NotSupportedException(
+                    $"Asynchronous operations negotiation ({invoked} invoked, {performed} performed) " +
+                    "is not yet supported. SharpDicom's association layer does not include the " +
+                    "Asynchronous Operations Window sub-item (PS3.8 D.3.3.3).");
+            }
             return Task.CompletedTask;
         }
 

@@ -145,12 +145,20 @@ public class NetworkCompatTests
     }
 
     [Test]
-    public async Task NegotiateAsyncOps_CompletesWithoutError()
+    public async Task NegotiateAsyncOps_DefaultValues_CompletesWithoutError()
     {
         var client = DicomClientFactory.Create("localhost", 104, false, "CALLING", "CALLED");
-        await client.NegotiateAsyncOps(1, 1);
-        // Should complete without throwing
+        await client.NegotiateAsyncOps();
+        // Default (0,0) means 1:1 window — accepted without negotiation
         Assert.Pass();
+    }
+
+    [Test]
+    public void NegotiateAsyncOps_NonZeroValues_ThrowsNotSupported()
+    {
+        var client = DicomClientFactory.Create("localhost", 104, false, "CALLING", "CALLED");
+        Assert.ThrowsAsync<NotSupportedException>(async () =>
+            await client.NegotiateAsyncOps(1, 1));
     }
 
     [Test]
