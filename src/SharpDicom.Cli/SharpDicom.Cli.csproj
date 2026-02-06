@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <InternalsVisibleTo Include="SharpDicom.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
   </ItemGroup>
   <ItemGroup>
