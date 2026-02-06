@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 23 - CLI Tools (IN PROGRESS)
-**Plan**: 1 of 6 in current phase
-**Status**: In progress - CLI scaffolding complete, subcommand implementations next
-**Last activity**: 2026-02-06 - Completed 23-01-PLAN.md
+**Plan**: 3 of 6 in current phase (plans 02-05 executing in parallel)
+**Status**: In progress - store command complete, other subcommands in parallel
+**Last activity**: 2026-02-06 - Completed 23-03-PLAN.md
 
-**Progress**: █░░░░░ (1/6 plans in Phase 23)
+**Progress**: ██░░░░ (2/6 plans in Phase 23)
 
 **Test Status**: 2025/2080 tests pass (97.4%)
 
@@ -121,10 +121,11 @@
 ### Phase 23 - CLI Tools (IN PROGRESS)
 
 - [x] Phase 23 Plan 01: CLI Scaffolding (SharpDicom.Cli project, System.CommandLine 2.0.2, Spectre.Console 0.54.0, Tomlyn 0.20.0, Text/JSON/XML formatters, config system, helpers)
+- [x] Phase 23 Plan 03: Store Command (sharpdcm store, C-STORE SCU, PACS connection resolution, retry, TTY-aware progress)
 
 ## In Progress
 
-Phase 23 - CLI Tools: Plan 01 complete (scaffolding and shared infrastructure). Plans 02-06 pending (dump, store, find, lint/fix, integration tests).
+Phase 23 - CLI Tools: Plans 01, 03 complete. Plans 02, 04, 05 executing in parallel. Plan 06 pending (integration tests).
 
 ## Blocked
 
@@ -385,13 +386,15 @@ Phase 23 - CLI Tools: Plan 01 complete (scaffolding and shared infrastructure). 
 | 2026-02-06 | 23-01 | TextFormatter uses reflection for UID name lookup | Reflection on DicomUIDs class for reverse UID-to-name mapping |
 | 2026-02-06 | 23-01 | Progress output always to stderr | Keeps stdout clean for piped structured output |
 | 2026-02-06 | 23-01 | Config errors produce warnings, never block | Config parse failures warn to stderr but never prevent command execution |
+| 2026-02-06 | 23-03 | Two-pass SOP class scanning for store | Scan all file headers first for SOP Class UIDs, connect once with all needed presentation contexts |
+| 2026-02-06 | 23-03 | IsSuccessOrWarning counts as success | DICOM C-STORE warnings (0xB000) indicate data was stored with modifications - still counts as success |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 23-01-PLAN.md (CLI scaffolding and shared infrastructure)
+**Stopped at**: Completed 23-03-PLAN.md (sharpdcm store command)
 **Resume file**: None
-**Next step**: Execute 23-02-PLAN.md (sharpdcm dump command)
+**Next step**: Await parallel plans 02, 04, 05 completion, then execute 23-06-PLAN.md (integration tests)
 
 ## Context for Next Session
 
