@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     services:
       orthanc:
@@ -176,71 +178,28 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-  # Native AOT CLI binaries (on tags only)
-  cli-native:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            rid: linux-x64
-          - os: ubuntu-24.04-arm
-            rid: linux-arm64
-          - os: windows-latest
-            rid: win-x64
-          - os: windows-latest
-            rid: win-arm64
-          - os: macos-latest
-            rid: osx-arm64
-          - os: macos-13
-            rid: osx-x64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
+      # Native AOT CLI binaries (on tags only)
+      - name: Publish AOT for all platforms
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          for rid in linux-x64 linux-arm64 win-x64 win-arm64 osx-x64 osx-arm64; do
+            echo "::group::Publishing $rid"
+            dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r $rid -o publish/$rid
+            echo "::endgroup::"
+          done
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
-
-      - name: Publish AOT
-        run: dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r ${{ matrix.rid }} -o publish/${{ matrix.rid }}
-
-      - name: Archive (Unix)
-        if: runner.os != 'Windows'
-        run: tar -czf sharpdcm-${{ matrix.rid }}.tar.gz -C publish/${{ matrix.rid }} .
-
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path "publish/${{ matrix.rid }}/*" -DestinationPath "sharpdcm-${{ matrix.rid }}.zip"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sharpdcm-${{ matrix.rid }}
-          path: sharpdcm-${{ matrix.rid }}.*
-          retention-days: 7
-
-  # Create GitHub Release with all CLI binaries
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, cli-native]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: sharpdcm-*
-          merge-multiple: true
+      - name: Archive binaries
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          for rid in linux-x64 linux-arm64 osx-x64 osx-arm64; do
+            tar -czf sharpdcm-$rid.tar.gz -C publish/$rid .
+          done
+          for rid in win-x64 win-arm64; do
+            (cd publish/$rid && zip -q ../../sharpdcm-$rid.zip *)
+          done
 
       - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
