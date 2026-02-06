@@ -131,10 +131,11 @@
 
 - [x] Phase 24 Plan 01: C-FIND SCP handler and query matching infrastructure (DicomQueryMatcher, DicomDateRange, DIMSE dispatch extension, HandleCFindAsync)
 - [x] Phase 24 Plan 02: C-MOVE SCP and C-GET SCP handlers (HandleCMoveAsync with separate forwarding, HandleCGetAsync with same-association C-STORE, SubOperationProgress tracking)
+- [x] Phase 24 Plan 03: FileSystemDicomStore + SQLite metadata index (DicomMetadataIndex, FileSystemDicomStore, CreateServerOptions)
 
 ## In Progress
 
-- Phase 24 Plan 02: C-MOVE/C-GET SCP implementation
+- Phase 24 Plan 04: Integration tests
 
 ## Blocked
 
@@ -153,7 +154,7 @@
 | 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
-| 24 | Server-Side DIMSE (SCP) | IN PROGRESS | 1/4 | 2026-02-06 | - |
+| 24 | Server-Side DIMSE (SCP) | IN PROGRESS | 3/4 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -420,13 +421,18 @@
 | 2026-02-06 | 24-02 | CStoreScu for C-MOVE forwarding | Reuses existing SCU infrastructure; clean separation via DicomClient |
 | 2026-02-06 | 24-02 | Raw PDV building for C-GET same-association C-STORE | SCP must send C-STORE on same association; can't use DicomClient (which opens new connection) |
 | 2026-02-06 | 24-02 | Match collection cap at 10000 | Prevents memory exhaustion during C-MOVE/C-GET with large result sets |
+| 2026-02-06 | 24-03 | Synchronous ADO.NET for SQLite | SQLite async is actually sync per RESEARCH.md Pitfall 4 |
+| 2026-02-06 | 24-03 | INSERT OR REPLACE without foreign keys | Simplifies upsert operations; SQLite doesn't enforce FK by default |
+| 2026-02-06 | 24-03 | COLLATE NOCASE for PatientName | Per DICOM PS3.4 C.2.2.2.4 case-insensitive PN matching |
+| 2026-02-06 | 24-03 | Hierarchical file layout | patient_id/study_uid/series_uid/sop_uid.dcm for organized storage |
+| 2026-02-06 | 24-03 | Path sanitization with fallbacks | Invalid chars replaced with underscore; empty values get UNKNOWN/NO_STUDY fallbacks |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 24-02-PLAN.md (C-MOVE SCP and C-GET SCP handlers)
+**Stopped at**: Completed 24-03-PLAN.md (FileSystemDicomStore + SQLite metadata index)
 **Resume file**: None
-**Next step**: Phase 24 Plan 03 (FileSystemDicomStore) or Plan 04 (integration tests)
+**Next step**: Phase 24 Plan 04 (integration tests)
 
 ## Context for Next Session
 
@@ -484,4 +490,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-05 (Phase 23 complete - CLI scaffolding, dump, store, find, lint/fix commands, integration tests)*
+*Last updated: 2026-02-06 (Phase 24 Plan 03 complete - FileSystemDicomStore + SQLite metadata index)*
