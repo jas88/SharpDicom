@@ -189,7 +189,7 @@ internal static class LintCommand
         OutputResults(format, fileResults, filesChecked, filesValid, filesInvalid,
             totalErrors, totalWarnings, totalInfos);
 
-        if (hasRuntimeError && !continueOnError)
+        if (hasRuntimeError)
             return ExitCodes.RuntimeError;
 
         return totalErrors > 0 ? ExitCodes.ValidationError : ExitCodes.Success;

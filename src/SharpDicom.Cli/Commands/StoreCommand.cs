@@ -129,6 +129,10 @@ internal static class StoreCommand
         bool continueOnError,
         CancellationToken ct)
     {
+        // Clamp retryCount to non-negative to prevent skipping the send loop
+        if (retryCount < 0)
+            retryCount = 0;
+
         // 1. Resolve PACS connection (precedence: flags > connection string > profile > error)
         if (!TryResolveConnection(
                 host, port, calledAe, callingAe, connection, profileName, useTls,

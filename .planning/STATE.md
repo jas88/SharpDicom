@@ -118,7 +118,7 @@
 - [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
 - [x] Phase 22 Plan 04: TLS Integration Tests (TlsCertificateHelper programmatic cert generation, 10 integration tests: C-ECHO/C-STORE over TLS, mTLS, certificate validation, 7/10 passing)
 
-### Phase 23 - CLI Tools (IN PROGRESS)
+### Phase 23 - CLI Tools (COMPLETE)
 
 - [x] Phase 23 Plan 01: CLI Scaffolding (SharpDicom.Cli project, System.CommandLine 2.0.2, Spectre.Console 0.54.0, Tomlyn 0.20.0, Text/JSON/XML formatters, config system, helpers)
 - [x] Phase 23 Plan 02: Dump Command (sharpdcm dump, text/JSON/XML output, recursive directory processing, sequence nesting, tag filtering)
@@ -147,7 +147,7 @@
 | 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
 | 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
-| 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-06 | 2026-02-05 |
+| 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 

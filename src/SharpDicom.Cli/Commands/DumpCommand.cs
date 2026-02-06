@@ -205,9 +205,10 @@ internal static class DumpCommand
             if (noPixel && element.Tag == DicomTag.PixelData)
                 continue;
 
-            if (filterTag.HasValue && element.Tag != filterTag.Value)
+            if (filterTag.HasValue && element.Tag != filterTag.Value && element is not DicomSequence)
             {
-                // For tag filter, also skip sequences unless the filtered tag could be inside
+                // Non-sequence elements that don't match the filter are skipped.
+                // Sequences are always traversed so nested matching tags can be found.
                 continue;
             }
 

@@ -87,7 +87,7 @@ public class LintCommandTests
 
         // A valid, well-formed file should have no errors
         // (there may be warnings about missing optional elements)
-        Assert.That(result, Is.Not.Null);
+        Assert.That(errors, Is.Empty);
     }
 
     [Test]

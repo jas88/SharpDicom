@@ -255,6 +255,11 @@ internal static class FindCommand
                     CallingAE = rCallingAe,
                 };
 
+                if (tls)
+                {
+                    clientOptions.Tls = new SharpDicom.Network.Tls.TlsOptions();
+                }
+
                 // Determine SOP Class UID for the presentation context
                 var sopClassUid = qrLevel.Value.GetPatientRootFindSopClassUid();
                 var contexts = new[]

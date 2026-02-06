@@ -71,6 +71,10 @@ internal sealed class JsonFormatter : IOutputFormatter, IDisposable
     {
         if (_writer == null) return;
 
+        // Sequences are handled via WriteSequenceStart/End; skip here to avoid duplicate output
+        if (element is DicomSequence)
+            return;
+
         var tag = element.Tag;
         var vr = element.VR;
         var entry = dictionary.GetEntry(tag);
