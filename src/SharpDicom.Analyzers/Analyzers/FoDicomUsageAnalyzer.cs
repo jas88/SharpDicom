@@ -57,8 +57,12 @@ public sealed class FoDicomUsageAnalyzer : DiagnosticAnalyzer
         // Detect using directives for fo-dicom namespaces
         context.RegisterSyntaxNodeAction(AnalyzeUsingDirective, SyntaxKind.UsingDirective);
 
-        // Detect fo-dicom type usage via semantic analysis
-        context.RegisterSymbolAction(AnalyzeNamedType, SymbolKind.NamedType);
+        // Detect fo-dicom type usage via semantic analysis on syntax nodes
+        // (SymbolKind.NamedType only fires on declarations, not usage sites in user code)
+        context.RegisterSyntaxNodeAction(
+            AnalyzeTypeUsage,
+            SyntaxKind.IdentifierName,
+            SyntaxKind.ObjectCreationExpression);
 
         // Detect fo-dicom static method calls
         context.RegisterSyntaxNodeAction(AnalyzeInvocationExpression, SyntaxKind.InvocationExpression);
@@ -83,28 +87,54 @@ public sealed class FoDicomUsageAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    private static void AnalyzeNamedType(SymbolAnalysisContext context)
+    private static void AnalyzeTypeUsage(SyntaxNodeAnalysisContext context)
     {
-        var namedType = (INamedTypeSymbol)context.Symbol;
+        var node = context.Node;
 
-        // Check if the type is from a fo-dicom namespace
+        // For ObjectCreationExpression, inspect the type being constructed.
+        // Skip the IdentifierName that is a child of ObjectCreationExpression
+        // to avoid double-reporting on "new DicomFile()".
+        ITypeSymbol? typeSymbol;
+        if (node is ObjectCreationExpressionSyntax creation)
+        {
+            var typeInfo = context.SemanticModel.GetTypeInfo(creation, context.CancellationToken);
+            typeSymbol = typeInfo.Type;
+        }
+        else
+        {
+            // IdentifierName -- skip if parent is an ObjectCreationExpression (already handled above)
+            if (node.Parent is ObjectCreationExpressionSyntax)
+                return;
+
+            // Also skip if this is part of a using directive (handled by SD0001)
+            if (node.FirstAncestorOrSelf<UsingDirectiveSyntax>() is not null)
+                return;
+
+            var symbolInfo = context.SemanticModel.GetSymbolInfo(node, context.CancellationToken);
+            typeSymbol = symbolInfo.Symbol as ITypeSymbol
+                         ?? (symbolInfo.Symbol as IMethodSymbol)?.ContainingType;
+
+            // If GetSymbolInfo didn't yield a type, try GetTypeInfo (covers cast expressions, etc.)
+            if (typeSymbol is null)
+            {
+                var typeInfo = context.SemanticModel.GetTypeInfo(node, context.CancellationToken);
+                typeSymbol = typeInfo.Type;
+            }
+        }
+
+        if (typeSymbol is not INamedTypeSymbol namedType)
+            return;
+
         var containingNamespace = GetFullNamespaceName(namedType.ContainingNamespace);
         if (containingNamespace == null || !IsFoDicomNamespace(containingNamespace))
             return;
 
-        // Report on each location where this type is declared/referenced in user code
-        foreach (var location in namedType.Locations)
-        {
-            if (location.IsInSource)
-            {
-                var diagnostic = Diagnostic.Create(
-                    TypeInstantiationRule,
-                    location,
-                    namedType.Name,
-                    containingNamespace);
-                context.ReportDiagnostic(diagnostic);
-            }
-        }
+        var diagnostic = Diagnostic.Create(
+            TypeInstantiationRule,
+            node.GetLocation(),
+            namedType.Name,
+            containingNamespace);
+        context.ReportDiagnostic(diagnostic);
     }
 
     private static void AnalyzeInvocationExpression(SyntaxNodeAnalysisContext context)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace Dicom
@@ -9,7 +10,7 @@ namespace Dicom
     /// </summary>
     public sealed class DicomVR : IEquatable<DicomVR>
     {
-        private static readonly Dictionary<string, DicomVR> _lookup = new Dictionary<string, DicomVR>(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, DicomVR> _lookup = new ConcurrentDictionary<string, DicomVR>(StringComparer.Ordinal);
 
         private readonly SharpDicom.Data.DicomVR _inner;
 
@@ -17,7 +18,7 @@ namespace Dicom
         {
             Code = code;
             _inner = inner;
-            _lookup[code] = this;
+            _lookup.TryAdd(code, this);
         }
 
         /// <summary>
@@ -49,10 +50,7 @@ namespace Dicom
         internal static DicomVR FromSharpDicom(SharpDicom.Data.DicomVR vr)
         {
             var code = vr.ToString();
-            if (_lookup.TryGetValue(code, out var result))
-                return result;
-            // Fallback: create a new instance for unknown VRs
-            return new DicomVR(code, vr);
+            return _lookup.GetOrAdd(code, _ => new DicomVR(code, vr));
         }
 
         /// <inheritdoc />

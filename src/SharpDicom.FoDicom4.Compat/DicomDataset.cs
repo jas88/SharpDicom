@@ -249,7 +249,7 @@ namespace Dicom
         {
             var sdTag = tag.ToSharpDicom();
             var joined = string.Join("\\", values);
-            var bytes = System.Text.Encoding.ASCII.GetBytes(joined);
+            var bytes = _inner.Encoding.Primary.GetBytes(joined);
 
             // Pad to even length per DICOM spec
             if (bytes.Length % 2 != 0)

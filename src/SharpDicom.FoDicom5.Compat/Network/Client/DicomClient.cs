@@ -75,6 +75,9 @@ namespace FellowOakDicom.Network.Client
             if (_requests.Count == 0)
                 return;
 
+            var snapshot = new List<DicomRequest>(_requests);
+            _requests.Clear();
+
             _isBusy = true;
             try
             {
@@ -92,7 +95,7 @@ namespace FellowOakDicom.Network.Client
                 }
 
                 // Build presentation contexts for requested services
-                var contexts = BuildPresentationContexts();
+                var contexts = BuildPresentationContexts(snapshot);
 
 #pragma warning disable CA2007 // Consider calling ConfigureAwait on the awaited task
                 await using var client = new SharpDicom.Network.DicomClient(options);
@@ -100,7 +103,7 @@ namespace FellowOakDicom.Network.Client
 
                 await client.ConnectAsync(contexts, ct).ConfigureAwait(false);
 
-                foreach (var request in _requests)
+                foreach (var request in snapshot)
                 {
                     ct.ThrowIfCancellationRequested();
 
@@ -113,7 +116,6 @@ namespace FellowOakDicom.Network.Client
             }
             finally
             {
-                _requests.Clear();
                 _isBusy = false;
             }
         }
@@ -152,12 +154,12 @@ namespace FellowOakDicom.Network.Client
         /// <summary>
         /// Builds presentation contexts for the buffered requests.
         /// </summary>
-        private List<PresentationContext> BuildPresentationContexts()
+        private static List<PresentationContext> BuildPresentationContexts(List<DicomRequest> requests)
         {
             var contexts = new List<PresentationContext>();
             byte pcId = 1;
 
-            foreach (var request in _requests)
+            foreach (var request in requests)
             {
                 if (request is DicomCFindRequest cfind)
                 {
