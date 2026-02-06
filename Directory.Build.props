@@ -34,6 +34,14 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- CLI: console application targeting latest TFM -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Cli'">
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>sharpdcm</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
   <!-- Import shared build standards -->
   <Import Project="build-standards/Directory.Build.props.shared" />
 
