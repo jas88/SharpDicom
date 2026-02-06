@@ -3,6 +3,7 @@ using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpDicom.Cli.Commands;
 using SharpDicom.Cli.Helpers;
 
 // ---------------------------------------------------------------------------
@@ -59,21 +60,9 @@ rootCommand.Options.Add(continueOnErrorOption);
 
 // ---- Stub subcommands -----------------------------------------------------
 
-var dumpCommand = new Command("dump", "Display DICOM file contents");
-dumpCommand.SetAction((ParseResult _, CancellationToken _) =>
-{
-    Console.Error.WriteLine("Not yet implemented");
-    return Task.FromResult(ExitCodes.UsageError);
-});
-rootCommand.Subcommands.Add(dumpCommand);
+rootCommand.Subcommands.Add(DumpCommand.Create());
 
-var storeCommand = new Command("store", "Send DICOM files to a PACS server (C-STORE)");
-storeCommand.SetAction((ParseResult _, CancellationToken _) =>
-{
-    Console.Error.WriteLine("Not yet implemented");
-    return Task.FromResult(ExitCodes.UsageError);
-});
-rootCommand.Subcommands.Add(storeCommand);
+rootCommand.Subcommands.Add(StoreCommand.Create());
 
 var findCommand = new Command("find", "Query a PACS server for studies/series/instances (C-FIND)");
 findCommand.SetAction((ParseResult _, CancellationToken _) =>
