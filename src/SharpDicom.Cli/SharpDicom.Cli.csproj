@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Use the Zig already on PATH rather than downloading another copy -->
+    <UseExternalZig>true</UseExternalZig>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="SharpDicom.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Spectre.Console" />
+    <PackageReference Include="CsToml" />
+    <PackageReference Include="Fallenwood.PublishAotCross" />
+  </ItemGroup>
+</Project>

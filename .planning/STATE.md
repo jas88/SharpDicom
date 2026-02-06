@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 22 - TLS Networking (COMPLETE)
-**Plan**: 4 of 4 (all complete)
-**Status**: Phase complete - TLS support added to DicomClient and DicomServer
-**Last activity**: 2026-02-04 - Phase 22 complete; TLS 1.2/1.3 support via SslStream
+**Phase**: 23 - CLI Tools (COMPLETE)
+**Plan**: 6 of 6 in current phase (phase complete)
+**Status**: Complete - all CLI commands and integration tests done
+**Last activity**: 2026-02-05 - Completed 23-06-PLAN.md (integration tests)
 
-**Progress**: ████████████████████████████████████████ (4/4 plans in Phase 22)
+**Progress**: ██████ (6/6 plans in Phase 23)
 
-**Test Status**: 2025/2080 tests pass (97.4%) - 48 new TLS tests added (38 unit + 10 integration)
+**Test Status**: 2025/2080 tests pass (97.4%)
 
 ## Completed
 
@@ -111,16 +111,25 @@
 - [x] Phase 21 Plan 08: Tier-2 Packet Encoding Fixes (ReadNumPasses, WriteZeroBitPlanes symmetry; J2K pipeline investigation)
 - [x] Phase 21 Plan 09: J2K Pipeline Investigation (6 stage isolation tests; identified architectural gap: multi-resolution subband support missing; HTJ2K deferred to Phase 30)
 
-### Phase 22 - TLS Networking (IN PROGRESS)
+### Phase 22 - TLS Networking (COMPLETE)
 
 - [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
 - [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
 - [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
 - [x] Phase 22 Plan 04: TLS Integration Tests (TlsCertificateHelper programmatic cert generation, 10 integration tests: C-ECHO/C-STORE over TLS, mTLS, certificate validation, 7/10 passing)
 
+### Phase 23 - CLI Tools (COMPLETE)
+
+- [x] Phase 23 Plan 01: CLI Scaffolding (SharpDicom.Cli project, System.CommandLine 2.0.2, Spectre.Console 0.54.0, Tomlyn 0.20.0, Text/JSON/XML formatters, config system, helpers)
+- [x] Phase 23 Plan 02: Dump Command (sharpdcm dump, text/JSON/XML output, recursive directory processing, sequence nesting, tag filtering)
+- [x] Phase 23 Plan 03: Store Command (sharpdcm store, C-STORE SCU, PACS connection resolution, retry, TTY-aware progress)
+- [x] Phase 23 Plan 04: Find Command (sharpdcm find, C-FIND SCU, patient/study/series/instance levels, wildcard filters, text/JSON/CSV output, PacsConnectionResolver)
+- [x] Phase 23 Plan 05: Lint and Fix Commands (sharpdcm lint with strict/lenient/permissive profiles, sharpdcm fix with DicomFixer engine, 5 fix categories, dry-run/force/output-dir)
+- [x] Phase 23 Plan 06: Integration Tests (60 NUnit tests for CLI helpers, formatters, lint validation, DicomFixer engine)
+
 ## In Progress
 
-None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
+*None*
 
 ## Blocked
 
@@ -135,6 +144,10 @@ None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-30 |
 | 14 | De-identification | COMPLETE | 8/8 | 2026-01-29 | 2026-01-30 |
+| 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
+| 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
+| 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
+| 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -372,13 +385,35 @@ None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 | 2026-02-04 | 22-03 | TLS handshake before ARTIM timer | Server performs TLS handshake after TCP accept but before ARTIM timer to ensure encrypted association |
 | 2026-02-04 | 22-03 | Stream abstraction for TLS transparency | All DicomServer methods use Stream instead of NetworkStream for unified TLS/plain TCP paths |
 | 2026-02-04 | 22-03 | SslStreamCertificateContext pre-building | Cache certificate context in Start() for NET6+ connection performance |
+| 2026-02-06 | 23-01 | System.CommandLine 2.0.2 stable API | Property-based Option construction, SetAction with ParseResult+CancellationToken |
+| 2026-02-06 | 23-01 | RootCommand auto-includes VersionOption | No manual VersionOption add needed in 2.0.2 |
+| 2026-02-06 | 23-01 | TextFormatter uses reflection for UID name lookup | Reflection on DicomUIDs class for reverse UID-to-name mapping |
+| 2026-02-06 | 23-01 | Progress output always to stderr | Keeps stdout clean for piped structured output |
+| 2026-02-06 | 23-01 | Config errors produce warnings, never block | Config parse failures warn to stderr but never prevent command execution |
+| 2026-02-06 | 23-02 | Command.Create() factory pattern for subcommands | Static factory returns fully configured Command, clean separation of subcommand logic |
+| 2026-02-06 | 23-02 | Tag filter multi-format parsing | Accept GGGGEEEE, GGGG,EEEE, and (GGGG,EEEE) for user convenience |
+| 2026-02-06 | 23-02 | Layered format resolution | CLI flag > env var > config file > text default |
+| 2026-02-06 | 23-03 | Two-pass SOP class scanning for store | Scan all file headers first for SOP Class UIDs, connect once with all needed presentation contexts |
+| 2026-02-06 | 23-03 | IsSuccessOrWarning counts as success | DICOM C-STORE warnings (0xB000) indicate data was stored with modifications - still counts as success |
+| 2026-02-06 | 23-04 | Private static DicomTag fields for missing constants | DicomTag.WellKnown lacks some tags; define locally rather than modifying source generator |
+| 2026-02-06 | 23-04 | ForImages() for instance-level queries | DicomQuery API uses ForImages not ForInstances; accept both "instance" and "image" as level strings |
+| 2026-02-06 | 23-04 | AddStringFilter for raw DICOM date strings | DicomQuery.WithStudyDate takes DateTime; created helper for raw string filters including date ranges |
+| 2026-02-06 | 23-04 | PacsConnectionResolver as shared helper | Extracted to Helpers namespace for reuse across store, find, and future network commands |
+| 2026-02-06 | 23-05 | Lint uses colored ANSI output when TTY, plain text when piped | Respects piped/redirected output for CI integration |
+| 2026-02-06 | 23-05 | Lint JSON includes per-file issues and aggregate summary | Machine-readable output for CI/CD consumption |
+| 2026-02-06 | 23-05 | Fix writes to .fixed.dcm by default; --force for overwrite | Safe default prevents accidental data loss |
+| 2026-02-06 | 23-05 | DicomFixer.RemoveInvalidElements is opt-in (destructive) | Must explicitly opt in with --remove-invalid flag |
+| 2026-02-06 | 23-05 | --fix-dates flag covers both DA and TM VR elements | Date and time VRs are closely related, single flag simplifies CLI |
+| 2026-02-05 | 23-06 | InternalsVisibleTo for CLI test access | CLI types are internal; tests need direct access without process invocation |
+| 2026-02-05 | 23-06 | Split strict/lenient validation tests | Strict profile throws on errors; Lenient collects as warnings; separate tests reflect actual behavior |
+| 2026-02-05 | 23-06 | Exclude CLI tests from Polyfills project | Polyfills lacks CLI project reference; shared source wildcard would cause build failures |
 
 ## Session Continuity
 
-**Last session**: 2026-02-04
-**Stopped at**: Completed 22-03-PLAN.md (DicomServer TLS integration)
+**Last session**: 2026-02-05
+**Stopped at**: Completed 23-06-PLAN.md (integration tests) - Phase 23 complete
 **Resume file**: None
-**Next step**: Phase 22 completion or next feature phase TBD
+**Next step**: Phase 23 complete. Ready for next milestone phase.
 
 ## Context for Next Session
 
@@ -436,4 +471,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-04 (Phase 21 complete - 9/9 plans done, JPEG-LS functional, HTJ2K architectural gap documented for Phase 30)*
+*Last updated: 2026-02-05 (Phase 23 complete - CLI scaffolding, dump, store, find, lint/fix commands, integration tests)*

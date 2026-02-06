@@ -16,6 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
 
     services:
       orthanc:
@@ -47,9 +49,16 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2
-          version: 1.2
+          packages: dcmtk libcharls-dev libcharls2 lld llvm
+          version: 1.4
           execute_install_scripts: true
+
+      # xwin for Linux-to-Windows AOT cross-compilation
+      - name: Setup xwin
+        run: |
+          curl -sSfL https://github.com/Jake-Shadle/xwin/releases/download/0.7.0/xwin-0.7.0-x86_64-unknown-linux-musl.tar.gz | tar xz
+          mv xwin-0.7.0-x86_64-unknown-linux-musl/xwin /usr/local/bin/
+          xwin --version
 
       - name: Verify package installations
         run: |
@@ -175,3 +184,68 @@ jobs:
       - name: Push to NuGet
         if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      # Native AOT CLI binaries (Linux + Windows via Zig/xwin cross-compilation)
+      - name: Publish AOT for Linux and Windows
+        run: |
+          for rid in linux-x64 linux-arm64 win-x64 win-arm64; do
+            echo "::group::Publishing $rid"
+            dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r $rid -o publish/$rid
+            echo "::endgroup::"
+          done
+
+      - name: Archive binaries
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          for rid in linux-x64 linux-arm64; do
+            tar -czf sharpdcm-$rid.tar.gz -C publish/$rid .
+          done
+          for rid in win-x64 win-arm64; do
+            (cd publish/$rid && zip -q ../../sharpdcm-$rid.zip *)
+          done
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            sharpdcm-*.tar.gz
+            sharpdcm-*.zip
+
+  release-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Publish AOT for macOS
+        run: |
+          for rid in osx-x64 osx-arm64; do
+            echo "::group::Publishing $rid"
+            dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r $rid -o publish/$rid
+            echo "::endgroup::"
+          done
+
+      - name: Archive macOS binaries
+        run: |
+          for rid in osx-x64 osx-arm64; do
+            tar -czf sharpdcm-$rid.tar.gz -C publish/$rid .
+          done
+
+      - name: Append macOS binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: sharpdcm-osx-*.tar.gz
