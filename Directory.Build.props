@@ -67,6 +67,12 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- Analyzer Tests: Roslyn analyzer and code fix testing -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Analyzers.Tests'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
   <!-- CLI: console application targeting latest TFM -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Cli'">
     <TargetFramework>net10.0</TargetFramework>
