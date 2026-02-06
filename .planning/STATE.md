@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 26 - Migration Tooling (In Progress)
-**Plan**: 2 of 4 in current phase
-**Status**: In progress - FoDicom5.Compat network adapter delivered
-**Last activity**: 2026-02-06 - Completed 26-02-PLAN.md
+**Plan**: 3 of 4 in current phase
+**Status**: In progress - FoDicom4.Compat with Dicom namespace and Get<T> API delivered
+**Last activity**: 2026-02-06 - Completed 26-05-PLAN.md
 
-**Progress**: ██░░ (2/4 plans in Phase 26)
+**Progress**: ███░ (3/4 plans in Phase 26)
 
-**Test Status**: 4559 tests (4379 pass, 180 skipped, 0 failed)
+**Test Status**: 4584 tests (4404 pass, 180 skipped, 0 failed)
 
 ## Completed
 
@@ -145,6 +145,7 @@
 
 - [x] Phase 26 Plan 01: FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, DicomVR, DicomUID, 38 tests)
 - [x] Phase 26 Plan 02: FoDicom5.Compat network adapter (DicomClient, DicomClientFactory, DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, 16 tests)
+- [x] Phase 26 Plan 05: FoDicom4.Compat with Dicom namespace and Get<T> API (15 source files, 25 tests)
 
 ## In Progress
 
@@ -169,7 +170,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 26 | Migration Tooling | In Progress | 2/4 | 2026-02-06 | - |
+| 26 | Migration Tooling | In Progress | 3/4 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -462,19 +463,22 @@
 | 2026-02-06 | 26-02 | SendAsync creates fresh client per call | Matches fo-dicom's stateless pattern; each SendAsync is a complete connection lifecycle |
 | 2026-02-06 | 26-02 | Patient Root Q/R as default SOP Class | Most common in real-world usage for C-FIND presentation contexts |
 | 2026-02-06 | 26-02 | Pending/Success callback pattern | OnResponseReceived with Pending per result, Success for final, matches fo-dicom behavior |
+| 2026-02-06 | 26-05 | Get<T> as primary, GetSingleValue<T> as alias | fo-dicom 4.x uses Get<T>(tag) as primary accessor; late 4.x also has GetSingleValue<T> |
+| 2026-02-06 | 26-05 | Get<T>(tag, defaultValue) overload | Common fo-dicom 4.x pattern for safe missing-tag access |
+| 2026-02-06 | 26-05 | No network types in FoDicom4 | fo-dicom 4.x network API (direct constructor) differs significantly from 5.x; not needed yet |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 26-02-PLAN.md (FoDicom5.Compat network adapter)
+**Stopped at**: Completed 26-05-PLAN.md (FoDicom4.Compat with Dicom namespace)
 **Resume file**: None
-**Next step**: Phase 26 Plan 03 (migration analysis tooling)
+**Next step**: Phase 26 Plan 06 (migration analyzer)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plans 01 and 02 complete
+1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plans 01, 02, and 05 complete
 2. **Phase 26-01 deliverables**:
    - SharpDicom.FoDicom5.Compat project with 15 source files in FellowOakDicom namespace
    - DicomFile, DicomDataset, DicomTag, DicomVR, DicomUID, DicomItem hierarchy (DicomStringElement, DicomAttributeTag, DicomSequence, DicomOtherElement)
@@ -485,8 +489,13 @@ If resuming after a break:
    - DicomClient adapter bridging fo-dicom request-queue to SharpDicom direct async pattern
    - IDicomClient interface, DicomClientFactory.Create static factory
    - 16 unit tests covering network adapter API surface
-4. **Test coverage**: 4559 tests (4379 pass, 180 skipped, 0 failed)
-5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+4. **Phase 26-05 deliverables**:
+   - SharpDicom.FoDicom4.Compat project with 15 source files in Dicom namespace
+   - Get<T>(tag, index) and Get<T>(tag, defaultValue) as primary fo-dicom 4.x API
+   - GetSingleValue<T> retained as backward compat alias
+   - 25 unit tests verifying 4.x API surface
+5. **Test coverage**: 4584 tests (4404 pass, 180 skipped, 0 failed)
+6. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -526,4 +535,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 26 Plan 02 complete — FoDicom5.Compat network adapter with request-queue to direct async bridge, 16 new tests)*
+*Last updated: 2026-02-06 (Phase 26 Plan 05 complete — FoDicom4.Compat with Dicom namespace and Get<T> fo-dicom 4.x primary API, 25 new tests)*
