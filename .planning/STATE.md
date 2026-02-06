@@ -3,12 +3,12 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 23 - CLI Tools (IN PROGRESS)
-**Plan**: 5 of 6 in current phase (plan 06 pending)
-**Status**: In progress - dump, store, find, lint, fix commands complete, integration tests pending
-**Last activity**: 2026-02-06 - Completed 23-05-PLAN.md (lint and fix commands)
+**Phase**: 23 - CLI Tools (COMPLETE)
+**Plan**: 6 of 6 in current phase (phase complete)
+**Status**: Complete - all CLI commands and integration tests done
+**Last activity**: 2026-02-05 - Completed 23-06-PLAN.md (integration tests)
 
-**Progress**: █████░ (5/6 plans in Phase 23)
+**Progress**: ██████ (6/6 plans in Phase 23)
 
 **Test Status**: 2025/2080 tests pass (97.4%)
 
@@ -125,10 +125,11 @@
 - [x] Phase 23 Plan 03: Store Command (sharpdcm store, C-STORE SCU, PACS connection resolution, retry, TTY-aware progress)
 - [x] Phase 23 Plan 04: Find Command (sharpdcm find, C-FIND SCU, patient/study/series/instance levels, wildcard filters, text/JSON/CSV output, PacsConnectionResolver)
 - [x] Phase 23 Plan 05: Lint and Fix Commands (sharpdcm lint with strict/lenient/permissive profiles, sharpdcm fix with DicomFixer engine, 5 fix categories, dry-run/force/output-dir)
+- [x] Phase 23 Plan 06: Integration Tests (60 NUnit tests for CLI helpers, formatters, lint validation, DicomFixer engine)
 
 ## In Progress
 
-Phase 23 - CLI Tools: Plans 01-05 complete. Plan 06 pending (integration tests).
+*None*
 
 ## Blocked
 
@@ -146,7 +147,7 @@ Phase 23 - CLI Tools: Plans 01-05 complete. Plan 06 pending (integration tests).
 | 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
 | 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
-| 23 | CLI Tools | IN PROGRESS | 5/6 | 2026-02-06 | - |
+| 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-06 | 2026-02-05 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -403,13 +404,16 @@ Phase 23 - CLI Tools: Plans 01-05 complete. Plan 06 pending (integration tests).
 | 2026-02-06 | 23-05 | Fix writes to .fixed.dcm by default; --force for overwrite | Safe default prevents accidental data loss |
 | 2026-02-06 | 23-05 | DicomFixer.RemoveInvalidElements is opt-in (destructive) | Must explicitly opt in with --remove-invalid flag |
 | 2026-02-06 | 23-05 | --fix-dates flag covers both DA and TM VR elements | Date and time VRs are closely related, single flag simplifies CLI |
+| 2026-02-05 | 23-06 | InternalsVisibleTo for CLI test access | CLI types are internal; tests need direct access without process invocation |
+| 2026-02-05 | 23-06 | Split strict/lenient validation tests | Strict profile throws on errors; Lenient collects as warnings; separate tests reflect actual behavior |
+| 2026-02-05 | 23-06 | Exclude CLI tests from Polyfills project | Polyfills lacks CLI project reference; shared source wildcard would cause build failures |
 
 ## Session Continuity
 
-**Last session**: 2026-02-06
-**Stopped at**: Completed 23-05-PLAN.md (lint and fix commands)
+**Last session**: 2026-02-05
+**Stopped at**: Completed 23-06-PLAN.md (integration tests) - Phase 23 complete
 **Resume file**: None
-**Next step**: Execute 23-06-PLAN.md (integration tests)
+**Next step**: Phase 23 complete. Ready for next milestone phase.
 
 ## Context for Next Session
 
@@ -467,4 +471,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 23 Plans 01-05 complete - CLI scaffolding, dump, store, find, lint/fix commands)*
+*Last updated: 2026-02-05 (Phase 23 complete - CLI scaffolding, dump, store, find, lint/fix commands, integration tests)*
