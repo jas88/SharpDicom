@@ -20,7 +20,7 @@
 | 21 | Complete Managed Codecs | High | **COMPLETE** |
 | 22 | TLS Networking | High | **COMPLETE** |
 | 23 | CLI Tools (sharpdcm) | High | **IN PROGRESS** |
-| 24 | Server-Side DIMSE | Medium | Pending |
+| 24 | Server-Side DIMSE | Medium | **PLANNED** |
 | 25 | Advanced De-identification | Medium | Pending |
 | 26 | Migration Tooling | Medium | Pending |
 | 27 | Extended Codec Support | Low | Pending |
@@ -200,18 +200,35 @@ Plans:
 
 ## Phase 24: Server-Side DIMSE (SCP)
 
-**Goal**: Complete server-side query/retrieve implementation
+**Goal**: Complete server-side query/retrieve implementation with FileSystemDicomStore mini-PACS
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 24-01-PLAN.md — C-FIND SCP handler, DIMSE dispatch extension, DicomQueryMatcher, DicomDateRange
+- [ ] 24-02-PLAN.md — C-MOVE SCP with C-STORE forwarding, C-GET SCP with same-association C-STORE
+- [ ] 24-03-PLAN.md — FileSystemDicomStore with SQLite metadata index
+- [ ] 24-04-PLAN.md — Integration tests and unit tests (~40+ tests)
 
 **Must-haves**:
 - [ ] C-FIND SCP — Respond to queries
   - [ ] Patient/Study/Series/Instance level
-  - [ ] Pluggable data source interface
+  - [ ] Pluggable data source interface (callback delegates)
+  - [ ] DICOM wildcard and date range matching
+  - [ ] Return key filtering per PS3.4 C.2.2
 - [ ] C-MOVE SCP — Handle retrieve requests
-  - [ ] Forward to third-party destination
-  - [ ] Sub-operation tracking
+  - [ ] Forward to third-party destination via separate association
+  - [ ] Sub-operation tracking with Pending progress responses
+  - [ ] Move Destination resolution via callback
+- [ ] C-GET SCP — Respond to C-GET requests
+  - [ ] C-STORE sub-operations on same association
+  - [ ] Sub-operation progress tracking
+- [ ] FileSystemDicomStore — Integrated store+serve mini-PACS
+  - [ ] Hierarchical file layout (patient/study/series/instance.dcm)
+  - [ ] SQLite metadata index with WAL mode
+  - [ ] Serves C-FIND/C-MOVE/C-GET from indexed metadata
 
 **Should-haves**:
-- [ ] C-GET SCP — Respond to C-GET requests
 - [ ] Query result pagination for large datasets
 
 **Success Criteria**:
