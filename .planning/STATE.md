@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 26 - Migration Tooling (COMPLETE)
-**Plan**: 5 of 7 in current phase
-**Status**: In progress - dcm2csv validation complete, Plans 04 and 07 remaining
-**Last activity**: 2026-02-06 - Completed 26-03-PLAN.md
+**Plan**: 6 of 7 in current phase
+**Status**: In progress - analyzer tests complete, Plan 04 remaining
+**Last activity**: 2026-02-06 - Completed 26-07-PLAN.md
 
-**Progress**: █████░░ (5/7 plans in Phase 26)
+**Progress**: ██████░ (6/7 plans in Phase 26)
 
-**Test Status**: 4584 tests (4404 pass, 180 skipped, 0 failed)
+**Test Status**: 4632 tests (4451 pass, 181 skipped, 0 failed)
 
 ## Completed
 
@@ -148,6 +148,7 @@
 - [x] Phase 26 Plan 03: dcm2csv validation (compiles and 9 integration tests pass against FoDicom5.Compat, no API changes needed)
 - [x] Phase 26 Plan 05: FoDicom4.Compat with Dicom namespace and Get<T> API (15 source files, 25 tests)
 - [x] Phase 26 Plan 06: SharpDicom.Analyzers with FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix
+- [x] Phase 26 Plan 07: Analyzer test suite (21 tests: FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix)
 
 ## In Progress
 
@@ -172,7 +173,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 26 | Migration Tooling | IN PROGRESS | 5/7 | 2026-02-06 | - |
+| 26 | Migration Tooling | IN PROGRESS | 6/7 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -473,19 +474,22 @@
 | 2026-02-06 | 26-06 | Two-step migration diagnostic scheme | SD0001-SD0003 for fo-dicom, SD0010-SD0011 for compat layer |
 | 2026-02-06 | 26-03 | Extract Entry class from top-level statements | C# top-level statements cannot compile into library; class extraction preserves logic |
 | 2026-02-06 | 26-03 | Namespace alias for DicomFile conflict resolution | SharpDicom.Migration.Integration namespace causes C# to find SharpDicom.DicomFile before FellowOakDicom.DicomFile |
+| 2026-02-06 | 26-07 | DefaultVerifier instead of NUnit-specific verifier | Avoids extra package dependency; works correctly with NUnit |
+| 2026-02-06 | 26-07 | CompilerDiagnostics.None for non-existent namespaces | Isolates analyzer behavior from irrelevant CS0246 compiler errors |
+| 2026-02-06 | 26-07 | Pin Microsoft.CodeAnalysis.* to 5.0.0 in test project | Overrides 1.0.1 transitive dependencies from testing packages |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 26-03-PLAN.md (dcm2csv validation against FoDicom5.Compat)
+**Stopped at**: Completed 26-07-PLAN.md (analyzer test suite)
 **Resume file**: None
-**Next step**: Phase 26 Plans 04 and 07 remaining; or proceed to next milestone phase
+**Next step**: Phase 26 Plan 04 remaining; or proceed to next milestone phase
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - 5 of 7 plans done (01, 02, 03, 05, 06)
+1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - 6 of 7 plans done (01, 02, 03, 05, 06, 07)
 2. **Phase 26-03 deliverables**:
    - dcm2csv source compiles against SharpDicom.FoDicom5.Compat with no fo-dicom dependency
    - 9 integration tests verify all dcm2csv API patterns (string elements, sequences, AT, multi-value, empty, numeric)
