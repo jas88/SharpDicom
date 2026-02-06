@@ -259,12 +259,9 @@ Plans:
   - [ ] Presentation State references
   - [ ] Structured Report references
 
-**Should-haves**:
-- [ ] Additional de-identification profiles
-  - [ ] Retain longitudinal temporal information
-  - [ ] Retain modified dates
-  - [ ] Clean structured content
-- [ ] Re-identification support with mapping file
+**Should-haves** (deferred -- not in scope for current phase plans, per CONTEXT.md boundaries):
+- [ ] Additional de-identification profiles (retain longitudinal temporal info, retain modified dates, clean structured content) -- future phase
+- [ ] Re-identification support with mapping file -- future phase
 
 **Success Criteria**:
 - [ ] OCR detects burned-in text in test images
@@ -393,4 +390,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 25 planned -- Advanced De-identification with OCR and UID reference walking)*
+*Last updated: 2026-02-06 (Phase 25 plans revised based on checker feedback)*
