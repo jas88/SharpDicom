@@ -14,6 +14,7 @@ namespace SharpDicom.Deidentification
         private readonly DeidentificationOptions _options;
         private readonly UidRemapper _uidRemapper;
         private readonly DateShifter? _dateShifter;
+        private readonly UidReferenceWalker? _referenceWalker;
         private readonly HashSet<string> _safePrivateCreators;
         private readonly DeidentificationProfileOption _profileOptions;
         private readonly bool _ownsUidRemapper;
@@ -24,15 +25,21 @@ namespace SharpDicom.Deidentification
         /// <param name="options">De-identification options.</param>
         /// <param name="uidRemapper">Optional UID remapper for consistent UID mapping.</param>
         /// <param name="dateShifter">Optional date shifter for date modification.</param>
+        /// <param name="walkAllUidReferences">
+        /// When true, enables comprehensive UID reference walking that remaps all VR=UI
+        /// elements at unlimited sequence depth, including those not covered by PS3.15 profiles.
+        /// </param>
         public DicomDeidentifier(
             DeidentificationOptions? options = null,
             UidRemapper? uidRemapper = null,
-            DateShifter? dateShifter = null)
+            DateShifter? dateShifter = null,
+            bool walkAllUidReferences = false)
         {
             _options = options ?? DeidentificationOptions.BasicProfile;
             _uidRemapper = uidRemapper ?? new UidRemapper();
             _ownsUidRemapper = uidRemapper == null;
             _dateShifter = dateShifter;
+            _referenceWalker = walkAllUidReferences ? new UidReferenceWalker(_uidRemapper) : null;
             _profileOptions = _options.ToProfileOptions();
 
             _safePrivateCreators = _options.SafePrivateCreators != null
@@ -61,6 +68,14 @@ namespace SharpDicom.Deidentification
                 if (_dateShifter != null)
                 {
                     result.Summary.DatesShifted = _dateShifter.ShiftDates(dataset, patientId);
+                }
+
+                // Walk all UID references if configured (after primary de-identification
+                // so UidRemapper has already seen and mapped primary UIDs)
+                if (_referenceWalker != null)
+                {
+                    var walkResult = _referenceWalker.RemapAllReferences(dataset, patientId);
+                    result.Summary.UidReferencesRemapped = walkResult.UidsRemapped;
                 }
 
                 // Add de-identification markers

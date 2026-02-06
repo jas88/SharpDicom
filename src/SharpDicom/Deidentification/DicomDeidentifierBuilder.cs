@@ -31,6 +31,7 @@ namespace SharpDicom.Deidentification
         private DateShiftConfig? _dateShiftConfig;
         private IDateOffsetStore? _dateOffsetStore;
         private UidRemapper? _uidRemapper;
+        private bool _walkAllUidReferences;
 
         /// <summary>
         /// Applies the Basic Application Level Confidentiality Profile.
@@ -311,6 +312,29 @@ namespace SharpDicom.Deidentification
         }
 
         /// <summary>
+        /// Enables comprehensive UID reference walking after primary de-identification.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When enabled, a <see cref="UidReferenceWalker"/> traverses all VR=UI elements
+        /// at unlimited sequence depth after the primary PS3.15 profile processing. This
+        /// catches UID references in nested sequences (RT Plan, Presentation State, SR,
+        /// KOS, etc.) that may not be covered by the profile's tag-specific actions.
+        /// </para>
+        /// <para>
+        /// The walker runs after primary de-identification so the <see cref="UidRemapper"/>
+        /// has already seen and mapped primary UIDs. Referenced UIDs that match previously
+        /// mapped values receive the same consistent remapping.
+        /// </para>
+        /// </remarks>
+        /// <returns>This builder for chaining.</returns>
+        public DicomDeidentifierBuilder WithUidReferenceWalking()
+        {
+            _walkAllUidReferences = true;
+            return this;
+        }
+
+        /// <summary>
         /// Builds the configured DicomDeidentifier.
         /// </summary>
         /// <returns>A configured DicomDeidentifier instance.</returns>
@@ -340,7 +364,7 @@ namespace SharpDicom.Deidentification
                 dateShifter = new DateShifter(_dateShiftConfig, _dateOffsetStore);
             }
 
-            return new DicomDeidentifier(options, _uidRemapper, dateShifter);
+            return new DicomDeidentifier(options, _uidRemapper, dateShifter, _walkAllUidReferences);
         }
     }
 }

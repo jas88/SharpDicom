@@ -61,11 +61,21 @@ namespace SharpDicom.Deidentification
         public int SequenceItemsProcessed { get; set; }
 
         /// <summary>
+        /// Number of additional UID references remapped by <see cref="UidReferenceWalker"/>.
+        /// </summary>
+        /// <remarks>
+        /// This count is separate from <see cref="UidsRemapped"/> which tracks UIDs remapped
+        /// by the primary PS3.15 profile. This tracks UIDs found by the comprehensive VR=UI
+        /// traversal that catches references in nested sequences not covered by the profile.
+        /// </remarks>
+        public int UidReferencesRemapped { get; set; }
+
+        /// <summary>
         /// Gets the total number of modifications made.
         /// </summary>
         public int TotalModifications =>
             AttributesRemoved + AttributesReplaced + AttributesEmptied +
-            UidsRemapped + DatesShifted;
+            UidsRemapped + UidReferencesRemapped + DatesShifted;
     }
 
     /// <summary>
