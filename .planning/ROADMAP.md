@@ -21,7 +21,7 @@
 | 22 | TLS Networking | High | **COMPLETE** |
 | 23 | CLI Tools (sharpdcm) | High | **COMPLETE** |
 | 24 | Server-Side DIMSE | Medium | **COMPLETE** |
-| 25 | Advanced De-identification | Medium | Pending |
+| 25 | Advanced De-identification | Medium | Planned |
 | 26 | Migration Tooling | Medium | Pending |
 | 27 | Extended Codec Support | Low | Pending |
 | 28 | DIMSE-N Services | Low | Pending |
@@ -239,7 +239,15 @@ Plans:
 
 ## Phase 25: Advanced De-identification
 
-**Goal**: Enhanced de-identification capabilities
+**Goal**: Enhanced de-identification with OCR-based burned-in PHI detection and comprehensive UID reference walking
+
+**Plans:** 4 plans
+
+Plans:
+- [ ] 25-01-PLAN.md — UidReferenceWalker for recursive VR=UI traversal and DicomDeidentifier pipeline integration
+- [ ] 25-02-PLAN.md — Native Tesseract C wrapper, Zig build integration, and P/Invoke layer
+- [ ] 25-03-PLAN.md — OcrScanner managed types, pixel preparation, allow/deny filtering, pipeline integration
+- [ ] 25-04-PLAN.md — Test suite for UID reference walking, OCR scanner, and pipeline integration
 
 **Must-haves**:
 - [ ] OCR-based burned-in PHI detection (Tesseract integration)
@@ -385,4 +393,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 24 complete -- Server-Side DIMSE with FileSystemDicomStore mini-PACS)*
+*Last updated: 2026-02-06 (Phase 25 planned -- Advanced De-identification with OCR and UID reference walking)*
