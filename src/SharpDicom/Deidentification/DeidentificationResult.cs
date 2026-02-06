@@ -70,12 +70,24 @@ namespace SharpDicom.Deidentification
         /// </remarks>
         public int UidReferencesRemapped { get; set; }
 
+        /// <summary>Number of pixel data frames scanned by OCR.</summary>
+        public int OcrFramesScanned { get; set; }
+
+        /// <summary>Total number of OCR text detections found (before filtering).</summary>
+        public int OcrDetectionsFound { get; set; }
+
+        /// <summary>Number of OCR detections classified as PHI candidates (after allow/deny filtering).</summary>
+        public int OcrPhiCandidates { get; set; }
+
+        /// <summary>Number of pixel regions redacted based on OCR detections.</summary>
+        public int OcrRegionsRedacted { get; set; }
+
         /// <summary>
         /// Gets the total number of modifications made.
         /// </summary>
         public int TotalModifications =>
             AttributesRemoved + AttributesReplaced + AttributesEmptied +
-            UidsRemapped + UidReferencesRemapped + DatesShifted;
+            UidsRemapped + UidReferencesRemapped + DatesShifted + OcrRegionsRedacted;
     }
 
     /// <summary>
