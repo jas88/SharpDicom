@@ -2,6 +2,8 @@
   <PropertyGroup>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Use the Zig already on PATH rather than downloading another copy -->
+    <UseExternalZig>true</UseExternalZig>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SharpDicom.Tests" />
@@ -13,7 +15,6 @@
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Spectre.Console" />
     <PackageReference Include="CsToml" />
-    <PackageReference Include="PublishAotCross" />
-    <PackageReference Include="PublishAotCrossXWin" />
+    <PackageReference Include="Fallenwood.PublishAotCross" />
   </ItemGroup>
 </Project>
