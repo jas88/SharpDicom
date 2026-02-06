@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 25 - Advanced De-identification (COMPLETE)
-**Plan**: 4 of 4 in current phase
-**Status**: Phase complete - Advanced de-identification test suite delivered
-**Last activity**: 2026-02-06 - Completed 25-04-PLAN.md
+**Phase**: 26 - Migration Tooling (COMPLETE)
+**Plan**: 7 of 7 in current phase
+**Status**: Phase complete
+**Last activity**: 2026-02-06 - Completed 26-04-PLAN.md (nccid validation)
 
-**Progress**: ████ (4/4 plans in Phase 25)
+**Progress**: ███████ (7/7 plans in Phase 26)
 
-**Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
+**Test Status**: 4632 tests (4451 pass, 181 skipped, 0 failed)
 
 ## Completed
 
@@ -141,6 +141,16 @@
 - [x] Phase 25 Plan 03: OcrScanner for burned-in PHI detection (OCR scanning, dual-threshold confidence, allow/deny filtering, pipeline integration)
 - [x] Phase 25 Plan 04: Advanced de-identification test suite (50 tests: UidReferenceWalker, OcrScanner, pipeline integration)
 
+### Phase 26 - Migration Tooling (COMPLETE)
+
+- [x] Phase 26 Plan 01: FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, DicomVR, DicomUID, 38 tests)
+- [x] Phase 26 Plan 02: FoDicom5.Compat network adapter (DicomClient, DicomClientFactory, DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, 16 tests)
+- [x] Phase 26 Plan 03: dcm2csv validation (compiles and 9 integration tests pass against FoDicom5.Compat, no API changes needed)
+- [x] Phase 26 Plan 04: nccid validation (compiles and 17 integration tests pass against FoDicom5.Compat networking, both phase gates met)
+- [x] Phase 26 Plan 05: FoDicom4.Compat with Dicom namespace and Get<T> API (15 source files, 25 tests)
+- [x] Phase 26 Plan 06: SharpDicom.Analyzers with FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix
+- [x] Phase 26 Plan 07: Analyzer test suite (21 tests: FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix)
+
 ## In Progress
 
 *None*
@@ -164,6 +174,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
+| 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -448,26 +459,47 @@
 | 2026-02-06 | 25-03 | Duplicate P/Invoke declarations in SharpDicom rather than referencing SharpDicom.Codecs | Avoids circular project dependency; both call the same native library |
 | 2026-02-06 | 25-03 | Use DllImport uniformly (not LibraryImport) for TessInterop | LibraryImport source generator complications with nested private partial classes |
 | 2026-02-06 | 25-03 | Lazy-create OcrScanner on first Deidentify() call | Avoids paying Tesseract init cost when not processing images with pixel data |
+| 2026-02-06 | 26-01 | DicomTag as class (not struct) for compat layer | fo-dicom uses reference type with nullable DictionaryEntry property |
+| 2026-02-06 | 26-01 | DicomVR as class with static readonly instances | fo-dicom uses DicomVR.LO pattern; string-keyed dictionary lookup |
+| 2026-02-06 | 26-01 | Public DicomDataset wrapping constructor | Enables interop between native SharpDicom and compat code |
+| 2026-02-06 | 26-01 | CA1716 suppressed on Get<T> method | fo-dicom API compatibility requires exact method name |
+| 2026-02-06 | 26-01 | Composition pattern throughout compat layer | All types wrap SharpDicom types via _inner field, never inherit |
+| 2026-02-06 | 26-02 | SendAsync creates fresh client per call | Matches fo-dicom's stateless pattern; each SendAsync is a complete connection lifecycle |
+| 2026-02-06 | 26-02 | Patient Root Q/R as default SOP Class | Most common in real-world usage for C-FIND presentation contexts |
+| 2026-02-06 | 26-02 | Pending/Success callback pattern | OnResponseReceived with Pending per result, Success for final, matches fo-dicom behavior |
+| 2026-02-06 | 26-05 | Get<T> as primary, GetSingleValue<T> as alias | fo-dicom 4.x uses Get<T>(tag) as primary accessor; late 4.x also has GetSingleValue<T> |
+| 2026-02-06 | 26-05 | Get<T>(tag, defaultValue) overload | Common fo-dicom 4.x pattern for safe missing-tag access |
+| 2026-02-06 | 26-05 | No network types in FoDicom4 | fo-dicom 4.x network API (direct constructor) differs significantly from 5.x; not needed yet |
+| 2026-02-06 | 26-06 | RS1038 suppressed for analyzer+codefix assembly | Standard pattern: CodeFixProviders require Workspaces, analyzers don't |
+| 2026-02-06 | 26-06 | Semantic analysis for fo-dicom detection | Prevents false positives on user types named "Dicom" |
+| 2026-02-06 | 26-06 | Two-step migration diagnostic scheme | SD0001-SD0003 for fo-dicom, SD0010-SD0011 for compat layer |
+| 2026-02-06 | 26-03 | Extract Entry class from top-level statements | C# top-level statements cannot compile into library; class extraction preserves logic |
+| 2026-02-06 | 26-03 | Namespace alias for DicomFile conflict resolution | SharpDicom.Migration.Integration namespace causes C# to find SharpDicom.DicomFile before FellowOakDicom.DicomFile |
+| 2026-02-06 | 26-07 | DefaultVerifier instead of NUnit-specific verifier | Avoids extra package dependency; works correctly with NUnit |
+| 2026-02-06 | 26-07 | CompilerDiagnostics.None for non-existent namespaces | Isolates analyzer behavior from irrelevant CS0246 compiler errors |
+| 2026-02-06 | 26-07 | Pin Microsoft.CodeAnalysis.* to 5.0.0 in test project | Overrides 1.0.1 transitive dependencies from testing packages |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Phase 25 complete and verified (14/14 must-haves)
+**Stopped at**: Completed 26-04-PLAN.md (nccid validation - Phase 26 complete)
 **Resume file**: None
-**Next step**: Phase 26 (Migration Tooling) or next milestone phase
+**Next step**: Proceed to next milestone phase
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 25 COMPLETE (Advanced De-identification)
-2. **Phase 25-04 deliverables**:
-   - UidReferenceWalkerTests.cs: 18 tests for recursive VR=UI traversal
-   - OcrScannerOptionsTests.cs: 14 tests for OCR configuration defaults and allowlist
-   - OcrScannerTests.cs: 9 tests for OCR scanner behavior (stub mode)
-   - AdvancedDeidentificationIntegrationTests.cs: 9 integration tests for combined pipeline
-3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
-4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+1. **Current phase**: Phase 26 COMPLETE (Migration Tooling) - all 7 plans done (01, 02, 03, 04, 05, 06, 07)
+2. **Phase 26 deliverables**:
+   - FoDicom5.Compat: core types + network adapter (38 + 16 tests)
+   - FoDicom4.Compat: Dicom namespace and Get<T> API (25 tests)
+   - SharpDicom.Analyzers: FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers (21 tests)
+   - dcm2csv validation: 9 integration tests (file I/O phase gate)
+   - nccid validation: 17 integration tests (networking phase gate)
+3. **Both phase gates met**: dcm2csv (file I/O) + nccid (networking) validated
+4. **Test coverage**: 4632 tests (4451 pass, 181 skipped, 0 failed)
+5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -507,4 +539,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 25 complete and verified — advanced de-identification with OCR and UID reference walking, 50 new tests)*
+*Last updated: 2026-02-06 (Phase 26 complete -- all 7 plans done, both phase gates met: dcm2csv + nccid validated against compat layer)*
