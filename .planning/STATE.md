@@ -5,10 +5,10 @@
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 23 - CLI Tools (IN PROGRESS)
 **Plan**: 3 of 6 in current phase (plans 02-05 executing in parallel)
-**Status**: In progress - store command complete, other subcommands in parallel
-**Last activity**: 2026-02-06 - Completed 23-03-PLAN.md
+**Status**: In progress - dump and store commands complete, other subcommands in parallel
+**Last activity**: 2026-02-06 - Completed 23-02-PLAN.md and 23-03-PLAN.md
 
-**Progress**: ██░░░░ (2/6 plans in Phase 23)
+**Progress**: ███░░░ (3/6 plans in Phase 23)
 
 **Test Status**: 2025/2080 tests pass (97.4%)
 
@@ -121,11 +121,12 @@
 ### Phase 23 - CLI Tools (IN PROGRESS)
 
 - [x] Phase 23 Plan 01: CLI Scaffolding (SharpDicom.Cli project, System.CommandLine 2.0.2, Spectre.Console 0.54.0, Tomlyn 0.20.0, Text/JSON/XML formatters, config system, helpers)
+- [x] Phase 23 Plan 02: Dump Command (sharpdcm dump, text/JSON/XML output, recursive directory processing, sequence nesting, tag filtering)
 - [x] Phase 23 Plan 03: Store Command (sharpdcm store, C-STORE SCU, PACS connection resolution, retry, TTY-aware progress)
 
 ## In Progress
 
-Phase 23 - CLI Tools: Plans 01, 03 complete. Plans 02, 04, 05 executing in parallel. Plan 06 pending (integration tests).
+Phase 23 - CLI Tools: Plans 01, 02, 03 complete. Plans 04, 05 executing in parallel. Plan 06 pending (integration tests).
 
 ## Blocked
 
@@ -143,7 +144,7 @@ Phase 23 - CLI Tools: Plans 01, 03 complete. Plans 02, 04, 05 executing in paral
 | 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
 | 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
-| 23 | CLI Tools | IN PROGRESS | 1/6 | 2026-02-06 | - |
+| 23 | CLI Tools | IN PROGRESS | 3/6 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -386,15 +387,18 @@ Phase 23 - CLI Tools: Plans 01, 03 complete. Plans 02, 04, 05 executing in paral
 | 2026-02-06 | 23-01 | TextFormatter uses reflection for UID name lookup | Reflection on DicomUIDs class for reverse UID-to-name mapping |
 | 2026-02-06 | 23-01 | Progress output always to stderr | Keeps stdout clean for piped structured output |
 | 2026-02-06 | 23-01 | Config errors produce warnings, never block | Config parse failures warn to stderr but never prevent command execution |
+| 2026-02-06 | 23-02 | Command.Create() factory pattern for subcommands | Static factory returns fully configured Command, clean separation of subcommand logic |
+| 2026-02-06 | 23-02 | Tag filter multi-format parsing | Accept GGGGEEEE, GGGG,EEEE, and (GGGG,EEEE) for user convenience |
+| 2026-02-06 | 23-02 | Layered format resolution | CLI flag > env var > config file > text default |
 | 2026-02-06 | 23-03 | Two-pass SOP class scanning for store | Scan all file headers first for SOP Class UIDs, connect once with all needed presentation contexts |
 | 2026-02-06 | 23-03 | IsSuccessOrWarning counts as success | DICOM C-STORE warnings (0xB000) indicate data was stored with modifications - still counts as success |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 23-03-PLAN.md (sharpdcm store command)
+**Stopped at**: Completed 23-02-PLAN.md (sharpdcm dump command) and 23-03-PLAN.md (sharpdcm store command)
 **Resume file**: None
-**Next step**: Await parallel plans 02, 04, 05 completion, then execute 23-06-PLAN.md (integration tests)
+**Next step**: Await parallel plans 04, 05 completion, then execute 23-06-PLAN.md (integration tests)
 
 ## Context for Next Session
 
@@ -452,4 +456,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 23 Plan 01 complete - CLI scaffolding with System.CommandLine, Spectre.Console, Tomlyn)*
+*Last updated: 2026-02-06 (Phase 23 Plans 01-03 complete - CLI scaffolding, dump command, store command)*
