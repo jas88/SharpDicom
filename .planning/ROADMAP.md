@@ -330,15 +330,21 @@ Plans:
 
 ## Phase 28: DIMSE-N Services
 
-**Goal**: Normalized object services (low priority, <5% use cases)
+**Goal**: Normalized object services and association negotiation enhancements
 
 **Should-haves**:
 - [ ] N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT
 - [ ] Modality Performed Procedure Step (MPPS)
 - [ ] Storage Commitment
+- [ ] Asynchronous Operations Window negotiation (PS3.8 D.3.3.3)
+  - [ ] UserInformation: MaxOperationsInvoked / MaxOperationsPerformed fields
+  - [ ] A-ASSOCIATE-RQ/AC encoding/decoding of 0x53 sub-item
+  - [ ] DicomClientOptions: AsyncOperationsInvoked / AsyncOperationsPerformed
+  - [ ] Wire up FoDicom5.Compat NegotiateAsyncOps to actual negotiation
 
 **Success Criteria**:
 - [ ] MPPS workflow functional
+- [ ] Async ops negotiated with remote PACS when non-default values requested
 
 ---
 
