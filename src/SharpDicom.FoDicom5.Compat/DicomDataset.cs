@@ -23,8 +23,10 @@ namespace FellowOakDicom
 
         /// <summary>
         /// Wraps an existing SharpDicom dataset.
+        /// Useful for interop between native SharpDicom and compat code.
         /// </summary>
-        internal DicomDataset(SharpDicom.Data.DicomDataset inner)
+        /// <param name="inner">The SharpDicom dataset to wrap.</param>
+        public DicomDataset(SharpDicom.Data.DicomDataset inner)
         {
             _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         }

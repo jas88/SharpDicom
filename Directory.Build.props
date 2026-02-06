@@ -39,6 +39,12 @@
     <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
   </PropertyGroup>
 
+  <!-- FoDicom5 Compat Tests: latest TFM -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.FoDicom5.Compat.Tests'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
   <!-- CLI: console application targeting latest TFM -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Cli'">
     <TargetFramework>net10.0</TargetFramework>
