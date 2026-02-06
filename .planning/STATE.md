@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 26 - Migration Tooling (In Progress)
-**Plan**: 1 of 4 in current phase
-**Status**: In progress - FoDicom5.Compat core types delivered
-**Last activity**: 2026-02-06 - Completed 26-01-PLAN.md
+**Plan**: 2 of 4 in current phase
+**Status**: In progress - FoDicom5.Compat network adapter delivered
+**Last activity**: 2026-02-06 - Completed 26-02-PLAN.md
 
-**Progress**: █░░░ (1/4 plans in Phase 26)
+**Progress**: ██░░ (2/4 plans in Phase 26)
 
-**Test Status**: 2301 tests (2247 pass, 54 skipped, 0 failed)
+**Test Status**: 4559 tests (4379 pass, 180 skipped, 0 failed)
 
 ## Completed
 
@@ -144,6 +144,7 @@
 ### Phase 26 - Migration Tooling (In Progress)
 
 - [x] Phase 26 Plan 01: FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, DicomVR, DicomUID, 38 tests)
+- [x] Phase 26 Plan 02: FoDicom5.Compat network adapter (DicomClient, DicomClientFactory, DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, 16 tests)
 
 ## In Progress
 
@@ -168,7 +169,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 26 | Migration Tooling | In Progress | 1/4 | 2026-02-06 | - |
+| 26 | Migration Tooling | In Progress | 2/4 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -458,26 +459,34 @@
 | 2026-02-06 | 26-01 | Public DicomDataset wrapping constructor | Enables interop between native SharpDicom and compat code |
 | 2026-02-06 | 26-01 | CA1716 suppressed on Get<T> method | fo-dicom API compatibility requires exact method name |
 | 2026-02-06 | 26-01 | Composition pattern throughout compat layer | All types wrap SharpDicom types via _inner field, never inherit |
+| 2026-02-06 | 26-02 | SendAsync creates fresh client per call | Matches fo-dicom's stateless pattern; each SendAsync is a complete connection lifecycle |
+| 2026-02-06 | 26-02 | Patient Root Q/R as default SOP Class | Most common in real-world usage for C-FIND presentation contexts |
+| 2026-02-06 | 26-02 | Pending/Success callback pattern | OnResponseReceived with Pending per result, Success for final, matches fo-dicom behavior |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 26-01-PLAN.md (FoDicom5.Compat core types)
+**Stopped at**: Completed 26-02-PLAN.md (FoDicom5.Compat network adapter)
 **Resume file**: None
-**Next step**: Phase 26 Plan 02 (dcm2csv validation)
+**Next step**: Phase 26 Plan 03 (migration analysis tooling)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plan 01 complete
+1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plans 01 and 02 complete
 2. **Phase 26-01 deliverables**:
    - SharpDicom.FoDicom5.Compat project with 15 source files in FellowOakDicom namespace
    - DicomFile, DicomDataset, DicomTag, DicomVR, DicomUID, DicomItem hierarchy (DicomStringElement, DicomAttributeTag, DicomSequence, DicomOtherElement)
    - Compatibility.Unwrap() extension methods for gradual migration
    - 38 unit tests covering all compat API surface
-3. **Test coverage**: 2301 tests (2247 pass, 54 skipped, 0 failed)
-4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+3. **Phase 26-02 deliverables**:
+   - Network compat types: DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, DicomRequest, DicomResponse
+   - DicomClient adapter bridging fo-dicom request-queue to SharpDicom direct async pattern
+   - IDicomClient interface, DicomClientFactory.Create static factory
+   - 16 unit tests covering network adapter API surface
+4. **Test coverage**: 4559 tests (4379 pass, 180 skipped, 0 failed)
+5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -517,4 +526,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 26 Plan 01 complete — FoDicom5.Compat core types with composition wrappers, 38 new tests)*
+*Last updated: 2026-02-06 (Phase 26 Plan 02 complete — FoDicom5.Compat network adapter with request-queue to direct async bridge, 16 new tests)*
