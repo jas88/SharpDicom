@@ -58,35 +58,17 @@ rootCommand.Options.Add(noColorOption);
 rootCommand.Options.Add(configOption);
 rootCommand.Options.Add(continueOnErrorOption);
 
-// ---- Stub subcommands -----------------------------------------------------
+// ---- Subcommands ----------------------------------------------------------
 
 rootCommand.Subcommands.Add(DumpCommand.Create());
 
 rootCommand.Subcommands.Add(StoreCommand.Create());
 
-var findCommand = new Command("find", "Query a PACS server for studies/series/instances (C-FIND)");
-findCommand.SetAction((ParseResult _, CancellationToken _) =>
-{
-    Console.Error.WriteLine("Not yet implemented");
-    return Task.FromResult(ExitCodes.UsageError);
-});
-rootCommand.Subcommands.Add(findCommand);
+rootCommand.Subcommands.Add(FindCommand.Create());
 
-var lintCommand = new Command("lint", "Validate DICOM files against the standard");
-lintCommand.SetAction((ParseResult _, CancellationToken _) =>
-{
-    Console.Error.WriteLine("Not yet implemented");
-    return Task.FromResult(ExitCodes.UsageError);
-});
-rootCommand.Subcommands.Add(lintCommand);
+rootCommand.Subcommands.Add(LintCommand.Create());
 
-var fixCommand = new Command("fix", "Repair common issues in DICOM files");
-fixCommand.SetAction((ParseResult _, CancellationToken _) =>
-{
-    Console.Error.WriteLine("Not yet implemented");
-    return Task.FromResult(ExitCodes.UsageError);
-});
-rootCommand.Subcommands.Add(fixCommand);
+rootCommand.Subcommands.Add(FixCommand.Create());
 
 // ---- Run ------------------------------------------------------------------
 
