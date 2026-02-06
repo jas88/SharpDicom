@@ -2,6 +2,8 @@
   <PropertyGroup>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Tomlyn/Spectre.Console are not fully trim-annotated -->
+    <NoWarn>$(NoWarn);IL2104</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SharpDicom.Tests" />
