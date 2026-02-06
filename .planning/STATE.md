@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 25 - Advanced De-identification (COMPLETE)
-**Plan**: 4 of 4 in current phase
-**Status**: Phase complete - Advanced de-identification test suite delivered
-**Last activity**: 2026-02-06 - Completed 25-04-PLAN.md
+**Phase**: 26 - Migration Tooling (In Progress)
+**Plan**: 1 of 4 in current phase
+**Status**: In progress - FoDicom5.Compat core types delivered
+**Last activity**: 2026-02-06 - Completed 26-01-PLAN.md
 
-**Progress**: ████ (4/4 plans in Phase 25)
+**Progress**: █░░░ (1/4 plans in Phase 26)
 
-**Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
+**Test Status**: 2301 tests (2247 pass, 54 skipped, 0 failed)
 
 ## Completed
 
@@ -141,6 +141,10 @@
 - [x] Phase 25 Plan 03: OcrScanner for burned-in PHI detection (OCR scanning, dual-threshold confidence, allow/deny filtering, pipeline integration)
 - [x] Phase 25 Plan 04: Advanced de-identification test suite (50 tests: UidReferenceWalker, OcrScanner, pipeline integration)
 
+### Phase 26 - Migration Tooling (In Progress)
+
+- [x] Phase 26 Plan 01: FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, DicomVR, DicomUID, 38 tests)
+
 ## In Progress
 
 *None*
@@ -164,6 +168,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
+| 26 | Migration Tooling | In Progress | 1/4 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -448,25 +453,30 @@
 | 2026-02-06 | 25-03 | Duplicate P/Invoke declarations in SharpDicom rather than referencing SharpDicom.Codecs | Avoids circular project dependency; both call the same native library |
 | 2026-02-06 | 25-03 | Use DllImport uniformly (not LibraryImport) for TessInterop | LibraryImport source generator complications with nested private partial classes |
 | 2026-02-06 | 25-03 | Lazy-create OcrScanner on first Deidentify() call | Avoids paying Tesseract init cost when not processing images with pixel data |
+| 2026-02-06 | 26-01 | DicomTag as class (not struct) for compat layer | fo-dicom uses reference type with nullable DictionaryEntry property |
+| 2026-02-06 | 26-01 | DicomVR as class with static readonly instances | fo-dicom uses DicomVR.LO pattern; string-keyed dictionary lookup |
+| 2026-02-06 | 26-01 | Public DicomDataset wrapping constructor | Enables interop between native SharpDicom and compat code |
+| 2026-02-06 | 26-01 | CA1716 suppressed on Get<T> method | fo-dicom API compatibility requires exact method name |
+| 2026-02-06 | 26-01 | Composition pattern throughout compat layer | All types wrap SharpDicom types via _inner field, never inherit |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Phase 25 complete and verified (14/14 must-haves)
+**Stopped at**: Completed 26-01-PLAN.md (FoDicom5.Compat core types)
 **Resume file**: None
-**Next step**: Phase 26 (Migration Tooling) or next milestone phase
+**Next step**: Phase 26 Plan 02 (dcm2csv validation)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 25 COMPLETE (Advanced De-identification)
-2. **Phase 25-04 deliverables**:
-   - UidReferenceWalkerTests.cs: 18 tests for recursive VR=UI traversal
-   - OcrScannerOptionsTests.cs: 14 tests for OCR configuration defaults and allowlist
-   - OcrScannerTests.cs: 9 tests for OCR scanner behavior (stub mode)
-   - AdvancedDeidentificationIntegrationTests.cs: 9 integration tests for combined pipeline
-3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
+1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plan 01 complete
+2. **Phase 26-01 deliverables**:
+   - SharpDicom.FoDicom5.Compat project with 15 source files in FellowOakDicom namespace
+   - DicomFile, DicomDataset, DicomTag, DicomVR, DicomUID, DicomItem hierarchy (DicomStringElement, DicomAttributeTag, DicomSequence, DicomOtherElement)
+   - Compatibility.Unwrap() extension methods for gradual migration
+   - 38 unit tests covering all compat API surface
+3. **Test coverage**: 2301 tests (2247 pass, 54 skipped, 0 failed)
 4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -507,4 +517,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 25 complete and verified — advanced de-identification with OCR and UID reference walking, 50 new tests)*
+*Last updated: 2026-02-06 (Phase 26 Plan 01 complete — FoDicom5.Compat core types with composition wrappers, 38 new tests)*
