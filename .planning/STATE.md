@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 24 - Server-Side DIMSE (SCP)
-**Plan**: 1 of 4 in current phase
+**Plan**: 3 of 4 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-06 - Completed 24-01-PLAN.md (C-FIND SCP handler and query matching)
+**Last activity**: 2026-02-06 - Completed 24-03-PLAN.md (FileSystemDicomStore + SQLite metadata index)
 
-**Progress**: █░░░ (1/4 plans in Phase 24)
+**Progress**: ███░ (3/4 plans in Phase 24)
 
 **Test Status**: 2089/2141 tests pass (52 skipped, 0 failed)
 
@@ -130,6 +130,7 @@
 ### Phase 24 - Server-Side DIMSE (SCP) (In Progress)
 
 - [x] Phase 24 Plan 01: C-FIND SCP handler and query matching infrastructure (DicomQueryMatcher, DicomDateRange, DIMSE dispatch extension, HandleCFindAsync)
+- [x] Phase 24 Plan 02: C-MOVE SCP and C-GET SCP handlers (HandleCMoveAsync with separate forwarding, HandleCGetAsync with same-association C-STORE, SubOperationProgress tracking)
 
 ## In Progress
 
@@ -416,13 +417,16 @@
 | 2026-02-06 | 24-01 | Server-side return key filtering | Callbacks return full datasets; server filters to requested tags per PS3.4 C.2.2 |
 | 2026-02-06 | 24-01 | Unregistered handlers return 0xA900 | Per CONTEXT.md: failure status, not empty results; dataset still consumed |
 | 2026-02-06 | 24-01 | QRCommandInfo struct for Q/R dispatch | Parallel to CStoreCommandInfo; holds parsed command data for C-FIND/C-MOVE/C-GET/C-CANCEL |
+| 2026-02-06 | 24-02 | CStoreScu for C-MOVE forwarding | Reuses existing SCU infrastructure; clean separation via DicomClient |
+| 2026-02-06 | 24-02 | Raw PDV building for C-GET same-association C-STORE | SCP must send C-STORE on same association; can't use DicomClient (which opens new connection) |
+| 2026-02-06 | 24-02 | Match collection cap at 10000 | Prevents memory exhaustion during C-MOVE/C-GET with large result sets |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 24-01-PLAN.md (C-FIND SCP handler and query matching infrastructure)
+**Stopped at**: Completed 24-02-PLAN.md (C-MOVE SCP and C-GET SCP handlers)
 **Resume file**: None
-**Next step**: Phase 24 Plan 02 (C-MOVE/C-GET SCP implementation)
+**Next step**: Phase 24 Plan 03 (FileSystemDicomStore) or Plan 04 (integration tests)
 
 ## Context for Next Session
 
