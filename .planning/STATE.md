@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 22 - TLS Networking (COMPLETE)
-**Plan**: 4 of 4 (all complete)
-**Status**: Phase complete - TLS support added to DicomClient and DicomServer
-**Last activity**: 2026-02-04 - Phase 22 complete; TLS 1.2/1.3 support via SslStream
+**Phase**: 23 - CLI Tools (IN PROGRESS)
+**Plan**: 1 of 6 in current phase
+**Status**: In progress - CLI scaffolding complete, subcommand implementations next
+**Last activity**: 2026-02-06 - Completed 23-01-PLAN.md
 
-**Progress**: ████████████████████████████████████████ (4/4 plans in Phase 22)
+**Progress**: █░░░░░ (1/6 plans in Phase 23)
 
-**Test Status**: 2025/2080 tests pass (97.4%) - 48 new TLS tests added (38 unit + 10 integration)
+**Test Status**: 2025/2080 tests pass (97.4%)
 
 ## Completed
 
@@ -111,16 +111,20 @@
 - [x] Phase 21 Plan 08: Tier-2 Packet Encoding Fixes (ReadNumPasses, WriteZeroBitPlanes symmetry; J2K pipeline investigation)
 - [x] Phase 21 Plan 09: J2K Pipeline Investigation (6 stage isolation tests; identified architectural gap: multi-resolution subband support missing; HTJ2K deferred to Phase 30)
 
-### Phase 22 - TLS Networking (IN PROGRESS)
+### Phase 22 - TLS Networking (COMPLETE)
 
 - [x] Phase 22 Plan 01: TLS Configuration and Validation (TlsOptions, TlsServerOptions, CertificateValidator, DicomTlsProfile, DICOM BCP 195 compliance, 38 tests)
 - [x] Phase 22 Plan 02: DicomClient TLS Integration (Optional TLS via TlsOptions, SslStream wrapping, DICOM BCP 195 validation, protocol downgrade detection, backward-compatible plain TCP)
 - [x] Phase 22 Plan 03: DicomServer TLS Integration (Server-side TLS handshake, mutual TLS support, Stream abstraction, SslStreamCertificateContext caching, backward-compatible plain TCP)
 - [x] Phase 22 Plan 04: TLS Integration Tests (TlsCertificateHelper programmatic cert generation, 10 integration tests: C-ECHO/C-STORE over TLS, mTLS, certificate validation, 7/10 passing)
 
+### Phase 23 - CLI Tools (IN PROGRESS)
+
+- [x] Phase 23 Plan 01: CLI Scaffolding (SharpDicom.Cli project, System.CommandLine 2.0.2, Spectre.Console 0.54.0, Tomlyn 0.20.0, Text/JSON/XML formatters, config system, helpers)
+
 ## In Progress
 
-None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
+Phase 23 - CLI Tools: Plan 01 complete (scaffolding and shared infrastructure). Plans 02-06 pending (dump, store, find, lint/fix, integration tests).
 
 ## Blocked
 
@@ -135,6 +139,10 @@ None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 | 12 | Pure C# Codecs | COMPLETE | 7/7 | 2026-01-29 | 2026-01-29 |
 | 13 | Native Codecs Package | COMPLETE | 9/9 | 2026-01-29 | 2026-01-30 |
 | 14 | De-identification | COMPLETE | 8/8 | 2026-01-29 | 2026-01-30 |
+| 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
+| 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
+| 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
+| 23 | CLI Tools | IN PROGRESS | 1/6 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -372,13 +380,18 @@ None - Phase 22 complete (TLS 1.2/1.3 support added to DicomClient/DicomServer)
 | 2026-02-04 | 22-03 | TLS handshake before ARTIM timer | Server performs TLS handshake after TCP accept but before ARTIM timer to ensure encrypted association |
 | 2026-02-04 | 22-03 | Stream abstraction for TLS transparency | All DicomServer methods use Stream instead of NetworkStream for unified TLS/plain TCP paths |
 | 2026-02-04 | 22-03 | SslStreamCertificateContext pre-building | Cache certificate context in Start() for NET6+ connection performance |
+| 2026-02-06 | 23-01 | System.CommandLine 2.0.2 stable API | Property-based Option construction, SetAction with ParseResult+CancellationToken |
+| 2026-02-06 | 23-01 | RootCommand auto-includes VersionOption | No manual VersionOption add needed in 2.0.2 |
+| 2026-02-06 | 23-01 | TextFormatter uses reflection for UID name lookup | Reflection on DicomUIDs class for reverse UID-to-name mapping |
+| 2026-02-06 | 23-01 | Progress output always to stderr | Keeps stdout clean for piped structured output |
+| 2026-02-06 | 23-01 | Config errors produce warnings, never block | Config parse failures warn to stderr but never prevent command execution |
 
 ## Session Continuity
 
-**Last session**: 2026-02-04
-**Stopped at**: Completed 22-03-PLAN.md (DicomServer TLS integration)
+**Last session**: 2026-02-06
+**Stopped at**: Completed 23-01-PLAN.md (CLI scaffolding and shared infrastructure)
 **Resume file**: None
-**Next step**: Phase 22 completion or next feature phase TBD
+**Next step**: Execute 23-02-PLAN.md (sharpdcm dump command)
 
 ## Context for Next Session
 
@@ -436,4 +449,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-04 (Phase 21 complete - 9/9 plans done, JPEG-LS functional, HTJ2K architectural gap documented for Phase 30)*
+*Last updated: 2026-02-06 (Phase 23 Plan 01 complete - CLI scaffolding with System.CommandLine, Spectre.Console, Tomlyn)*

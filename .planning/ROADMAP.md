@@ -19,7 +19,7 @@
 | 20 | Critical Bug Fixes | **URGENT** | **COMPLETE** |
 | 21 | Complete Managed Codecs | High | **COMPLETE** |
 | 22 | TLS Networking | High | **COMPLETE** |
-| 23 | CLI Tools (sharpdcm) | High | Planned |
+| 23 | CLI Tools (sharpdcm) | High | **IN PROGRESS** |
 | 24 | Server-Side DIMSE | Medium | Pending |
 | 25 | Advanced De-identification | Medium | Pending |
 | 26 | Migration Tooling | Medium | Pending |
@@ -150,7 +150,7 @@ Plans:
 **Plans:** 6 plans
 
 Plans:
-- [ ] 23-01-PLAN.md — CLI project scaffolding, shared infrastructure (formatters, config, helpers)
+- [x] 23-01-PLAN.md — CLI project scaffolding, shared infrastructure (formatters, config, helpers)
 - [ ] 23-02-PLAN.md — `sharpdcm dump` command (display DICOM file contents)
 - [ ] 23-03-PLAN.md — `sharpdcm store` command (send DICOM files to PACS)
 - [ ] 23-04-PLAN.md — `sharpdcm find` command (query DICOM server)
@@ -368,4 +368,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-05 (Phase 23 CLI Tools planned -- 6 plans in 3 waves)*
+*Last updated: 2026-02-06 (Phase 23 Plan 01 complete -- CLI scaffolding and shared infrastructure)*
