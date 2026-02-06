@@ -271,31 +271,42 @@ Plans:
 
 ## Phase 26: Migration Tooling
 
-**Goal**: Provide migration path from fo-dicom
+**Goal**: Drop-in fo-dicom compatibility layers (4.x and 5.x) and Roslyn migration analyzer, validated by dcm2csv and nccid compilation
+
+**Plans:** 7 plans
+
+Plans:
+- [ ] 26-01-PLAN.md — FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, tests)
+- [ ] 26-02-PLAN.md — FoDicom5.Compat network adapter (DicomClient, DicomCFindRequest, request-queue pattern)
+- [ ] 26-03-PLAN.md — dcm2csv validation (compile and test against compat layer)
+- [ ] 26-04-PLAN.md — nccid validation (compile and test against compat layer with networking)
+- [ ] 26-05-PLAN.md — FoDicom4.Compat (namespace-adjusted copy with Dicom namespace and Get<T> API)
+- [ ] 26-06-PLAN.md — Roslyn analyzer (FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers)
+- [ ] 26-07-PLAN.md — Analyzer tests (diagnostic verification, code fix rewriting tests)
 
 **Must-haves**:
-- [ ] SharpDicom.FoDicom.Compat — Adapter layer
+- [ ] SharpDicom.FoDicom5.Compat — fo-dicom 5.x adapter (FellowOakDicom namespace)
   - [ ] DicomFile compatibility shim
-  - [ ] DicomDataset API mapping
-  - [ ] DicomClient/DicomServer adapters
-  - [ ] Common extension method equivalents
+  - [ ] DicomDataset API mapping (GetSingleValue, GetValue, AddOrUpdate)
+  - [ ] DicomItem hierarchy (DicomStringElement, DicomSequence, DicomAttributeTag)
+  - [ ] DicomClient/DicomCFindRequest network adapter
+- [ ] SharpDicom.FoDicom4.Compat — fo-dicom 4.x adapter (Dicom namespace)
+  - [ ] Namespace-adjusted copy of FoDicom5.Compat
+  - [ ] Get<T> API (fo-dicom 4.x primary method)
 - [ ] SharpDicom.Analyzers — Roslyn analyzer
-  - [ ] Detect fo-dicom API usage
-  - [ ] Suggest SharpDicom equivalents
-  - [ ] Code fix providers for automated migration
+  - [ ] Detect fo-dicom API usage (SD0001-SD0003)
+  - [ ] Detect compat layer usage for step-2 migration (SD0010-SD0011)
+  - [ ] Code fix providers for automated namespace rewriting
+- [ ] dcm2csv compiles and passes tests against compat layer
+- [ ] nccid compiles and passes tests against compat layer
 
 **Should-haves**:
 - [ ] Migration guide documentation
 - [ ] Benchmark comparisons (performance, memory)
 
-**Migration targets** (in order):
-1. dcm2csv
-2. nccid
-3. SmiServices
-4. RdmpDicom
-
 **Success Criteria**:
 - [ ] dcm2csv migrated and passing tests
+- [ ] nccid migrated and passing tests
 - [ ] Analyzer detects 90%+ of fo-dicom patterns
 
 ---
@@ -390,4 +401,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 25 complete — advanced de-identification with OCR and UID reference walking)*
+*Last updated: 2026-02-06 (Phase 26 planned -- 7 plans for migration tooling)*
