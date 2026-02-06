@@ -4,7 +4,6 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Use the Zig already on PATH rather than downloading another copy -->
     <UseExternalZig>true</UseExternalZig>
-    <StripSymbols>false</StripSymbols>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SharpDicom.Tests" />
