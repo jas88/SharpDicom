@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 24 - Server-Side DIMSE (COMPLETE)
-**Plan**: 4 of 4 in current phase (phase complete, verified)
-**Status**: Complete - all SCP handlers, FileSystemDicomStore, and tests done
-**Last activity**: 2026-02-06 - Phase 24 verified (10/10 must-haves passed)
+**Phase**: 25 - Advanced De-identification (COMPLETE)
+**Plan**: 4 of 4 in current phase
+**Status**: Phase complete - Advanced de-identification test suite delivered
+**Last activity**: 2026-02-06 - Completed 25-04-PLAN.md
 
-**Progress**: ██████ (4/4 plans in Phase 24)
+**Progress**: ████ (4/4 plans in Phase 25)
 
-**Test Status**: 2159/2213 tests pass (54 skipped, 0 failed)
+**Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 
 ## Completed
 
@@ -134,6 +134,13 @@
 - [x] Phase 24 Plan 03: FileSystemDicomStore + SQLite metadata index (DicomMetadataIndex, FileSystemDicomStore, CreateServerOptions)
 - [x] Phase 24 Plan 04: Phase 24 test suite (70 new tests: DicomQueryMatcher, SCP integration, FileSystemDicomStore)
 
+### Phase 25 - Advanced De-identification (COMPLETE)
+
+- [x] Phase 25 Plan 01: UidReferenceWalker for comprehensive VR=UI traversal and pipeline integration
+- [x] Phase 25 Plan 02: Tesseract native wrapper and P/Invoke layer (stub mode, SafeHandle, dual LibraryImport/DllImport)
+- [x] Phase 25 Plan 03: OcrScanner for burned-in PHI detection (OCR scanning, dual-threshold confidence, allow/deny filtering, pipeline integration)
+- [x] Phase 25 Plan 04: Advanced de-identification test suite (50 tests: UidReferenceWalker, OcrScanner, pipeline integration)
+
 ## In Progress
 
 *None*
@@ -156,6 +163,7 @@
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
+| 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -430,27 +438,35 @@
 | 2026-02-06 | 24-04 | Direct callback testing over network roundtrip | SCP behavior tested by invoking OnCFind/OnCStoreRequest callbacks directly; avoids P-DATA PDV interleaving issue in client |
 | 2026-02-06 | 24-04 | Real SQLite for FileSystemDicomStore tests | Tests use actual SQLite databases in temp directories rather than mocks for higher-fidelity verification |
 | 2026-02-06 | 24-04 | End-to-end network tests marked Explicit | 2 network roundtrip tests included but marked [Explicit] pending PDV parsing fix in DicomClient |
+| 2026-02-06 | 25-01 | Generic VR=UI traversal for UID reference walking | Walk ALL VR=UI elements at unlimited depth to catch all current/future referencing patterns |
+| 2026-02-06 | 25-01 | Pipeline ordering: walk after primary de-id | UidRemapper has already mapped primary UIDs so references get consistent mapping |
+| 2026-02-06 | 25-01 | Separate UidReferencesRemapped counter | Distinguishes PS3.15 profile remaps from walker-discovered remaps for diagnostics |
+| 2026-02-06 | 25-01 | Opt-in via builder WithUidReferenceWalking() | Backward compatible; no behavioral change for existing callers |
+| 2026-02-06 | 25-02 | SHARPDICOM_HAS_TESSERACT = 1 << 8 in native, Tesseract = 1 << 5 in managed | Native bits 0-7 allocated to existing features; managed enum uses own numbering |
+| 2026-02-06 | 25-02 | Internal constructor for TesseractHandle SafeHandle | CA1419 compliance: parameterless constructor must be as visible as containing type |
+| 2026-02-06 | 25-02 | BestFitMapping=false for DllImport string marshalling | CA2101 compliance for netstandard2.0 P/Invoke string parameters |
+| 2026-02-06 | 25-03 | Duplicate P/Invoke declarations in SharpDicom rather than referencing SharpDicom.Codecs | Avoids circular project dependency; both call the same native library |
+| 2026-02-06 | 25-03 | Use DllImport uniformly (not LibraryImport) for TessInterop | LibraryImport source generator complications with nested private partial classes |
+| 2026-02-06 | 25-03 | Lazy-create OcrScanner on first Deidentify() call | Avoids paying Tesseract init cost when not processing images with pixel data |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Phase 24 complete and verified (10/10 must-haves)
+**Stopped at**: Phase 25 complete and verified (14/14 must-haves)
 **Resume file**: None
-**Next step**: Phase 25 (Advanced De-identification) or next milestone phase
+**Next step**: Phase 26 (Migration Tooling) or next milestone phase
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 24 COMPLETE (Server-Side DIMSE verified)
-2. **Phase 24 deliverables**:
-   - C-FIND SCP with streaming IAsyncEnumerable results and return key filtering
-   - C-MOVE SCP with separate forwarding association and sub-operation progress
-   - C-GET SCP with same-association C-STORE sub-operations
-   - FileSystemDicomStore mini-PACS with SQLite metadata index
-   - DicomQueryMatcher (wildcards, date ranges, return key filtering)
-   - 70 new tests (47 unit + 23 integration)
-3. **Test coverage**: 2159 tests passing, 0 failed, 54 skipped
+1. **Current phase**: Phase 25 COMPLETE (Advanced De-identification)
+2. **Phase 25-04 deliverables**:
+   - UidReferenceWalkerTests.cs: 18 tests for recursive VR=UI traversal
+   - OcrScannerOptionsTests.cs: 14 tests for OCR configuration defaults and allowlist
+   - OcrScannerTests.cs: 9 tests for OCR scanner behavior (stub mode)
+   - AdvancedDeidentificationIntegrationTests.cs: 9 integration tests for combined pipeline
+3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 4. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -491,4 +507,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 24 complete - Server-Side DIMSE with FileSystemDicomStore mini-PACS, 70 new tests)*
+*Last updated: 2026-02-06 (Phase 25 complete and verified — advanced de-identification with OCR and UID reference walking, 50 new tests)*

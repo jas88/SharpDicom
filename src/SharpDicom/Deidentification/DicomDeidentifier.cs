@@ -14,9 +14,12 @@ namespace SharpDicom.Deidentification
         private readonly DeidentificationOptions _options;
         private readonly UidRemapper _uidRemapper;
         private readonly DateShifter? _dateShifter;
+        private readonly UidReferenceWalker? _referenceWalker;
         private readonly HashSet<string> _safePrivateCreators;
         private readonly DeidentificationProfileOption _profileOptions;
         private readonly bool _ownsUidRemapper;
+        private readonly OcrScannerOptions? _ocrScannerOptions;
+        private OcrScanner? _ocrScanner;
 
         /// <summary>
         /// Creates a de-identifier with the specified options.
@@ -24,15 +27,28 @@ namespace SharpDicom.Deidentification
         /// <param name="options">De-identification options.</param>
         /// <param name="uidRemapper">Optional UID remapper for consistent UID mapping.</param>
         /// <param name="dateShifter">Optional date shifter for date modification.</param>
+        /// <param name="walkAllUidReferences">
+        /// When true, enables comprehensive UID reference walking that remaps all VR=UI
+        /// elements at unlimited sequence depth, including those not covered by PS3.15 profiles.
+        /// </param>
+        /// <param name="ocrScannerOptions">
+        /// Optional OCR scanner options. When provided, pixel data is scanned for burned-in
+        /// text before primary de-identification, and detected PHI regions are automatically
+        /// redacted. The <see cref="OcrScanner"/> is created lazily on first use.
+        /// </param>
         public DicomDeidentifier(
             DeidentificationOptions? options = null,
             UidRemapper? uidRemapper = null,
-            DateShifter? dateShifter = null)
+            DateShifter? dateShifter = null,
+            bool walkAllUidReferences = false,
+            OcrScannerOptions? ocrScannerOptions = null)
         {
             _options = options ?? DeidentificationOptions.BasicProfile;
             _uidRemapper = uidRemapper ?? new UidRemapper();
             _ownsUidRemapper = uidRemapper == null;
             _dateShifter = dateShifter;
+            _referenceWalker = walkAllUidReferences ? new UidReferenceWalker(_uidRemapper) : null;
+            _ocrScannerOptions = ocrScannerOptions;
             _profileOptions = _options.ToProfileOptions();
 
             _safePrivateCreators = _options.SafePrivateCreators != null
@@ -54,13 +70,29 @@ namespace SharpDicom.Deidentification
                 // Get patient ID for consistent shifting/mapping
                 var patientId = dataset.GetString(DicomTag.PatientID);
 
-                // Process all elements
+                // Step 1: OCR scan + pixel redaction (before primary de-identification
+                // because pixel data needs original metadata tags like Modality and
+                // PhotometricInterpretation for proper scanning)
+                if (_ocrScannerOptions != null)
+                {
+                    PerformOcrScanAndRedaction(dataset, result);
+                }
+
+                // Step 2: Process all elements (primary de-identification)
                 ProcessDataset(dataset, patientId, result);
 
                 // Apply date shifting if configured
                 if (_dateShifter != null)
                 {
                     result.Summary.DatesShifted = _dateShifter.ShiftDates(dataset, patientId);
+                }
+
+                // Walk all UID references if configured (after primary de-identification
+                // so UidRemapper has already seen and mapped primary UIDs)
+                if (_referenceWalker != null)
+                {
+                    var walkResult = _referenceWalker.RemapAllReferences(dataset, patientId);
+                    result.Summary.UidReferencesRemapped = walkResult.UidsRemapped;
                 }
 
                 // Add de-identification markers
@@ -72,6 +104,57 @@ namespace SharpDicom.Deidentification
             }
 
             return result;
+        }
+
+        private void PerformOcrScanAndRedaction(DicomDataset dataset, DeidentificationResult result)
+        {
+            // Lazy-create OcrScanner on first use
+            if (_ocrScanner == null)
+            {
+                try
+                {
+                    _ocrScanner = new OcrScanner(_ocrScannerOptions);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    result.Warnings.Add($"OCR scanning unavailable: {ex.Message}");
+                    return;
+                }
+            }
+
+            var scanResult = _ocrScanner.ScanDataset(dataset);
+
+            // Record OCR statistics
+            result.Summary.OcrFramesScanned = scanResult.TotalFramesScanned;
+            result.Summary.OcrDetectionsFound = scanResult.Detections.Count;
+            result.Summary.OcrPhiCandidates = scanResult.FilteredDetections.Count;
+
+            // Forward any OCR warnings
+            foreach (var warning in scanResult.Warnings)
+            {
+                result.Warnings.Add($"OCR: {warning}");
+            }
+
+            // Redact detected PHI regions
+            if (scanResult.FilteredDetections.Count > 0)
+            {
+                var regions = scanResult.ToRedactionRegions();
+                var redactionOptions = new RedactionOptions
+                {
+                    Regions = regions,
+                    FillValue = 0, // Black fill
+                    UpdateBurnedInAnnotationTag = true,
+                    SkipCompressed = true
+                };
+
+                var redactionResult = PixelDataRedactor.RedactRegions(dataset, redactionOptions);
+                result.Summary.OcrRegionsRedacted = redactionResult.RegionsRedacted;
+
+                foreach (var warning in redactionResult.Warnings)
+                {
+                    result.Warnings.Add($"OCR redaction: {warning}");
+                }
+            }
         }
 
         private void ProcessDataset(DicomDataset dataset, string? patientId, DeidentificationResult result)
@@ -361,6 +444,8 @@ namespace SharpDicom.Deidentification
         /// <inheritdoc/>
         public void Dispose()
         {
+            _ocrScanner?.Dispose();
+
             if (_ownsUidRemapper)
             {
                 _uidRemapper.Dispose();

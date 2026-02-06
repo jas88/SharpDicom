@@ -31,6 +31,8 @@ namespace SharpDicom.Deidentification
         private DateShiftConfig? _dateShiftConfig;
         private IDateOffsetStore? _dateOffsetStore;
         private UidRemapper? _uidRemapper;
+        private bool _walkAllUidReferences;
+        private OcrScannerOptions? _ocrScannerOptions;
 
         /// <summary>
         /// Applies the Basic Application Level Confidentiality Profile.
@@ -311,6 +313,56 @@ namespace SharpDicom.Deidentification
         }
 
         /// <summary>
+        /// Enables comprehensive UID reference walking after primary de-identification.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When enabled, a <see cref="UidReferenceWalker"/> traverses all VR=UI elements
+        /// at unlimited sequence depth after the primary PS3.15 profile processing. This
+        /// catches UID references in nested sequences (RT Plan, Presentation State, SR,
+        /// KOS, etc.) that may not be covered by the profile's tag-specific actions.
+        /// </para>
+        /// <para>
+        /// The walker runs after primary de-identification so the <see cref="UidRemapper"/>
+        /// has already seen and mapped primary UIDs. Referenced UIDs that match previously
+        /// mapped values receive the same consistent remapping.
+        /// </para>
+        /// </remarks>
+        /// <returns>This builder for chaining.</returns>
+        public DicomDeidentifierBuilder WithUidReferenceWalking()
+        {
+            _walkAllUidReferences = true;
+            return this;
+        }
+
+        /// <summary>
+        /// Enables OCR-based burned-in PHI detection in the de-identification pipeline.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When enabled, the de-identifier will scan pixel data for burned-in text using
+        /// Tesseract OCR before applying the primary de-identification profile. Any detected
+        /// PHI text regions are automatically redacted via <see cref="PixelDataRedactor"/>.
+        /// </para>
+        /// <para>
+        /// OCR scanning runs BEFORE primary de-identification because it requires metadata
+        /// tags (Modality, PhotometricInterpretation) that may be removed by the profile.
+        /// </para>
+        /// <para>
+        /// This requires the Tesseract native library to be available. An
+        /// <see cref="System.InvalidOperationException"/> will be thrown at scan time if
+        /// the native library is not found.
+        /// </para>
+        /// </remarks>
+        /// <param name="options">OCR scanner options, or null for defaults.</param>
+        /// <returns>This builder for chaining.</returns>
+        public DicomDeidentifierBuilder WithOcrScanner(OcrScannerOptions? options = null)
+        {
+            _ocrScannerOptions = options ?? new OcrScannerOptions();
+            return this;
+        }
+
+        /// <summary>
         /// Builds the configured DicomDeidentifier.
         /// </summary>
         /// <returns>A configured DicomDeidentifier instance.</returns>
@@ -340,7 +392,7 @@ namespace SharpDicom.Deidentification
                 dateShifter = new DateShifter(_dateShiftConfig, _dateOffsetStore);
             }
 
-            return new DicomDeidentifier(options, _uidRemapper, dateShifter);
+            return new DicomDeidentifier(options, _uidRemapper, dateShifter, _walkAllUidReferences, _ocrScannerOptions);
         }
     }
 }

@@ -21,7 +21,7 @@
 | 22 | TLS Networking | High | **COMPLETE** |
 | 23 | CLI Tools (sharpdcm) | High | **COMPLETE** |
 | 24 | Server-Side DIMSE | Medium | **COMPLETE** |
-| 25 | Advanced De-identification | Medium | Pending |
+| 25 | Advanced De-identification | Medium | **COMPLETE** |
 | 26 | Migration Tooling | Medium | Pending |
 | 27 | Extended Codec Support | Low | Pending |
 | 28 | DIMSE-N Services | Low | Pending |
@@ -239,28 +239,33 @@ Plans:
 
 ## Phase 25: Advanced De-identification
 
-**Goal**: Enhanced de-identification capabilities
+**Goal**: Enhanced de-identification with OCR-based burned-in PHI detection and comprehensive UID reference walking
 
-**Must-haves**:
-- [ ] OCR-based burned-in PHI detection (Tesseract integration)
-  - [ ] Detect text regions in pixel data
-  - [ ] Configurable confidence threshold
-  - [ ] Region reporting for manual review
-- [ ] Referenced SOP Instance UID updates in sequences
-  - [ ] RT Plan references
-  - [ ] Presentation State references
-  - [ ] Structured Report references
+**Plans:** 4 plans
 
-**Should-haves**:
-- [ ] Additional de-identification profiles
-  - [ ] Retain longitudinal temporal information
-  - [ ] Retain modified dates
-  - [ ] Clean structured content
-- [ ] Re-identification support with mapping file
+Plans:
+- [x] 25-01-PLAN.md — UidReferenceWalker for recursive VR=UI traversal and DicomDeidentifier pipeline integration
+- [x] 25-02-PLAN.md — Native Tesseract C wrapper, Zig build integration, and P/Invoke layer
+- [x] 25-03-PLAN.md — OcrScanner managed types, pixel preparation, allow/deny filtering, pipeline integration
+- [x] 25-04-PLAN.md — Test suite for UID reference walking, OCR scanner, and pipeline integration
 
-**Success Criteria**:
-- [ ] OCR detects burned-in text in test images
-- [ ] RT Plan de-identification maintains referential integrity
+**Must-haves** (all complete):
+- [x] OCR-based burned-in PHI detection (Tesseract integration)
+  - [x] Detect text regions in pixel data
+  - [x] Configurable confidence threshold
+  - [x] Region reporting for manual review
+- [x] Referenced SOP Instance UID updates in sequences
+  - [x] RT Plan references
+  - [x] Presentation State references
+  - [x] Structured Report references
+
+**Should-haves** (deferred -- not in scope for current phase plans, per CONTEXT.md boundaries):
+- [ ] Additional de-identification profiles (retain longitudinal temporal info, retain modified dates, clean structured content) -- future phase
+- [ ] Re-identification support with mapping file -- future phase
+
+**Success Criteria** (all met):
+- [x] OCR detects burned-in text in test images
+- [x] RT Plan de-identification maintains referential integrity
 
 ---
 
@@ -385,4 +390,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 24 complete -- Server-Side DIMSE with FileSystemDicomStore mini-PACS)*
+*Last updated: 2026-02-06 (Phase 25 complete — advanced de-identification with OCR and UID reference walking)*

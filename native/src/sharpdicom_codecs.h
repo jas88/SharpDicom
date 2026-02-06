@@ -52,6 +52,7 @@ extern "C" {
 #define SHARPDICOM_HAS_DEFLATE      (1 << 5)  /* zlib-ng: Deflate compression */
 #define SHARPDICOM_HAS_GPU          (1 << 6)  /* GPU acceleration available */
 #define SHARPDICOM_HAS_HTJ2K        (1 << 7)  /* High-Throughput JPEG 2000 */
+#define SHARPDICOM_HAS_TESSERACT    (1 << 8)  /* Tesseract OCR for PHI detection */
 
 /*============================================================================
  * SIMD feature bitmap constants
