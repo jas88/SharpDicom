@@ -134,7 +134,7 @@
 - [x] Phase 24 Plan 03: FileSystemDicomStore + SQLite metadata index (DicomMetadataIndex, FileSystemDicomStore, CreateServerOptions)
 - [x] Phase 24 Plan 04: Phase 24 test suite (70 new tests: DicomQueryMatcher, SCP integration, FileSystemDicomStore)
 
-### Phase 25 - Advanced De-identification (In Progress)
+### Phase 25 - Advanced De-identification (COMPLETE)
 
 - [x] Phase 25 Plan 01: UidReferenceWalker for comprehensive VR=UI traversal and pipeline integration
 - [x] Phase 25 Plan 02: Tesseract native wrapper and P/Invoke layer (stub mode, SafeHandle, dual LibraryImport/DllImport)
@@ -452,9 +452,9 @@
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 25-04-PLAN.md (Advanced de-identification test suite)
+**Stopped at**: Phase 25 complete and verified (14/14 must-haves)
 **Resume file**: None
-**Next step**: Next phase after Phase 25
+**Next step**: Phase 26 (Migration Tooling) or next milestone phase
 
 ## Context for Next Session
 
@@ -507,4 +507,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 25-04 complete - Advanced de-identification test suite)*
+*Last updated: 2026-02-06 (Phase 25 complete and verified — advanced de-identification with OCR and UID reference walking, 50 new tests)*
