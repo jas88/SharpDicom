@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 23 - CLI Tools (IN PROGRESS)
-**Plan**: 4 of 6 in current phase (plan 06 pending)
-**Status**: In progress - dump, store, find, lint/fix commands complete, integration tests pending
-**Last activity**: 2026-02-06 - Completed 23-04-PLAN.md (sharpdcm find command)
+**Plan**: 5 of 6 in current phase (plan 06 pending)
+**Status**: In progress - dump, store, find, lint, fix commands complete, integration tests pending
+**Last activity**: 2026-02-06 - Completed 23-05-PLAN.md (lint and fix commands)
 
-**Progress**: ████░░ (4/6 plans in Phase 23)
+**Progress**: █████░ (5/6 plans in Phase 23)
 
 **Test Status**: 2025/2080 tests pass (97.4%)
 
@@ -124,10 +124,11 @@
 - [x] Phase 23 Plan 02: Dump Command (sharpdcm dump, text/JSON/XML output, recursive directory processing, sequence nesting, tag filtering)
 - [x] Phase 23 Plan 03: Store Command (sharpdcm store, C-STORE SCU, PACS connection resolution, retry, TTY-aware progress)
 - [x] Phase 23 Plan 04: Find Command (sharpdcm find, C-FIND SCU, patient/study/series/instance levels, wildcard filters, text/JSON/CSV output, PacsConnectionResolver)
+- [x] Phase 23 Plan 05: Lint and Fix Commands (sharpdcm lint with strict/lenient/permissive profiles, sharpdcm fix with DicomFixer engine, 5 fix categories, dry-run/force/output-dir)
 
 ## In Progress
 
-Phase 23 - CLI Tools: Plans 01-04 complete. Plan 05 may also be complete (parallel). Plan 06 pending (integration tests).
+Phase 23 - CLI Tools: Plans 01-05 complete. Plan 06 pending (integration tests).
 
 ## Blocked
 
@@ -145,7 +146,7 @@ Phase 23 - CLI Tools: Plans 01-04 complete. Plan 05 may also be complete (parall
 | 20 | Critical Bug Fixes | COMPLETE | 3/3 | 2026-02-03 | 2026-02-03 |
 | 21 | Complete Managed Codecs | COMPLETE | 9/9 | 2026-02-03 | 2026-02-04 |
 | 22 | TLS Networking | COMPLETE | 4/4 | 2026-02-04 | 2026-02-04 |
-| 23 | CLI Tools | IN PROGRESS | 4/6 | 2026-02-06 | - |
+| 23 | CLI Tools | IN PROGRESS | 5/6 | 2026-02-06 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -397,13 +398,18 @@ Phase 23 - CLI Tools: Plans 01-04 complete. Plan 05 may also be complete (parall
 | 2026-02-06 | 23-04 | ForImages() for instance-level queries | DicomQuery API uses ForImages not ForInstances; accept both "instance" and "image" as level strings |
 | 2026-02-06 | 23-04 | AddStringFilter for raw DICOM date strings | DicomQuery.WithStudyDate takes DateTime; created helper for raw string filters including date ranges |
 | 2026-02-06 | 23-04 | PacsConnectionResolver as shared helper | Extracted to Helpers namespace for reuse across store, find, and future network commands |
+| 2026-02-06 | 23-05 | Lint uses colored ANSI output when TTY, plain text when piped | Respects piped/redirected output for CI integration |
+| 2026-02-06 | 23-05 | Lint JSON includes per-file issues and aggregate summary | Machine-readable output for CI/CD consumption |
+| 2026-02-06 | 23-05 | Fix writes to .fixed.dcm by default; --force for overwrite | Safe default prevents accidental data loss |
+| 2026-02-06 | 23-05 | DicomFixer.RemoveInvalidElements is opt-in (destructive) | Must explicitly opt in with --remove-invalid flag |
+| 2026-02-06 | 23-05 | --fix-dates flag covers both DA and TM VR elements | Date and time VRs are closely related, single flag simplifies CLI |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 23-04-PLAN.md (sharpdcm find command)
+**Stopped at**: Completed 23-05-PLAN.md (lint and fix commands)
 **Resume file**: None
-**Next step**: Confirm plan 05 complete, then execute 23-06-PLAN.md (integration tests)
+**Next step**: Execute 23-06-PLAN.md (integration tests)
 
 ## Context for Next Session
 
@@ -461,4 +467,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 23 Plans 01-03 complete - CLI scaffolding, dump command, store command)*
+*Last updated: 2026-02-06 (Phase 23 Plans 01-05 complete - CLI scaffolding, dump, store, find, lint/fix commands)*
