@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="SharpDicom.Tests" />
   </ItemGroup>

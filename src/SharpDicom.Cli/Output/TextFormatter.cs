@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using SharpDicom.Data;
 using Spectre.Console;
@@ -153,11 +154,11 @@ internal sealed class TextFormatter : IOutputFormatter
     /// <summary>
     /// Reverse-lookup a UID value to its well-known name using the generated <see cref="DicomUIDs"/> fields.
     /// </summary>
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicFields, typeof(DicomUIDs))]
     private static string? LookupUidName(string uidValue)
     {
         // Walk the static fields of DicomUIDs to find a matching value.
-        // This is intentionally reflection-based at this layer; a compiled lookup
-        // can be added if profiling shows this is a bottleneck.
+        // DynamicDependency ensures the AOT compiler preserves these fields.
         var fields = typeof(DicomUIDs).GetFields(
             System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
         foreach (var field in fields)
