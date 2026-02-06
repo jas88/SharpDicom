@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using Tomlyn;
-using Tomlyn.Model;
+using CsToml;
 
 namespace SharpDicom.Cli.Configuration;
 
@@ -33,40 +31,47 @@ internal static class ConfigLoader
 
         try
         {
-            var toml = File.ReadAllText(path);
-            var model = Toml.ToModel(toml);
+            var bytes = File.ReadAllBytes(path);
+            var doc = CsTomlSerializer.Deserialize<TomlDocument>(bytes);
+            var root = doc.RootNode;
 
-            if (model.TryGetValue("output_format", out var fmt) && fmt is string fmtStr)
+            var fmtNode = root["output_format"u8];
+            if (fmtNode.TryGetString(out var fmtStr))
                 config.OutputFormat = fmtStr;
 
-            if (model.TryGetValue("verbosity", out var verb) && verb is string verbStr)
+            var verbNode = root["verbosity"u8];
+            if (verbNode.TryGetString(out var verbStr))
                 config.Verbosity = verbStr;
 
-            if (model.TryGetValue("color", out var col) && col is bool colBool)
+            var colNode = root["color"u8];
+            if (colNode.TryGetBool(out var colBool))
                 config.Color = colBool;
 
-            if (model.TryGetValue("continue_on_error", out var coe) && coe is bool coeBool)
+            var coeNode = root["continue_on_error"u8];
+            if (coeNode.TryGetBool(out var coeBool))
                 config.ContinueOnError = coeBool;
 
-            if (model.TryGetValue("default_profile", out var dp) && dp is string dpStr)
+            var dpNode = root["default_profile"u8];
+            if (dpNode.TryGetString(out var dpStr))
                 config.DefaultProfile = dpStr;
 
-            if (model.TryGetValue("profiles", out var profiles) && profiles is TomlTable profilesTable)
+            var profilesNode = root["profiles"u8];
+            if (profilesNode.HasValue)
             {
-                foreach (var kvp in profilesTable)
+                foreach (var kvp in profilesNode)
                 {
-                    if (kvp.Value is TomlTable pt)
+                    var name = kvp.Key.ToString() ?? string.Empty;
+                    var pt = kvp.Value;
+
+                    var profile = new PacsProfile
                     {
-                        var profile = new PacsProfile
-                        {
-                            Host = pt.TryGetValue("host", out var h) && h is string hs ? hs : string.Empty,
-                            Port = pt.TryGetValue("port", out var p) && p is long pl ? (int)pl : 104,
-                            CalledAE = pt.TryGetValue("called_ae", out var cae) && cae is string caes ? caes : string.Empty,
-                            CallingAE = pt.TryGetValue("calling_ae", out var cla) && cla is string clas ? clas : null,
-                            UseTls = pt.TryGetValue("use_tls", out var tls) && tls is bool tlsb && tlsb,
-                        };
-                        config.Profiles[kvp.Key] = profile;
-                    }
+                        Host = pt["host"u8].TryGetString(out var hs) ? hs : string.Empty,
+                        Port = pt["port"u8].TryGetInt64(out var pl) ? (int)pl : 104,
+                        CalledAE = pt["called_ae"u8].TryGetString(out var caes) ? caes : string.Empty,
+                        CallingAE = pt["calling_ae"u8].TryGetString(out var clas) ? clas : null,
+                        UseTls = pt["use_tls"u8].TryGetBool(out var tlsb) && tlsb,
+                    };
+                    config.Profiles[name] = profile;
                 }
             }
         }
