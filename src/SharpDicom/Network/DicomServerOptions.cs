@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Data;
+using SharpDicom.IO;
 using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Pdu;
 using SharpDicom.Network.Tls;
@@ -178,8 +180,95 @@ namespace SharpDicom.Network
 
         #endregion
 
-        // Future handlers:
-        // public Func<CFindRequestContext, IAsyncEnumerable<DicomDataset>>? OnCFind { get; init; }
+        #region Query/Retrieve SCP Configuration
+
+        /// <summary>
+        /// Gets the C-FIND handler that receives query identifiers and returns streaming matches.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The callback receives the query identifier dataset (containing QueryRetrieveLevel
+        /// and matching/return keys) and a cancellation token. It returns an
+        /// <see cref="IAsyncEnumerable{DicomDataset}"/> of matching datasets.
+        /// </para>
+        /// <para>
+        /// Each returned dataset should contain all available values for the requested tags.
+        /// Return key filtering is applied automatically by the server before sending responses.
+        /// </para>
+        /// <para>
+        /// If null, C-FIND requests are rejected with status 0xA900 (Unable to Process).
+        /// </para>
+        /// </remarks>
+        public Func<DicomDataset, CancellationToken, IAsyncEnumerable<DicomDataset>>? OnCFind { get; init; }
+
+        /// <summary>
+        /// Gets the C-MOVE retrieve handler that retrieves a DICOM file for forwarding.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Given a matched dataset (from <see cref="OnCFind"/>), retrieves the actual
+        /// <see cref="DicomFile"/> for forwarding to the move destination via C-STORE.
+        /// </para>
+        /// <para>
+        /// Return null if the file cannot be retrieved (counts as a failed sub-operation).
+        /// </para>
+        /// </remarks>
+        public Func<DicomDataset, CancellationToken, ValueTask<DicomFile?>>? OnCMoveRetrieve { get; init; }
+
+        /// <summary>
+        /// Gets the C-GET retrieve handler that retrieves a DICOM file for sending on the same association.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Given a matched dataset (from <see cref="OnCFind"/>), retrieves the actual
+        /// <see cref="DicomFile"/> for sending back to the requester on the same association.
+        /// </para>
+        /// <para>
+        /// Return null if the file cannot be retrieved (counts as a failed sub-operation).
+        /// </para>
+        /// </remarks>
+        public Func<DicomDataset, CancellationToken, ValueTask<DicomFile?>>? OnCGetRetrieve { get; init; }
+
+        /// <summary>
+        /// Gets the handler that resolves a C-MOVE destination AE title to a host and port.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When a C-MOVE request specifies a MoveDestination AE title, this callback is
+        /// invoked to resolve it to a network address. Return null if the destination
+        /// is unknown (results in status 0xA801 Move Destination Unknown).
+        /// </para>
+        /// </remarks>
+        public Func<string, (string Host, int Port)?>? OnResolveMoveDestination { get; init; }
+
+        /// <summary>
+        /// Gets a value indicating whether a C-FIND handler is configured.
+        /// </summary>
+        /// <remarks>
+        /// When false, incoming C-FIND requests are rejected with status 0xA900 (Unable to Process).
+        /// </remarks>
+        public bool HasCFindHandler => OnCFind != null;
+
+        /// <summary>
+        /// Gets a value indicating whether all handlers required for C-MOVE are configured.
+        /// </summary>
+        /// <remarks>
+        /// C-MOVE requires: <see cref="OnCFind"/> to find matches,
+        /// <see cref="OnCMoveRetrieve"/> to retrieve files, and
+        /// <see cref="OnResolveMoveDestination"/> to resolve the destination AE title.
+        /// </remarks>
+        public bool HasCMoveHandler => OnCFind != null && OnCMoveRetrieve != null && OnResolveMoveDestination != null;
+
+        /// <summary>
+        /// Gets a value indicating whether all handlers required for C-GET are configured.
+        /// </summary>
+        /// <remarks>
+        /// C-GET requires: <see cref="OnCFind"/> to find matches and
+        /// <see cref="OnCGetRetrieve"/> to retrieve files.
+        /// </remarks>
+        public bool HasCGetHandler => OnCFind != null && OnCGetRetrieve != null;
+
+        #endregion
 
         /// <summary>
         /// Validates the options and throws if invalid.

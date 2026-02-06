@@ -16,6 +16,7 @@ using SharpDicom.Data;
 using SharpDicom.Data.Exceptions;
 using SharpDicom.IO;
 using SharpDicom.Network.Association;
+using SharpDicom.Network.Dimse;
 using SharpDicom.Network.Dimse.Services;
 using SharpDicom.Network.Exceptions;
 using SharpDicom.Network.Items;
@@ -411,7 +412,7 @@ namespace SharpDicom.Network
         {
             // Parse P-DATA-TF to extract PDVs (must complete before any await)
             // Each PDV contains: 4-byte length, 1-byte context ID, 1-byte message control header, data
-            var (pendingEchoRequests, pendingStoreRequests) = ExtractDimseRequests(pduBody);
+            var (pendingEchoRequests, pendingStoreRequests, pendingQRRequests) = ExtractDimseRequests(pduBody);
 
             // Now process extracted requests (can await)
             foreach (var (contextId, messageId) in pendingEchoRequests)
@@ -426,14 +427,43 @@ namespace SharpDicom.Network
                 await HandleCStoreAsync(stream, association, storeCmd, ct)
                     .ConfigureAwait(false);
             }
+
+            // Handle Query/Retrieve requests
+            foreach (var qrCmd in pendingQRRequests)
+            {
+                switch (qrCmd.CommandFieldValue)
+                {
+                    case CommandFields.CFindRequest:
+                        await HandleCFindAsync(stream, association, qrCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.CMoveRequest:
+                        await HandleCMoveAsync(stream, association, qrCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.CGetRequest:
+                        await HandleCGetAsync(stream, association, qrCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.CCancelRequest:
+                        // C-CANCEL is handled inline during C-FIND/C-MOVE/C-GET processing.
+                        // If we receive it outside of an active operation, ignore it.
+                        break;
+                }
+            }
         }
 
         private static (List<(byte ContextId, ushort MessageId)> EchoRequests,
-                 List<CStoreCommandInfo> StoreRequests)
+                 List<CStoreCommandInfo> StoreRequests,
+                 List<QRCommandInfo> QRRequests)
             ExtractDimseRequests(byte[] pduBody)
         {
             var echoRequests = new List<(byte, ushort)>();
             var storeRequests = new List<CStoreCommandInfo>();
+            var qrRequests = new List<QRCommandInfo>();
             var reader = new PduReader(pduBody);
 
             while (reader.TryReadPresentationDataValue(
@@ -457,10 +487,74 @@ namespace SharpDicom.Network
                         var commandInfo = ParseCStoreCommand(data, contextId);
                         storeRequests.Add(commandInfo);
                     }
+                    else if (commandField == CommandFields.CFindRequest
+                          || commandField == CommandFields.CMoveRequest
+                          || commandField == CommandFields.CGetRequest
+                          || commandField == CommandFields.CCancelRequest)
+                    {
+                        var qrInfo = ParseQRCommand(data, contextId, commandField);
+                        qrRequests.Add(qrInfo);
+                    }
                 }
             }
 
-            return (echoRequests, storeRequests);
+            return (echoRequests, storeRequests, qrRequests);
+        }
+
+        private static QRCommandInfo ParseQRCommand(ReadOnlySpan<byte> commandData, byte contextId, ushort commandField)
+        {
+            ushort messageId = 0;
+            string? sopClassUid = null;
+            ushort dataSetType = 0x0101; // Default: no dataset
+            string? moveDestination = null;
+
+            int offset = 0;
+            while (offset + 8 <= commandData.Length)
+            {
+                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset));
+                ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
+                uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
+
+                if (offset + 8 + length > commandData.Length)
+                    break;
+
+                var valueSpan = commandData.Slice(offset + 8, (int)length);
+
+                if (group == 0x0000)
+                {
+                    switch (element)
+                    {
+                        case 0x0002: // AffectedSOPClassUID
+                            sopClassUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x0110: // MessageID
+                            if (length >= 2)
+                                messageId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x0120: // MessageIDBeingRespondedTo (used by C-CANCEL)
+                            if (length >= 2 && commandField == CommandFields.CCancelRequest)
+                                messageId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x0600: // MoveDestination
+                            moveDestination = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x0800: // CommandDataSetType
+                            if (length >= 2)
+                                dataSetType = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                    }
+                }
+
+                offset += 8 + (int)length;
+            }
+
+            return new QRCommandInfo(
+                contextId,
+                messageId,
+                new DicomUID(sopClassUid ?? string.Empty),
+                hasDataset: dataSetType != 0x0101,
+                commandField,
+                moveDestination);
         }
 
         private async Task HandleCEchoAsync(
@@ -585,6 +679,936 @@ namespace SharpDicom.Network
             {
                 return DicomStatus.ProcessingFailure;
             }
+        }
+
+        private async Task HandleCFindAsync(
+            Stream stream,
+            DicomAssociation association,
+            QRCommandInfo command,
+            CancellationToken ct)
+        {
+            // CRITICAL: Always read the identifier dataset even if no handler is registered
+            // (Pitfall 7 from RESEARCH.md)
+            DicomDataset? identifierDataset = null;
+
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    identifierDataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    // Failed to read/parse identifier - send failure
+                    await SendQRFailureResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.CommandFieldValue, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            if (_options.OnCFind == null || identifierDataset == null)
+            {
+                // No handler registered or malformed request (no identifier dataset) - return 0xA900 Unable to Process (Pitfall 6)
+                await SendQRFailureResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, command.CommandFieldValue, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Full C-FIND handling with streaming responses is implemented in HandleCFindStreamingAsync
+            await HandleCFindStreamingAsync(
+                stream, association, command, identifierDataset, ct)
+                .ConfigureAwait(false);
+        }
+
+        private async Task HandleCFindStreamingAsync(
+            Stream stream,
+            DicomAssociation association,
+            QRCommandInfo command,
+            DicomDataset identifierDataset,
+            CancellationToken ct)
+        {
+            var responseCommandField = (ushort)(command.CommandFieldValue | 0x8000);
+
+            try
+            {
+                await foreach (var match in _options.OnCFind!(identifierDataset, ct).ConfigureAwait(false))
+                {
+                    // Filter return keys per DICOM PS3.4 C.2.2 (Pitfall 1)
+                    var filtered = DicomQueryMatcher.FilterReturnKeys(match, identifierDataset);
+
+                    // Send Pending C-FIND-RSP with identifier dataset
+                    await SendDimseResponseWithDatasetAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, responseCommandField,
+                        DicomStatus.Pending.Code, filtered, association, ct)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Send Cancel status (0xFE00)
+                await SendQRResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.Cancel.Code, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (Exception)
+            {
+                // Send failure status 0xC000 (Unable to Process)
+                await SendQRResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xC000, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Send final C-FIND-RSP with Success status (no dataset)
+            await SendQRResponseAsync(
+                stream, command.PresentationContextId, command.MessageID,
+                command.SOPClassUID, responseCommandField,
+                DicomStatus.Success.Code, ct)
+                .ConfigureAwait(false);
+        }
+
+        private async Task HandleCMoveAsync(
+            Stream stream,
+            DicomAssociation association,
+            QRCommandInfo command,
+            CancellationToken ct)
+        {
+            // Always read the identifier dataset even if no handler is registered (Pitfall 7)
+            DicomDataset? identifierDataset = null;
+
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    identifierDataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendQRFailureResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.CommandFieldValue, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            var responseCommandField = (ushort)(command.CommandFieldValue | 0x8000);
+
+            // Check if all required handlers are configured
+            if (!_options.HasCMoveHandler)
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xA900, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Resolve the move destination
+            var moveDestination = command.MoveDestination;
+            if (string.IsNullOrEmpty(moveDestination))
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.MoveDestinationUnknown.Code, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            var resolved = _options.OnResolveMoveDestination!(moveDestination!);
+            if (resolved == null)
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.MoveDestinationUnknown.Code, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            var (destHost, destPort) = resolved.Value;
+
+            // Collect all matches (need total count for progress tracking)
+            var matches = new List<DicomDataset>();
+            try
+            {
+                const int maxMatches = 10000;
+                await foreach (var match in _options.OnCFind!(identifierDataset!, ct).ConfigureAwait(false))
+                {
+                    matches.Add(match);
+                    if (matches.Count >= maxMatches)
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xC000, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            if (matches.Count == 0)
+            {
+                // No matches - send Success with zero sub-ops
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.Success.Code, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Collect unique SOP Class UIDs from matches for presentation context negotiation
+            var sopClassUids = new HashSet<string>();
+            foreach (var match in matches)
+            {
+                if (match.GetString(DicomTag.SOPClassUID) is { Length: > 0 } sopClassStr)
+                    sopClassUids.Add(sopClassStr.TrimEnd('\0', ' '));
+            }
+
+            // Build presentation contexts for forwarding association
+            var forwardingContexts = new List<PresentationContext>();
+            byte pcId = 1;
+            foreach (var sopClass in sopClassUids)
+            {
+                if (pcId > 255) break;
+                forwardingContexts.Add(new PresentationContext(
+                    pcId,
+                    new DicomUID(sopClass),
+                    TransferSyntax.ExplicitVRLittleEndian,
+                    TransferSyntax.ImplicitVRLittleEndian));
+                pcId += 2;
+            }
+
+            // If we couldn't derive SOP Classes, add a generic one
+            if (forwardingContexts.Count == 0)
+            {
+                forwardingContexts.Add(new PresentationContext(
+                    1,
+                    new DicomUID("1.2.840.10008.5.1.4.1.1.2"), // CT Image Storage
+                    TransferSyntax.ExplicitVRLittleEndian,
+                    TransferSyntax.ImplicitVRLittleEndian));
+            }
+
+            // Open forwarding association (SEPARATE from the C-MOVE association per PS3.4 C.4.2)
+            ushort completed = 0;
+            ushort failed = 0;
+            ushort warning = 0;
+            ushort remaining = (ushort)matches.Count;
+            bool cancelled = false;
+
+            DicomClient? forwardingClient = null;
+            try
+            {
+                var clientOptions = new DicomClientOptions
+                {
+                    Host = destHost,
+                    Port = destPort,
+                    CalledAE = moveDestination!,
+                    CallingAE = _options.AETitle,
+                    ConnectionTimeout = TimeSpan.FromSeconds(30),
+                    DimseTimeout = TimeSpan.FromSeconds(60)
+                };
+
+                forwardingClient = new DicomClient(clientOptions);
+
+                try
+                {
+                    await forwardingClient.ConnectAsync(forwardingContexts, ct).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    // Failed to connect to destination
+                    await SendQRResponseWithProgressAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, responseCommandField,
+                        0xA801, new SubOperationProgress(remaining, 0, remaining, 0), ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+
+                // Forward files via C-STORE sub-operations
+                var storeScu = new Dimse.Services.CStoreScu(forwardingClient);
+
+                for (int i = 0; i < matches.Count; i++)
+                {
+                    if (cancelled) break;
+
+                    var match = matches[i];
+                    DicomFile? file = null;
+
+                    try
+                    {
+                        file = await _options.OnCMoveRetrieve!(match, ct).ConfigureAwait(false);
+                    }
+                    catch (Exception)
+                    {
+                        // Retrieve failed
+                        file = null;
+                    }
+
+                    if (file == null)
+                    {
+                        failed++;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var storeResponse = await storeScu.SendAsync(file, ct: ct).ConfigureAwait(false);
+
+                            if (storeResponse.Status.IsSuccess)
+                                completed++;
+                            else if (storeResponse.Status.IsWarning)
+                                warning++;
+                            else
+                                failed++;
+                        }
+                        catch (Exception)
+                        {
+                            failed++;
+                        }
+                    }
+
+                    remaining--;
+
+                    // Send intermediate Pending C-MOVE-RSP on the ORIGINAL association
+                    var progress = new SubOperationProgress(remaining, completed, failed, warning);
+                    await SendQRResponseWithProgressAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, responseCommandField,
+                        DicomStatus.Pending.Code, progress, ct)
+                        .ConfigureAwait(false);
+
+                    // Check for C-CANCEL: peek for incoming PDU on the original stream
+                    // Note: In a production implementation we'd use async polling, but for
+                    // simplicity we check the CancellationToken which may be triggered by
+                    // the RunDimseLoopAsync if a C-CANCEL is received
+                    if (ct.IsCancellationRequested)
+                    {
+                        cancelled = true;
+                    }
+                }
+            }
+            finally
+            {
+                // Close forwarding association
+                if (forwardingClient != null)
+                {
+                    try
+                    {
+                        await forwardingClient.DisposeAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception)
+                    {
+                        // Best effort cleanup
+                    }
+                }
+            }
+
+            // Send final C-MOVE-RSP
+            var finalProgress = new SubOperationProgress(0, completed, failed, warning);
+            ushort finalStatus;
+
+            if (cancelled)
+            {
+                finalStatus = DicomStatus.Cancel.Code;
+            }
+            else if (failed == 0 && warning == 0)
+            {
+                finalStatus = DicomStatus.Success.Code;
+            }
+            else if (completed == 0 && warning == 0)
+            {
+                // All failed
+                finalStatus = 0xA702; // Unable to perform sub-operations
+            }
+            else
+            {
+                // Some succeeded, some failed
+                finalStatus = DicomStatus.SubOperationsCompleteWithFailures.Code;
+            }
+
+            await SendQRResponseWithProgressAsync(
+                stream, command.PresentationContextId, command.MessageID,
+                command.SOPClassUID, responseCommandField,
+                finalStatus, finalProgress, ct)
+                .ConfigureAwait(false);
+        }
+
+        private async Task HandleCGetAsync(
+            Stream stream,
+            DicomAssociation association,
+            QRCommandInfo command,
+            CancellationToken ct)
+        {
+            // Always read the identifier dataset even if no handler is registered (Pitfall 7)
+            DicomDataset? identifierDataset = null;
+
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    identifierDataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendQRFailureResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.CommandFieldValue, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            var responseCommandField = (ushort)(command.CommandFieldValue | 0x8000);
+
+            // Check if all required handlers are configured
+            if (!_options.HasCGetHandler)
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xA900, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Collect all matches (need total count for progress tracking)
+            var matches = new List<DicomDataset>();
+            try
+            {
+                const int maxMatches = 10000;
+                await foreach (var match in _options.OnCFind!(identifierDataset!, ct).ConfigureAwait(false))
+                {
+                    matches.Add(match);
+                    if (matches.Count >= maxMatches)
+                        break;
+                }
+            }
+            catch (Exception)
+            {
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xC000, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            if (matches.Count == 0)
+            {
+                // No matches - send Success with zero sub-ops
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.Success.Code, SubOperationProgress.Empty, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Send C-STORE sub-operations on the SAME association (per PS3.4 C.4.3)
+            ushort completed = 0;
+            ushort failed = 0;
+            ushort warning = 0;
+            ushort remaining = (ushort)matches.Count;
+            bool cancelled = false;
+            ushort subOpMessageId = (ushort)(command.MessageID + 1);
+
+            for (int i = 0; i < matches.Count; i++)
+            {
+                if (cancelled) break;
+
+                var match = matches[i];
+                DicomFile? file = null;
+
+                try
+                {
+                    file = await _options.OnCGetRetrieve!(match, ct).ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    file = null;
+                }
+
+                if (file == null)
+                {
+                    failed++;
+                }
+                else
+                {
+                    // Get the SOP Class UID and SOP Instance UID from the file
+                    var sopClassStr = file.Dataset.GetString(DicomTag.SOPClassUID);
+                    var sopInstanceStr = file.Dataset.GetString(DicomTag.SOPInstanceUID);
+                    var sopClassUid = new DicomUID(sopClassStr?.TrimEnd('\0', ' ') ?? string.Empty);
+                    var sopInstanceUid = new DicomUID(sopInstanceStr?.TrimEnd('\0', ' ') ?? string.Empty);
+
+                    // Find an accepted presentation context for this SOP Class
+                    var storePcId = FindAcceptedContextForSopClass(association, sopClassUid);
+
+                    if (storePcId == 0)
+                    {
+                        // No matching presentation context accepted (SCU didn't propose Storage SOP Class)
+                        failed++;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            // Send C-STORE-RQ on the SAME association
+                            await SendCStoreSubOpRequestAsync(
+                                stream, storePcId, subOpMessageId,
+                                sopClassUid, sopInstanceUid,
+                                file.Dataset, association, ct)
+                                .ConfigureAwait(false);
+
+                            // Read C-STORE-RSP from the SCU (SCU acts as SCP for these sub-ops)
+                            var storeStatus = await ReadCStoreSubOpResponseAsync(stream, ct)
+                                .ConfigureAwait(false);
+
+                            if (storeStatus.IsSuccess)
+                                completed++;
+                            else if (storeStatus.IsWarning)
+                                warning++;
+                            else
+                                failed++;
+                        }
+                        catch (Exception)
+                        {
+                            failed++;
+                        }
+
+                        subOpMessageId++;
+                    }
+                }
+
+                remaining--;
+
+                // Send intermediate Pending C-GET-RSP on the SAME association
+                var progress = new SubOperationProgress(remaining, completed, failed, warning);
+                await SendQRResponseWithProgressAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.Pending.Code, progress, ct)
+                    .ConfigureAwait(false);
+
+                // Check for C-CANCEL
+                if (ct.IsCancellationRequested)
+                {
+                    cancelled = true;
+                }
+            }
+
+            // Send final C-GET-RSP
+            var finalProgress = new SubOperationProgress(0, completed, failed, warning);
+            ushort finalStatus;
+
+            if (cancelled)
+            {
+                finalStatus = DicomStatus.Cancel.Code;
+            }
+            else if (failed == 0 && warning == 0)
+            {
+                finalStatus = DicomStatus.Success.Code;
+            }
+            else if (completed == 0 && warning == 0)
+            {
+                // All failed
+                finalStatus = 0xA702; // Unable to perform sub-operations
+            }
+            else
+            {
+                // Some succeeded, some failed
+                finalStatus = DicomStatus.SubOperationsCompleteWithFailures.Code;
+            }
+
+            await SendQRResponseWithProgressAsync(
+                stream, command.PresentationContextId, command.MessageID,
+                command.SOPClassUID, responseCommandField,
+                finalStatus, finalProgress, ct)
+                .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Finds an accepted presentation context ID for the given SOP Class UID.
+        /// Returns 0 if no matching context is accepted.
+        /// </summary>
+        private static byte FindAcceptedContextForSopClass(DicomAssociation association, DicomUID sopClassUid)
+        {
+            var contexts = association.AcceptedContexts;
+            if (contexts == null) return 0;
+
+            foreach (var ctx in contexts)
+            {
+                if (ctx.AbstractSyntax == sopClassUid)
+                    return ctx.Id;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Sends a C-STORE-RQ sub-operation on the same association (used by C-GET SCP).
+        /// </summary>
+        private static async Task SendCStoreSubOpRequestAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageId,
+            DicomUID sopClassUid,
+            DicomUID sopInstanceUid,
+            DicomDataset dataset,
+            DicomAssociation association,
+            CancellationToken ct)
+        {
+            // Build C-STORE-RQ command
+            var commandData = BuildCStoreRequestCommand(messageId, sopClassUid, sopInstanceUid);
+
+            // Serialize the dataset using the transfer syntax from the presentation context
+            var datasetBytes = SerializeDatasetBytes(dataset, presentationContextId, association);
+
+            // Create PDVs: command PDV and dataset PDV
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var commandPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            var datasetPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: false,
+                isLastFragment: true,
+                datasetBytes);
+
+            writer.WritePData(new[] { commandPdv, datasetPdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Reads a C-STORE-RSP from the SCU after sending a C-STORE sub-operation (used by C-GET SCP).
+        /// </summary>
+        private static async Task<DicomStatus> ReadCStoreSubOpResponseAsync(
+            Stream stream,
+            CancellationToken ct)
+        {
+            // Read the next P-DATA PDU which should contain the C-STORE-RSP command
+            var (pduType, pduBody) = await ReadPduAsync(stream, ct).ConfigureAwait(false);
+
+            if (pduType != PduType.PDataTransfer)
+            {
+                return DicomStatus.ProcessingFailure;
+            }
+
+            var reader = new PduReader(pduBody);
+            while (reader.TryReadPresentationDataValue(
+                out _,
+                out bool isCommand,
+                out bool isLastFragment,
+                out var data))
+            {
+                if (isCommand && isLastFragment)
+                {
+                    // Parse status from the C-STORE-RSP command
+                    var status = ParseStatusFromCommand(data);
+                    return new DicomStatus(status);
+                }
+            }
+
+            return DicomStatus.ProcessingFailure;
+        }
+
+        /// <summary>
+        /// Parses the Status field (0000,0900) from a command dataset.
+        /// </summary>
+        private static ushort ParseStatusFromCommand(ReadOnlySpan<byte> commandData)
+        {
+            int offset = 0;
+            while (offset + 8 <= commandData.Length)
+            {
+                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset));
+                ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
+                uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
+
+                if (group == 0x0000 && element == 0x0900 && // Status tag
+                    length >= 2 && offset + 8 + length <= commandData.Length)
+                {
+                    return BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 8));
+                }
+
+                offset += 8 + (int)length;
+            }
+
+            return 0x0110; // Processing Failure as default
+        }
+
+        /// <summary>
+        /// Builds a C-STORE-RQ command dataset for sub-operations.
+        /// </summary>
+        private static byte[] BuildCStoreRequestCommand(
+            ushort messageId,
+            DicomUID sopClassUid,
+            DicomUID sopInstanceUid)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(sopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // SOP Instance UID
+            var sopInstanceUidBytes = Encoding.ASCII.GetBytes(sopInstanceUid.ToString());
+            var sopInstanceUidLength = sopInstanceUidBytes.Length;
+            if (sopInstanceUidLength % 2 != 0) sopInstanceUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField = 0x0001 (C-STORE-RQ)
+            WriteElementUS(buffer, 0x0000, 0x0100, CommandFields.CStoreRequest);
+
+            // (0000,0110) MessageID
+            WriteElementUS(buffer, 0x0000, 0x0110, messageId);
+
+            // (0000,0700) Priority = MEDIUM
+            WriteElementUS(buffer, 0x0000, 0x0700, 0);
+
+            // (0000,0800) CommandDataSetType = 0x0102 (dataset present)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0102);
+
+            // (0000,1000) AffectedSOPInstanceUID
+            WriteElement(buffer, 0x0000, 0x1000, sopInstanceUidBytes, sopInstanceUidLength);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static async Task SendQRResponseWithProgressAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode,
+            SubOperationProgress progress,
+            CancellationToken ct)
+        {
+            var commandData = BuildQRResponseCommandWithProgress(
+                messageIdBeingRespondedTo, sopClassUid, responseCommandField, statusCode, progress);
+
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var pdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            writer.WritePData(new[] { pdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        private static byte[] BuildQRResponseCommandWithProgress(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode,
+            SubOperationProgress progress)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(sopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField
+            WriteElementUS(buffer, 0x0000, 0x0100, responseCommandField);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType = 0x0101 (no dataset)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0101);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, statusCode);
+
+            // (0000,1020) NumberOfRemainingSuboperations
+            WriteElementUS(buffer, 0x0000, 0x1020, progress.Remaining);
+
+            // (0000,1021) NumberOfCompletedSuboperations
+            WriteElementUS(buffer, 0x0000, 0x1021, progress.Completed);
+
+            // (0000,1022) NumberOfFailedSuboperations
+            WriteElementUS(buffer, 0x0000, 0x1022, progress.Failed);
+
+            // (0000,1023) NumberOfWarningSuboperations
+            WriteElementUS(buffer, 0x0000, 0x1023, progress.Warning);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static async Task SendQRResponseAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode,
+            CancellationToken ct)
+        {
+            var commandData = BuildQRResponseCommand(
+                messageIdBeingRespondedTo, sopClassUid, responseCommandField, statusCode);
+
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var pdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            writer.WritePData(new[] { pdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        private static async Task SendDimseResponseWithDatasetAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode,
+            DicomDataset identifierDataset,
+            DicomAssociation association,
+            CancellationToken ct)
+        {
+            // Build command with DataSetPresent since we have an identifier
+            var commandData = BuildQRResponseCommandWithDataset(
+                messageIdBeingRespondedTo, sopClassUid, responseCommandField, statusCode);
+
+            // Serialize the identifier dataset using the transfer syntax from the presentation context
+            var datasetBytes = SerializeDatasetBytes(identifierDataset, presentationContextId, association);
+
+            // Create PDVs: command PDV and dataset PDV
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var commandPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            var datasetPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: false,
+                isLastFragment: true,
+                datasetBytes);
+
+            writer.WritePData(new[] { commandPdv, datasetPdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        private static byte[] BuildQRResponseCommandWithDataset(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(sopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField
+            WriteElementUS(buffer, 0x0000, 0x0100, responseCommandField);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType = 0x0102 (dataset present)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0102);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, statusCode);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static byte[] SerializeDatasetBytes(
+            DicomDataset dataset,
+            byte contextId,
+            DicomAssociation association)
+        {
+            // Get the accepted transfer syntax for this presentation context
+            var context = association.GetPresentationContext(contextId);
+            var transferSyntax = context?.AcceptedTransferSyntax ?? TransferSyntax.ImplicitVRLittleEndian;
+
+            // Serialize using DicomStreamWriter
+            var buffer = new BufferWriter();
+            var writer = new DicomStreamWriter(
+                buffer,
+                transferSyntax.IsExplicitVR,
+                transferSyntax.IsLittleEndian);
+
+            writer.WriteDataset(dataset);
+
+            return buffer.WrittenSpan.ToArray();
         }
 
         private static Task<byte[]> ReadDatasetAsync(Stream stream, CancellationToken ct)
@@ -1210,6 +2234,75 @@ namespace SharpDicom.Network
 #endif
         }
 
+        private static async Task SendQRFailureResponseAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort requestCommandField,
+            CancellationToken ct)
+        {
+            // Determine the response command field from the request command field
+            ushort responseCommandField = (ushort)(requestCommandField | 0x8000);
+
+            // Build failure response command dataset (0xA900 = Unable to Process / Identifier does not match SOP Class)
+            var commandData = BuildQRResponseCommand(
+                messageIdBeingRespondedTo,
+                sopClassUid,
+                responseCommandField,
+                0xA900); // Unable to Process
+
+            // Wrap in P-DATA-TF
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var pdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            writer.WritePData(new[] { pdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        private static byte[] BuildQRResponseCommand(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(sopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField
+            WriteElementUS(buffer, 0x0000, 0x0100, responseCommandField);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType = 0x0101 (no dataset)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0101);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, statusCode);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
         #endregion
 
         #region DIMSE Command Parsing/Building
@@ -1434,8 +2527,15 @@ namespace SharpDicom.Network
         {
             public const ushort CStoreRequest = 0x0001;
             public const ushort CStoreResponse = 0x8001;
+            public const ushort CGetRequest = 0x0010;
+            public const ushort CGetResponse = 0x8010;
+            public const ushort CFindRequest = 0x0020;
+            public const ushort CFindResponse = 0x8020;
+            public const ushort CMoveRequest = 0x0021;
+            public const ushort CMoveResponse = 0x8021;
             public const ushort CEchoRequest = 0x0030;
             public const ushort CEchoResponse = 0x8030;
+            public const ushort CCancelRequest = 0x0FFF;
         }
 
         /// <summary>
@@ -1462,6 +2562,35 @@ namespace SharpDicom.Network
             public DicomUID SOPClassUID { get; }
             public DicomUID SOPInstanceUID { get; }
             public bool HasDataset { get; }
+        }
+
+        /// <summary>
+        /// Parsed Query/Retrieve command information (C-FIND, C-MOVE, C-GET, C-CANCEL).
+        /// </summary>
+        private readonly struct QRCommandInfo
+        {
+            public QRCommandInfo(
+                byte presentationContextId,
+                ushort messageId,
+                DicomUID sopClassUid,
+                bool hasDataset,
+                ushort commandField,
+                string? moveDestination)
+            {
+                PresentationContextId = presentationContextId;
+                MessageID = messageId;
+                SOPClassUID = sopClassUid;
+                HasDataset = hasDataset;
+                CommandFieldValue = commandField;
+                MoveDestination = moveDestination;
+            }
+
+            public byte PresentationContextId { get; }
+            public ushort MessageID { get; }
+            public DicomUID SOPClassUID { get; }
+            public bool HasDataset { get; }
+            public ushort CommandFieldValue { get; }
+            public string? MoveDestination { get; }
         }
     }
 }

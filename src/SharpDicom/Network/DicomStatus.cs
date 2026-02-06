@@ -210,6 +210,26 @@ namespace SharpDicom.Network
         /// </summary>
         public static readonly DicomStatus ElementsDiscarded = new(0xB006);
 
+        /// <summary>
+        /// Failure: Move Destination Unknown (0xA801) - The C-MOVE destination AE could not be resolved.
+        /// </summary>
+        public static readonly DicomStatus MoveDestinationUnknown = new(0xA801);
+
+        /// <summary>
+        /// Warning: Sub-operations complete, one or more failures (0xB000) - Some sub-operations failed
+        /// during C-MOVE or C-GET.
+        /// </summary>
+        /// <remarks>
+        /// This shares the same code as <see cref="CoercionOfDataElements"/> (0xB000) which is the
+        /// generic warning status. In C-MOVE/C-GET context it means some sub-operations failed.
+        /// </remarks>
+        public static readonly DicomStatus SubOperationsCompleteWithFailures = new(0xB000);
+
+        /// <summary>
+        /// Failure: Unable to process (0xC000) - General processing failure.
+        /// </summary>
+        public static readonly DicomStatus UnableToProcess = new(0xC000);
+
         #endregion
     }
 }
