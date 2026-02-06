@@ -709,9 +709,9 @@ namespace SharpDicom.Network
                 }
             }
 
-            if (_options.OnCFind == null)
+            if (_options.OnCFind == null || identifierDataset == null)
             {
-                // No handler registered - return 0xA900 Unable to Process (Pitfall 6)
+                // No handler registered or malformed request (no identifier dataset) - return 0xA900 Unable to Process (Pitfall 6)
                 await SendQRFailureResponseAsync(
                     stream, command.PresentationContextId, command.MessageID,
                     command.SOPClassUID, command.CommandFieldValue, ct)
@@ -721,7 +721,7 @@ namespace SharpDicom.Network
 
             // Full C-FIND handling with streaming responses is implemented in HandleCFindStreamingAsync
             await HandleCFindStreamingAsync(
-                stream, association, command, identifierDataset!, ct)
+                stream, association, command, identifierDataset, ct)
                 .ConfigureAwait(false);
         }
 
@@ -879,9 +879,8 @@ namespace SharpDicom.Network
             var sopClassUids = new HashSet<string>();
             foreach (var match in matches)
             {
-                var sopClassStr = match.GetString(DicomTag.SOPClassUID);
-                if (!string.IsNullOrEmpty(sopClassStr))
-                    sopClassUids.Add(sopClassStr!.TrimEnd('\0', ' '));
+                if (match.GetString(DicomTag.SOPClassUID) is { Length: > 0 } sopClassStr)
+                    sopClassUids.Add(sopClassStr.TrimEnd('\0', ' '));
             }
 
             // Build presentation contexts for forwarding association

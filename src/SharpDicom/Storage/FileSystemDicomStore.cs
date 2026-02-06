@@ -258,7 +258,10 @@ namespace SharpDicom.Storage
                 sanitized = sanitized.Substring(0, MaxPathComponentLength);
             }
 
-            return string.IsNullOrWhiteSpace(sanitized) ? fallback : sanitized;
+            if (string.IsNullOrWhiteSpace(sanitized) || sanitized == "." || sanitized == "..")
+                return fallback;
+
+            return sanitized;
         }
 
         /// <inheritdoc />

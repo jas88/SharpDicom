@@ -585,7 +585,7 @@ VALUES ($sop_instance_uid, $series_instance_uid, $sop_class_uid, $instance_numbe
                 var ordinal = reader.GetOrdinal(columnName);
                 return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
             }
-            catch (ArgumentOutOfRangeException)
+            catch (IndexOutOfRangeException)
             {
                 return null;
             }
