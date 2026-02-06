@@ -517,6 +517,9 @@ namespace SharpDicom.Codecs.Native.Interop
         Video = 1 << 3,
 
         /// <summary>GPU acceleration available.</summary>
-        Gpu = 1 << 4
+        Gpu = 1 << 4,
+
+        /// <summary>Tesseract OCR available.</summary>
+        Tesseract = 1 << 5
     }
 }

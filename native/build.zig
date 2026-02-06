@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
     const have_openjpeg = false; // Needs CMake-generated config + sysroot
     const have_charls = false;
     const have_ffmpeg = false;
+    const have_tesseract = false;
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -186,6 +187,26 @@ pub fn build(b: *std.Build) void {
             });
         }
 
+        // Tesseract OCR wrapper
+        if (have_tesseract) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/tesseract_wrapper.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_TESSERACT",
+                },
+            });
+            lib.addIncludePath(b.path("vendor/tesseract/src"));
+            lib.addIncludePath(b.path("vendor/leptonica/src"));
+            lib.linkSystemLibrary("tesseract");
+            lib.linkSystemLibrary("lept");
+        } else {
+            // Build stub version (Tesseract functions will error at runtime)
+            lib.addCSourceFile(.{
+                .file = b.path("src/tesseract_wrapper.c"),
+                .flags = common_flags,
+            });
+        }
+
         // Include paths
         lib.addIncludePath(b.path("src"));
 
@@ -277,6 +298,16 @@ pub fn build(b: *std.Build) void {
     // Add video_wrapper stub for tests (without FFmpeg for simplicity)
     test_exe.addCSourceFile(.{
         .file = b.path("src/video_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add tesseract_wrapper stub for tests (without Tesseract for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/tesseract_wrapper.c"),
         .flags = &.{
             "-std=c11",
             "-Wall",
@@ -402,6 +433,25 @@ pub fn build(b: *std.Build) void {
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
+
+    // Tesseract OCR wrapper for native build
+    if (have_tesseract) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/tesseract_wrapper.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_TESSERACT",
+            },
+        });
+        native_lib.addIncludePath(b.path("vendor/tesseract/src"));
+        native_lib.addIncludePath(b.path("vendor/leptonica/src"));
+        native_lib.linkSystemLibrary("tesseract");
+        native_lib.linkSystemLibrary("lept");
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/tesseract_wrapper.c"),
             .flags = native_flags,
         });
     }

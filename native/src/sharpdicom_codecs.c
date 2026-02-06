@@ -250,6 +250,11 @@ SHARPDICOM_API int sharpdicom_features(void) {
         features |= SHARPDICOM_HAS_GPU;
     }
 
+    /* Set Tesseract flag when Tesseract OCR is linked */
+#ifdef SHARPDICOM_WITH_TESSERACT
+    features |= SHARPDICOM_HAS_TESSERACT;
+#endif
+
     return features;
 }
 
@@ -312,3 +317,4 @@ SHARPDICOM_API int sharpdicom_gpu_j2k_decode(
 /* Include wrapper headers - these are compiled as separate translation units */
 #include "jls_wrapper.h"
 #include "video_wrapper.h"
+#include "tesseract_wrapper.h"
