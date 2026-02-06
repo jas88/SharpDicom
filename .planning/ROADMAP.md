@@ -19,8 +19,8 @@
 | 20 | Critical Bug Fixes | **URGENT** | **COMPLETE** |
 | 21 | Complete Managed Codecs | High | **COMPLETE** |
 | 22 | TLS Networking | High | **COMPLETE** |
-| 23 | CLI Tools (sharpdcm) | High | **IN PROGRESS** |
-| 24 | Server-Side DIMSE | Medium | **PLANNED** |
+| 23 | CLI Tools (sharpdcm) | High | **COMPLETE** |
+| 24 | Server-Side DIMSE | Medium | **COMPLETE** |
 | 25 | Advanced De-identification | Medium | Pending |
 | 26 | Migration Tooling | Medium | Pending |
 | 27 | Extended Codec Support | Low | Pending |
@@ -205,35 +205,35 @@ Plans:
 **Plans:** 4 plans
 
 Plans:
-- [ ] 24-01-PLAN.md — C-FIND SCP handler, DIMSE dispatch extension, DicomQueryMatcher, DicomDateRange
-- [ ] 24-02-PLAN.md — C-MOVE SCP with C-STORE forwarding, C-GET SCP with same-association C-STORE
-- [ ] 24-03-PLAN.md — FileSystemDicomStore with SQLite metadata index
-- [ ] 24-04-PLAN.md — Integration tests and unit tests (~40+ tests)
+- [x] 24-01-PLAN.md — C-FIND SCP handler, DIMSE dispatch extension, DicomQueryMatcher, DicomDateRange
+- [x] 24-02-PLAN.md — C-MOVE SCP with C-STORE forwarding, C-GET SCP with same-association C-STORE
+- [x] 24-03-PLAN.md — FileSystemDicomStore with SQLite metadata index
+- [x] 24-04-PLAN.md — Integration tests and unit tests (70 tests)
 
-**Must-haves**:
-- [ ] C-FIND SCP — Respond to queries
-  - [ ] Patient/Study/Series/Instance level
-  - [ ] Pluggable data source interface (callback delegates)
-  - [ ] DICOM wildcard and date range matching
-  - [ ] Return key filtering per PS3.4 C.2.2
-- [ ] C-MOVE SCP — Handle retrieve requests
-  - [ ] Forward to third-party destination via separate association
-  - [ ] Sub-operation tracking with Pending progress responses
-  - [ ] Move Destination resolution via callback
-- [ ] C-GET SCP — Respond to C-GET requests
-  - [ ] C-STORE sub-operations on same association
-  - [ ] Sub-operation progress tracking
-- [ ] FileSystemDicomStore — Integrated store+serve mini-PACS
-  - [ ] Hierarchical file layout (patient/study/series/instance.dcm)
-  - [ ] SQLite metadata index with WAL mode
-  - [ ] Serves C-FIND/C-MOVE/C-GET from indexed metadata
+**Must-haves** (all complete):
+- [x] C-FIND SCP — Respond to queries
+  - [x] Patient/Study/Series/Instance level
+  - [x] Pluggable data source interface (callback delegates)
+  - [x] DICOM wildcard and date range matching
+  - [x] Return key filtering per PS3.4 C.2.2
+- [x] C-MOVE SCP — Handle retrieve requests
+  - [x] Forward to third-party destination via separate association
+  - [x] Sub-operation tracking with Pending progress responses
+  - [x] Move Destination resolution via callback
+- [x] C-GET SCP — Respond to C-GET requests
+  - [x] C-STORE sub-operations on same association
+  - [x] Sub-operation progress tracking
+- [x] FileSystemDicomStore — Integrated store+serve mini-PACS
+  - [x] Hierarchical file layout (patient/study/series/instance.dcm)
+  - [x] SQLite metadata index with WAL mode
+  - [x] Serves C-FIND/C-MOVE/C-GET from indexed metadata
 
 **Should-haves**:
 - [ ] Query result pagination for large datasets
 
-**Success Criteria**:
-- [ ] Can serve as mini-PACS for testing
-- [ ] DCMTK findscu/movescu work against SharpDicom SCP
+**Success Criteria** (all met):
+- [x] Can serve as mini-PACS for testing
+- [x] DCMTK findscu/movescu work against SharpDicom SCP
 
 ---
 
@@ -385,4 +385,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 23 Plan 01 complete -- CLI scaffolding and shared infrastructure)*
+*Last updated: 2026-02-06 (Phase 24 complete -- Server-Side DIMSE with FileSystemDicomStore mini-PACS)*
