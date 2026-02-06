@@ -204,18 +204,17 @@ jobs:
             (cd publish/$rid && zip -q ../../sharpdcm-$rid.zip *)
           done
 
-      - name: Upload Linux/Windows CLI artifacts
+      - name: Create release with Linux/Windows binaries
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v2
         with:
-          name: cli-linux-win
-          path: |
-            sharpdcm-linux-*.tar.gz
-            sharpdcm-win-*.zip
-          retention-days: 1
+          generate_release_notes: true
+          files: |
+            sharpdcm-*.tar.gz
+            sharpdcm-*.zip
 
-  # macOS AOT binaries + GitHub Release (on tags only)
-  release:
+  # macOS AOT binaries (on tags only) — appended to release created by build job
+  release-macos:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: macos-latest
@@ -246,15 +245,8 @@ jobs:
             tar -czf sharpdcm-$rid.tar.gz -C publish/$rid .
           done
 
-      - name: Download Linux/Windows artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: cli-linux-win
-
-      - name: Create release
+      - name: Append macOS binaries to release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
           files: |
-            sharpdcm-*.tar.gz
-            sharpdcm-*.zip
+            sharpdcm-osx-*.tar.gz
