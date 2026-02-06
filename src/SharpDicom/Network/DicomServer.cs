@@ -734,15 +734,48 @@ namespace SharpDicom.Network
             DicomDataset identifierDataset,
             CancellationToken ct)
         {
-            // Placeholder: full streaming implementation comes in Task 2.
-            // For now, invoke callback but send Success immediately.
-            // Access _options to prevent CA1822 (will be used fully in Task 2).
-            _ = _options.OnCFind;
+            var responseCommandField = (ushort)(command.CommandFieldValue | 0x8000);
 
+            try
+            {
+                await foreach (var match in _options.OnCFind!(identifierDataset, ct).ConfigureAwait(false))
+                {
+                    // Filter return keys per DICOM PS3.4 C.2.2 (Pitfall 1)
+                    var filtered = DicomQueryMatcher.FilterReturnKeys(match, identifierDataset);
+
+                    // Send Pending C-FIND-RSP with identifier dataset
+                    await SendDimseResponseWithDatasetAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, responseCommandField,
+                        DicomStatus.Pending.Code, filtered, association, ct)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Send Cancel status (0xFE00)
+                await SendQRResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    DicomStatus.Cancel.Code, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (Exception)
+            {
+                // Send failure status 0xC000 (Unable to Process)
+                await SendQRResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, responseCommandField,
+                    0xC000, ct)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            // Send final C-FIND-RSP with Success status (no dataset)
             await SendQRResponseAsync(
                 stream, command.PresentationContextId, command.MessageID,
-                command.SOPClassUID,
-                (ushort)(command.CommandFieldValue | 0x8000),
+                command.SOPClassUID, responseCommandField,
                 DicomStatus.Success.Code, ct)
                 .ConfigureAwait(false);
         }
@@ -776,6 +809,102 @@ namespace SharpDicom.Network
             var array = buffer.WrittenSpan.ToArray();
             await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
 #endif
+        }
+
+        private static async Task SendDimseResponseWithDatasetAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode,
+            DicomDataset identifierDataset,
+            DicomAssociation association,
+            CancellationToken ct)
+        {
+            // Build command with DataSetPresent since we have an identifier
+            var commandData = BuildQRResponseCommandWithDataset(
+                messageIdBeingRespondedTo, sopClassUid, responseCommandField, statusCode);
+
+            // Serialize the identifier dataset using the transfer syntax from the presentation context
+            var datasetBytes = SerializeDatasetBytes(identifierDataset, presentationContextId, association);
+
+            // Create PDVs: command PDV and dataset PDV
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var commandPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            var datasetPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: false,
+                isLastFragment: true,
+                datasetBytes);
+
+            writer.WritePData(new[] { commandPdv, datasetPdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        private static byte[] BuildQRResponseCommandWithDataset(
+            ushort messageIdBeingRespondedTo,
+            DicomUID sopClassUid,
+            ushort responseCommandField,
+            ushort statusCode)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(sopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField
+            WriteElementUS(buffer, 0x0000, 0x0100, responseCommandField);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType = 0x0102 (dataset present)
+            WriteElementUS(buffer, 0x0000, 0x0800, 0x0102);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, statusCode);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        private static byte[] SerializeDatasetBytes(
+            DicomDataset dataset,
+            byte contextId,
+            DicomAssociation association)
+        {
+            // Get the accepted transfer syntax for this presentation context
+            var context = association.GetPresentationContext(contextId);
+            var transferSyntax = context?.AcceptedTransferSyntax ?? TransferSyntax.ImplicitVRLittleEndian;
+
+            // Serialize using DicomStreamWriter
+            var buffer = new BufferWriter();
+            var writer = new DicomStreamWriter(
+                buffer,
+                transferSyntax.IsExplicitVR,
+                transferSyntax.IsLittleEndian);
+
+            writer.WriteDataset(dataset);
+
+            return buffer.WrittenSpan.ToArray();
         }
 
         private static Task<byte[]> ReadDatasetAsync(Stream stream, CancellationToken ct)
