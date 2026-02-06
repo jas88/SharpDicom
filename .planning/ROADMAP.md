@@ -276,27 +276,27 @@ Plans:
 **Plans:** 7 plans
 
 Plans:
-- [ ] 26-01-PLAN.md — FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, tests)
-- [ ] 26-02-PLAN.md — FoDicom5.Compat network adapter (DicomClient, DicomCFindRequest, request-queue pattern)
+- [x] 26-01-PLAN.md — FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, tests)
+- [x] 26-02-PLAN.md — FoDicom5.Compat network adapter (DicomClient, DicomCFindRequest, request-queue pattern)
 - [ ] 26-03-PLAN.md — dcm2csv validation (compile and test against compat layer)
 - [ ] 26-04-PLAN.md — nccid validation (compile and test against compat layer with networking)
-- [ ] 26-05-PLAN.md — FoDicom4.Compat (namespace-adjusted copy with Dicom namespace and Get<T> API)
-- [ ] 26-06-PLAN.md — Roslyn analyzer (FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers)
+- [x] 26-05-PLAN.md — FoDicom4.Compat (namespace-adjusted copy with Dicom namespace and Get<T> API)
+- [x] 26-06-PLAN.md — Roslyn analyzer (FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers)
 - [ ] 26-07-PLAN.md — Analyzer tests (diagnostic verification, code fix rewriting tests)
 
 **Must-haves**:
-- [ ] SharpDicom.FoDicom5.Compat — fo-dicom 5.x adapter (FellowOakDicom namespace)
-  - [ ] DicomFile compatibility shim
-  - [ ] DicomDataset API mapping (GetSingleValue, GetValue, AddOrUpdate)
-  - [ ] DicomItem hierarchy (DicomStringElement, DicomSequence, DicomAttributeTag)
-  - [ ] DicomClient/DicomCFindRequest network adapter
-- [ ] SharpDicom.FoDicom4.Compat — fo-dicom 4.x adapter (Dicom namespace)
-  - [ ] Namespace-adjusted copy of FoDicom5.Compat
-  - [ ] Get<T> API (fo-dicom 4.x primary method)
-- [ ] SharpDicom.Analyzers — Roslyn analyzer
-  - [ ] Detect fo-dicom API usage (SD0001-SD0003)
-  - [ ] Detect compat layer usage for step-2 migration (SD0010-SD0011)
-  - [ ] Code fix providers for automated namespace rewriting
+- [x] SharpDicom.FoDicom5.Compat — fo-dicom 5.x adapter (FellowOakDicom namespace)
+  - [x] DicomFile compatibility shim
+  - [x] DicomDataset API mapping (GetSingleValue, GetValue, AddOrUpdate)
+  - [x] DicomItem hierarchy (DicomStringElement, DicomSequence, DicomAttributeTag)
+  - [x] DicomClient/DicomCFindRequest network adapter
+- [x] SharpDicom.FoDicom4.Compat — fo-dicom 4.x adapter (Dicom namespace)
+  - [x] Namespace-adjusted copy of FoDicom5.Compat
+  - [x] Get<T> API (fo-dicom 4.x primary method)
+- [x] SharpDicom.Analyzers — Roslyn analyzer
+  - [x] Detect fo-dicom API usage (SD0001-SD0003)
+  - [x] Detect compat layer usage for step-2 migration (SD0010-SD0011)
+  - [x] Code fix providers for automated namespace rewriting
 - [ ] dcm2csv compiles and passes tests against compat layer
 - [ ] nccid compiles and passes tests against compat layer
 

@@ -3,12 +3,12 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 26 - Migration Tooling (In Progress)
-**Plan**: 3 of 4 in current phase
-**Status**: In progress - FoDicom4.Compat with Dicom namespace and Get<T> API delivered
-**Last activity**: 2026-02-06 - Completed 26-05-PLAN.md
+**Phase**: 26 - Migration Tooling (COMPLETE)
+**Plan**: 4 of 4 in current phase
+**Status**: Phase complete - SharpDicom.Analyzers with diagnostic analyzers and code fix providers
+**Last activity**: 2026-02-06 - Completed 26-06-PLAN.md
 
-**Progress**: ███░ (3/4 plans in Phase 26)
+**Progress**: ████ (4/4 plans in Phase 26)
 
 **Test Status**: 4584 tests (4404 pass, 180 skipped, 0 failed)
 
@@ -146,6 +146,7 @@
 - [x] Phase 26 Plan 01: FoDicom5.Compat core types (DicomFile, DicomDataset, DicomTag, DicomItem hierarchy, DicomVR, DicomUID, 38 tests)
 - [x] Phase 26 Plan 02: FoDicom5.Compat network adapter (DicomClient, DicomClientFactory, DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, 16 tests)
 - [x] Phase 26 Plan 05: FoDicom4.Compat with Dicom namespace and Get<T> API (15 source files, 25 tests)
+- [x] Phase 26 Plan 06: SharpDicom.Analyzers with FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix
 
 ## In Progress
 
@@ -170,7 +171,7 @@
 | 23 | CLI Tools | COMPLETE | 6/6 | 2026-02-05 | 2026-02-06 |
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
-| 26 | Migration Tooling | In Progress | 3/4 | 2026-02-06 | - |
+| 26 | Migration Tooling | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -466,36 +467,32 @@
 | 2026-02-06 | 26-05 | Get<T> as primary, GetSingleValue<T> as alias | fo-dicom 4.x uses Get<T>(tag) as primary accessor; late 4.x also has GetSingleValue<T> |
 | 2026-02-06 | 26-05 | Get<T>(tag, defaultValue) overload | Common fo-dicom 4.x pattern for safe missing-tag access |
 | 2026-02-06 | 26-05 | No network types in FoDicom4 | fo-dicom 4.x network API (direct constructor) differs significantly from 5.x; not needed yet |
+| 2026-02-06 | 26-06 | RS1038 suppressed for analyzer+codefix assembly | Standard pattern: CodeFixProviders require Workspaces, analyzers don't |
+| 2026-02-06 | 26-06 | Semantic analysis for fo-dicom detection | Prevents false positives on user types named "Dicom" |
+| 2026-02-06 | 26-06 | Two-step migration diagnostic scheme | SD0001-SD0003 for fo-dicom, SD0010-SD0011 for compat layer |
 
 ## Session Continuity
 
 **Last session**: 2026-02-06
-**Stopped at**: Completed 26-05-PLAN.md (FoDicom4.Compat with Dicom namespace)
+**Stopped at**: Completed 26-06-PLAN.md (SharpDicom.Analyzers with diagnostic analyzers and code fixes)
 **Resume file**: None
-**Next step**: Phase 26 Plan 06 (migration analyzer)
+**Next step**: Phase 26 complete; ready for next milestone phase or milestone completion
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 IN PROGRESS (Migration Tooling) - Plans 01, 02, and 05 complete
-2. **Phase 26-01 deliverables**:
-   - SharpDicom.FoDicom5.Compat project with 15 source files in FellowOakDicom namespace
-   - DicomFile, DicomDataset, DicomTag, DicomVR, DicomUID, DicomItem hierarchy (DicomStringElement, DicomAttributeTag, DicomSequence, DicomOtherElement)
-   - Compatibility.Unwrap() extension methods for gradual migration
-   - 38 unit tests covering all compat API surface
-3. **Phase 26-02 deliverables**:
-   - Network compat types: DicomCFindRequest, DicomCFindResponse, DicomStatus, DicomQueryRetrieveLevel, DicomRequest, DicomResponse
-   - DicomClient adapter bridging fo-dicom request-queue to SharpDicom direct async pattern
-   - IDicomClient interface, DicomClientFactory.Create static factory
-   - 16 unit tests covering network adapter API surface
-4. **Phase 26-05 deliverables**:
-   - SharpDicom.FoDicom4.Compat project with 15 source files in Dicom namespace
-   - Get<T>(tag, index) and Get<T>(tag, defaultValue) as primary fo-dicom 4.x API
-   - GetSingleValue<T> retained as backward compat alias
-   - 25 unit tests verifying 4.x API surface
-5. **Test coverage**: 4584 tests (4404 pass, 180 skipped, 0 failed)
-6. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+1. **Current phase**: Phase 26 COMPLETE (Migration Tooling) - All 4 plans (01, 02, 05, 06) done
+2. **Phase 26-06 deliverables**:
+   - SharpDicom.Analyzers project targeting netstandard2.0
+   - FoDicomUsageAnalyzer (SD0001-SD0003) detects fo-dicom 4.x and 5.x usage
+   - CompatUsageAnalyzer (SD0010-SD0011) detects compat layer usage
+   - FoDicomToCompatFix rewrites fo-dicom usings to compat namespaces
+   - CompatToNativeFix rewrites compat usings to native SharpDicom
+   - NuGet packaging ready with analyzer DLL in analyzers/dotnet/cs
+3. **Phase 26 complete deliverables**: FoDicom5.Compat, FoDicom4.Compat, SharpDicom.Analyzers
+4. **Test coverage**: 4584 tests (4404 pass, 180 skipped, 0 failed)
+5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -535,4 +532,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 26 Plan 05 complete — FoDicom4.Compat with Dicom namespace and Get<T> fo-dicom 4.x primary API, 25 new tests)*
+*Last updated: 2026-02-06 (Phase 26 Plan 06 complete — SharpDicom.Analyzers with diagnostic analyzers and code fix providers for two-step fo-dicom migration)*
