@@ -23,6 +23,9 @@
     <PackageVersion Include="System.CommandLine" Version="2.0.2" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
     <PackageVersion Include="Tomlyn" Version="0.20.0" />
+    <!-- AOT Cross-Compilation -->
+    <PackageVersion Include="PublishAotCross" Version="1.0.0" />
+    <PackageVersion Include="PublishAotCrossXWin" Version="1.2.0" />
     <!-- Source Generator Dependencies -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />

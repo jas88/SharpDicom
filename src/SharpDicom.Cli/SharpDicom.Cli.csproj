@@ -13,5 +13,7 @@
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="Spectre.Console" />
     <PackageReference Include="Tomlyn" />
+    <PackageReference Include="PublishAotCross" />
+    <PackageReference Include="PublishAotCrossXWin" />
   </ItemGroup>
 </Project>
