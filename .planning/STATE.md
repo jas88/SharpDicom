@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 27 - Extended Codec Support (IN PROGRESS)
-**Plan**: 3 of 10 in current phase
+**Plan**: 4 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 27-03-PLAN.md (12-bit JPEG native wrapper)
+**Last activity**: 2026-02-07 - Completed 27-06-PLAN.md (native video encoder and stb_image wrapper)
 
-**Progress**: ███░░░░░░░ (3/10 plans in Phase 27)
+**Progress**: ████░░░░░░ (4/10 plans in Phase 27)
 
 **Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 
@@ -155,10 +155,11 @@
 
 - [x] Phase 27 Plan 01: Transfer syntax and UID definitions (MPEG2, H264, HEVC CompressionType; 10 transfer syntaxes; 7 video SOP UIDs)
 - [x] Phase 27 Plan 03: 12-bit JPEG native wrapper (jpeg12_wrapper.c/h, SHARPDICOM_HAS_JPEG12 flag, dual libjpeg-turbo build.zig)
+- [x] Phase 27 Plan 06: Native video encoder and stb_image wrapper (video_encoder.c/h, stb_image_wrapper.c/h, GPU-accelerated encoding)
 
 ## In Progress
 
-*Phase 27 - Extended Codec Support (3/10 plans complete)*
+*Phase 27 - Extended Codec Support (4/10 plans complete)*
 
 ## Blocked
 
@@ -180,7 +181,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
-| 27 | Extended Codec Support | IN PROGRESS | 3/10 | 2026-02-07 | - |
+| 27 | Extended Codec Support | IN PROGRESS | 4/10 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -488,26 +489,32 @@
 | 2026-02-07 | 27-03 | Raw libjpeg API for 12-bit (not TurboJPEG) | WITH_12BIT disables TurboJPEG/SIMD; 8-bit path retains full SIMD performance |
 | 2026-02-07 | 27-03 | Symbol prefix via -D compiler flags for dual libjpeg | jpeg_* -> jpeg12_jpeg_* avoids collisions in single shared library |
 | 2026-02-07 | 27-03 | Opaque struct buffers for libjpeg structs | Version-dependent layouts; actual jpeglib.h will provide correct layout when vendor sources present |
+| 2026-02-07 | 27-06 | Separate SHARPDICOM_WITH_FFMPEG_ENC flag | Encoding requires libavformat+libswresample; decode-only builds should not need these |
+| 2026-02-07 | 27-06 | GPU encoder cascade: VideoToolbox > NVENC > VAAPI | Platform-specific ordering; VideoToolbox first for macOS developer experience |
+| 2026-02-07 | 27-06 | In-memory muxing via avio_write_buffer callback | Zero-temp-file encoding for DICOM pixel data fragment embedding |
+| 2026-02-07 | 27-06 | Annex-B for H.264/HEVC, MPEG-TS for MPEG-2/audio | Minimal container overhead for raw bitstreams; TS required for muxed streams |
+| 2026-02-07 | 27-06 | stb_image vendored in-repo (not CI-downloaded) | Single 8KB public-domain header; no version management overhead |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 27-03-PLAN.md (12-bit JPEG native wrapper)
+**Stopped at**: Completed 27-06-PLAN.md (native video encoder and stb_image wrapper)
 **Resume file**: None
-**Next step**: Execute 27-04-PLAN.md
+**Next step**: Execute remaining wave 2 plans (27-04, 27-05, 27-07)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01, 03 of 10 done
-2. **Phase 27-03 deliverables**:
-   - jpeg12_wrapper.c/h: Full 12-bit JPEG encode/decode/free/has_support API
-   - SHARPDICOM_HAS_JPEG12 feature flag (bit 9) in sharpdicom_codecs.h
-   - build.zig: Dual libjpeg-turbo compilation with 50+ symbol prefix defines
+1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01, 03, 06 of 10 done (plus summaries for 02, 03)
+2. **Phase 27-06 deliverables**:
+   - video_encoder.c/h: Full video encoding API (MPEG2/H264/HEVC, GPU fallback, quality presets, audio)
+   - stb_image_wrapper.c/h: Memory-based image loading (PNG/BMP/JPEG/TGA)
+   - native/vendor/stb/stb_image.h: Vendored v2.30 single-header library
+   - build.zig: Updated with video_encoder.c and stb_image_wrapper.c in all targets
    - Stub mode works when vendor libraries not present
-3. **Test coverage**: 4634 tests (4453 pass, 181 skipped, 0 failed)
-4. **Next**: Plan 04 - P/Invoke bindings for 12-bit JPEG
+3. **Test coverage**: Build succeeds with 0 warnings, 0 errors
+4. **Next**: Plans 04/05/07 (remaining wave 2) then wave 3
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -548,4 +555,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 plan 03 complete -- 12-bit JPEG native wrapper with dual libjpeg-turbo build)*
+*Last updated: 2026-02-07 (Phase 27 plan 06 complete -- native video encoder C API and stb_image integration)*
