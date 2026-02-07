@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 27 - Extended Codec Support (COMPLETE)
-**Plan**: 10 of 10 in current phase
+**Plan**: 12 of 12 in current phase
 **Status**: Phase complete
-**Last activity**: 2026-02-07 - Completed 27-10-PLAN.md (Video Encoding Test Suite)
+**Last activity**: 2026-02-07 - Completed 27-12-PLAN.md (Document Native Build Requirements)
 
-**Progress**: ██████████ (10/10 plans in Phase 27)
+**Progress**: ████████████ (12/12 plans in Phase 27)
 
 **Test Status**: 2368 tests (2313 pass, 55 skipped, 0 failed)
 
@@ -163,6 +163,8 @@
 - [x] Phase 27 Plan 08: Video Encoding API (VideoEncoder, NativeVideoEncoder, VideoFrame, VideoEncoderOptions, NativeImageLoader)
 - [x] Phase 27 Plan 09: Video DICOM Builder (VideoSopClass enum, VideoDicomBuilder fluent API, VideoEncoder integration)
 - [x] Phase 27 Plan 10: Video Encoding Test Suite (66 tests: VideoDicomBuilder, VideoEncoderOptions, VideoEncoder, VideoFrame, VideoEncodeProgress)
+- [x] Phase 27 Plan 11: Video encoder backend registration (NativeCodecs wiring, gap 1+2 closure)
+- [x] Phase 27 Plan 12: Document native build requirements (BUILD-REQUIREMENTS.md, gap 3 closure)
 
 ## In Progress
 
@@ -188,7 +190,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
-| 27 | Extended Codec Support | COMPLETE | 10/10 | 2026-02-07 | 2026-02-07 |
+| 27 | Extended Codec Support | COMPLETE | 12/12 | 2026-02-07 | 2026-02-07 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -527,19 +529,19 @@
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 27-10-PLAN.md (Video Encoding Test Suite) -- Phase 27 COMPLETE
+**Stopped at**: Completed 27-12-PLAN.md (Document Native Build Requirements) -- Phase 27 COMPLETE (all gaps closed)
 **Resume file**: None
-**Next step**: Phase 27 complete. Ready for next phase or milestone completion.
+**Next step**: Phase 27 complete. All 3 verification gaps closed. Ready for next phase or milestone completion.
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 COMPLETE (Extended Codec Support) - all 10 plans done
-2. **Phase 27-10 deliverables**:
-   - 66 new video encoding tests across 3 test classes
-   - Full coverage of VideoDicomBuilder, VideoEncoderOptions, VideoEncoder API
-   - Frame rate detection priority order validated
+1. **Current phase**: Phase 27 COMPLETE (Extended Codec Support) - all 12 plans done, all verification gaps closed
+2. **Phase 27-12 deliverables**:
+   - native/BUILD-REQUIREMENTS.md documenting all optional vendor library requirements
+   - 12-bit JPEG build instructions with symbol prefix approach
+   - Gap 3 from 27-VERIFICATION.md closed (build requirements documented)
 3. **Test coverage**: 2368 tests (2313 pass, 55 skipped, 0 failed)
 4. **Next**: Phase 27 complete. Consider Phase 28 or milestone wrap-up.
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
@@ -582,4 +584,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 COMPLETE -- 10/10 plans, video encoding test suite with 66 new tests)*
+*Last updated: 2026-02-07 (Phase 27 COMPLETE -- 12/12 plans, all 3 verification gaps closed)*
