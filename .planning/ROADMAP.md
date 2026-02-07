@@ -315,16 +315,47 @@ Plans:
 
 ## Phase 27: Extended Codec Support
 
-**Goal**: Additional codec capabilities
+**Goal**: Add 12-bit/16-bit JPEG encoding/decoding (managed and native) and video DICOM encoding (MPEG2, H.264, HEVC with audio) to the SharpDicom codec infrastructure
+
+**Plans:** 10 plans
+
+Plans:
+- [ ] 27-01-PLAN.md — Transfer syntax and type infrastructure (JPEG Extended, MPEG2, H264, HEVC definitions, video SOP class UIDs)
+- [ ] 27-02-PLAN.md — Managed 12-bit JPEG codec (JpegExtendedCodec, extend JpegLosslessCodec to 16-bit)
+- [ ] 27-03-PLAN.md — Native 12-bit JPEG build (dual libjpeg-turbo with symbol prefixes, jpeg12_wrapper.c)
+- [ ] 27-04-PLAN.md — Native 12-bit JPEG P/Invoke (NativeJpeg8Codec, NativeJpeg12Codec, codec registration)
+- [ ] 27-05-PLAN.md — 12-bit JPEG test suite (synthetic test data, roundtrip tests, lenient Process 1 decode)
+- [ ] 27-06-PLAN.md — Native video encoder C layer (video_encoder.c, stb_image_wrapper.c, GPU fallback)
+- [ ] 27-07-PLAN.md — Native video encoder build (FFmpeg/x264/x265 compilation via Zig, stb_image vendor)
+- [ ] 27-08-PLAN.md — Managed video encoder API (VideoEncoder, VideoEncoderOptions, NativeVideoEncoder P/Invoke)
+- [ ] 27-09-PLAN.md — VideoDicomBuilder (fluent builder for video DICOM files, SOP class selection)
+- [ ] 27-10-PLAN.md — Video encoding test suite (builder tests, frame rate detection, quality preset validation)
+
+**Must-haves**:
+- [ ] 12-bit JPEG (managed + native)
+  - [ ] JpegExtendedCodec for 12-bit lossy DCT (Process 2,4)
+  - [ ] JpegLosslessCodec extended to 16-bit precision
+  - [ ] Native 12-bit via dual libjpeg-turbo build with symbol prefixes
+  - [ ] NativeJpeg12Codec with P/Invoke wrapper
+- [ ] Video encoding (MPEG2, H.264, HEVC)
+  - [ ] Native video encoder via FFmpeg with GPU fallback
+  - [ ] Managed VideoEncoder with streaming and batch modes
+  - [ ] VideoDicomBuilder for creating valid video DICOM files
+  - [ ] All 9 video transfer syntaxes defined
+  - [ ] All 7 video SOP classes supported
+- [ ] Audio support (AAC + PCM)
+- [ ] Quality presets (Diagnostic, Review, Archive)
+- [ ] IProgress<T> for encoding progress
 
 **Should-haves**:
-- [ ] 12-bit JPEG support (libjpeg-turbo with WITH_12BIT)
-- [ ] MPEG2 encoding (currently decode-only)
-- [ ] H.264/HEVC encoding for video DICOM
+- [ ] GPU acceleration (NVENC, VideoToolbox, VAAPI)
+- [ ] stb_image integration for image sequence input
+- [ ] Frame rate auto-detection from DICOM tags
 
 **Success Criteria**:
-- [ ] 12-bit JPEG roundtrip works
+- [ ] 12-bit JPEG roundtrip works (managed and native)
 - [ ] Can create video DICOM from frame sequence
+- [ ] VideoDicomBuilder produces valid DICOM files for all 7 SOP classes
 
 ---
 
@@ -409,4 +440,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 26 complete -- migration tooling with compat layers, analyzers, and integration tests)*
+*Last updated: 2026-02-06 (Phase 27 planned -- 10 plans for 12-bit JPEG and video encoding)*
