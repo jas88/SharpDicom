@@ -401,6 +401,12 @@ namespace SharpDicom.Network.Pdu
             {
                 WriteImplementationVersionName(info.ImplementationVersionName!);
             }
+
+            // Write Asynchronous Operations Window sub-item (only when non-default)
+            if (info.HasAsyncOperations)
+            {
+                WriteAsyncOperationsWindow(info.MaxOperationsInvoked, info.MaxOperationsPerformed);
+            }
         }
 
         /// <summary>
@@ -437,6 +443,22 @@ namespace SharpDicom.Network.Pdu
                 span[i] = (byte)name[i];
             }
             _writer.Advance(name.Length);
+        }
+
+        /// <summary>
+        /// Writes an Asynchronous Operations Window sub-item (0x53).
+        /// </summary>
+        /// <remarks>
+        /// Per DICOM PS3.7 D.3.3.3, the sub-item contains two uint16 values:
+        /// Maximum-number-operations-invoked and Maximum-number-operations-performed.
+        /// </remarks>
+        private void WriteAsyncOperationsWindow(ushort invoked, ushort performed)
+        {
+            WriteVariableItemHeader(ItemType.AsynchronousOperationsWindow, 4);
+            var span = _writer.GetSpan(4);
+            BinaryPrimitives.WriteUInt16BigEndian(span, invoked);
+            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(2), performed);
+            _writer.Advance(4);
         }
 
         /// <summary>
@@ -519,6 +541,13 @@ namespace SharpDicom.Network.Pdu
             {
                 userInfoLength += 4 + userInfo.ImplementationVersionName!.Length;
             }
+
+            // Asynchronous Operations Window (optional): Header (4) + Data (4) = 8
+            if (userInfo.HasAsyncOperations)
+            {
+                userInfoLength += 8;
+            }
+
             length += 4 + userInfoLength;
 
             return length;
