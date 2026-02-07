@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 26 - Migration Tooling (COMPLETE)
-**Plan**: 7 of 7 in current phase
-**Status**: Phase complete
-**Last activity**: 2026-02-06 - Completed 26-04-PLAN.md (nccid validation)
+**Phase**: 27 - Extended Codec Support (IN PROGRESS)
+**Plan**: 1 of 10 in current phase
+**Status**: In progress
+**Last activity**: 2026-02-07 - Completed 27-01-PLAN.md (transfer syntax and UID definitions)
 
-**Progress**: ███████ (7/7 plans in Phase 26)
+**Progress**: █░░░░░░░░░ (1/10 plans in Phase 27)
 
-**Test Status**: 4632 tests (4451 pass, 181 skipped, 0 failed)
+**Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 
 ## Completed
 
@@ -151,9 +151,13 @@
 - [x] Phase 26 Plan 06: SharpDicom.Analyzers with FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix
 - [x] Phase 26 Plan 07: Analyzer test suite (21 tests: FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix)
 
+### Phase 27 - Extended Codec Support (IN PROGRESS)
+
+- [x] Phase 27 Plan 01: Transfer syntax and UID definitions (MPEG2, H264, HEVC CompressionType; 10 transfer syntaxes; 7 video SOP UIDs)
+
 ## In Progress
 
-*None*
+*Phase 27 - Extended Codec Support (1/10 plans complete)*
 
 ## Blocked
 
@@ -175,6 +179,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
+| 27 | Extended Codec Support | IN PROGRESS | 1/10 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -478,27 +483,27 @@
 | 2026-02-06 | 26-07 | DefaultVerifier instead of NUnit-specific verifier | Avoids extra package dependency; works correctly with NUnit |
 | 2026-02-06 | 26-07 | CompilerDiagnostics.None for non-existent namespaces | Isolates analyzer behavior from irrelevant CS0246 compiler errors |
 | 2026-02-06 | 26-07 | Pin Microsoft.CodeAnalysis.* to 5.0.0 in test project | Overrides 1.0.1 transitive dependencies from testing packages |
+| 2026-02-07 | 27-01 | Added video SOP UIDs to existing DicomUID.WellKnown.cs | Follow existing partial struct pattern rather than creating separate file |
 
 ## Session Continuity
 
-**Last session**: 2026-02-06
-**Stopped at**: Completed 26-04-PLAN.md (nccid validation - Phase 26 complete)
+**Last session**: 2026-02-07
+**Stopped at**: Completed 27-01-PLAN.md (transfer syntax and UID definitions)
 **Resume file**: None
-**Next step**: Proceed to next milestone phase
+**Next step**: Execute 27-02-PLAN.md
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 COMPLETE (Migration Tooling) - all 7 plans done (01, 02, 03, 04, 05, 06, 07)
-2. **Phase 26 deliverables**:
-   - FoDicom5.Compat: core types + network adapter (38 + 16 tests)
-   - FoDicom4.Compat: Dicom namespace and Get<T> API (25 tests)
-   - SharpDicom.Analyzers: FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers (21 tests)
-   - dcm2csv validation: 9 integration tests (file I/O phase gate)
-   - nccid validation: 17 integration tests (networking phase gate)
-3. **Both phase gates met**: dcm2csv (file I/O) + nccid (networking) validated
-4. **Test coverage**: 4632 tests (4451 pass, 181 skipped, 0 failed)
+1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plan 01 of 10 done
+2. **Phase 27-01 deliverables**:
+   - 3 new CompressionType enum values: MPEG2, H264, HEVC
+   - 10 new TransferSyntax definitions (JPEG Extended, 2 MPEG2, 5 H.264, 2 HEVC)
+   - 7 video/multi-frame SOP class UID constants
+   - All recognized by FromUID() lookup
+3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
+4. **Next**: Plan 02 - managed codec registration for new transfer syntaxes
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -539,4 +544,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 26 complete -- all 7 plans done, both phase gates met: dcm2csv + nccid validated against compat layer)*
+*Last updated: 2026-02-07 (Phase 27 plan 01 complete -- transfer syntax and UID definitions for video/extended codecs)*
