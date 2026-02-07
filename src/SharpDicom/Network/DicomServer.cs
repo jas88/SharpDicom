@@ -412,7 +412,7 @@ namespace SharpDicom.Network
         {
             // Parse P-DATA-TF to extract PDVs (must complete before any await)
             // Each PDV contains: 4-byte length, 1-byte context ID, 1-byte message control header, data
-            var (pendingEchoRequests, pendingStoreRequests, pendingQRRequests) = ExtractDimseRequests(pduBody);
+            var (pendingEchoRequests, pendingStoreRequests, pendingQRRequests, pendingNServiceRequests) = ExtractDimseRequests(pduBody);
 
             // Now process extracted requests (can await)
             foreach (var (contextId, messageId) in pendingEchoRequests)
@@ -454,16 +454,55 @@ namespace SharpDicom.Network
                         break;
                 }
             }
+
+            // Handle N-Service requests
+            foreach (var nsCmd in pendingNServiceRequests)
+            {
+                switch (nsCmd.CommandFieldValue)
+                {
+                    case CommandFields.NCreateRequest:
+                        await HandleNCreateAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.NSetRequest:
+                        await HandleNSetAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.NGetRequest:
+                        await HandleNGetAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.NDeleteRequest:
+                        await HandleNDeleteAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.NActionRequest:
+                        await HandleNActionAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+
+                    case CommandFields.NEventReportRequest:
+                        await HandleNEventReportAsync(stream, association, nsCmd, ct)
+                            .ConfigureAwait(false);
+                        break;
+                }
+            }
         }
 
         private static (List<(byte ContextId, ushort MessageId)> EchoRequests,
                  List<CStoreCommandInfo> StoreRequests,
-                 List<QRCommandInfo> QRRequests)
+                 List<QRCommandInfo> QRRequests,
+                 List<NServiceCommandInfo> NServiceRequests)
             ExtractDimseRequests(byte[] pduBody)
         {
             var echoRequests = new List<(byte, ushort)>();
             var storeRequests = new List<CStoreCommandInfo>();
             var qrRequests = new List<QRCommandInfo>();
+            var nServiceRequests = new List<NServiceCommandInfo>();
             var reader = new PduReader(pduBody);
 
             while (reader.TryReadPresentationDataValue(
@@ -495,10 +534,15 @@ namespace SharpDicom.Network
                         var qrInfo = ParseQRCommand(data, contextId, commandField);
                         qrRequests.Add(qrInfo);
                     }
+                    else if (CommandFields.IsNServiceRequest(commandField))
+                    {
+                        var nsInfo = ParseNServiceCommand(data, contextId, commandField);
+                        nServiceRequests.Add(nsInfo);
+                    }
                 }
             }
 
-            return (echoRequests, storeRequests, qrRequests);
+            return (echoRequests, storeRequests, qrRequests, nServiceRequests);
         }
 
         private static QRCommandInfo ParseQRCommand(ReadOnlySpan<byte> commandData, byte contextId, ushort commandField)
@@ -555,6 +599,80 @@ namespace SharpDicom.Network
                 hasDataset: dataSetType != 0x0101,
                 commandField,
                 moveDestination);
+        }
+
+        private static NServiceCommandInfo ParseNServiceCommand(ReadOnlySpan<byte> commandData, byte contextId, ushort commandField)
+        {
+            ushort messageId = 0;
+            string? sopClassUid = null;
+            string? sopInstanceUid = null;
+            ushort dataSetType = 0x0101; // Default: no dataset
+            ushort actionTypeId = 0;
+            ushort eventTypeId = 0;
+
+            int offset = 0;
+            while (offset + 8 <= commandData.Length)
+            {
+                ushort group = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset));
+                ushort element = BinaryPrimitives.ReadUInt16LittleEndian(commandData.Slice(offset + 2));
+                uint length = BinaryPrimitives.ReadUInt32LittleEndian(commandData.Slice(offset + 4));
+
+                if (offset + 8 + length > commandData.Length)
+                    break;
+
+                var valueSpan = commandData.Slice(offset + 8, (int)length);
+
+                if (group == 0x0000)
+                {
+                    switch (element)
+                    {
+                        case 0x0002: // AffectedSOPClassUID
+                            sopClassUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x0003: // RequestedSOPClassUID
+                            // N-SET, N-GET, N-ACTION, N-DELETE use Requested instead of Affected
+                            if (sopClassUid == null)
+                                sopClassUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x0110: // MessageID
+                            if (length >= 2)
+                                messageId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x0800: // CommandDataSetType
+                            if (length >= 2)
+                                dataSetType = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x1000: // AffectedSOPInstanceUID
+                            sopInstanceUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x1001: // RequestedSOPInstanceUID
+                            // N-SET, N-GET, N-ACTION, N-DELETE use Requested instead of Affected
+                            if (sopInstanceUid == null)
+                                sopInstanceUid = Encoding.ASCII.GetString(valueSpan.ToArray()).TrimEnd('\0', ' ');
+                            break;
+                        case 0x1008: // ActionTypeID
+                            if (length >= 2)
+                                actionTypeId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                        case 0x1002: // EventTypeID
+                            if (length >= 2)
+                                eventTypeId = BinaryPrimitives.ReadUInt16LittleEndian(valueSpan);
+                            break;
+                    }
+                }
+
+                offset += 8 + (int)length;
+            }
+
+            return new NServiceCommandInfo(
+                contextId,
+                messageId,
+                new DicomUID(sopClassUid ?? string.Empty),
+                new DicomUID(sopInstanceUid ?? string.Empty),
+                hasDataset: dataSetType != 0x0101,
+                commandField,
+                actionTypeId,
+                eventTypeId);
         }
 
         private async Task HandleCEchoAsync(
@@ -1964,6 +2082,547 @@ namespace SharpDicom.Network
 #endif
         }
 
+        #region N-Service SCP Handlers
+
+        private async Task HandleNCreateAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            // Read the attribute list dataset if present (Pitfall 7: always consume dataset)
+            DicomDataset? attributeList = null;
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    attributeList = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendNServiceResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.SOPInstanceUID,
+                        CommandFields.NCreateResponse,
+                        DicomStatus.ProcessingFailure, false, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            NServiceResponse response;
+            if (_options.NCreateHandler != null)
+            {
+                var context = new NCreateRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId);
+
+                try
+                {
+                    response = await _options.NCreateHandler.OnNCreateAsync(context, attributeList, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            if (response.Dataset != null)
+            {
+                await SendNServiceResponseWithDatasetAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NCreateResponse,
+                    response.Status, response.Dataset, association, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await SendNServiceResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NCreateResponse,
+                    response.Status, false, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private async Task HandleNSetAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            DicomDataset? modificationList = null;
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    modificationList = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendNServiceResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.SOPInstanceUID,
+                        CommandFields.NSetResponse,
+                        DicomStatus.ProcessingFailure, false, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            NServiceResponse response;
+            if (_options.NSetHandler != null)
+            {
+                var context = new NSetRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId);
+
+                try
+                {
+                    response = await _options.NSetHandler.OnNSetAsync(context, modificationList, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            if (response.Dataset != null)
+            {
+                await SendNServiceResponseWithDatasetAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NSetResponse,
+                    response.Status, response.Dataset, association, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await SendNServiceResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NSetResponse,
+                    response.Status, false, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private async Task HandleNGetAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            // N-GET has no dataset in the request (attribute identifier list is in the command)
+            // But still consume any dataset if present to avoid stream corruption
+            if (command.HasDataset)
+            {
+                await ReadAndDiscardDatasetAsync(stream, ct).ConfigureAwait(false);
+            }
+
+            NServiceResponse response;
+            if (_options.NGetHandler != null)
+            {
+                var context = new NGetRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId);
+
+                try
+                {
+                    response = await _options.NGetHandler.OnNGetAsync(context, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            if (response.Dataset != null)
+            {
+                await SendNServiceResponseWithDatasetAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NGetResponse,
+                    response.Status, response.Dataset, association, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await SendNServiceResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NGetResponse,
+                    response.Status, false, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private async Task HandleNDeleteAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            // N-DELETE has no dataset but consume any if present
+            if (command.HasDataset)
+            {
+                await ReadAndDiscardDatasetAsync(stream, ct).ConfigureAwait(false);
+            }
+
+            NServiceResponse response;
+            if (_options.NDeleteHandler != null)
+            {
+                var context = new NDeleteRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId);
+
+                try
+                {
+                    response = await _options.NDeleteHandler.OnNDeleteAsync(context, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            await SendNServiceResponseAsync(
+                stream, command.PresentationContextId, command.MessageID,
+                command.SOPClassUID, instanceUid,
+                CommandFields.NDeleteResponse,
+                response.Status, false, ct)
+                .ConfigureAwait(false);
+        }
+
+        private async Task HandleNActionAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            DicomDataset? actionInformation = null;
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    actionInformation = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendNServiceResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.SOPInstanceUID,
+                        CommandFields.NActionResponse,
+                        DicomStatus.ProcessingFailure, false, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            NServiceResponse response;
+            if (_options.NActionHandler != null)
+            {
+                var context = new NActionRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId,
+                    command.ActionTypeID);
+
+                try
+                {
+                    response = await _options.NActionHandler.OnNActionAsync(context, actionInformation, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            if (response.Dataset != null)
+            {
+                await SendNServiceResponseWithDatasetAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NActionResponse,
+                    response.Status, response.Dataset, association, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await SendNServiceResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NActionResponse,
+                    response.Status, false, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        private async Task HandleNEventReportAsync(
+            Stream stream,
+            DicomAssociation association,
+            NServiceCommandInfo command,
+            CancellationToken ct)
+        {
+            var callingAE = association.Options.CallingAETitle;
+            var calledAE = association.Options.CalledAETitle;
+
+            DicomDataset? eventInformation = null;
+            if (command.HasDataset)
+            {
+                try
+                {
+                    var datasetBytes = await ReadDatasetAsync(stream, ct).ConfigureAwait(false);
+                    eventInformation = ParseDataset(datasetBytes, association, command.PresentationContextId);
+                }
+                catch (Exception)
+                {
+                    await SendNServiceResponseAsync(
+                        stream, command.PresentationContextId, command.MessageID,
+                        command.SOPClassUID, command.SOPInstanceUID,
+                        CommandFields.NEventReportResponse,
+                        DicomStatus.ProcessingFailure, false, ct)
+                        .ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            NServiceResponse response;
+            if (_options.NEventReportHandler != null)
+            {
+                var context = new NEventReportRequestContext(
+                    callingAE, calledAE,
+                    command.SOPClassUID, command.SOPInstanceUID,
+                    command.MessageID, command.PresentationContextId,
+                    command.EventTypeID);
+
+                try
+                {
+                    response = await _options.NEventReportHandler.OnNEventReportAsync(context, eventInformation, ct)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception)
+                {
+                    response = new NServiceResponse(DicomStatus.ProcessingFailure);
+                }
+            }
+            else
+            {
+                response = new NServiceResponse(DicomStatus.ProcessingFailure);
+            }
+
+            var instanceUid = response.AffectedSOPInstanceUID ?? command.SOPInstanceUID;
+            if (response.Dataset != null)
+            {
+                await SendNServiceResponseWithDatasetAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NEventReportResponse,
+                    response.Status, response.Dataset, association, ct)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await SendNServiceResponseAsync(
+                    stream, command.PresentationContextId, command.MessageID,
+                    command.SOPClassUID, instanceUid,
+                    CommandFields.NEventReportResponse,
+                    response.Status, false, ct)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Sends an N-Service response command without a dataset.
+        /// </summary>
+        private static async Task SendNServiceResponseAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort responseCommandField,
+            DicomStatus status,
+            bool hasDataset,
+            CancellationToken ct)
+        {
+            var commandData = BuildNServiceResponseCommand(
+                messageIdBeingRespondedTo,
+                affectedSopClassUid,
+                affectedSopInstanceUid,
+                responseCommandField,
+                status,
+                hasDataset);
+
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var pdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            writer.WritePData(new[] { pdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Sends an N-Service response command with a response dataset.
+        /// </summary>
+        private static async Task SendNServiceResponseWithDatasetAsync(
+            Stream stream,
+            byte presentationContextId,
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort responseCommandField,
+            DicomStatus status,
+            DicomDataset responseDataset,
+            DicomAssociation association,
+            CancellationToken ct)
+        {
+            var commandData = BuildNServiceResponseCommand(
+                messageIdBeingRespondedTo,
+                affectedSopClassUid,
+                affectedSopInstanceUid,
+                responseCommandField,
+                status,
+                hasDataset: true);
+
+            var datasetBytes = SerializeDatasetBytes(responseDataset, presentationContextId, association);
+
+            var buffer = new BufferWriter();
+            var writer = new PduWriter(buffer);
+
+            var commandPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: true,
+                isLastFragment: true,
+                commandData);
+
+            var datasetPdv = new PresentationDataValue(
+                presentationContextId,
+                isCommand: false,
+                isLastFragment: true,
+                datasetBytes);
+
+            writer.WritePData(new[] { commandPdv, datasetPdv });
+
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
+#else
+            var array = buffer.WrittenSpan.ToArray();
+            await stream.WriteAsync(array, 0, array.Length, ct).ConfigureAwait(false);
+#endif
+        }
+
+        /// <summary>
+        /// Builds an N-Service response command dataset.
+        /// </summary>
+        private static byte[] BuildNServiceResponseCommand(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort responseCommandField,
+            DicomStatus status,
+            bool hasDataset)
+        {
+            var buffer = new BufferWriter();
+
+            // SOP Class UID
+            var sopClassUidBytes = Encoding.ASCII.GetBytes(affectedSopClassUid.ToString());
+            var sopClassUidLength = sopClassUidBytes.Length;
+            if (sopClassUidLength % 2 != 0) sopClassUidLength++;
+
+            // SOP Instance UID
+            var sopInstanceUidBytes = Encoding.ASCII.GetBytes(affectedSopInstanceUid.ToString());
+            var sopInstanceUidLength = sopInstanceUidBytes.Length;
+            if (sopInstanceUidLength % 2 != 0) sopInstanceUidLength++;
+
+            // (0000,0002) AffectedSOPClassUID
+            WriteElement(buffer, 0x0000, 0x0002, sopClassUidBytes, sopClassUidLength);
+
+            // (0000,0100) CommandField
+            WriteElementUS(buffer, 0x0000, 0x0100, responseCommandField);
+
+            // (0000,0120) MessageIDBeingRespondedTo
+            WriteElementUS(buffer, 0x0000, 0x0120, messageIdBeingRespondedTo);
+
+            // (0000,0800) CommandDataSetType
+            WriteElementUS(buffer, 0x0000, 0x0800, hasDataset ? (ushort)0x0102 : (ushort)0x0101);
+
+            // (0000,0900) Status
+            WriteElementUS(buffer, 0x0000, 0x0900, status.Code);
+
+            // (0000,1000) AffectedSOPInstanceUID
+            WriteElement(buffer, 0x0000, 0x1000, sopInstanceUidBytes, sopInstanceUidLength);
+
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        #endregion
+
         #region PDU I/O Helpers
 
         private static async Task<(string CallingAE, string CalledAE, List<PresentationContext> Contexts)>
@@ -2535,7 +3194,27 @@ namespace SharpDicom.Network
             public const ushort CMoveResponse = 0x8021;
             public const ushort CEchoRequest = 0x0030;
             public const ushort CEchoResponse = 0x8030;
+            public const ushort NEventReportRequest = 0x0100;
+            public const ushort NEventReportResponse = 0x8100;
+            public const ushort NGetRequest = 0x0110;
+            public const ushort NGetResponse = 0x8110;
+            public const ushort NSetRequest = 0x0120;
+            public const ushort NSetResponse = 0x8120;
+            public const ushort NActionRequest = 0x0130;
+            public const ushort NActionResponse = 0x8130;
+            public const ushort NCreateRequest = 0x0140;
+            public const ushort NCreateResponse = 0x8140;
+            public const ushort NDeleteRequest = 0x0150;
+            public const ushort NDeleteResponse = 0x8150;
             public const ushort CCancelRequest = 0x0FFF;
+
+            public static bool IsNServiceRequest(ushort commandField) =>
+                commandField == NEventReportRequest ||
+                commandField == NGetRequest ||
+                commandField == NSetRequest ||
+                commandField == NActionRequest ||
+                commandField == NCreateRequest ||
+                commandField == NDeleteRequest;
         }
 
         /// <summary>
@@ -2591,6 +3270,41 @@ namespace SharpDicom.Network
             public bool HasDataset { get; }
             public ushort CommandFieldValue { get; }
             public string? MoveDestination { get; }
+        }
+
+        /// <summary>
+        /// Parsed N-Service command information (N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT).
+        /// </summary>
+        private readonly struct NServiceCommandInfo
+        {
+            public NServiceCommandInfo(
+                byte presentationContextId,
+                ushort messageId,
+                DicomUID sopClassUid,
+                DicomUID sopInstanceUid,
+                bool hasDataset,
+                ushort commandField,
+                ushort actionTypeId,
+                ushort eventTypeId)
+            {
+                PresentationContextId = presentationContextId;
+                MessageID = messageId;
+                SOPClassUID = sopClassUid;
+                SOPInstanceUID = sopInstanceUid;
+                HasDataset = hasDataset;
+                CommandFieldValue = commandField;
+                ActionTypeID = actionTypeId;
+                EventTypeID = eventTypeId;
+            }
+
+            public byte PresentationContextId { get; }
+            public ushort MessageID { get; }
+            public DicomUID SOPClassUID { get; }
+            public DicomUID SOPInstanceUID { get; }
+            public bool HasDataset { get; }
+            public ushort CommandFieldValue { get; }
+            public ushort ActionTypeID { get; }
+            public ushort EventTypeID { get; }
         }
     }
 }

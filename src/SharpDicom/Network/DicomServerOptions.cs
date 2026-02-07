@@ -270,6 +270,64 @@ namespace SharpDicom.Network
 
         #endregion
 
+        #region N-Service SCP Configuration
+
+        /// <summary>
+        /// Gets or sets the N-CREATE handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-CREATE operations (e.g., creating MPPS instances).
+        /// If null, incoming N-CREATE requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INCreateHandler? NCreateHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the N-SET handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-SET operations (e.g., updating MPPS instances).
+        /// If null, incoming N-SET requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INSetHandler? NSetHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the N-GET handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-GET operations for retrieving attribute values.
+        /// If null, incoming N-GET requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INGetHandler? NGetHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the N-DELETE handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-DELETE operations for deleting SOP instances.
+        /// If null, incoming N-DELETE requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INDeleteHandler? NDeleteHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the N-ACTION handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-ACTION operations (e.g., Storage Commitment requests).
+        /// If null, incoming N-ACTION requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INActionHandler? NActionHandler { get; init; }
+
+        /// <summary>
+        /// Gets or sets the N-EVENT-REPORT handler interface.
+        /// </summary>
+        /// <remarks>
+        /// Handles N-EVENT-REPORT operations (e.g., Storage Commitment results).
+        /// If null, incoming N-EVENT-REPORT requests are rejected with Processing Failure status.
+        /// </remarks>
+        public INEventReportHandler? NEventReportHandler { get; init; }
+
+        #endregion
+
         /// <summary>
         /// Validates the options and throws if invalid.
         /// </summary>
