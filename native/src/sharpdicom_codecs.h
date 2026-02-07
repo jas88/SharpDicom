@@ -53,6 +53,7 @@ extern "C" {
 #define SHARPDICOM_HAS_GPU          (1 << 6)  /* GPU acceleration available */
 #define SHARPDICOM_HAS_HTJ2K        (1 << 7)  /* High-Throughput JPEG 2000 */
 #define SHARPDICOM_HAS_TESSERACT    (1 << 8)  /* Tesseract OCR for PHI detection */
+#define SHARPDICOM_HAS_JPEG12       (1 << 9)  /* 12-bit JPEG encode/decode */
 
 /*============================================================================
  * SIMD feature bitmap constants
