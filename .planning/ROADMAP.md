@@ -374,6 +374,15 @@ Plans:
 
 **Goal**: Normalized object services and association negotiation enhancements
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] 28-01-PLAN.md — N-Service command factory methods, status codes, well-known UIDs
+- [ ] 28-02-PLAN.md — Async Operations Window negotiation (0x53 PDU, UserInformation, FoDicom5.Compat wiring)
+- [ ] 28-03-PLAN.md — N-Service handler interfaces, typed requests/responses, NServiceScu, server dispatch
+- [ ] 28-04-PLAN.md — MPPS workflow (SCP state machine + SCU) and Storage Commitment Push Model (SCP + SCU)
+- [ ] 28-05-PLAN.md — Test suite (~60-70 tests for all Phase 28 features)
+
 **Should-haves**:
 - [ ] N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT
 - [ ] Modality Performed Procedure Step (MPPS)
