@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>SharpDicom.MongoDB</RootNamespace>
+
+    <!-- NuGet Package -->
+    <PackageId>SharpDicom.MongoDB</PackageId>
+    <Description>MongoDB integration for SharpDicom DICOM toolkit. Provides BsonDocument adapter, collection helpers, index recommendations, and bulk import for DICOM metadata storage.</Description>
+    <PackageTags>dicom;mongodb;bson;medical-imaging;pacs;metadata</PackageTags>
+    <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MongoDB.Driver" />
+  </ItemGroup>
+</Project>
