@@ -28,12 +28,12 @@ namespace SharpDicom.Codecs.Native
         /// </summary>
         /// <param name="imageFileData">The image file data (PNG, JPEG, BMP, TGA, etc.).</param>
         /// <param name="desiredChannels">
-        /// Number of output channels: 1 for grayscale, 3 for RGB (default), 4 for RGBA.
-        /// Use 0 for automatic detection.
+        /// Number of output channels: 1 for grayscale, 3 for RGB (default).
+        /// Use 0 for automatic detection (may fail for 2-channel or 4-channel images).
         /// </param>
         /// <returns>A <see cref="VideoFrame"/> containing the decoded pixel data.</returns>
         /// <exception cref="InvalidOperationException">Native codecs are not available or stb_image is not supported.</exception>
-        /// <exception cref="NativeCodecException">The image could not be decoded.</exception>
+        /// <exception cref="NativeCodecException">The image could not be decoded, or has an unsupported channel count (2 or 4).</exception>
         public static unsafe VideoFrame LoadImage(ReadOnlySpan<byte> imageFileData, int desiredChannels = 3)
         {
             if (!NativeCodecs.IsAvailable)
@@ -97,7 +97,7 @@ namespace SharpDicom.Codecs.Native
         /// </summary>
         /// <param name="imageFiles">Sequence of image file data buffers.</param>
         /// <param name="desiredChannels">
-        /// Number of output channels: 1 for grayscale, 3 for RGB (default), 4 for RGBA.
+        /// Number of output channels: 1 for grayscale, 3 for RGB (default).
         /// </param>
         /// <returns>An enumerable of <see cref="VideoFrame"/> objects, one per input image.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="imageFiles"/> is null.</exception>
