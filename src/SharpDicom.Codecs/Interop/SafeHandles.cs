@@ -53,6 +53,53 @@ namespace SharpDicom.Codecs.Native.Interop
     }
 
     /// <summary>
+    /// Safe handle for video encoder state.
+    /// </summary>
+    /// <remarks>
+    /// Video encoders maintain state across frames for efficient encoding.
+    /// This safe handle ensures proper cleanup when the encoder is no longer needed.
+    /// </remarks>
+    internal sealed class VideoEncoderHandle : SafeHandle
+    {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="VideoEncoderHandle"/> class.
+        /// </summary>
+        public VideoEncoderHandle()
+            : base(IntPtr.Zero, ownsHandle: true)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="VideoEncoderHandle"/> class with the specified handle.
+        /// </summary>
+        /// <param name="existingHandle">The pre-existing handle to wrap.</param>
+        /// <param name="ownsHandle">True if the handle should be released when the safe handle is disposed.</param>
+        public VideoEncoderHandle(IntPtr existingHandle, bool ownsHandle)
+            : base(IntPtr.Zero, ownsHandle)
+        {
+            SetHandle(existingHandle);
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether the handle value is invalid.
+        /// </summary>
+        public override bool IsInvalid => handle == IntPtr.Zero;
+
+        /// <summary>
+        /// Executes the code required to free the handle.
+        /// </summary>
+        /// <returns>true if the handle is released successfully.</returns>
+        protected override bool ReleaseHandle()
+        {
+            if (!IsInvalid)
+            {
+                NativeMethods.video_encoder_destroy(handle);
+            }
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Safe handle for native-allocated memory that must be freed with a specific deallocator.
     /// </summary>
     /// <remarks>

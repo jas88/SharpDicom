@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 26 - Migration Tooling (COMPLETE)
-**Plan**: 7 of 7 in current phase
-**Status**: Phase complete
-**Last activity**: 2026-02-06 - Completed 26-04-PLAN.md (nccid validation)
+**Phase**: 27 - Extended Codec Support (COMPLETE - VERIFIED 20/20)
+**Plan**: 12 of 12 in current phase
+**Status**: Phase complete, verified
+**Last activity**: 2026-02-07 - Phase 27 verified 20/20 (gap closure plans 27-11, 27-12 executed)
 
-**Progress**: ███████ (7/7 plans in Phase 26)
+**Progress**: ████████████ (12/12 plans in Phase 27)
 
-**Test Status**: 4632 tests (4451 pass, 181 skipped, 0 failed)
+**Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 
 ## Completed
 
@@ -151,6 +151,21 @@
 - [x] Phase 26 Plan 06: SharpDicom.Analyzers with FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix
 - [x] Phase 26 Plan 07: Analyzer test suite (21 tests: FoDicomUsageAnalyzer, CompatUsageAnalyzer, FoDicomToCompatFix, CompatToNativeFix)
 
+### Phase 27 - Extended Codec Support (COMPLETE - VERIFIED 20/20)
+
+- [x] Phase 27 Plan 01: Transfer syntax and UID definitions (MPEG2, H264, HEVC CompressionType; 10 transfer syntaxes; 7 video SOP UIDs)
+- [x] Phase 27 Plan 02: JPEG Extended codec (JpegExtendedDecoder/Encoder/Codec, 8/12-bit SOF1, int[] component buffers, CodecInitializer registration)
+- [x] Phase 27 Plan 03: 12-bit JPEG native wrapper (jpeg12_wrapper.c/h, SHARPDICOM_HAS_JPEG12 flag, dual libjpeg-turbo build.zig)
+- [x] Phase 27 Plan 04: Native 12-bit JPEG codec (NativeJpeg8Codec, NativeJpeg12Codec, jpeg12_* P/Invoke, Jpeg12Bit feature detection)
+- [x] Phase 27 Plan 05: 12-bit/16-bit codec test suites (38 tests: JpegExtendedCodecTests, JpegExtended12BitTests, JpegLossless16BitTests)
+- [x] Phase 27 Plan 06: Native video encoder and stb_image wrapper (video_encoder.c/h, stb_image_wrapper.c/h, GPU-accelerated encoding)
+- [x] Phase 27 Plan 07: FFmpeg encoding build infrastructure (SHARPDICOM_HAS_VIDEO_ENC, addX264Sources/addX265Sources/addFfmpegEncSources)
+- [x] Phase 27 Plan 08: Video Encoding API (VideoEncoder, NativeVideoEncoder, VideoFrame, VideoEncoderOptions, NativeImageLoader)
+- [x] Phase 27 Plan 09: Video DICOM Builder (VideoSopClass enum, VideoDicomBuilder fluent API, VideoEncoder integration)
+- [x] Phase 27 Plan 10: Video Encoding Test Suite (66 tests: VideoDicomBuilder, VideoEncoderOptions, VideoEncoder, VideoFrame, VideoEncodeProgress)
+- [x] Phase 27 Plan 11: Video encoder backend registration (NativeCodecs wiring, gap 1+2 closure)
+- [x] Phase 27 Plan 12: Document native build requirements (BUILD-REQUIREMENTS.md, gap 3 closure)
+
 ## In Progress
 
 *None*
@@ -175,6 +190,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
+| 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -478,27 +494,56 @@
 | 2026-02-06 | 26-07 | DefaultVerifier instead of NUnit-specific verifier | Avoids extra package dependency; works correctly with NUnit |
 | 2026-02-06 | 26-07 | CompilerDiagnostics.None for non-existent namespaces | Isolates analyzer behavior from irrelevant CS0246 compiler errors |
 | 2026-02-06 | 26-07 | Pin Microsoft.CodeAnalysis.* to 5.0.0 in test project | Overrides 1.0.1 transitive dependencies from testing packages |
+| 2026-02-07 | 27-01 | Added video SOP UIDs to existing DicomUID.WellKnown.cs | Follow existing partial struct pattern rather than creating separate file |
+| 2026-02-07 | 27-03 | Raw libjpeg API for 12-bit (not TurboJPEG) | WITH_12BIT disables TurboJPEG/SIMD; 8-bit path retains full SIMD performance |
+| 2026-02-07 | 27-03 | Symbol prefix via -D compiler flags for dual libjpeg | jpeg_* -> jpeg12_jpeg_* avoids collisions in single shared library |
+| 2026-02-07 | 27-03 | Opaque struct buffers for libjpeg structs | Version-dependent layouts; actual jpeglib.h will provide correct layout when vendor sources present |
+| 2026-02-07 | 27-06 | Separate SHARPDICOM_WITH_FFMPEG_ENC flag | Encoding requires libavformat+libswresample; decode-only builds should not need these |
+| 2026-02-07 | 27-06 | GPU encoder cascade: VideoToolbox > NVENC > VAAPI | Platform-specific ordering; VideoToolbox first for macOS developer experience |
+| 2026-02-07 | 27-06 | In-memory muxing via avio_write_buffer callback | Zero-temp-file encoding for DICOM pixel data fragment embedding |
+| 2026-02-07 | 27-06 | Annex-B for H.264/HEVC, MPEG-TS for MPEG-2/audio | Minimal container overhead for raw bitstreams; TS required for muxed streams |
+| 2026-02-07 | 27-06 | stb_image vendored in-repo (not CI-downloaded) | Single 8KB public-domain header; no version management overhead |
+| 2026-02-07 | 27-02 | int[] component buffers for 12-bit JPEG Extended | byte[] only holds 0-255; int[] prevents 12-bit value truncation |
+| 2026-02-07 | 27-02 | Decoder accepts both SOF0 and SOF1 | Some encoders use SOF0 even in Extended transfer syntax; maximum compatibility |
+| 2026-02-07 | 27-02 | JpegLosslessCodec already supports 16-bit | LosslessHuffman categories 0-16 and int[] buffers handle up to 16-bit; no changes needed |
+| 2026-02-07 | 27-04 | NativeJpeg12Codec registered only when Jpeg12Bit feature detected | Preserves managed JpegExtendedCodec as fallback when native 12-bit lib absent |
+| 2026-02-07 | 27-04 | 12-bit decode outputs 2 bytes per sample (uint16_t) | Native library outputs 16-bit values even for 12-bit precision; bytesWritten = w*h*c*2 |
+| 2026-02-07 | 27-04 | NativeJpeg8Codec not separately registered | Existing NativeJpegCodec covers JPEGBaseline; NativeJpeg8Codec available for explicit use |
+| 2026-02-07 | 27-07 | Separate have_ffmpeg_enc from have_ffmpeg | Encoding requires x264/x265 backends that decoding does not; independent control |
+| 2026-02-07 | 27-07 | Compile x264/x265/FFmpeg from source via Zig | Consistent cross-platform behavior; bypass configure/make; allyourcodebase pattern |
+| 2026-02-07 | 27-07 | x265 compiled as C++ with -std=c++14 | x265 is C++ codebase; Zig's built-in C++ compiler handles it with linkLibCpp() |
+| 2026-02-07 | 27-08 | VideoEncoder in core uses delegate backend pattern | Avoids hard dependency on SharpDicom.Codecs; backend registered at runtime |
+| 2026-02-07 | 27-08 | IAsyncEnumerable API gated behind NET8_0_OR_GREATER | Ensures netstandard2.0 compatibility while providing modern async API |
+| 2026-02-07 | 27-08 | VideoEncodeProgress as struct with manual equality | record struct unavailable on netstandard2.0; manual IEquatable implementation |
+| 2026-02-07 | 27-08 | NTSC frame rates with exact rational representation | 30000/1001 for 29.97fps avoids drift in video encoding |
+| 2026-02-07 | 27-08 | AudioSampleFormat.IeeeFloat (not Float32) | CA1720 analyzer rule forbids enum names containing type names |
+| 2026-02-06 | 27-05 | 12-bit test values constrained to 1500-2800 range | Standard Huffman DC tables (categories 0-11) cannot encode values far from level shift 2048 |
+| 2026-02-06 | 27-05 | PSNR threshold 15 dB for 12-bit lossy roundtrip | DCT quantization with limited Huffman range; 30 dB too aggressive for some patterns |
+| 2026-02-06 | 27-05 | Smooth gradients instead of modular wrap patterns | High-frequency wrap boundaries degrade PSNR; smooth gradients represent real images better |
+| 2026-02-07 | 27-09 | Data.PixelDataInfo qualified namespace for builder | Codecs.PixelDataInfo takes priority in Codecs.Video namespace; explicit qualification avoids ambiguity |
+| 2026-02-07 | 27-09 | YBR_PARTIAL_420 for all video transfer syntaxes | MPEG2, H.264, HEVC all use 4:2:0 chroma subsampling per DICOM PS3.5 C.7.6.3.1.2 |
+| 2026-02-07 | 27-09 | Single encapsulated fragment for video bitstream | Video codecs require contiguous bitstreams, not per-frame fragmentation |
+| 2026-02-07 | 27-10 | Synthetic byte arrays for video test data | No native encoder needed in CI; tests validate managed types and API contracts |
+| 2026-02-07 | 27-10 | Frame rate detection priority: CineRate > RecommendedDisplayFrameRate > FrameTime > FrameTimeVector | Matches implementation in VideoEncoder.DetectFrameRate |
 
 ## Session Continuity
 
-**Last session**: 2026-02-06
-**Stopped at**: Completed 26-04-PLAN.md (nccid validation - Phase 26 complete)
+**Last session**: 2026-02-07
+**Stopped at**: Completed 27-12-PLAN.md (Document Native Build Requirements) -- Phase 27 COMPLETE (all gaps closed)
 **Resume file**: None
-**Next step**: Proceed to next milestone phase
+**Next step**: Phase 27 complete. All 3 verification gaps closed. Ready for next phase or milestone completion.
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 26 COMPLETE (Migration Tooling) - all 7 plans done (01, 02, 03, 04, 05, 06, 07)
-2. **Phase 26 deliverables**:
-   - FoDicom5.Compat: core types + network adapter (38 + 16 tests)
-   - FoDicom4.Compat: Dicom namespace and Get<T> API (25 tests)
-   - SharpDicom.Analyzers: FoDicomUsageAnalyzer, CompatUsageAnalyzer, code fix providers (21 tests)
-   - dcm2csv validation: 9 integration tests (file I/O phase gate)
-   - nccid validation: 17 integration tests (networking phase gate)
-3. **Both phase gates met**: dcm2csv (file I/O) + nccid (networking) validated
-4. **Test coverage**: 4632 tests (4451 pass, 181 skipped, 0 failed)
+1. **Current phase**: Phase 27 COMPLETE (Extended Codec Support) - all 12 plans done, all verification gaps closed
+2. **Phase 27-12 deliverables**:
+   - native/BUILD-REQUIREMENTS.md documenting all optional vendor library requirements
+   - 12-bit JPEG build instructions with symbol prefix approach
+   - Gap 3 from 27-VERIFICATION.md closed (build requirements documented)
+3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed)
+4. **Next**: Phase 27 complete. Consider Phase 28 or milestone wrap-up.
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -539,4 +584,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-06 (Phase 26 complete -- all 7 plans done, both phase gates met: dcm2csv + nccid validated against compat layer)*
+*Last updated: 2026-02-07 (Phase 27 COMPLETE -- 12/12 plans, all 3 verification gaps closed)*

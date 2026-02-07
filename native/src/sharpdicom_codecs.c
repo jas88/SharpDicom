@@ -255,6 +255,21 @@ SHARPDICOM_API int sharpdicom_features(void) {
     features |= SHARPDICOM_HAS_TESSERACT;
 #endif
 
+    /* Set JPEG12 flag when 12-bit libjpeg-turbo is linked */
+#ifdef SHARPDICOM_WITH_JPEG12
+    features |= SHARPDICOM_HAS_JPEG12;
+#endif
+
+    /* Set Video Encoding flag when FFmpeg encoding is linked */
+#ifdef SHARPDICOM_WITH_FFMPEG_ENC
+    features |= SHARPDICOM_HAS_VIDEO_ENC;
+#endif
+
+    /* Set stb_image flag when stb_image is linked */
+#ifdef SHARPDICOM_WITH_STB_IMAGE
+    features |= SHARPDICOM_HAS_STB_IMAGE;
+#endif
+
     return features;
 }
 
@@ -318,3 +333,4 @@ SHARPDICOM_API int sharpdicom_gpu_j2k_decode(
 #include "jls_wrapper.h"
 #include "video_wrapper.h"
 #include "tesseract_wrapper.h"
+#include "jpeg12_wrapper.h"
