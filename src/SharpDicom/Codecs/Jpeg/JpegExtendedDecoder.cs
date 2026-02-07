@@ -368,6 +368,7 @@ namespace SharpDicom.Codecs.Jpeg
                 int bufferSize = pixelCount * componentCount;
                 componentBuffer = ArrayPool<int>.Shared.Rent(bufferSize);
                 var components = componentBuffer.AsSpan(0, bufferSize);
+                components.Clear();
 
                 // Initialize DC predictors (one per component)
                 Span<int> dcPredictors = stackalloc int[4];
@@ -680,12 +681,47 @@ namespace SharpDicom.Codecs.Jpeg
                         crBuf[i] = (ushort)components[pixelCount * 2 + i];
                     }
 
-                    ColorConversion.YCbCrToRgb(
-                        yBuf.AsSpan(0, pixelCount),
-                        cbBuf.AsSpan(0, pixelCount),
-                        crBuf.AsSpan(0, pixelCount),
-                        rgbBuf.AsSpan(0, pixelCount * 3),
-                        4095); // 12-bit max
+                    if (maxH > 1 || maxV > 1)
+                    {
+                        // Need to upsample chroma components
+                        ushort[]? upsampledCb = null;
+                        ushort[]? upsampledCr = null;
+                        try
+                        {
+                            upsampledCb = ArrayPool<ushort>.Shared.Rent(pixelCount);
+                            upsampledCr = ArrayPool<ushort>.Shared.Rent(pixelCount);
+
+                            UpsampleComponent16(cbBuf.AsSpan(0, pixelCount), upsampledCb.AsSpan(0, pixelCount),
+                                width, height, maxH, maxV,
+                                frameInfo.Components[1].HorizontalSampling,
+                                frameInfo.Components[1].VerticalSampling);
+                            UpsampleComponent16(crBuf.AsSpan(0, pixelCount), upsampledCr.AsSpan(0, pixelCount),
+                                width, height, maxH, maxV,
+                                frameInfo.Components[2].HorizontalSampling,
+                                frameInfo.Components[2].VerticalSampling);
+
+                            ColorConversion.YCbCrToRgb(
+                                yBuf.AsSpan(0, pixelCount),
+                                upsampledCb.AsSpan(0, pixelCount),
+                                upsampledCr.AsSpan(0, pixelCount),
+                                rgbBuf.AsSpan(0, pixelCount * 3),
+                                4095); // 12-bit max
+                        }
+                        finally
+                        {
+                            if (upsampledCb != null) ArrayPool<ushort>.Shared.Return(upsampledCb);
+                            if (upsampledCr != null) ArrayPool<ushort>.Shared.Return(upsampledCr);
+                        }
+                    }
+                    else
+                    {
+                        ColorConversion.YCbCrToRgb(
+                            yBuf.AsSpan(0, pixelCount),
+                            cbBuf.AsSpan(0, pixelCount),
+                            crBuf.AsSpan(0, pixelCount),
+                            rgbBuf.AsSpan(0, pixelCount * 3),
+                            4095); // 12-bit max
+                    }
 
                     // Write RGB values as little-endian ushorts
                     for (int i = 0; i < pixelCount * 3; i++)
@@ -741,7 +777,35 @@ namespace SharpDicom.Codecs.Jpeg
                 for (int x = 0; x < width; x++)
                 {
                     int srcX = Math.Min(x / scaleX, inputWidth - 1);
-                    output[y * width + x] = input[srcY * inputWidth + srcX];
+                    output[y * width + x] = input[srcY * width + srcX];
+                }
+            }
+        }
+
+        private static void UpsampleComponent16(
+            ReadOnlySpan<ushort> input,
+            Span<ushort> output,
+            int width,
+            int height,
+            int maxH,
+            int maxV,
+            int compH,
+            int compV)
+        {
+            int scaleX = maxH / compH;
+            int scaleY = maxV / compV;
+
+            int inputHeight = (height + scaleY - 1) / scaleY;
+            int inputWidth = (width + scaleX - 1) / scaleX;
+
+            for (int y = 0; y < height; y++)
+            {
+                int srcY = Math.Min(y / scaleY, inputHeight - 1);
+
+                for (int x = 0; x < width; x++)
+                {
+                    int srcX = Math.Min(x / scaleX, inputWidth - 1);
+                    output[y * width + x] = input[srcY * width + srcX];
                 }
             }
         }

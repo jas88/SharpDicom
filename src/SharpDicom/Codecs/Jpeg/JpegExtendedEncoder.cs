@@ -633,12 +633,6 @@ namespace SharpDicom.Codecs.Jpeg
                 if (value == 0)
                 {
                     zeroRun++;
-                    if (zeroRun == 16)
-                    {
-                        var (zrlCode, zrlSize) = acTable.GetCode(0xF0);
-                        writer.WriteBits(zrlCode, zrlSize);
-                        zeroRun = 0;
-                    }
                 }
                 else
                 {

@@ -218,8 +218,11 @@ namespace SharpDicom.Codecs.Video
                 pixelFormat = VideoPixelFormat.Gray8;
             else if (samplesPerPixel == 1 && bitsAllocated == 16)
                 pixelFormat = VideoPixelFormat.Gray16;
-            else
+            else if (samplesPerPixel == 3 && bitsAllocated == 8)
                 pixelFormat = VideoPixelFormat.Rgb24;
+            else
+                throw new InvalidOperationException(
+                    $"Unsupported pixel format for video encoding: {samplesPerPixel} samples/pixel, {bitsAllocated} bits allocated.");
 
             // Extract frames
             var frames = new List<VideoFrame>();

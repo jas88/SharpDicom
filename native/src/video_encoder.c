@@ -53,6 +53,7 @@ struct video_encoder {
     AVFrame* video_frame;           /* Input frame buffer (YUV) */
     AVPacket* packet;               /* Encoded packet buffer */
     struct SwsContext* sws_ctx;     /* Pixel format converter */
+    int last_src_fmt;               /* Last input pixel format for sws cache */
 
     /* Audio encoding (optional) */
     AVCodecContext* audio_ctx;      /* Audio codec context */
@@ -189,7 +190,7 @@ static void apply_quality_preset(
     int crf = -1;
     int bitrate = 0;
 
-    if (crf_override >= 0) {
+    if (crf_override > 0) {
         crf = crf_override;
     } else {
         switch (quality_preset) {
@@ -622,17 +623,20 @@ SHARPDICOM_API int video_encode_frame(
         return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
-    /* Recreate scaler if input format changed */
-    if (encoder->sws_ctx != NULL) {
-        sws_freeContext(encoder->sws_ctx);
-    }
-    encoder->sws_ctx = sws_getContext(
-        encoder->width, encoder->height, src_fmt,
-        encoder->width, encoder->height, encoder->video_ctx->pix_fmt,
-        SWS_BILINEAR, NULL, NULL, NULL);
-    if (encoder->sws_ctx == NULL) {
-        set_error("Failed to create pixel format converter");
-        return SHARPDICOM_ERR_INTERNAL;
+    /* Recreate scaler only if input format changed */
+    if (encoder->sws_ctx == NULL || encoder->last_src_fmt != (int)src_fmt) {
+        if (encoder->sws_ctx != NULL) {
+            sws_freeContext(encoder->sws_ctx);
+        }
+        encoder->sws_ctx = sws_getContext(
+            encoder->width, encoder->height, src_fmt,
+            encoder->width, encoder->height, encoder->video_ctx->pix_fmt,
+            SWS_BILINEAR, NULL, NULL, NULL);
+        if (encoder->sws_ctx == NULL) {
+            set_error("Failed to create pixel format converter");
+            return SHARPDICOM_ERR_INTERNAL;
+        }
+        encoder->last_src_fmt = (int)src_fmt;
     }
 
     /* Make frame writable */
@@ -825,6 +829,14 @@ SHARPDICOM_API int video_encode_audio(
     if (ret < 0) {
         set_error("Failed to make audio frame writable");
         return SHARPDICOM_ERR_INTERNAL;
+    }
+
+    /* Prevent buffer overflow: input must not exceed allocated frame size */
+    int max_samples = encoder->audio_ctx->frame_size;
+    if (max_samples == 0) max_samples = 1024;
+    if (nb_samples > max_samples) {
+        set_error_fmt("Audio input (%d samples) exceeds frame size (%d)", nb_samples, max_samples);
+        return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
     encoder->audio_frame->nb_samples = nb_samples;

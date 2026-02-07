@@ -124,6 +124,17 @@ typedef struct jpeg12_error_mgr {
 #define JPEG12_DECOMPRESS_STRUCT_SIZE 4096
 #define JPEG12_COMPRESS_STRUCT_SIZE 4096
 
+/* The actual struct sizes that libjpeg expects in jpeg_Create*() calls.
+ * These must be provided by the build system when have_libjpeg12=true,
+ * derived from the actual libjpeg 12-bit header sizes. Default values
+ * are from libjpeg-turbo 3.0 and serve as reasonable defaults. */
+#ifndef JPEG12_DECOMPRESS_STRUCT_REAL_SIZE
+#define JPEG12_DECOMPRESS_STRUCT_REAL_SIZE 696
+#endif
+#ifndef JPEG12_COMPRESS_STRUCT_REAL_SIZE
+#define JPEG12_COMPRESS_STRUCT_REAL_SIZE 648
+#endif
+
 /*
  * Custom error manager for setjmp/longjmp error recovery.
  * Extends the standard jpeg error manager with a jmp_buf.
@@ -416,7 +427,7 @@ int jpeg12_decode(
     }
 
     /* Initialize decompression */
-    jpeg12_jpeg_CreateDecompress(&cinfo_buf, JPEG12_LIB_VERSION, sizeof(cinfo_buf));
+    jpeg12_jpeg_CreateDecompress(&cinfo_buf, JPEG12_LIB_VERSION, (size_t)JPEG12_DECOMPRESS_STRUCT_REAL_SIZE);
 
     /* Set up memory source */
     jpeg12_jpeg_mem_src(&cinfo_buf, input, (unsigned long)inputLen);
@@ -546,7 +557,7 @@ int jpeg12_encode(
     }
 
     /* Initialize compression */
-    jpeg12_jpeg_CreateCompress(&cinfo_buf, JPEG12_LIB_VERSION, sizeof(cinfo_buf));
+    jpeg12_jpeg_CreateCompress(&cinfo_buf, JPEG12_LIB_VERSION, (size_t)JPEG12_COMPRESS_STRUCT_REAL_SIZE);
 
     /* Set up memory destination */
     jpeg12_jpeg_mem_dest(&cinfo_buf, &outbuffer, &outsize);

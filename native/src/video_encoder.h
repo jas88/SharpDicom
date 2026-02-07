@@ -81,7 +81,7 @@ typedef struct {
     int bit_depth;          /**< Bits per sample: 8 or 10 (0 = 8) */
     int gop_size;           /**< Keyframe interval in frames (0 = codec default) */
     int quality_preset;     /**< VIDEO_QUALITY_* preset */
-    int crf;                /**< Constant rate factor (-1 = use preset default) */
+    int crf;                /**< Constant rate factor (0 = use preset default, >0 = explicit CRF value) */
     int bitrate;            /**< Target bitrate in bps (0 = use CRF mode) */
     int hw_accel;           /**< VIDEO_HWACCEL_* preference */
     int audio_codec;        /**< AUDIO_CODEC_* for audio track */

@@ -73,7 +73,14 @@ namespace SharpDicom.Codecs.Native
                     {
                         1 => VideoPixelFormat.Gray8,
                         3 => VideoPixelFormat.Rgb24,
-                        _ => VideoPixelFormat.Rgb24 // 4-channel gets treated as RGB24 for video encoding
+                        2 => throw new NativeCodecException(
+                            "2-channel (gray+alpha) images are not supported for video encoding. " +
+                            "Use desiredChannels=1 for grayscale or desiredChannels=3 for RGB."),
+                        4 => throw new NativeCodecException(
+                            "4-channel (RGBA) images are not supported for video encoding. " +
+                            "Use desiredChannels=3 for RGB (alpha will be discarded by stb_image)."),
+                        _ => throw new NativeCodecException(
+                            $"Unsupported channel count: {actualChannels}. Use desiredChannels=1 or desiredChannels=3.")
                     };
 
                     return new VideoFrame(pixelData, width, height, format);

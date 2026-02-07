@@ -542,7 +542,7 @@ If resuming after a break:
    - native/BUILD-REQUIREMENTS.md documenting all optional vendor library requirements
    - 12-bit JPEG build instructions with symbol prefix approach
    - Gap 3 from 27-VERIFICATION.md closed (build requirements documented)
-3. **Test coverage**: 2368 tests (2313 pass, 55 skipped, 0 failed)
+3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 4. **Next**: Phase 27 complete. Consider Phase 28 or milestone wrap-up.
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 

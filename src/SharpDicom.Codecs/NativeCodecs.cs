@@ -562,8 +562,13 @@ namespace SharpDicom.Codecs.Native
                 VideoEncoder.RegisterBackend((frames, options, width, height, progress) =>
                 {
                     using var encoder = new NativeVideoEncoder(options, width, height);
+                    int frameIndex = 0;
                     foreach (var frame in frames)
+                    {
                         encoder.EncodeFrame(frame);
+                        frameIndex++;
+                        progress?.Report(new VideoEncodeProgress(frameIndex, 0, 0.0, TimeSpan.Zero, null));
+                    }
                     encoder.Flush();
                     return encoder.GetOutput();
                 });

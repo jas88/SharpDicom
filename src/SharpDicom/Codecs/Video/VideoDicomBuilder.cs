@@ -234,6 +234,12 @@ namespace SharpDicom.Codecs.Video
             // Build dataset
             var dataset = new DicomDataset();
 
+            // Copy template patient/study attributes first (explicit values below will override)
+            if (_templateDataset != null)
+            {
+                CopyTemplateAttributes(dataset, _templateDataset);
+            }
+
             // SOP Common Module
             AddStringElement(dataset, DicomTag.SOPClassUID, DicomVR.UI, sopClassUid);
             AddStringElement(dataset, DicomTag.SOPInstanceUID, DicomVR.UI, sopInstanceUid);
@@ -244,12 +250,6 @@ namespace SharpDicom.Codecs.Video
             // General Series Module
             AddStringElement(dataset, DicomTag.SeriesInstanceUID, DicomVR.UI, seriesInstanceUid);
             AddStringElement(dataset, DicomTag.Modality, DicomVR.CS, modality);
-
-            // Copy template patient/study attributes if provided
-            if (_templateDataset != null)
-            {
-                CopyTemplateAttributes(dataset, _templateDataset);
-            }
 
             // Patient Module (explicit values override template)
             if (_patientId != null)
