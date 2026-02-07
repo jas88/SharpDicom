@@ -413,6 +413,15 @@ Plans:
 
 **Goal**: Native MongoDB/BSON serialization for the metadata -> MongoDB, pixels -> disk architecture pattern
 
+**Plans:** 5 plans
+
+Plans:
+- [ ] 29-01-PLAN.md — Core BSON types, BsonDocumentBuffer, and BsonDicomWriter serialization engine
+- [ ] 29-02-PLAN.md — BsonDicomReader deserialization and convenience extension methods
+- [ ] 29-03-PLAN.md — DICOM-JSON (PS3.18 Annex F) writer and reader
+- [ ] 29-04-PLAN.md — Comprehensive BSON and DICOM-JSON test suite (~70 tests)
+- [ ] 29-05-PLAN.md — SharpDicom.MongoDB adapter package (BsonDocument adapter, index recommendations, bulk import)
+
 **Must-haves**:
 - [ ] DicomDataset -> BsonDocument serialization (in core library)
 - [ ] BsonDocument -> DicomDataset deserialization
