@@ -139,6 +139,45 @@ namespace SharpDicom.Data
 
         #endregion
 
+        #region Video and Multi-frame Storage SOP Classes
+
+        /// <summary>
+        /// Video Endoscopic Image Storage UID (1.2.840.10008.5.1.4.1.1.77.1.1.1).
+        /// </summary>
+        public static readonly DicomUID VideoEndoscopicImageStorage = new("1.2.840.10008.5.1.4.1.1.77.1.1.1");
+
+        /// <summary>
+        /// Video Microscopic Image Storage UID (1.2.840.10008.5.1.4.1.1.77.1.2.1).
+        /// </summary>
+        public static readonly DicomUID VideoMicroscopicImageStorage = new("1.2.840.10008.5.1.4.1.1.77.1.2.1");
+
+        /// <summary>
+        /// Video Photographic Image Storage UID (1.2.840.10008.5.1.4.1.1.77.1.4.1).
+        /// </summary>
+        public static readonly DicomUID VideoPhotographicImageStorage = new("1.2.840.10008.5.1.4.1.1.77.1.4.1");
+
+        /// <summary>
+        /// Enhanced XA Image Storage UID (1.2.840.10008.5.1.4.1.1.12.2.1).
+        /// </summary>
+        public static readonly DicomUID EnhancedXAImageStorage = new("1.2.840.10008.5.1.4.1.1.12.2.1");
+
+        /// <summary>
+        /// Enhanced XRF Image Storage UID (1.2.840.10008.5.1.4.1.1.12.1.1).
+        /// </summary>
+        public static readonly DicomUID EnhancedXRFImageStorage = new("1.2.840.10008.5.1.4.1.1.12.1.1");
+
+        /// <summary>
+        /// Ultrasound Multi-frame Image Storage UID (1.2.840.10008.5.1.4.1.1.6.2).
+        /// </summary>
+        public static readonly DicomUID USMultiFrameImageStorage = new("1.2.840.10008.5.1.4.1.1.6.2");
+
+        /// <summary>
+        /// Secondary Capture Multi-frame True Color Image Storage UID (1.2.840.10008.5.1.4.1.1.7.4).
+        /// </summary>
+        public static readonly DicomUID SCMultiFrameTrueColorImageStorage = new("1.2.840.10008.5.1.4.1.1.7.4");
+
+        #endregion
+
         #region Storage SOP Classes (Common)
 
         /// <summary>
