@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 27 - Extended Codec Support (IN PROGRESS)
-**Plan**: 8 of 10 in current phase
+**Plan**: 9 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 27-08-PLAN.md (Video Encoding API)
+**Last activity**: 2026-02-07 - Completed 27-09-PLAN.md (Video DICOM Builder)
 
-**Progress**: ████████░░ (8/10 plans in Phase 27)
+**Progress**: █████████░ (9/10 plans in Phase 27)
 
-**Test Status**: 2301 tests (2247 pass, 54 skipped, 0 failed)
+**Test Status**: 4529 tests (4529 pass, 181 skipped, 0 failed)
 
 ## Completed
 
@@ -161,10 +161,11 @@
 - [x] Phase 27 Plan 06: Native video encoder and stb_image wrapper (video_encoder.c/h, stb_image_wrapper.c/h, GPU-accelerated encoding)
 - [x] Phase 27 Plan 07: FFmpeg encoding build infrastructure (SHARPDICOM_HAS_VIDEO_ENC, addX264Sources/addX265Sources/addFfmpegEncSources)
 - [x] Phase 27 Plan 08: Video Encoding API (VideoEncoder, NativeVideoEncoder, VideoFrame, VideoEncoderOptions, NativeImageLoader)
+- [x] Phase 27 Plan 09: Video DICOM Builder (VideoSopClass enum, VideoDicomBuilder fluent API, VideoEncoder integration)
 
 ## In Progress
 
-*Phase 27 - Extended Codec Support (8/10 plans complete)*
+*Phase 27 - Extended Codec Support (9/10 plans complete)*
 
 ## Blocked
 
@@ -186,7 +187,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
-| 27 | Extended Codec Support | IN PROGRESS | 8/10 | 2026-02-07 | - |
+| 27 | Extended Codec Support | IN PROGRESS | 9/10 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -516,26 +517,29 @@
 | 2026-02-06 | 27-05 | 12-bit test values constrained to 1500-2800 range | Standard Huffman DC tables (categories 0-11) cannot encode values far from level shift 2048 |
 | 2026-02-06 | 27-05 | PSNR threshold 15 dB for 12-bit lossy roundtrip | DCT quantization with limited Huffman range; 30 dB too aggressive for some patterns |
 | 2026-02-06 | 27-05 | Smooth gradients instead of modular wrap patterns | High-frequency wrap boundaries degrade PSNR; smooth gradients represent real images better |
+| 2026-02-07 | 27-09 | Data.PixelDataInfo qualified namespace for builder | Codecs.PixelDataInfo takes priority in Codecs.Video namespace; explicit qualification avoids ambiguity |
+| 2026-02-07 | 27-09 | YBR_PARTIAL_420 for all video transfer syntaxes | MPEG2, H.264, HEVC all use 4:2:0 chroma subsampling per DICOM PS3.5 C.7.6.3.1.2 |
+| 2026-02-07 | 27-09 | Single encapsulated fragment for video bitstream | Video codecs require contiguous bitstreams, not per-frame fragmentation |
 
 ## Session Continuity
 
-**Last session**: 2026-02-06
-**Stopped at**: Completed 27-05-PLAN.md (12-bit/16-bit codec test suites)
+**Last session**: 2026-02-07
+**Stopped at**: Completed 27-09-PLAN.md (Video DICOM Builder)
 **Resume file**: None
-**Next step**: Execute next plan in Phase 27
+**Next step**: Execute plan 27-10 (final plan in Phase 27)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01, 02, 03, 04, 05, 06, 07, 08 of 10 done
-2. **Phase 27-05 deliverables**:
-   - 21 JpegExtendedCodec tests (properties, registration, validation, 8-bit roundtrip)
-   - 10 JpegExtended12BitTests (12-bit lossy roundtrip with PSNR verification)
-   - 7 JpegLossless16BitTests (16-bit lossless bit-exact roundtrip)
-   - Known limitation: standard Huffman DC tables restrict 12-bit range to ~1500-2800
-3. **Test coverage**: 2301 tests (2247 pass, 54 skipped, 0 failed)
-4. **Next**: Execute next plan in Phase 27
+1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01-09 of 10 done
+2. **Phase 27-09 deliverables**:
+   - VideoSopClass enum for all 7 video SOP classes
+   - VideoDicomBuilder fluent API for creating video DICOM files
+   - VideoEncoder.CreateVideoDicom and CreateVideoDicomAsync end-to-end pipeline
+   - VideoEncoder.MapCodecToTransferSyntax codec-to-transfer-syntax mapping
+3. **Test coverage**: 4529 tests (4529 pass, 181 skipped, 0 failed)
+4. **Next**: Execute plan 27-10 (final plan in Phase 27)
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -576,4 +580,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 plan 08 complete -- Video Encoding API with VideoEncoder, NativeVideoEncoder, NativeImageLoader)*
+*Last updated: 2026-02-07 (Phase 27 plan 09 complete -- Video DICOM Builder with VideoSopClass, VideoDicomBuilder, VideoEncoder integration)*
