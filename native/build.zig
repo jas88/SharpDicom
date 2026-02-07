@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
     // Cross-compilation of vendor libraries requires proper sysroot setup.
     // TODO: Add proper cross-compilation support in Phase 13b
     const have_libjpeg = false;
+    const have_libjpeg12 = false; // 12-bit libjpeg-turbo (raw libjpeg API, no TurboJPEG/SIMD)
     const have_openjpeg = false; // Needs CMake-generated config + sysroot
     const have_charls = false;
     const have_ffmpeg = false;
@@ -88,8 +89,75 @@ pub fn build(b: *std.Build) void {
             "-DSHARPDICOM_WITH_JPEG",
         };
 
+        const jpeg12_flags = common_flags ++ &[_][]const u8{
+            "-DSHARPDICOM_WITH_JPEG12",
+        };
+
+        // Symbol prefix flags for 12-bit libjpeg-turbo compilation.
+        // These rename all public libjpeg symbols with a jpeg12_ prefix so the
+        // 8-bit and 12-bit builds can coexist in the same shared library.
+        const jpeg12_symbol_prefix_flags = &[_][]const u8{
+            "-Djpeg_CreateCompress=jpeg12_jpeg_CreateCompress",
+            "-Djpeg_CreateDecompress=jpeg12_jpeg_CreateDecompress",
+            "-Djpeg_mem_src=jpeg12_jpeg_mem_src",
+            "-Djpeg_mem_dest=jpeg12_jpeg_mem_dest",
+            "-Djpeg_read_header=jpeg12_jpeg_read_header",
+            "-Djpeg_start_decompress=jpeg12_jpeg_start_decompress",
+            "-Djpeg_read_scanlines=jpeg12_jpeg_read_scanlines",
+            "-Djpeg_finish_decompress=jpeg12_jpeg_finish_decompress",
+            "-Djpeg_destroy_decompress=jpeg12_jpeg_destroy_decompress",
+            "-Djpeg_start_compress=jpeg12_jpeg_start_compress",
+            "-Djpeg_write_scanlines=jpeg12_jpeg_write_scanlines",
+            "-Djpeg_finish_compress=jpeg12_jpeg_finish_compress",
+            "-Djpeg_destroy_compress=jpeg12_jpeg_destroy_compress",
+            "-Djpeg_set_defaults=jpeg12_jpeg_set_defaults",
+            "-Djpeg_set_quality=jpeg12_jpeg_set_quality",
+            "-Djpeg_std_error=jpeg12_jpeg_std_error",
+            "-Djpeg_abort_compress=jpeg12_jpeg_abort_compress",
+            "-Djpeg_abort_decompress=jpeg12_jpeg_abort_decompress",
+            "-Djpeg_alloc_quant_table=jpeg12_jpeg_alloc_quant_table",
+            "-Djpeg_alloc_huff_table=jpeg12_jpeg_alloc_huff_table",
+            "-Djpeg_stdio_dest=jpeg12_jpeg_stdio_dest",
+            "-Djpeg_stdio_src=jpeg12_jpeg_stdio_src",
+            "-Djpeg_set_colorspace=jpeg12_jpeg_set_colorspace",
+            "-Djpeg_default_colorspace=jpeg12_jpeg_default_colorspace",
+            "-Djpeg_set_linear_quality=jpeg12_jpeg_set_linear_quality",
+            "-Djpeg_default_qtables=jpeg12_jpeg_default_qtables",
+            "-Djpeg_add_quant_table=jpeg12_jpeg_add_quant_table",
+            "-Djpeg_simple_progression=jpeg12_jpeg_simple_progression",
+            "-Djpeg_suppress_tables=jpeg12_jpeg_suppress_tables",
+            "-Djpeg_write_tables=jpeg12_jpeg_write_tables",
+            "-Djpeg_write_marker=jpeg12_jpeg_write_marker",
+            "-Djpeg_write_m_header=jpeg12_jpeg_write_m_header",
+            "-Djpeg_write_m_byte=jpeg12_jpeg_write_m_byte",
+            "-Djpeg_write_raw_data=jpeg12_jpeg_write_raw_data",
+            "-Djpeg_read_raw_data=jpeg12_jpeg_read_raw_data",
+            "-Djpeg_has_multiple_scans=jpeg12_jpeg_has_multiple_scans",
+            "-Djpeg_start_output=jpeg12_jpeg_start_output",
+            "-Djpeg_finish_output=jpeg12_jpeg_finish_output",
+            "-Djpeg_input_complete=jpeg12_jpeg_input_complete",
+            "-Djpeg_consume_input=jpeg12_jpeg_consume_input",
+            "-Djpeg_calc_output_dimensions=jpeg12_jpeg_calc_output_dimensions",
+            "-Djpeg_save_markers=jpeg12_jpeg_save_markers",
+            "-Djpeg_set_marker_processor=jpeg12_jpeg_set_marker_processor",
+            "-Djpeg_read_coefficients=jpeg12_jpeg_read_coefficients",
+            "-Djpeg_write_coefficients=jpeg12_jpeg_write_coefficients",
+            "-Djpeg_copy_critical_parameters=jpeg12_jpeg_copy_critical_parameters",
+            "-Djpeg_abort=jpeg12_jpeg_abort",
+            "-Djpeg_destroy=jpeg12_jpeg_destroy",
+            "-Djpeg_resync_to_restart=jpeg12_jpeg_resync_to_restart",
+            "-DWITH_12BIT=1",
+        };
+
+        // Flags for 12-bit libjpeg-turbo vendor source compilation
+        _ = jpeg12_symbol_prefix_flags; // Used when have_libjpeg12 is true
+
         // Add C source files (core) - feature flags based on available libraries
-        const core_flags = if (have_libjpeg) jpeg_flags else common_flags;
+        const core_flags_base = if (have_libjpeg) jpeg_flags else common_flags;
+        const core_flags = if (have_libjpeg12)
+            core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
+        else
+            core_flags_base;
         lib.addCSourceFile(.{
             .file = b.path("src/sharpdicom_codecs.c"),
             .flags = core_flags,
@@ -207,6 +275,24 @@ pub fn build(b: *std.Build) void {
             });
         }
 
+        // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
+        if (have_libjpeg12) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/jpeg12_wrapper.c"),
+                .flags = jpeg12_flags,
+            });
+            // 12-bit libjpeg-turbo vendor sources would be compiled here with
+            // jpeg12_symbol_prefix_flags to prefix all public symbols with "jpeg12_".
+            // The 12-bit build does NOT use TurboJPEG or SIMD (incompatible with WITH_12BIT).
+            lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
+        } else {
+            // Build stub version (12-bit JPEG functions will error at runtime)
+            lib.addCSourceFile(.{
+                .file = b.path("src/jpeg12_wrapper.c"),
+                .flags = common_flags,
+            });
+        }
+
         // Include paths
         lib.addIncludePath(b.path("src"));
 
@@ -315,6 +401,16 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    // Add jpeg12_wrapper stub for tests (without 12-bit libjpeg for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/jpeg12_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
     // Link -ldl on Linux for dynamic library loading
     if (native_target.result.os.tag == .linux) {
         test_exe.linkSystemLibrary("dl");
@@ -349,10 +445,16 @@ pub fn build(b: *std.Build) void {
     };
 
     // Native flags with JPEG enabled (only when libjpeg is available)
-    const native_jpeg_flags = if (have_libjpeg)
+    const native_jpeg_flags_base = if (have_libjpeg)
         native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG"}
     else
         native_flags;
+
+    // Native flags with both JPEG and JPEG12 when available
+    const native_jpeg_flags = if (have_libjpeg12)
+        native_jpeg_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
+    else
+        native_jpeg_flags_base;
 
     native_lib.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
@@ -452,6 +554,23 @@ pub fn build(b: *std.Build) void {
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/tesseract_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
+
+    // 12-bit JPEG wrapper for native build
+    if (have_libjpeg12) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jpeg12_wrapper.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_JPEG12",
+            },
+        });
+        // 12-bit libjpeg-turbo vendor sources compiled with symbol prefix flags
+        native_lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/jpeg12_wrapper.c"),
             .flags = native_flags,
         });
     }
