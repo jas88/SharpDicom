@@ -26,7 +26,7 @@
 | 27 | Extended Codec Support | Low | **COMPLETE** |
 | 28 | DIMSE-N Services | Low | **COMPLETE** |
 | 29 | MongoDB/BSON Serialization | Medium | **COMPLETE** |
-| 30 | HT Block Coder | Low | Future |
+| 30 | HT Block Coder | Low | Planned |
 
 ---
 
@@ -441,31 +441,52 @@ Plans:
 
 ---
 
-## Phase 30: HT Block Coder (Future)
+## Phase 30: HT Block Coder
 
-**Goal**: Implement true High-Throughput JPEG 2000 block coding per ISO/IEC 15444-15
+**Goal**: Implement true High-Throughput JPEG 2000 block coding per ISO/IEC 15444-15 with full J2K pipeline rebuild
 
 **Priority**: Low — Deferred from Phase 21 due to complexity
 
-**Rationale for deferral**:
-- Estimated 3000-5000 lines of code
-- Requires deep study of ITU-T T.814 specification
-- Current HTJ2K implementation is functionally correct via J2K delegation
-- Performance optimization not blocking other work
+**Plans:** 10 plans
+
+Plans:
+- [ ] 30-01-PLAN.md — Multi-resolution subband infrastructure (SubbandDescriptor, SubbandPartitioner, TileComponent)
+- [ ] 30-02-PLAN.md — IBlockCoder interface and J2K pipeline subband fix (EBCOT wrapper, LL-only bug fix)
+- [ ] 30-03-PLAN.md — HT primitives (VLC lookup tables, MEL run-length coder, three-stream bidirectional bit I/O)
+- [ ] 30-04-PLAN.md — HT Cleanup pass (quad-based VLC+MEL+MagSgn encoding/decoding)
+- [ ] 30-05-PLAN.md — HT SigProp + MagRef refinement passes and HtBlockEncoder/Decoder (IBlockCoder)
+- [ ] 30-06-PLAN.md — HTJ2K codec integration (HT routing, dynamic CAP marker, Tier-2 HT passes, presets)
+- [ ] 30-07-PLAN.md — IProgressiveCodec interface and SIMD expansion (Vector256/512, BMI2, DWT upgrade)
+- [ ] 30-08-PLAN.md — `sharpdcm convert` CLI command (batch transfer syntax transcoding)
+- [ ] 30-09-PLAN.md — Multi-tile pipeline, parallel decode, all 5 progression orders, EBCOT regression suite
+- [ ] 30-10-PLAN.md — Conformance tests (OpenJPH), FsCheck property tests, BenchmarkDotNet performance suite
 
 **Must-haves**:
-- [ ] HtBlockCoder implementing ISO/IEC 15444-15 HT algorithm
-- [ ] HtBitWriter/HtBitReader for VLC entropy coding
+- [ ] HtBlockEncoder implementing ISO/IEC 15444-15 HT algorithm (all 3 passes: Cleanup, SigProp, MagRef)
+- [ ] VLC lookup tables, MEL 13-state coder, three-stream bidirectional bit I/O
+- [ ] Multi-resolution subband infrastructure fixing LL-only bug
+- [ ] IBlockCoder abstraction for pluggable EBCOT/HT routing
 - [ ] Integration routing in J2kEncoder/Decoder to use HT when requested
+- [ ] Dynamic CAP marker generation based on actual encoding parameters
+- [ ] Named quality presets (Diagnostic 40+ dB, Archive 35+ dB, Review 30+ dB, Fast 25+ dB)
+- [ ] Multi-tile encoding/decoding with parallel tile decode
+- [ ] IProgressiveCodec for resolution-level decode
+- [ ] `sharpdcm convert` CLI command
 - [ ] 10x performance improvement over EBCOT for typical medical images
 
 **Should-haves**:
-- [ ] SIMD optimization for VLC coding
-- [ ] Conformance test vectors from ITU-T
+- [ ] SIMD optimization (Vector256/512, BMI2 PDEP/PEXT)
+- [ ] Conformance test vectors against OpenJPH
+- [ ] BenchmarkDotNet performance tracking suite
+- [ ] All 5 progression orders (LRCP, RLCP, RPCL, PCRL, CPRL)
+- [ ] FsCheck property-based codec testing
 
 **Success Criteria**:
-- [ ] HTJ2K encoding 10x faster than standard J2K
+- [ ] HTJ2K encoding 10x faster than standard J2K (EBCOT)
 - [ ] Output decodable by OpenJPH
+- [ ] Lossless roundtrip pixel-perfect for 8/12/16-bit
+- [ ] Lossy presets meet PSNR thresholds
+- [ ] All existing J2K/EBCOT tests pass (regression suite)
 
 ---
 
@@ -480,4 +501,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-07 (Phase 29 COMPLETE -- MongoDB/BSON Serialization)*
+*Last updated: 2026-02-07 (Phase 30 planned -- HT Block Coder, 10 plans)*
