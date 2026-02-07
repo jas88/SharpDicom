@@ -73,6 +73,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- MongoDB adapter: netstandard2.1/net8.0/net9.0/net10.0 (MongoDB.Driver 3.x requires netstandard2.1+) -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.MongoDB'">
+    <TargetFrameworks>netstandard2.1;net8.0;net9.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
   <!-- CLI: console application targeting latest TFM -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Cli'">
     <TargetFramework>net10.0</TargetFramework>

@@ -36,5 +36,7 @@
     <!-- Analyzer Testing (pinned to match Microsoft.CodeAnalysis.CSharp 5.0.0) -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.2" />
+    <!-- MongoDB Integration (v3.x targets netstandard2.1/net6.0+, NOT netstandard2.0) -->
+    <PackageVersion Include="MongoDB.Driver" Version="3.6.0" />
   </ItemGroup>
 </Project>
