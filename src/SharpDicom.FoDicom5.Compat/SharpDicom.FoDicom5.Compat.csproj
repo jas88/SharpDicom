@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FellowOakDicom</RootNamespace>
+
+    <!-- NuGet Package -->
+    <PackageId>SharpDicom.FoDicom5.Compat</PackageId>
+    <Description>fo-dicom 5.x compatibility layer for SharpDicom. Drop-in replacement for FellowOakDicom namespace types, backed by SharpDicom internally.</Description>
+    <PackageTags>dicom;migration;fo-dicom;compatibility;medical-imaging</PackageTags>
+    <PackageProjectUrl>https://github.com/jas88/SharpDicom</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jas88/SharpDicom.git</RepositoryUrl>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+  </ItemGroup>
+</Project>

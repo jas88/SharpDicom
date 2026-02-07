@@ -22,6 +22,11 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- Analyzers: must target netstandard2.0 for Roslyn host compatibility -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Analyzers'">
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
   <!-- Tests: latest TFM, references matching library build -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests'">
     <TargetFramework>net10.0</TargetFramework>
@@ -30,6 +35,40 @@
 
   <!-- Polyfill Tests: net10.0 runtime but forces netstandard2.0 library reference -->
   <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Tests.Polyfills'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- FoDicom5 Compat: multi-target matching main library -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.FoDicom5.Compat'">
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <!-- FoDicom5 Compat Tests: latest TFM -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.FoDicom5.Compat.Tests'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- FoDicom4 Compat: multi-target matching main library -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.FoDicom4.Compat'">
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <!-- FoDicom4 Compat Tests: latest TFM -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.FoDicom4.Compat.Tests'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Migration Integration Tests: validates dcm2csv compiles against compat layer -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Migration.Integration'">
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Analyzer Tests: Roslyn analyzer and code fix testing -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'SharpDicom.Analyzers.Tests'">
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
