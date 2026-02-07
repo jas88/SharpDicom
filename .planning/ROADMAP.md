@@ -327,7 +327,7 @@ Plans:
 - [ ] 27-05-PLAN.md — 12-bit JPEG test suite (synthetic test data, roundtrip tests, lenient Process 1 decode)
 - [ ] 27-06-PLAN.md — Native video encoder C layer (video_encoder.c, stb_image_wrapper.c, GPU fallback)
 - [ ] 27-07-PLAN.md — Native video encoder build (FFmpeg/x264/x265 compilation via Zig, stb_image vendor)
-- [ ] 27-08-PLAN.md — Managed video encoder API (VideoEncoder, VideoEncoderOptions, NativeVideoEncoder P/Invoke)
+- [ ] 27-08-PLAN.md — Managed video encoder API (VideoEncoder, NativeVideoEncoder, NativeImageLoader, stb_image P/Invoke)
 - [ ] 27-09-PLAN.md — VideoDicomBuilder (fluent builder for video DICOM files, SOP class selection)
 - [ ] 27-10-PLAN.md — Video encoding test suite (builder tests, frame rate detection, quality preset validation)
 
