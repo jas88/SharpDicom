@@ -58,6 +58,21 @@ namespace SharpDicom.Data
         /// <summary>
         /// HTJ2K (High Throughput JPEG 2000) Lossy compression.
         /// </summary>
-        HTJ2KLossy
+        HTJ2KLossy,
+
+        /// <summary>
+        /// MPEG-2 Video compression.
+        /// </summary>
+        MPEG2,
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 Video compression.
+        /// </summary>
+        H264,
+
+        /// <summary>
+        /// HEVC/H.265 Video compression.
+        /// </summary>
+        HEVC
     }
 }

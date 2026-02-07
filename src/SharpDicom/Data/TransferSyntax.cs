@@ -80,6 +80,26 @@ namespace SharpDicom.Data
                 return HTJ2KLosslessRPCL;
             if (uid == HTJ2KLossy.UID)
                 return HTJ2KLossy;
+            if (uid == JPEGExtended.UID)
+                return JPEGExtended;
+            if (uid == MPEG2MainML.UID)
+                return MPEG2MainML;
+            if (uid == MPEG2MainHL.UID)
+                return MPEG2MainHL;
+            if (uid == H264HighProfile41.UID)
+                return H264HighProfile41;
+            if (uid == H264BDCompatible41.UID)
+                return H264BDCompatible41;
+            if (uid == H264HighProfile42_2D.UID)
+                return H264HighProfile42_2D;
+            if (uid == H264HighProfile42_3D.UID)
+                return H264HighProfile42_3D;
+            if (uid == H264StereoHighProfile42.UID)
+                return H264StereoHighProfile42;
+            if (uid == HEVCMainProfile51.UID)
+                return HEVCMainProfile51;
+            if (uid == HEVCMain10Profile51.UID)
+                return HEVCMain10Profile51;
 
             // Unknown transfer syntax - return with IsKnown=false
             return new TransferSyntax
@@ -300,6 +320,146 @@ namespace SharpDicom.Data
             IsEncapsulated = true,
             IsLossy = true,
             Compression = CompressionType.HTJ2KLossy,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// JPEG Extended (Process 2 and 4) for 8-bit and 12-bit lossy compression (1.2.840.10008.1.2.4.51).
+        /// </summary>
+        public static readonly TransferSyntax JPEGExtended = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.51"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.JPEGExtended,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG2 Main Profile / Main Level (1.2.840.10008.1.2.4.100).
+        /// </summary>
+        public static readonly TransferSyntax MPEG2MainML = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.100"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.MPEG2,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG2 Main Profile / High Level (1.2.840.10008.1.2.4.101).
+        /// </summary>
+        public static readonly TransferSyntax MPEG2MainHL = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.101"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.MPEG2,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 High Profile / Level 4.1 (1.2.840.10008.1.2.4.102).
+        /// </summary>
+        public static readonly TransferSyntax H264HighProfile41 = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.102"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.H264,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 BD-compatible High Profile / Level 4.1 (1.2.840.10008.1.2.4.103).
+        /// </summary>
+        public static readonly TransferSyntax H264BDCompatible41 = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.103"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.H264,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 High Profile / Level 4.2 For 2D Video (1.2.840.10008.1.2.4.104).
+        /// </summary>
+        public static readonly TransferSyntax H264HighProfile42_2D = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.104"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.H264,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 High Profile / Level 4.2 For 3D Video (1.2.840.10008.1.2.4.105).
+        /// </summary>
+        public static readonly TransferSyntax H264HighProfile42_3D = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.105"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.H264,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// MPEG-4 AVC/H.264 Stereo High Profile / Level 4.2 (1.2.840.10008.1.2.4.106).
+        /// </summary>
+        public static readonly TransferSyntax H264StereoHighProfile42 = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.106"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.H264,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// HEVC/H.265 Main Profile / Level 5.1 (1.2.840.10008.1.2.4.107).
+        /// </summary>
+        public static readonly TransferSyntax HEVCMainProfile51 = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.107"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.HEVC,
+            IsKnown = true
+        };
+
+        /// <summary>
+        /// HEVC/H.265 Main 10 Profile / Level 5.1 (1.2.840.10008.1.2.4.108).
+        /// </summary>
+        public static readonly TransferSyntax HEVCMain10Profile51 = new()
+        {
+            UID = new DicomUID("1.2.840.10008.1.2.4.108"),
+            IsExplicitVR = true,
+            IsLittleEndian = true,
+            IsEncapsulated = true,
+            IsLossy = true,
+            Compression = CompressionType.HEVC,
             IsKnown = true
         };
     }
