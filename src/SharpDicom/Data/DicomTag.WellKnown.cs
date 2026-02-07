@@ -309,5 +309,37 @@ namespace SharpDicom.Data
 
         /// <summary>(0040,1001) Requested Procedure ID</summary>
         public static readonly DicomTag RequestedProcedureID = new(0x0040, 0x1001);
+
+        // MPPS tags
+
+        /// <summary>(0040,0252) Performed Procedure Step Status</summary>
+        /// <remarks>CS VR. Status of the performed procedure step: IN PROGRESS, COMPLETED, DISCONTINUED.</remarks>
+        public static readonly DicomTag PerformedProcedureStepStatus = new(0x0040, 0x0252);
+
+        // Storage Commitment / SOP Reference tags
+
+        /// <summary>(0008,1150) Referenced SOP Class UID</summary>
+        /// <remarks>UI VR. Uniquely identifies the referenced SOP Class.</remarks>
+        public static readonly DicomTag ReferencedSOPClassUID = new(0x0008, 0x1150);
+
+        /// <summary>(0008,1155) Referenced SOP Instance UID</summary>
+        /// <remarks>UI VR. Uniquely identifies the referenced SOP Instance.</remarks>
+        public static readonly DicomTag ReferencedSOPInstanceUID = new(0x0008, 0x1155);
+
+        /// <summary>(0008,1195) Transaction UID</summary>
+        /// <remarks>UI VR. Uniquely identifies a Storage Commitment transaction.</remarks>
+        public static readonly DicomTag TransactionUID = new(0x0008, 0x1195);
+
+        /// <summary>(0008,1199) Referenced SOP Sequence</summary>
+        /// <remarks>SQ VR. Sequence of items referencing SOP Instances.</remarks>
+        public static readonly DicomTag ReferencedSOPSequence = new(0x0008, 0x1199);
+
+        /// <summary>(0008,1198) Failed SOP Sequence</summary>
+        /// <remarks>SQ VR. Sequence of items referencing SOP Instances that failed storage commitment.</remarks>
+        public static readonly DicomTag FailedSOPSequence = new(0x0008, 0x1198);
+
+        /// <summary>(0008,1197) Failure Reason</summary>
+        /// <remarks>US VR. Reason for failure of storage commitment for a SOP Instance.</remarks>
+        public static readonly DicomTag FailureReason = new(0x0008, 0x1197);
     }
 }
