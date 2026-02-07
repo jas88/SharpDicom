@@ -97,15 +97,19 @@ public static class BulkImporter
             cancellationToken.ThrowIfCancellationRequested();
             var doc = BsonDocumentAdapter.ToBsonDocument(dataset, options);
 
-            // Use SOPInstanceUID as unique key for upsert
+            // Use SOPInstanceUID as unique key for upsert — extract the first
+            // string from the Value array (structure: {"Value": ["1.2.3..."], "vr": "UI"})
             var sopUid = doc.GetValue("00080018", BsonNull.Value);
-            BsonValue filterValue;
-            if (sopUid is BsonDocument sopDoc && sopDoc.Contains("Value"))
-                filterValue = sopDoc["Value"];
-            else
-                filterValue = sopUid;
+            BsonValue filterValue = BsonNull.Value;
+            if (sopUid is BsonDocument sopDoc
+                && sopDoc.Contains("Value")
+                && sopDoc["Value"] is BsonArray arr
+                && arr.Count > 0)
+            {
+                filterValue = arr[0];
+            }
 
-            if (filterValue == BsonNull.Value || filterValue.IsBsonNull)
+            if (filterValue.IsBsonNull)
                 throw new InvalidOperationException(
                     "Cannot upsert a dataset without SOPInstanceUID (0008,0018).");
 
