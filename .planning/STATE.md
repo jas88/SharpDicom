@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 27 - Extended Codec Support (IN PROGRESS)
-**Plan**: 7 of 10 in current phase
+**Plan**: 8 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 27-07-PLAN.md (FFmpeg encoding build infrastructure)
+**Last activity**: 2026-02-07 - Completed 27-08-PLAN.md (Video Encoding API)
 
-**Progress**: ███████░░░ (7/10 plans in Phase 27)
+**Progress**: ████████░░ (8/10 plans in Phase 27)
 
 **Test Status**: 2263 tests (2209 pass, 54 skipped, 0 failed)
 
@@ -159,10 +159,11 @@
 - [x] Phase 27 Plan 04: Native 12-bit JPEG codec (NativeJpeg8Codec, NativeJpeg12Codec, jpeg12_* P/Invoke, Jpeg12Bit feature detection)
 - [x] Phase 27 Plan 06: Native video encoder and stb_image wrapper (video_encoder.c/h, stb_image_wrapper.c/h, GPU-accelerated encoding)
 - [x] Phase 27 Plan 07: FFmpeg encoding build infrastructure (SHARPDICOM_HAS_VIDEO_ENC, addX264Sources/addX265Sources/addFfmpegEncSources)
+- [x] Phase 27 Plan 08: Video Encoding API (VideoEncoder, NativeVideoEncoder, VideoFrame, VideoEncoderOptions, NativeImageLoader)
 
 ## In Progress
 
-*Phase 27 - Extended Codec Support (7/10 plans complete)*
+*Phase 27 - Extended Codec Support (8/10 plans complete)*
 
 ## Blocked
 
@@ -184,7 +185,7 @@
 | 24 | Server-Side DIMSE (SCP) | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
-| 27 | Extended Codec Support | IN PROGRESS | 7/10 | 2026-02-07 | - |
+| 27 | Extended Codec Support | IN PROGRESS | 8/10 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -506,11 +507,16 @@
 | 2026-02-07 | 27-07 | Separate have_ffmpeg_enc from have_ffmpeg | Encoding requires x264/x265 backends that decoding does not; independent control |
 | 2026-02-07 | 27-07 | Compile x264/x265/FFmpeg from source via Zig | Consistent cross-platform behavior; bypass configure/make; allyourcodebase pattern |
 | 2026-02-07 | 27-07 | x265 compiled as C++ with -std=c++14 | x265 is C++ codebase; Zig's built-in C++ compiler handles it with linkLibCpp() |
+| 2026-02-07 | 27-08 | VideoEncoder in core uses delegate backend pattern | Avoids hard dependency on SharpDicom.Codecs; backend registered at runtime |
+| 2026-02-07 | 27-08 | IAsyncEnumerable API gated behind NET8_0_OR_GREATER | Ensures netstandard2.0 compatibility while providing modern async API |
+| 2026-02-07 | 27-08 | VideoEncodeProgress as struct with manual equality | record struct unavailable on netstandard2.0; manual IEquatable implementation |
+| 2026-02-07 | 27-08 | NTSC frame rates with exact rational representation | 30000/1001 for 29.97fps avoids drift in video encoding |
+| 2026-02-07 | 27-08 | AudioSampleFormat.IeeeFloat (not Float32) | CA1720 analyzer rule forbids enum names containing type names |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 27-07-PLAN.md (FFmpeg encoding build infrastructure)
+**Stopped at**: Completed 27-08-PLAN.md (Video Encoding API)
 **Resume file**: None
 **Next step**: Execute next plan in Phase 27
 
@@ -518,13 +524,15 @@
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01, 02, 03, 04, 06, 07 of 10 done
-2. **Phase 27-07 deliverables**:
-   - SHARPDICOM_HAS_VIDEO_ENC (1 << 10) and SHARPDICOM_HAS_STB_IMAGE (1 << 11) feature flags
-   - have_ffmpeg_enc build flag (separate from have_ffmpeg for decode)
-   - addX264Sources(), addX265Sources(), addFfmpegEncSources() Zig build helpers
-   - Complete source file lists for minimal FFmpeg encoding subset
-3. **Test coverage**: 2263 tests (2209 pass, 54 skipped, 0 failed)
+1. **Current phase**: Phase 27 IN PROGRESS (Extended Codec Support) - plans 01, 02, 03, 04, 06, 07, 08 of 10 done
+2. **Phase 27-08 deliverables**:
+   - VideoFrame, VideoEncoderOptions, VideoEncodeProgress types in SharpDicom core
+   - VideoEncoder high-level static API with delegate backend pattern
+   - NativeVideoEncoder managed FFmpeg wrapper with SafeHandle lifecycle
+   - NativeImageLoader for stb_image-based image loading
+   - P/Invoke declarations for video_encoder_* and stbi_* functions
+   - Frame rate detection from DICOM tags (CineRate, FrameTime, etc.)
+3. **Test coverage**: 4515 pass, 181 skipped, 4 failed (pre-existing 12-bit JPEG)
 4. **Next**: Execute next plan in Phase 27
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
@@ -566,4 +574,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 plan 07 complete -- FFmpeg/x264/x265 build infrastructure in build.zig)*
+*Last updated: 2026-02-07 (Phase 27 plan 08 complete -- Video Encoding API with VideoEncoder, NativeVideoEncoder, NativeImageLoader)*
