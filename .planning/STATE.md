@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 29 - MongoDB/BSON Serialization (In progress)
-**Plan**: 5 of 5 in current phase
+**Plan**: 4 of 5 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 29-05-PLAN.md
+**Last activity**: 2026-02-07 - Completed 29-04-PLAN.md
 
-**Progress**: ██████████ (5/5 plans in Phase 29)
+**Progress**: ████████░░ (4/5 plans in Phase 29)
 
-**Test Status**: 5086 tests (4903 pass, 183 skipped, 0 failed)
+**Test Status**: 2511 tests (2456 pass, 55 skipped, 0 failed)
 
 ## Completed
 
@@ -179,7 +179,7 @@
 - [x] Phase 29 Plan 01: Core BSON serialization types and BsonDicomWriter
 - [x] Phase 29 Plan 02: BsonDicomReader for BSON deserialization
 - [x] Phase 29 Plan 03: DicomJsonWriter and DicomJsonReader for PS3.18 Annex F
-- [ ] Phase 29 Plan 04: Comprehensive BSON and DICOM-JSON test suite
+- [x] Phase 29 Plan 04: Comprehensive BSON and DICOM-JSON test suite (73 tests)
 - [x] Phase 29 Plan 05: SharpDicom.MongoDB adapter package (BsonDocumentAdapter, IndexRecommendations, DicomCollectionHelper, BulkImporter)
 
 ## Blocked
@@ -623,4 +623,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 29 Plans 01-03,05 complete -- BSON serialization/deserialization + DICOM JSON + MongoDB adapter)*
+*Last updated: 2026-02-07 (Phase 29 Plans 01-04,05 complete -- BSON serialization/deserialization + DICOM JSON + tests + MongoDB adapter)*
