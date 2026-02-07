@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 28 - DIMSE-N Services (IN PROGRESS)
-**Plan**: 2 of 5 in current phase
+**Plan**: 3 of 5 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 28-02-PLAN.md (Async Operations Window Negotiation)
+**Last activity**: 2026-02-07 - Completed 28-03-PLAN.md (N-Service Infrastructure)
 
-**Progress**: ██░░░ (2/5 plans in Phase 28)
+**Progress**: ███░░ (3/5 plans in Phase 28)
 
 **Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 
@@ -169,10 +169,12 @@
 ### Phase 28 - DIMSE-N Services (IN PROGRESS)
 
 - [x] Phase 28 Plan 01: N-Service command foundation (12 factory methods, N-Service status codes, MPPS/Storage Commitment UIDs)
+- [x] Phase 28 Plan 02: Async Operations Window negotiation (0x53 sub-item, DicomClientOptions async ops, FoDicom5.Compat wiring)
+- [x] Phase 28 Plan 03: N-Service infrastructure (6 handler interfaces, NServiceScu, DicomServer N-Service dispatch, DicomServerOptions handler registration)
 
 ## In Progress
 
-*Phase 28 - Plans 02-05 remaining*
+*Phase 28 - Plans 04-05 remaining*
 
 ## Blocked
 
@@ -195,7 +197,7 @@
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
-| 28 | DIMSE-N Services | IN PROGRESS | 1/5 | 2026-02-07 | - |
+| 28 | DIMSE-N Services | IN PROGRESS | 3/5 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -533,13 +535,17 @@
 | 2026-02-07 | 28-01 | N-GET request uses NoDataSetPresent | Attribute identifier list is a separate mechanism, not a data set |
 | 2026-02-07 | 28-01 | N-CREATE request has optional affectedSopInstanceUid (DicomUID?) | Allows SCP to assign instance UIDs when SCU does not specify one |
 | 2026-02-07 | 28-01 | N-DELETE response always uses NoDataSetPresent | Per PS3.7 specification, no dataset in N-DELETE response |
+| 2026-02-07 | 28-03 | Abstract NServiceRequestContext base class with PresentationContextId | Matches CStoreRequestContext pattern, enables common context across all 6 N-Services |
+| 2026-02-07 | 28-03 | Unified NServiceResponse for all N-Services | Single type with Status + optional Dataset + optional AffectedSOPInstanceUID covers all use cases |
+| 2026-02-07 | 28-03 | ParseNServiceCommand handles both Affected and Requested SOP UIDs | N-CREATE/N-EVENT-REPORT use Affected, N-SET/N-GET/N-ACTION/N-DELETE use Requested |
+| 2026-02-07 | 28-03 | Handler-absent N-Service returns ProcessingFailure (0x0110) | Consistent with handler pattern; handler absence is a server configuration issue |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 28-02-PLAN.md (Async Operations Window Negotiation)
+**Stopped at**: Completed 28-03-PLAN.md (N-Service Infrastructure)
 **Resume file**: None
-**Next step**: Continue with 28-02-PLAN.md (next plan in Phase 28)
+**Next step**: Continue with 28-04-PLAN.md (MPPS SOP Class)
 
 ## Context for Next Session
 
