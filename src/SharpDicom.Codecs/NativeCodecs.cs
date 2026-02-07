@@ -547,6 +547,12 @@ namespace SharpDicom.Codecs.Native
                 CodecRegistry.Register(NativeJpegLsCodec.NearLossless, CodecRegistry.PriorityNative);
             }
 
+            // 12-bit JPEG codec registration
+            if (HasFeature(NativeCodecFeature.Jpeg12Bit))
+            {
+                CodecRegistry.Register(new NativeJpeg12Codec(), CodecRegistry.PriorityNative);
+            }
+
             // Video codec registration - to be implemented in future plan
             // if (HasFeature(NativeCodecFeature.Video))
             // {
