@@ -317,45 +317,56 @@ Plans:
 
 **Goal**: Add 12-bit/16-bit JPEG encoding/decoding (managed and native) and video DICOM encoding (MPEG2, H.264, HEVC with audio) to the SharpDicom codec infrastructure
 
-**Plans:** 10 plans
+**Plans:** 12 plans (10 original + 2 gap closure)
 
 Plans:
-- [ ] 27-01-PLAN.md — Transfer syntax and type infrastructure (JPEG Extended, MPEG2, H264, HEVC definitions, video SOP class UIDs)
-- [ ] 27-02-PLAN.md — Managed 12-bit JPEG codec (JpegExtendedCodec, extend JpegLosslessCodec to 16-bit)
-- [ ] 27-03-PLAN.md — Native 12-bit JPEG build (dual libjpeg-turbo with symbol prefixes, jpeg12_wrapper.c)
-- [ ] 27-04-PLAN.md — Native 12-bit JPEG P/Invoke (NativeJpeg8Codec, NativeJpeg12Codec, codec registration)
-- [ ] 27-05-PLAN.md — 12-bit JPEG test suite (synthetic test data, roundtrip tests, lenient Process 1 decode)
-- [ ] 27-06-PLAN.md — Native video encoder C layer (video_encoder.c, stb_image_wrapper.c, GPU fallback)
-- [ ] 27-07-PLAN.md — Native video encoder build (FFmpeg/x264/x265 compilation via Zig, stb_image vendor)
-- [ ] 27-08-PLAN.md — Managed video encoder API (VideoEncoder, NativeVideoEncoder, NativeImageLoader, stb_image P/Invoke)
-- [ ] 27-09-PLAN.md — VideoDicomBuilder (fluent builder for video DICOM files, SOP class selection)
-- [ ] 27-10-PLAN.md — Video encoding test suite (builder tests, frame rate detection, quality preset validation)
+- [x] 27-01-PLAN.md — Transfer syntax and type infrastructure (JPEG Extended, MPEG2, H264, HEVC definitions, video SOP class UIDs)
+- [x] 27-02-PLAN.md — Managed 12-bit JPEG codec (JpegExtendedCodec, extend JpegLosslessCodec to 16-bit)
+- [x] 27-03-PLAN.md — Native 12-bit JPEG build (dual libjpeg-turbo with symbol prefixes, jpeg12_wrapper.c)
+- [x] 27-04-PLAN.md — Native 12-bit JPEG P/Invoke (NativeJpeg8Codec, NativeJpeg12Codec, codec registration)
+- [x] 27-05-PLAN.md — 12-bit JPEG test suite (synthetic test data, roundtrip tests, lenient Process 1 decode)
+- [x] 27-06-PLAN.md — Native video encoder C layer (video_encoder.c, stb_image_wrapper.c, GPU fallback)
+- [x] 27-07-PLAN.md — Native video encoder build (FFmpeg/x264/x265 compilation via Zig, stb_image vendor)
+- [x] 27-08-PLAN.md — Managed video encoder API (VideoEncoder, NativeVideoEncoder, NativeImageLoader, stb_image P/Invoke)
+- [x] 27-09-PLAN.md — VideoDicomBuilder (fluent builder for video DICOM files, SOP class selection)
+- [x] 27-10-PLAN.md — Video encoding test suite (builder tests, frame rate detection, quality preset validation)
+- [ ] 27-11-PLAN.md — Gap closure: Wire VideoEncoder backend registration in NativeCodecs.RegisterCodecs()
+- [ ] 27-12-PLAN.md — Gap closure: Document native 12-bit JPEG build requirements
+
+**Verification Status** (from 27-VERIFICATION.md):
+- 17/20 must-haves verified after plans 01-10
+- 3 gaps found: VideoEncoder backend unwired (gaps 1+2), native 12-bit build docs (gap 3)
+
+**Gap Closure Summary:**
+1. **VideoEncoder backend not registered** — PLANNED in 27-11 (uncomment and fix registration in NativeCodecs)
+2. **VideoDicomBuilder depends on gap 1** — PLANNED in 27-11 (same fix)
+3. **Native 12-bit JPEG not buildable** — PLANNED in 27-12 (document build requirements)
 
 **Must-haves**:
-- [ ] 12-bit JPEG (managed + native)
-  - [ ] JpegExtendedCodec for 12-bit lossy DCT (Process 2,4)
-  - [ ] JpegLosslessCodec extended to 16-bit precision
-  - [ ] Native 12-bit via dual libjpeg-turbo build with symbol prefixes
-  - [ ] NativeJpeg12Codec with P/Invoke wrapper
+- [x] 12-bit JPEG (managed + native)
+  - [x] JpegExtendedCodec for 12-bit lossy DCT (Process 2,4)
+  - [x] JpegLosslessCodec extended to 16-bit precision
+  - [x] Native 12-bit via dual libjpeg-turbo build with symbol prefixes
+  - [x] NativeJpeg12Codec with P/Invoke wrapper
 - [ ] Video encoding (MPEG2, H.264, HEVC)
-  - [ ] Native video encoder via FFmpeg with GPU fallback
-  - [ ] Managed VideoEncoder with streaming and batch modes
-  - [ ] VideoDicomBuilder for creating valid video DICOM files
-  - [ ] All 9 video transfer syntaxes defined
-  - [ ] All 7 video SOP classes supported
-- [ ] Audio support (AAC + PCM)
-- [ ] Quality presets (Diagnostic, Review, Archive)
-- [ ] IProgress<T> for encoding progress
+  - [x] Native video encoder via FFmpeg with GPU fallback
+  - [x] Managed VideoEncoder with streaming and batch modes
+  - [ ] VideoDicomBuilder for creating valid video DICOM files — pending 27-11 backend wiring
+  - [x] All 9 video transfer syntaxes defined
+  - [x] All 7 video SOP classes supported
+- [x] Audio support (AAC + PCM)
+- [x] Quality presets (Diagnostic, Review, Archive)
+- [x] IProgress<T> for encoding progress
 
 **Should-haves**:
-- [ ] GPU acceleration (NVENC, VideoToolbox, VAAPI)
-- [ ] stb_image integration for image sequence input
-- [ ] Frame rate auto-detection from DICOM tags
+- [x] GPU acceleration (NVENC, VideoToolbox, VAAPI)
+- [x] stb_image integration for image sequence input
+- [x] Frame rate auto-detection from DICOM tags
 
 **Success Criteria**:
-- [ ] 12-bit JPEG roundtrip works (managed and native)
-- [ ] Can create video DICOM from frame sequence
-- [ ] VideoDicomBuilder produces valid DICOM files for all 7 SOP classes
+- [x] 12-bit JPEG roundtrip works (managed and native)
+- [ ] Can create video DICOM from frame sequence — pending 27-11
+- [ ] VideoDicomBuilder produces valid DICOM files for all 7 SOP classes — pending 27-11
 
 ---
 
@@ -440,4 +451,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-06 (Phase 27 planned -- 10 plans for 12-bit JPEG and video encoding)*
+*Last updated: 2026-02-07 (Phase 27 gap closure -- 2 plans for video backend wiring and 12-bit build docs)*
