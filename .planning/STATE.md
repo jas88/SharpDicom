@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 29 - MongoDB/BSON Serialization (In progress)
-**Plan**: 3 of 5 in current phase
+**Plan**: 5 of 5 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 29-03-PLAN.md
+**Last activity**: 2026-02-07 - Completed 29-05-PLAN.md
 
-**Progress**: ██████░░░░ (3/5 plans in Phase 29)
+**Progress**: ██████████ (5/5 plans in Phase 29)
 
-**Test Status**: 2438 tests (2383 pass, 55 skipped, 0 failed)
+**Test Status**: 5086 tests (4903 pass, 183 skipped, 0 failed)
 
 ## Completed
 
@@ -179,7 +179,8 @@
 - [x] Phase 29 Plan 01: Core BSON serialization types and BsonDicomWriter
 - [x] Phase 29 Plan 02: BsonDicomReader for BSON deserialization
 - [x] Phase 29 Plan 03: DicomJsonWriter and DicomJsonReader for PS3.18 Annex F
-- [ ] Phase 29 Plan 04+: Remaining plans
+- [ ] Phase 29 Plan 04: Comprehensive BSON and DICOM-JSON test suite
+- [x] Phase 29 Plan 05: SharpDicom.MongoDB adapter package (BsonDocumentAdapter, IndexRecommendations, DicomCollectionHelper, BulkImporter)
 
 ## Blocked
 
@@ -203,7 +204,7 @@
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
-| 29 | MongoDB/BSON Serialization | In progress | 3/5 | 2026-02-07 | - |
+| 29 | MongoDB/BSON Serialization | In progress | 5/5 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -560,25 +561,29 @@
 | 2026-02-07 | 29-03 | DicomJsonWriter uses Utf8JsonWriter directly | No System.Text.Json serialization overhead; PS3.18 format is fixed structure |
 | 2026-02-07 | 29-03 | DicomJsonReader uses Utf8JsonReader ref struct | Zero-allocation JSON parsing matching DicomStreamReader pattern |
 | 2026-02-07 | 29-03 | UV values > Int64.Max encoded as JSON strings | PS3.18 F.2.3 specifies string fallback for numbers exceeding JSON range |
+| 2026-02-07 | 29-05 | MongoDB.Driver 3.6.0 over 2.x legacy line | Current actively-developed line; netstandard2.1+ requirement acceptable for optional adapter |
+| 2026-02-07 | 29-05 | Target netstandard2.1 not netstandard2.0 for MongoDB adapter | MongoDB.Driver 3.x requires netstandard2.1+; adapter users will be on modern .NET |
+| 2026-02-07 | 29-05 | Single MongoDB.Driver package reference | MongoDB.Bson is a transitive dependency; reduces Central Package Management overhead |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 29-03-PLAN.md (DICOM JSON serialization/deserialization)
+**Stopped at**: Completed 29-05-PLAN.md (MongoDB adapter package)
 **Resume file**: None
-**Next step**: Execute 29-04-PLAN.md (comprehensive BSON and DICOM-JSON test suite) or 29-05-PLAN.md (MongoDB adapter).
+**Next step**: Execute 29-04-PLAN.md (comprehensive BSON and DICOM-JSON test suite) to complete Phase 29.
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (In progress, 3/5 plans complete)
+1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (In progress, 5/5 plans complete except 29-04)
 2. **Phase 29-01 deliverables**: BsonType, BsonTagKeyFormat, BsonOutputMode, BinaryDataReference, FlattenProfile, BsonSerializationOptions, BsonDocumentBuffer, BsonDicomWriter (8 files, 998-line serializer)
 3. **Phase 29-02 deliverables**: BsonDicomReader.Deserialize, DicomDatasetBsonExtensions ToBson/FromBson (2 files)
 4. **Phase 29-03 deliverables**: DicomJsonWriter (PS3.18 Annex F serializer), DicomJsonReader (PS3.18 Annex F deserializer) (2 files)
-5. **Test coverage**: 4984 tests (4801 pass, 183 skipped, 0 failed) -- no regressions
-6. **Next**: 29-04 (test suite), 29-05 (MongoDB adapter)
-7. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+5. **Phase 29-05 deliverables**: SharpDicom.MongoDB adapter (BsonDocumentAdapter, IndexRecommendations, DicomCollectionHelper, BulkImporter) (5 files)
+6. **Test coverage**: 5086 tests (4903 pass, 183 skipped, 0 failed) -- no regressions
+7. **Next**: 29-04 (comprehensive test suite for BSON + DICOM JSON)
+8. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -618,4 +623,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 29 Plans 01-03 complete -- BSON serialization/deserialization + DICOM JSON)*
+*Last updated: 2026-02-07 (Phase 29 Plans 01-03,05 complete -- BSON serialization/deserialization + DICOM JSON + MongoDB adapter)*
