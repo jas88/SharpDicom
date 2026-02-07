@@ -327,6 +327,122 @@ namespace SharpDicom.Codecs.Native.Interop
         internal static partial void video_decoder_destroy(IntPtr decoder);
 
         // =====================================================================
+        // Video Encoder (H.264/H.265/MPEG-2 via FFmpeg)
+        // =====================================================================
+
+        /// <summary>
+        /// Creates a video encoder instance with the specified configuration.
+        /// </summary>
+        /// <param name="config">Pointer to a VideoEncoderConfig struct.</param>
+        /// <returns>Opaque encoder handle, or IntPtr.Zero on failure.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "video_encoder_create")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial IntPtr video_encoder_create(VideoEncoderConfig* config);
+
+        /// <summary>
+        /// Encodes a single video frame.
+        /// </summary>
+        /// <param name="encoder">Encoder handle from video_encoder_create.</param>
+        /// <param name="pixels">Pointer to raw pixel data (RGB24 or YUV420P).</param>
+        /// <param name="pixelsLen">Length of pixel data in bytes.</param>
+        /// <param name="pixelFormat">Pixel format: 0=RGB24, 1=Gray8, 2=Gray16, 3=YUV420P.</param>
+        /// <returns>0 on success, negative on error.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "video_encode_frame")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int video_encode_frame(
+            IntPtr encoder,
+            byte* pixels,
+            int pixelsLen,
+            int pixelFormat);
+
+        /// <summary>
+        /// Encodes audio samples to be muxed with the video stream.
+        /// </summary>
+        /// <param name="encoder">Encoder handle.</param>
+        /// <param name="samples">Pointer to audio sample data.</param>
+        /// <param name="samplesLen">Length of audio data in bytes.</param>
+        /// <param name="sampleFormat">Sample format: 0=PCM16, 1=IeeeFloat.</param>
+        /// <returns>0 on success, negative on error.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "video_encode_audio")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int video_encode_audio(
+            IntPtr encoder,
+            byte* samples,
+            int samplesLen,
+            int sampleFormat);
+
+        /// <summary>
+        /// Flushes the encoder, finalizing the output bitstream.
+        /// </summary>
+        /// <param name="encoder">Encoder handle.</param>
+        /// <returns>0 on success, negative on error.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "video_encoder_flush")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int video_encoder_flush(IntPtr encoder);
+
+        /// <summary>
+        /// Gets the encoded output data after flushing.
+        /// </summary>
+        /// <param name="encoder">Encoder handle.</param>
+        /// <param name="output">Receives pointer to output data (owned by native library).</param>
+        /// <param name="outputLen">Receives length of output data in bytes.</param>
+        /// <returns>0 on success, negative on error.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "video_encoder_get_output")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int video_encoder_get_output(
+            IntPtr encoder,
+            out byte* output,
+            out int outputLen);
+
+        /// <summary>
+        /// Destroys a video encoder instance and releases all resources.
+        /// </summary>
+        /// <param name="encoder">Encoder handle to destroy.</param>
+        [LibraryImport(LibraryName, EntryPoint = "video_encoder_destroy")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial void video_encoder_destroy(IntPtr encoder);
+
+        /// <summary>
+        /// Frees output buffer returned by video_encoder_get_output.
+        /// </summary>
+        /// <param name="buffer">Pointer to free.</param>
+        [LibraryImport(LibraryName, EntryPoint = "video_encoder_free")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial void video_encoder_free(byte* buffer);
+
+        // =====================================================================
+        // stb_image (Image Loading)
+        // =====================================================================
+
+        /// <summary>
+        /// Loads an image from memory using stb_image.
+        /// </summary>
+        /// <param name="data">Pointer to image file data (PNG, JPEG, BMP, TGA, etc.).</param>
+        /// <param name="dataLen">Length of image file data in bytes.</param>
+        /// <param name="desiredChannels">Desired channel count (0=auto, 1=gray, 3=RGB, 4=RGBA).</param>
+        /// <param name="width">Receives the image width.</param>
+        /// <param name="height">Receives the image height.</param>
+        /// <param name="channels">Receives the actual number of channels.</param>
+        /// <returns>Pointer to decoded pixel data, or null on failure.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "stbi_load_from_memory_wrapper")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial byte* stbi_load_from_memory_wrapper(
+            byte* data,
+            int dataLen,
+            int desiredChannels,
+            out int width,
+            out int height,
+            out int channels);
+
+        /// <summary>
+        /// Frees memory allocated by stbi_load_from_memory_wrapper.
+        /// </summary>
+        /// <param name="pixels">Pointer to free.</param>
+        [LibraryImport(LibraryName, EntryPoint = "stbi_free_wrapper")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial void stbi_free_wrapper(byte* pixels);
+
+        // =====================================================================
         // GPU Acceleration (nvJPEG2000)
         // =====================================================================
 
@@ -549,6 +665,52 @@ namespace SharpDicom.Codecs.Native.Interop
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_decoder_destroy")]
         internal static extern void video_decoder_destroy(IntPtr decoder);
 
+        // Video Encoder
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encoder_create")]
+        internal static extern IntPtr video_encoder_create(VideoEncoderConfig* config);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encode_frame")]
+        internal static extern int video_encode_frame(
+            IntPtr encoder,
+            byte* pixels,
+            int pixelsLen,
+            int pixelFormat);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encode_audio")]
+        internal static extern int video_encode_audio(
+            IntPtr encoder,
+            byte* samples,
+            int samplesLen,
+            int sampleFormat);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encoder_flush")]
+        internal static extern int video_encoder_flush(IntPtr encoder);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encoder_get_output")]
+        internal static extern int video_encoder_get_output(
+            IntPtr encoder,
+            out byte* output,
+            out int outputLen);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encoder_destroy")]
+        internal static extern void video_encoder_destroy(IntPtr encoder);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "video_encoder_free")]
+        internal static extern void video_encoder_free(byte* buffer);
+
+        // stb_image
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "stbi_load_from_memory_wrapper")]
+        internal static extern byte* stbi_load_from_memory_wrapper(
+            byte* data,
+            int dataLen,
+            int desiredChannels,
+            out int width,
+            out int height,
+            out int channels);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "stbi_free_wrapper")]
+        internal static extern void stbi_free_wrapper(byte* pixels);
+
         // GPU Acceleration
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "gpu_available")]
         internal static extern int gpu_available();
@@ -605,6 +767,53 @@ namespace SharpDicom.Codecs.Native.Interop
         Tesseract = 1 << 5,
 
         /// <summary>12-bit JPEG codec available (libjpeg-turbo 12-bit build).</summary>
-        Jpeg12Bit = 1 << 9
+        Jpeg12Bit = 1 << 9,
+
+        /// <summary>Video encoder available (FFmpeg encoding support).</summary>
+        VideoEnc = 1 << 10,
+
+        /// <summary>stb_image available for loading common image formats.</summary>
+        StbImage = 1 << 11
+    }
+
+    /// <summary>
+    /// Configuration struct passed to video_encoder_create.
+    /// Must match the native VideoEncoderConfig layout exactly.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct VideoEncoderConfig
+    {
+        /// <summary>Codec ID: 0=MPEG2, 1=H264, 2=HEVC.</summary>
+        public int CodecId;
+
+        /// <summary>Frame width in pixels.</summary>
+        public int Width;
+
+        /// <summary>Frame height in pixels.</summary>
+        public int Height;
+
+        /// <summary>Frame rate numerator (e.g. 30 for 30fps).</summary>
+        public int FrameRateNum;
+
+        /// <summary>Frame rate denominator (e.g. 1 for 30fps).</summary>
+        public int FrameRateDen;
+
+        /// <summary>Quality preset: 0=Diagnostic, 1=Review, 2=Archive.</summary>
+        public int QualityPreset;
+
+        /// <summary>GOP size (0 = encoder default).</summary>
+        public int GopSize;
+
+        /// <summary>Hardware acceleration: 0=Auto, 1=ForceCpu, 2=PreferGpu.</summary>
+        public int HwAccel;
+
+        /// <summary>Audio codec: 0=None, 1=AAC, 2=PCM.</summary>
+        public int AudioCodec;
+
+        /// <summary>Audio sample rate in Hz (e.g. 48000).</summary>
+        public int AudioSampleRate;
+
+        /// <summary>Number of audio channels (e.g. 2).</summary>
+        public int AudioChannels;
     }
 }

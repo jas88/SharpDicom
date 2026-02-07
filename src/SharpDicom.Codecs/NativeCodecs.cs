@@ -331,6 +331,8 @@ namespace SharpDicom.Codecs.Native
                 NativeCodecFeature.Video => (_availableFeatures & NativeFeatures.Video) != 0 && EnableVideo,
                 NativeCodecFeature.Gpu => GpuAvailable && !PreferCpu,
                 NativeCodecFeature.Jpeg12Bit => (_availableFeatures & NativeFeatures.Jpeg12Bit) != 0 && EnableJpeg12Bit,
+                NativeCodecFeature.VideoEncoder => (_availableFeatures & NativeFeatures.VideoEnc) != 0 && EnableVideo,
+                NativeCodecFeature.StbImage => (_availableFeatures & NativeFeatures.StbImage) != 0,
                 _ => false
             };
         }
@@ -697,6 +699,16 @@ namespace SharpDicom.Codecs.Native
         /// <summary>
         /// 12-bit JPEG codec (libjpeg-turbo 12-bit build).
         /// </summary>
-        Jpeg12Bit
+        Jpeg12Bit,
+
+        /// <summary>
+        /// Video encoder (H.264/H.265/MPEG-2 encoding via FFmpeg).
+        /// </summary>
+        VideoEncoder,
+
+        /// <summary>
+        /// stb_image support for loading common image formats (PNG, JPEG, BMP, TGA).
+        /// </summary>
+        StbImage
     }
 }
