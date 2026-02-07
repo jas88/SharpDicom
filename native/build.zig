@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) void {
     const have_charls = false;
     const have_ffmpeg = false;
     const have_tesseract = false;
+    const have_stb_image = false; // stb_image for image sequence loading
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -306,6 +307,25 @@ pub fn build(b: *std.Build) void {
             });
         }
 
+        // stb_image wrapper (image sequence loading)
+        if (have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/stb_image_wrapper.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                    "-Wno-unused-function",
+                    "-Wno-sign-compare",
+                },
+            });
+            lib.addIncludePath(b.path("vendor/stb"));
+        } else {
+            // Build stub version (stb_image functions will error at runtime)
+            lib.addCSourceFile(.{
+                .file = b.path("src/stb_image_wrapper.c"),
+                .flags = common_flags,
+            });
+        }
+
         // Include paths
         lib.addIncludePath(b.path("src"));
 
@@ -427,6 +447,16 @@ pub fn build(b: *std.Build) void {
     // Add jpeg12_wrapper stub for tests (without 12-bit libjpeg for simplicity)
     test_exe.addCSourceFile(.{
         .file = b.path("src/jpeg12_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add stb_image_wrapper stub for tests (without stb_image for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/stb_image_wrapper.c"),
         .flags = &.{
             "-std=c11",
             "-Wall",
@@ -607,6 +637,24 @@ pub fn build(b: *std.Build) void {
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jpeg12_wrapper.c"),
+            .flags = native_flags,
+        });
+    }
+
+    // stb_image wrapper for native build
+    if (have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/stb_image_wrapper.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+                "-Wno-unused-function",
+                "-Wno-sign-compare",
+            },
+        });
+        native_lib.addIncludePath(b.path("vendor/stb"));
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/stb_image_wrapper.c"),
             .flags = native_flags,
         });
     }
