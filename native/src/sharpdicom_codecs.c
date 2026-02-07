@@ -260,6 +260,16 @@ SHARPDICOM_API int sharpdicom_features(void) {
     features |= SHARPDICOM_HAS_JPEG12;
 #endif
 
+    /* Set Video Encoding flag when FFmpeg encoding is linked */
+#ifdef SHARPDICOM_WITH_FFMPEG_ENC
+    features |= SHARPDICOM_HAS_VIDEO_ENC;
+#endif
+
+    /* Set stb_image flag when stb_image is linked */
+#ifdef SHARPDICOM_WITH_STB_IMAGE
+    features |= SHARPDICOM_HAS_STB_IMAGE;
+#endif
+
     return features;
 }
 

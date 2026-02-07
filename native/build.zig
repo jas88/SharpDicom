@@ -17,6 +17,7 @@ pub fn build(b: *std.Build) void {
     const have_openjpeg = false; // Needs CMake-generated config + sysroot
     const have_charls = false;
     const have_ffmpeg = false;
+    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - requires vendor sources
     const have_tesseract = false;
     const have_stb_image = false; // stb_image for image sequence loading
     // Target configurations for all supported platforms
@@ -154,11 +155,19 @@ pub fn build(b: *std.Build) void {
         _ = jpeg12_symbol_prefix_flags; // Used when have_libjpeg12 is true
 
         // Add C source files (core) - feature flags based on available libraries
-        const core_flags_base = if (have_libjpeg) jpeg_flags else common_flags;
-        const core_flags = if (have_libjpeg12)
-            core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
+        const core_flags_0 = if (have_libjpeg) jpeg_flags else common_flags;
+        const core_flags_1 = if (have_libjpeg12)
+            core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
         else
-            core_flags_base;
+            core_flags_0;
+        const core_flags_2 = if (have_ffmpeg_enc)
+            core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
+        else
+            core_flags_1;
+        const core_flags = if (have_stb_image)
+            core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
+        else
+            core_flags_2;
         lib.addCSourceFile(.{
             .file = b.path("src/sharpdicom_codecs.c"),
             .flags = core_flags,
@@ -233,19 +242,12 @@ pub fn build(b: *std.Build) void {
             });
         }
 
-        // Video wrapper (FFmpeg)
+        // Video wrapper (FFmpeg decoding)
         if (have_ffmpeg) {
             lib.addCSourceFile(.{
                 .file = b.path("src/video_wrapper.c"),
                 .flags = common_flags ++ &[_][]const u8{
                     "-DSHARPDICOM_HAS_FFMPEG",
-                    "-DSHARPDICOM_WITH_MPEG",
-                },
-            });
-            lib.addCSourceFile(.{
-                .file = b.path("src/video_encoder.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_FFMPEG_ENC",
                     "-DSHARPDICOM_WITH_MPEG",
                 },
             });
@@ -263,6 +265,28 @@ pub fn build(b: *std.Build) void {
                 .file = b.path("src/video_wrapper.c"),
                 .flags = common_flags,
             });
+        }
+
+        // Video encoder (FFmpeg encoding with x264/x265 backends)
+        if (have_ffmpeg_enc) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/video_encoder.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_FFMPEG_ENC",
+                    "-DSHARPDICOM_WITH_MPEG",
+                },
+            });
+            // FFmpeg encoding include paths (shared with decode if both enabled)
+            if (!have_ffmpeg) {
+                lib.addIncludePath(b.path("vendor/ffmpeg/src"));
+                lib.linkSystemLibrary("avcodec");
+                lib.linkSystemLibrary("avformat");
+                lib.linkSystemLibrary("avutil");
+                lib.linkSystemLibrary("swscale");
+                lib.linkSystemLibrary("swresample");
+            }
+        } else {
+            // Build stub version (video encoding functions will error at runtime)
             lib.addCSourceFile(.{
                 .file = b.path("src/video_encoder.c"),
                 .flags = common_flags,
@@ -504,21 +528,31 @@ pub fn build(b: *std.Build) void {
         native_flags;
 
     // Native flags with both JPEG and JPEG12 when available
-    const native_jpeg_flags = if (have_libjpeg12)
+    const native_core_flags_1 = if (have_libjpeg12)
         native_jpeg_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
     else
         native_jpeg_flags_base;
 
+    // Native core flags with FFmpeg encoding and stb_image when available
+    const native_core_flags_2 = if (have_ffmpeg_enc)
+        native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
+    else
+        native_core_flags_1;
+    const native_core_flags = if (have_stb_image)
+        native_core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
+    else
+        native_core_flags_2;
+
     native_lib.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
-        .flags = native_jpeg_flags,
+        .flags = native_core_flags,
     });
 
     // JPEG wrapper for native build
     if (have_libjpeg) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jpeg_wrapper.c"),
-            .flags = native_jpeg_flags,
+            .flags = native_core_flags_1,
         });
         native_lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
         native_lib.linkSystemLibrary("turbojpeg");
@@ -572,19 +606,12 @@ pub fn build(b: *std.Build) void {
         });
     }
 
-    // Video wrapper for native build
+    // Video wrapper for native build (FFmpeg decoding)
     if (have_ffmpeg) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_wrapper.c"),
             .flags = native_flags ++ &[_][]const u8{
                 "-DSHARPDICOM_HAS_FFMPEG",
-                "-DSHARPDICOM_WITH_MPEG",
-            },
-        });
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/video_encoder.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_FFMPEG_ENC",
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
@@ -599,6 +626,27 @@ pub fn build(b: *std.Build) void {
             .file = b.path("src/video_wrapper.c"),
             .flags = native_flags,
         });
+    }
+
+    // Video encoder for native build (FFmpeg encoding with x264/x265 backends)
+    if (have_ffmpeg_enc) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/video_encoder.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_FFMPEG_ENC",
+                "-DSHARPDICOM_WITH_MPEG",
+            },
+        });
+        // FFmpeg encoding include paths (shared with decode if both enabled)
+        if (!have_ffmpeg) {
+            native_lib.addIncludePath(b.path("vendor/ffmpeg/src"));
+            native_lib.linkSystemLibrary("avcodec");
+            native_lib.linkSystemLibrary("avformat");
+            native_lib.linkSystemLibrary("avutil");
+            native_lib.linkSystemLibrary("swscale");
+            native_lib.linkSystemLibrary("swresample");
+        }
+    } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_encoder.c"),
             .flags = native_flags,
