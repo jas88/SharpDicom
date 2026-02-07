@@ -121,6 +121,41 @@ namespace SharpDicom.Network.Dimse
         }
 
         /// <summary>
+        /// Gets the Requested SOP Instance UID (0000,1001).
+        /// </summary>
+        /// <remarks>
+        /// Used by N-SET, N-GET, N-DELETE, and N-ACTION requests to identify
+        /// the target SOP Instance. Distinct from <see cref="AffectedSOPInstanceUID"/>
+        /// which is used by N-CREATE and N-EVENT-REPORT.
+        /// </remarks>
+        public DicomUID RequestedSOPInstanceUID
+        {
+            get
+            {
+                var uid = _dataset.GetString(DicomTag.RequestedSOPInstanceUID);
+                return uid != null ? new DicomUID(uid.TrimEnd('\0', ' ')) : default;
+            }
+        }
+
+        /// <summary>
+        /// Gets the Event Type ID (0000,1002).
+        /// </summary>
+        /// <remarks>
+        /// Identifies the type of event in N-EVENT-REPORT operations.
+        /// Returns 0 if the element is not present.
+        /// </remarks>
+        public ushort EventTypeID => GetUInt16(DicomTag.EventTypeID);
+
+        /// <summary>
+        /// Gets the Action Type ID (0000,1008).
+        /// </summary>
+        /// <remarks>
+        /// Identifies the type of action in N-ACTION operations.
+        /// Returns 0 if the element is not present.
+        /// </remarks>
+        public ushort ActionTypeID => GetUInt16(DicomTag.ActionTypeID);
+
+        /// <summary>
         /// Gets a value indicating whether a dataset is present after this command.
         /// </summary>
         /// <remarks>
@@ -192,6 +227,66 @@ namespace SharpDicom.Network.Dimse
         /// Gets a value indicating whether this is a C-CANCEL request.
         /// </summary>
         public bool IsCCancelRequest => CommandFieldValue == Dimse.CommandField.CCancelRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-EVENT-REPORT request.
+        /// </summary>
+        public bool IsNEventReportRequest => CommandFieldValue == Dimse.CommandField.NEventReportRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-EVENT-REPORT response.
+        /// </summary>
+        public bool IsNEventReportResponse => CommandFieldValue == Dimse.CommandField.NEventReportResponse;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-GET request.
+        /// </summary>
+        public bool IsNGetRequest => CommandFieldValue == Dimse.CommandField.NGetRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-GET response.
+        /// </summary>
+        public bool IsNGetResponse => CommandFieldValue == Dimse.CommandField.NGetResponse;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-SET request.
+        /// </summary>
+        public bool IsNSetRequest => CommandFieldValue == Dimse.CommandField.NSetRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-SET response.
+        /// </summary>
+        public bool IsNSetResponse => CommandFieldValue == Dimse.CommandField.NSetResponse;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-ACTION request.
+        /// </summary>
+        public bool IsNActionRequest => CommandFieldValue == Dimse.CommandField.NActionRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-ACTION response.
+        /// </summary>
+        public bool IsNActionResponse => CommandFieldValue == Dimse.CommandField.NActionResponse;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-CREATE request.
+        /// </summary>
+        public bool IsNCreateRequest => CommandFieldValue == Dimse.CommandField.NCreateRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-CREATE response.
+        /// </summary>
+        public bool IsNCreateResponse => CommandFieldValue == Dimse.CommandField.NCreateResponse;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-DELETE request.
+        /// </summary>
+        public bool IsNDeleteRequest => CommandFieldValue == Dimse.CommandField.NDeleteRequest;
+
+        /// <summary>
+        /// Gets a value indicating whether this is an N-DELETE response.
+        /// </summary>
+        public bool IsNDeleteResponse => CommandFieldValue == Dimse.CommandField.NDeleteResponse;
 
         #region Sub-operation Properties
 
@@ -515,6 +610,351 @@ namespace SharpDicom.Network.Dimse
             AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.CCancelRequest);
             AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingCancelled);
             AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-EVENT-REPORT request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="eventTypeId">The Event Type ID identifying the type of event.</param>
+        /// <returns>A new N-EVENT-REPORT request command.</returns>
+        /// <remarks>
+        /// N-EVENT-REPORT uses Affected SOP Class/Instance UIDs (not Requested).
+        /// The event information dataset follows the command.
+        /// See DICOM PS3.7 Section 10.1.1.
+        /// </remarks>
+        public static DicomCommand CreateNEventReportRequest(
+            ushort messageId,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort eventTypeId)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NEventReportRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            AddUInt16Element(ds, DicomTag.EventTypeID, eventTypeId);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-EVENT-REPORT response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="eventTypeId">The Event Type ID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="hasDataset">Whether the response includes a dataset.</param>
+        /// <returns>A new N-EVENT-REPORT response command.</returns>
+        public static DicomCommand CreateNEventReportResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort eventTypeId,
+            DicomStatus status,
+            bool hasDataset = false)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NEventReportResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            AddUInt16Element(ds, DicomTag.EventTypeID, eventTypeId);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-GET request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="requestedSopClassUid">The Requested SOP Class UID.</param>
+        /// <param name="requestedSopInstanceUid">The Requested SOP Instance UID.</param>
+        /// <returns>A new N-GET request command.</returns>
+        /// <remarks>
+        /// N-GET uses Requested SOP Class/Instance UIDs (not Affected).
+        /// The attribute identifier list is sent in the command dataset,
+        /// so no separate data set follows (NoDataSetPresent).
+        /// See DICOM PS3.7 Section 10.3.1.
+        /// </remarks>
+        public static DicomCommand CreateNGetRequest(
+            ushort messageId,
+            DicomUID requestedSopClassUid,
+            DicomUID requestedSopInstanceUid)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.RequestedSOPClassUID, requestedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NGetRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            AddUidElement(ds, DicomTag.RequestedSOPInstanceUID, requestedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-GET response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="hasDataset">Whether the response includes attribute values.</param>
+        /// <returns>A new N-GET response command.</returns>
+        /// <remarks>
+        /// N-GET response uses Affected SOP Class/Instance UIDs per PS3.7.
+        /// The response dataset contains the requested attribute values.
+        /// </remarks>
+        public static DicomCommand CreateNGetResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status,
+            bool hasDataset = false)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NGetResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-SET request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="requestedSopClassUid">The Requested SOP Class UID.</param>
+        /// <param name="requestedSopInstanceUid">The Requested SOP Instance UID.</param>
+        /// <returns>A new N-SET request command.</returns>
+        /// <remarks>
+        /// N-SET uses Requested SOP Class/Instance UIDs (not Affected).
+        /// The modification list dataset follows the command.
+        /// See DICOM PS3.7 Section 10.1.3.
+        /// </remarks>
+        public static DicomCommand CreateNSetRequest(
+            ushort messageId,
+            DicomUID requestedSopClassUid,
+            DicomUID requestedSopInstanceUid)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.RequestedSOPClassUID, requestedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NSetRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            AddUidElement(ds, DicomTag.RequestedSOPInstanceUID, requestedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-SET response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="hasDataset">Whether the response includes modified attribute values.</param>
+        /// <returns>A new N-SET response command.</returns>
+        /// <remarks>
+        /// N-SET response uses Affected SOP Class/Instance UIDs per PS3.7.
+        /// </remarks>
+        public static DicomCommand CreateNSetResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status,
+            bool hasDataset = false)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NSetResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-ACTION request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="requestedSopClassUid">The Requested SOP Class UID.</param>
+        /// <param name="requestedSopInstanceUid">The Requested SOP Instance UID.</param>
+        /// <param name="actionTypeId">The Action Type ID identifying the action to perform.</param>
+        /// <returns>A new N-ACTION request command.</returns>
+        /// <remarks>
+        /// N-ACTION uses Requested SOP Class/Instance UIDs (not Affected).
+        /// The action information dataset follows the command.
+        /// See DICOM PS3.7 Section 10.1.4.
+        /// </remarks>
+        public static DicomCommand CreateNActionRequest(
+            ushort messageId,
+            DicomUID requestedSopClassUid,
+            DicomUID requestedSopInstanceUid,
+            ushort actionTypeId)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.RequestedSOPClassUID, requestedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NActionRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            AddUidElement(ds, DicomTag.RequestedSOPInstanceUID, requestedSopInstanceUid);
+            AddUInt16Element(ds, DicomTag.ActionTypeID, actionTypeId);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-ACTION response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="actionTypeId">The Action Type ID.</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="hasDataset">Whether the response includes action reply data.</param>
+        /// <returns>A new N-ACTION response command.</returns>
+        /// <remarks>
+        /// N-ACTION response uses Affected SOP Class/Instance UIDs per PS3.7.
+        /// </remarks>
+        public static DicomCommand CreateNActionResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            ushort actionTypeId,
+            DicomStatus status,
+            bool hasDataset = false)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NActionResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            AddUInt16Element(ds, DicomTag.ActionTypeID, actionTypeId);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-CREATE request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID, or null to let the SCP assign one.</param>
+        /// <returns>A new N-CREATE request command.</returns>
+        /// <remarks>
+        /// N-CREATE uses Affected SOP Class UID (not Requested).
+        /// The SOP Instance UID is optional in the request; if omitted, the SCP assigns one.
+        /// The attribute list dataset follows the command.
+        /// See DICOM PS3.7 Section 10.1.5.
+        /// </remarks>
+        public static DicomCommand CreateNCreateRequest(
+            ushort messageId,
+            DicomUID affectedSopClassUid,
+            DicomUID? affectedSopInstanceUid = null)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NCreateRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, DataSetPresent);
+            if (affectedSopInstanceUid != null)
+            {
+                AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid.Value);
+            }
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-CREATE response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID (required in response).</param>
+        /// <param name="status">The response status.</param>
+        /// <param name="hasDataset">Whether the response includes attribute values.</param>
+        /// <returns>A new N-CREATE response command.</returns>
+        /// <remarks>
+        /// N-CREATE response uses Affected SOP Class/Instance UIDs.
+        /// The SOP Instance UID is always present in the response (even if the SCP assigned it).
+        /// </remarks>
+        public static DicomCommand CreateNCreateResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status,
+            bool hasDataset = false)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NCreateResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, hasDataset ? DataSetPresent : NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-DELETE request command.
+        /// </summary>
+        /// <param name="messageId">The unique message ID for this request.</param>
+        /// <param name="requestedSopClassUid">The Requested SOP Class UID.</param>
+        /// <param name="requestedSopInstanceUid">The Requested SOP Instance UID.</param>
+        /// <returns>A new N-DELETE request command.</returns>
+        /// <remarks>
+        /// N-DELETE uses Requested SOP Class/Instance UIDs (not Affected).
+        /// No dataset follows the command (NoDataSetPresent).
+        /// See DICOM PS3.7 Section 10.1.6.
+        /// </remarks>
+        public static DicomCommand CreateNDeleteRequest(
+            ushort messageId,
+            DicomUID requestedSopClassUid,
+            DicomUID requestedSopInstanceUid)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.RequestedSOPClassUID, requestedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NDeleteRequest);
+            AddUInt16Element(ds, DicomTag.MessageID, messageId);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            AddUidElement(ds, DicomTag.RequestedSOPInstanceUID, requestedSopInstanceUid);
+            return new DicomCommand(ds);
+        }
+
+        /// <summary>
+        /// Creates an N-DELETE response command.
+        /// </summary>
+        /// <param name="messageIdBeingRespondedTo">The message ID of the request being responded to.</param>
+        /// <param name="affectedSopClassUid">The Affected SOP Class UID.</param>
+        /// <param name="affectedSopInstanceUid">The Affected SOP Instance UID.</param>
+        /// <param name="status">The response status.</param>
+        /// <returns>A new N-DELETE response command.</returns>
+        /// <remarks>
+        /// N-DELETE response uses Affected SOP Class/Instance UIDs per PS3.7.
+        /// No dataset is present in the response.
+        /// </remarks>
+        public static DicomCommand CreateNDeleteResponse(
+            ushort messageIdBeingRespondedTo,
+            DicomUID affectedSopClassUid,
+            DicomUID affectedSopInstanceUid,
+            DicomStatus status)
+        {
+            var ds = new DicomDataset();
+            AddUidElement(ds, DicomTag.AffectedSOPClassUID, affectedSopClassUid);
+            AddUInt16Element(ds, DicomTag.CommandField, Dimse.CommandField.NDeleteResponse);
+            AddUInt16Element(ds, DicomTag.MessageIDBeingRespondedTo, messageIdBeingRespondedTo);
+            AddUInt16Element(ds, DicomTag.CommandDataSetType, NoDataSetPresent);
+            AddUInt16Element(ds, DicomTag.Status, status.Code);
+            AddUidElement(ds, DicomTag.AffectedSOPInstanceUID, affectedSopInstanceUid);
             return new DicomCommand(ds);
         }
 

@@ -23,8 +23,8 @@
 | 24 | Server-Side DIMSE | Medium | **COMPLETE** |
 | 25 | Advanced De-identification | Medium | **COMPLETE** |
 | 26 | Migration Tooling | Medium | **COMPLETE** |
-| 27 | Extended Codec Support | Low | Pending |
-| 28 | DIMSE-N Services | Low | Pending |
+| 27 | Extended Codec Support | Low | **COMPLETE** |
+| 28 | DIMSE-N Services | Low | **COMPLETE** |
 | 29 | MongoDB/BSON Serialization | Medium | Pending |
 | 30 | HT Block Coder | Low | Future |
 
@@ -374,19 +374,38 @@ Plans:
 
 **Goal**: Normalized object services and association negotiation enhancements
 
-**Should-haves**:
-- [ ] N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT
-- [ ] Modality Performed Procedure Step (MPPS)
-- [ ] Storage Commitment
-- [ ] Asynchronous Operations Window negotiation (PS3.8 D.3.3.3)
-  - [ ] UserInformation: MaxOperationsInvoked / MaxOperationsPerformed fields
-  - [ ] A-ASSOCIATE-RQ/AC encoding/decoding of 0x53 sub-item
-  - [ ] DicomClientOptions: AsyncOperationsInvoked / AsyncOperationsPerformed
-  - [ ] Wire up FoDicom5.Compat NegotiateAsyncOps to actual negotiation
+**Plans:** 5 plans
 
-**Success Criteria**:
-- [ ] MPPS workflow functional
-- [ ] Async ops negotiated with remote PACS when non-default values requested
+Plans:
+- [x] 28-01-PLAN.md — N-Service command factory methods, status codes, well-known UIDs
+- [x] 28-02-PLAN.md — Async Operations Window negotiation (0x53 PDU, UserInformation, FoDicom5.Compat wiring)
+- [x] 28-03-PLAN.md — N-Service handler interfaces, typed requests/responses, NServiceScu, server dispatch
+- [x] 28-04-PLAN.md — MPPS workflow (SCP state machine + SCU) and Storage Commitment Push Model (SCP + SCU)
+- [x] 28-05-PLAN.md — Test suite (70 tests for all Phase 28 features)
+
+**Must-haves** (all complete):
+- [x] N-CREATE, N-SET, N-GET, N-DELETE, N-ACTION, N-EVENT-REPORT
+  - [x] 12 factory methods in DicomCommand with correct Affected/Requested UID handling
+  - [x] 6 handler interfaces (INCreateHandler through INEventReportHandler)
+  - [x] NServiceScu with 6 async methods
+  - [x] DicomServer N-Service command dispatch
+- [x] Modality Performed Procedure Step (MPPS)
+  - [x] MppsScpHandler with state machine enforcement (InProgress->Completed/Discontinued)
+  - [x] MppsScu with CreateAsync/SetCompletedAsync/SetDiscontinuedAsync
+  - [x] IMppsPersistence with InMemoryMppsPersistence default
+- [x] Storage Commitment Push Model
+  - [x] StorageCommitmentScpHandler handling N-ACTION requests
+  - [x] StorageCommitmentScu sending typed requests
+  - [x] IStorageVerifier callback interface
+- [x] Asynchronous Operations Window negotiation (PS3.8 D.3.3.3)
+  - [x] UserInformation: MaxOperationsInvoked / MaxOperationsPerformed fields
+  - [x] A-ASSOCIATE-RQ/AC encoding/decoding of 0x53 sub-item
+  - [x] DicomClientOptions: AsyncOperationsInvoked / AsyncOperationsPerformed
+  - [x] Wire up FoDicom5.Compat NegotiateAsyncOps to actual negotiation
+
+**Success Criteria** (all met):
+- [x] MPPS workflow functional
+- [x] Async ops negotiated with remote PACS when non-default values requested
 
 ---
 
@@ -451,4 +470,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-07 (Phase 27 gap closure -- 2 plans for video backend wiring and 12-bit build docs)*
+*Last updated: 2026-02-07 (Phase 28 DIMSE-N Services complete -- 5 plans, 70 tests, verified 20/20)*

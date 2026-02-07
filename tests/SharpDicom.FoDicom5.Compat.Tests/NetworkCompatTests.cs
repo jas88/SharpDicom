@@ -154,11 +154,22 @@ public class NetworkCompatTests
     }
 
     [Test]
-    public void NegotiateAsyncOps_NonZeroValues_ThrowsNotSupported()
+    public async Task NegotiateAsyncOps_NonZeroValues_StoresValues()
     {
         var client = DicomClientFactory.Create("localhost", 104, false, "CALLING", "CALLED");
-        Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await client.NegotiateAsyncOps(1, 1));
+        await client.NegotiateAsyncOps(5, 3);
+
+        // Verify values were stored via reflection on the concrete type
+        var clientType = client.GetType();
+        var invokedField = clientType.GetField("_asyncOpsInvoked",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var performedField = clientType.GetField("_asyncOpsPerformed",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.That(invokedField, Is.Not.Null, "Field _asyncOpsInvoked not found");
+        Assert.That(performedField, Is.Not.Null, "Field _asyncOpsPerformed not found");
+        Assert.That(invokedField!.GetValue(client), Is.EqualTo((ushort)5));
+        Assert.That(performedField!.GetValue(client), Is.EqualTo((ushort)3));
     }
 
     [Test]

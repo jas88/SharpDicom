@@ -231,5 +231,76 @@ namespace SharpDicom.Network
         public static readonly DicomStatus UnableToProcess = new(0xC000);
 
         #endregion
+
+        #region N-Service Status Codes
+
+        /// <summary>
+        /// Failure: No such attribute (0x0105) - The requested attribute does not exist.
+        /// </summary>
+        /// <remarks>
+        /// Used by N-GET when a requested attribute is not recognized.
+        /// See DICOM PS3.7 Annex C.
+        /// </remarks>
+        public static readonly DicomStatus NoSuchAttribute = new(0x0105);
+
+        /// <summary>
+        /// Failure: Invalid attribute value (0x0106) - An attribute value is invalid.
+        /// </summary>
+        /// <remarks>
+        /// Used by N-SET/N-CREATE when an attribute value violates constraints.
+        /// For MPPS, returned when attempting an invalid state transition.
+        /// </remarks>
+        public static readonly DicomStatus InvalidAttributeValue = new(0x0106);
+
+        /// <summary>
+        /// Failure: Attribute list error (0x0107) - The attribute list is incorrect.
+        /// </summary>
+        /// <remarks>
+        /// Used when the attribute list in a request is malformed or contains errors.
+        /// </remarks>
+        public static readonly DicomStatus AttributeListError = new(0x0107);
+
+        /// <summary>
+        /// Failure: No such event type (0x0113) - The event type is not recognized.
+        /// </summary>
+        /// <remarks>
+        /// Used by N-EVENT-REPORT when the specified Event Type ID is not recognized.
+        /// </remarks>
+        public static readonly DicomStatus NoSuchEventType = new(0x0113);
+
+        /// <summary>
+        /// Failure: Invalid argument value (0x0115) - An argument value is invalid.
+        /// </summary>
+        /// <remarks>
+        /// Used when an argument provided to an N-Service operation is invalid.
+        /// </remarks>
+        public static readonly DicomStatus InvalidArgumentValue = new(0x0115);
+
+        /// <summary>
+        /// Warning: Attribute value out of range (0x0116).
+        /// </summary>
+        /// <remarks>
+        /// Used when an attribute value is out of the expected range but the operation
+        /// can still proceed. This is a warning, not a failure.
+        /// </remarks>
+        public static readonly DicomStatus AttributeValueOutOfRange = new(0x0116);
+
+        /// <summary>
+        /// Failure: Class-instance conflict (0x0119) - SOP Class/Instance mismatch.
+        /// </summary>
+        /// <remarks>
+        /// The specified SOP Instance is not a member of the specified SOP Class.
+        /// </remarks>
+        public static readonly DicomStatus ClassInstanceConflict = new(0x0119);
+
+        /// <summary>
+        /// Failure: No such action type (0x0123) - The action type is not recognized.
+        /// </summary>
+        /// <remarks>
+        /// Used by N-ACTION when the specified Action Type ID is not recognized.
+        /// </remarks>
+        public static readonly DicomStatus NoSuchActionType = new(0x0123);
+
+        #endregion
     }
 }

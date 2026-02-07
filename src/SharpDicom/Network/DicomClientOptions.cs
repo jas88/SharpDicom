@@ -16,6 +16,24 @@ namespace SharpDicom.Network
         public uint MaxPduLength { get; set; } = PduConstants.DefaultMaxPduLength;
 
         /// <summary>
+        /// Gets or sets the maximum number of DIMSE operations this client can invoke concurrently.
+        /// </summary>
+        /// <remarks>
+        /// Default is 1 (synchronous). Value of 0 means unlimited. The actual negotiated value
+        /// is the minimum of the proposed value and the value accepted by the SCP in A-ASSOCIATE-AC.
+        /// </remarks>
+        public ushort AsyncOperationsInvoked { get; set; } = 1;
+
+        /// <summary>
+        /// Gets or sets the maximum number of DIMSE operations this client can perform concurrently.
+        /// </summary>
+        /// <remarks>
+        /// Default is 1 (synchronous). Value of 0 means unlimited. Only relevant when the client
+        /// also acts as a sub-operation SCP (e.g., C-GET with C-STORE sub-operations).
+        /// </remarks>
+        public ushort AsyncOperationsPerformed { get; set; } = 1;
+
+        /// <summary>
         /// Gets or sets the TLS options for secure DICOM connections.
         /// </summary>
         /// <remarks>

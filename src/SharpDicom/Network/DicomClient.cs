@@ -49,6 +49,8 @@ namespace SharpDicom.Network
         private DicomAssociation? _association;
         private ushort _messageId;
         private bool _disposed;
+        private ushort _negotiatedMaxInvoked = 1;
+        private ushort _negotiatedMaxPerformed = 1;
 
         /// <summary>
         /// Initializes a new instance of <see cref="DicomClient"/>.
@@ -273,12 +275,16 @@ namespace SharpDicom.Network
                 _stream = _sslStream;
             }
 
-            // Create association options
+            // Create association options with user information including async ops
+            var userInfo = UserInformation.Default
+                .WithMaxPduLength(_options.MaxPduLength)
+                .WithAsyncOperations(_options.AsyncOperationsInvoked, _options.AsyncOperationsPerformed);
+
             var assocOptions = new AssociationOptions(
                 _options.CalledAE,
                 _options.CallingAE,
                 presentationContexts,
-                UserInformation.Default.WithMaxPduLength(_options.MaxPduLength),
+                userInfo,
                 _options.AssociationTimeout,
                 _options.DimseTimeout);
 
@@ -703,11 +709,15 @@ namespace SharpDicom.Network
             var buffer = new BufferWriter();
             var writer = new PduWriter(buffer);
 
+            var userInfo = UserInformation.Default
+                .WithMaxPduLength(_options.MaxPduLength)
+                .WithAsyncOperations(_options.AsyncOperationsInvoked, _options.AsyncOperationsPerformed);
+
             writer.WriteAssociateRequest(
                 _options.CalledAE,
                 _options.CallingAE,
                 contexts,
-                UserInformation.Default.WithMaxPduLength(_options.MaxPduLength));
+                userInfo);
 
 #if NET6_0_OR_GREATER
             await _stream!.WriteAsync(buffer.WrittenMemory, ct).ConfigureAwait(false);
@@ -852,20 +862,52 @@ namespace SharpDicom.Network
 
                 bytesRead += 4 + subItemLength;
 
-                if (subItemType == ItemType.MaximumLength)
+                switch (subItemType)
                 {
-                    if (reader.TryReadMaxPduLength(out var pduLen))
-                    {
-                        maxPdu = pduLen;
-                    }
-                }
-                else
-                {
-                    reader.TrySkip(subItemLength);
+                    case ItemType.MaximumLength:
+                        if (reader.TryReadMaxPduLength(out var pduLen))
+                        {
+                            maxPdu = pduLen;
+                        }
+                        break;
+
+                    case ItemType.AsynchronousOperationsWindow:
+                        if (reader.TryReadAsyncOperationsWindow(out var invoked, out var performed))
+                        {
+                            // Effective negotiated value is the minimum of proposed and accepted
+                            // per DICOM PS3.7 D.3.3.3. A value of 0 means unlimited.
+                            _negotiatedMaxInvoked = NegotiateAsyncOpsValue(
+                                _options.AsyncOperationsInvoked, invoked);
+                            _negotiatedMaxPerformed = NegotiateAsyncOpsValue(
+                                _options.AsyncOperationsPerformed, performed);
+                        }
+                        break;
+
+                    default:
+                        reader.TrySkip(subItemLength);
+                        break;
                 }
             }
 
             return maxPdu;
+        }
+
+        /// <summary>
+        /// Negotiates an async operations value by taking the effective minimum.
+        /// </summary>
+        /// <remarks>
+        /// 0 means unlimited, so if either side says 0 the other side's value wins.
+        /// If both say 0, the result is 0 (unlimited).
+        /// </remarks>
+        private static ushort NegotiateAsyncOpsValue(ushort proposed, ushort accepted)
+        {
+            if (proposed == 0 && accepted == 0)
+                return 0; // Both unlimited
+            if (proposed == 0)
+                return accepted; // Proposed unlimited, use accepted limit
+            if (accepted == 0)
+                return proposed; // Accepted unlimited, use proposed limit
+            return Math.Min(proposed, accepted);
         }
 
         private async ValueTask SendReleaseRequestAsync(CancellationToken ct)

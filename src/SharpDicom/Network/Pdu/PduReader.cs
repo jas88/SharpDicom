@@ -414,6 +414,33 @@ namespace SharpDicom.Network.Pdu
         }
 
         /// <summary>
+        /// Attempts to read an Asynchronous Operations Window sub-item (0x53).
+        /// </summary>
+        /// <param name="maxOperationsInvoked">Maximum concurrent invoked operations (0 = unlimited).</param>
+        /// <param name="maxOperationsPerformed">Maximum concurrent performed operations (0 = unlimited).</param>
+        /// <returns>true if read successfully; false if insufficient data.</returns>
+        /// <remarks>
+        /// Per DICOM PS3.7 D.3.3.3, the sub-item data is 4 bytes:
+        /// two uint16 big-endian values for invoked and performed operations.
+        /// Must be called after <see cref="TryReadVariableItem"/> confirms the type is
+        /// <see cref="ItemType.AsynchronousOperationsWindow"/>.
+        /// </remarks>
+        public bool TryReadAsyncOperationsWindow(out ushort maxOperationsInvoked, out ushort maxOperationsPerformed)
+        {
+            maxOperationsInvoked = 1;
+            maxOperationsPerformed = 1;
+
+            if (Remaining < 4)
+                return false;
+
+            var span = _buffer.Slice(_position);
+            maxOperationsInvoked = BinaryPrimitives.ReadUInt16BigEndian(span);
+            maxOperationsPerformed = BinaryPrimitives.ReadUInt16BigEndian(span.Slice(2));
+            _position += 4;
+            return true;
+        }
+
+        /// <summary>
         /// Attempts to read a Presentation Data Value from P-DATA.
         /// </summary>
         /// <param name="contextId">The presentation context ID.</param>

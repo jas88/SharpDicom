@@ -44,6 +44,35 @@ namespace SharpDicom.Network.Items
         public string? ImplementationVersionName { get; }
 
         /// <summary>
+        /// Gets the maximum number of DIMSE operations this entity can invoke concurrently.
+        /// </summary>
+        /// <remarks>
+        /// Per DICOM PS3.7 D.3.3.3, a value of 1 means synchronous-only (the default).
+        /// A value of 0 means unlimited concurrent operations.
+        /// </remarks>
+        public ushort MaxOperationsInvoked { get; }
+
+        /// <summary>
+        /// Gets the maximum number of DIMSE operations this entity can perform concurrently.
+        /// </summary>
+        /// <remarks>
+        /// Per DICOM PS3.7 D.3.3.3, a value of 1 means synchronous-only (the default).
+        /// A value of 0 means unlimited concurrent operations.
+        /// </remarks>
+        public ushort MaxOperationsPerformed { get; }
+
+        /// <summary>
+        /// Gets a value indicating whether non-default async operations values are present.
+        /// </summary>
+        /// <remarks>
+        /// Returns true when either <see cref="MaxOperationsInvoked"/> or
+        /// <see cref="MaxOperationsPerformed"/> differ from the default value of 1
+        /// (synchronous-only). When true, the 0x53 Asynchronous Operations Window
+        /// sub-item must be included in the association PDU.
+        /// </remarks>
+        public bool HasAsyncOperations => MaxOperationsInvoked != 1 || MaxOperationsPerformed != 1;
+
+        /// <summary>
         /// Gets the default <see cref="UserInformation"/> for SharpDicom.
         /// </summary>
         public static UserInformation Default => s_default.Value;
@@ -54,6 +83,8 @@ namespace SharpDicom.Network.Items
         /// <param name="maxPduLength">The maximum PDU length (must be at least <see cref="PduConstants.MinMaxPduLength"/> or 0 for unlimited).</param>
         /// <param name="implementationClassUid">The implementation class UID (must be valid UID format).</param>
         /// <param name="implementationVersionName">The optional implementation version name (max 16 characters).</param>
+        /// <param name="maxOperationsInvoked">Maximum concurrent invoked operations (0 = unlimited, 1 = synchronous default).</param>
+        /// <param name="maxOperationsPerformed">Maximum concurrent performed operations (0 = unlimited, 1 = synchronous default).</param>
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown when <paramref name="maxPduLength"/> is non-zero but less than <see cref="PduConstants.MinMaxPduLength"/>.
         /// </exception>
@@ -61,7 +92,9 @@ namespace SharpDicom.Network.Items
         /// Thrown when <paramref name="implementationClassUid"/> is null, empty, or not a valid UID format,
         /// or when <paramref name="implementationVersionName"/> exceeds 16 characters.
         /// </exception>
-        public UserInformation(uint maxPduLength, string implementationClassUid, string? implementationVersionName = null)
+        public UserInformation(uint maxPduLength, string implementationClassUid,
+            string? implementationVersionName = null,
+            ushort maxOperationsInvoked = 1, ushort maxOperationsPerformed = 1)
         {
             if (maxPduLength != 0 && maxPduLength < PduConstants.MinMaxPduLength)
             {
@@ -87,6 +120,8 @@ namespace SharpDicom.Network.Items
             MaxPduLength = maxPduLength;
             ImplementationClassUid = implementationClassUid;
             ImplementationVersionName = implementationVersionName;
+            MaxOperationsInvoked = maxOperationsInvoked;
+            MaxOperationsPerformed = maxOperationsPerformed;
         }
 
         /// <summary>
@@ -96,7 +131,20 @@ namespace SharpDicom.Network.Items
         /// <returns>A new <see cref="UserInformation"/> with the specified PDU length.</returns>
         public UserInformation WithMaxPduLength(uint maxPduLength)
         {
-            return new UserInformation(maxPduLength, ImplementationClassUid, ImplementationVersionName);
+            return new UserInformation(maxPduLength, ImplementationClassUid, ImplementationVersionName,
+                MaxOperationsInvoked, MaxOperationsPerformed);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="UserInformation"/> instance with the async operations window changed.
+        /// </summary>
+        /// <param name="invoked">Maximum concurrent invoked operations (0 = unlimited, 1 = synchronous).</param>
+        /// <param name="performed">Maximum concurrent performed operations (0 = unlimited, 1 = synchronous).</param>
+        /// <returns>A new <see cref="UserInformation"/> with the specified async operations window.</returns>
+        public UserInformation WithAsyncOperations(ushort invoked, ushort performed)
+        {
+            return new UserInformation(MaxPduLength, ImplementationClassUid, ImplementationVersionName,
+                invoked, performed);
         }
 
         private static UserInformation CreateDefault()

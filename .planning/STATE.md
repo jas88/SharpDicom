@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 27 - Extended Codec Support (COMPLETE - VERIFIED 20/20)
-**Plan**: 12 of 12 in current phase
+**Phase**: 28 - DIMSE-N Services (COMPLETE - VERIFIED 20/20)
+**Plan**: 5 of 5 in current phase
 **Status**: Phase complete, verified
-**Last activity**: 2026-02-07 - Phase 27 verified 20/20 (gap closure plans 27-11, 27-12 executed)
+**Last activity**: 2026-02-07 - Phase 28 verified 20/20 must-haves
 
-**Progress**: ████████████ (12/12 plans in Phase 27)
+**Progress**: ████████████ (5/5 plans in Phase 28)
 
-**Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
+**Test Status**: 4984 tests (4801 pass, 183 skipped, 0 failed)
 
 ## Completed
 
@@ -166,9 +166,17 @@
 - [x] Phase 27 Plan 11: Video encoder backend registration (NativeCodecs wiring, gap 1+2 closure)
 - [x] Phase 27 Plan 12: Document native build requirements (BUILD-REQUIREMENTS.md, gap 3 closure)
 
+### Phase 28 - DIMSE-N Services (COMPLETE - VERIFIED 20/20)
+
+- [x] Phase 28 Plan 01: N-Service command foundation (12 factory methods, N-Service status codes, MPPS/Storage Commitment UIDs)
+- [x] Phase 28 Plan 02: Async Operations Window negotiation (0x53 sub-item, DicomClientOptions async ops, FoDicom5.Compat wiring)
+- [x] Phase 28 Plan 03: N-Service infrastructure (6 handler interfaces, NServiceScu, DicomServer N-Service dispatch, DicomServerOptions handler registration)
+- [x] Phase 28 Plan 04: MPPS and Storage Commitment services (MppsScpHandler with state machine, MppsScu, StorageCommitmentScpHandler, StorageCommitmentScu)
+- [x] Phase 28 Plan 05: Comprehensive N-Service test suite (70 tests: NServiceCommandTests, AsyncOpsWindowTests, MppsTests, StorageCommitmentTests)
+
 ## In Progress
 
-*None*
+*None - Phase 28 complete*
 
 ## Blocked
 
@@ -191,6 +199,7 @@
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
+| 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -525,25 +534,34 @@
 | 2026-02-07 | 27-09 | Single encapsulated fragment for video bitstream | Video codecs require contiguous bitstreams, not per-frame fragmentation |
 | 2026-02-07 | 27-10 | Synthetic byte arrays for video test data | No native encoder needed in CI; tests validate managed types and API contracts |
 | 2026-02-07 | 27-10 | Frame rate detection priority: CineRate > RecommendedDisplayFrameRate > FrameTime > FrameTimeVector | Matches implementation in VideoEncoder.DetectFrameRate |
+| 2026-02-07 | 28-01 | N-GET request uses NoDataSetPresent | Attribute identifier list is a separate mechanism, not a data set |
+| 2026-02-07 | 28-01 | N-CREATE request has optional affectedSopInstanceUid (DicomUID?) | Allows SCP to assign instance UIDs when SCU does not specify one |
+| 2026-02-07 | 28-01 | N-DELETE response always uses NoDataSetPresent | Per PS3.7 specification, no dataset in N-DELETE response |
+| 2026-02-07 | 28-03 | Abstract NServiceRequestContext base class with PresentationContextId | Matches CStoreRequestContext pattern, enables common context across all 6 N-Services |
+| 2026-02-07 | 28-03 | Unified NServiceResponse for all N-Services | Single type with Status + optional Dataset + optional AffectedSOPInstanceUID covers all use cases |
+| 2026-02-07 | 28-03 | ParseNServiceCommand handles both Affected and Requested SOP UIDs | N-CREATE/N-EVENT-REPORT use Affected, N-SET/N-GET/N-ACTION/N-DELETE use Requested |
+| 2026-02-07 | 28-03 | Handler-absent N-Service returns ProcessingFailure (0x0110) | Consistent with handler pattern; handler absence is a server configuration issue |
+| 2026-02-07 | 28-04 | MPPS state machine rejects all transitions from terminal states with 0x0106 | InProgress->Completed/Discontinued only; Completed and Discontinued are terminal |
+| 2026-02-07 | 28-04 | StorageCommitment SCP stores result for later N-EVENT-REPORT via TakeResult() | Asynchronous protocol: N-ACTION returns immediately, result delivered later |
+| 2026-02-07 | 28-04 | Added 7 DICOM tags to WellKnown for MPPS/StorageCommitment | PerformedProcedureStepStatus, ReferencedSOPClassUID/InstanceUID, TransactionUID, ReferencedSOPSequence, FailedSOPSequence, FailureReason |
+| 2026-02-07 | 28-05 | Raw byte scanning for 0x53 sub-item verification | PduReader.TryReadUserInformation doesn't reconstruct UserInformation; raw scan more reliable |
+| 2026-02-07 | 28-05 | DicomNumericElement.GetUInt16() for US VR retrieval | DicomDataset.GetInt32() requires 4 bytes; US VR is 2 bytes |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 27-12-PLAN.md (Document Native Build Requirements) -- Phase 27 COMPLETE (all gaps closed)
+**Stopped at**: Phase 28 COMPLETE (VERIFIED 20/20)
 **Resume file**: None
-**Next step**: Phase 27 complete. All 3 verification gaps closed. Ready for next phase or milestone completion.
+**Next step**: Phase 28 complete and verified. Ready for Phase 29 (MongoDB/BSON Serialization) or milestone wrap-up.
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 COMPLETE (Extended Codec Support) - all 12 plans done, all verification gaps closed
-2. **Phase 27-12 deliverables**:
-   - native/BUILD-REQUIREMENTS.md documenting all optional vendor library requirements
-   - 12-bit JPEG build instructions with symbol prefix approach
-   - Gap 3 from 27-VERIFICATION.md closed (build requirements documented)
-3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed)
-4. **Next**: Phase 27 complete. Consider Phase 28 or milestone wrap-up.
+1. **Current phase**: Phase 28 - DIMSE-N Services (COMPLETE, 5/5 plans)
+2. **Phase 28 deliverables**: N-Service command factory methods, Async Operations Window negotiation, N-Service handler interfaces and NServiceScu, MPPS SCP/SCU with state machine, Storage Commitment SCP/SCU, 70 comprehensive tests
+3. **Test coverage**: 4984 tests (4801 pass, 183 skipped, 0 failed) -- no regressions
+4. **Next**: Phase 28 complete. Next phase TBD.
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -584,4 +602,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 COMPLETE -- 12/12 plans, all 3 verification gaps closed)*
+*Last updated: 2026-02-07 (Phase 28 COMPLETE -- VERIFIED 20/20)*
