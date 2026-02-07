@@ -310,6 +310,135 @@ namespace SharpDicom.Codecs.Video
         }
 
         /// <summary>
+        /// Maps a <see cref="VideoCodecType"/> to the appropriate DICOM <see cref="TransferSyntax"/>.
+        /// </summary>
+        /// <param name="codec">The video codec type.</param>
+        /// <returns>The corresponding DICOM transfer syntax.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">
+        /// Thrown when <paramref name="codec"/> is not a recognised video codec.
+        /// </exception>
+        /// <remarks>
+        /// <list type="bullet">
+        /// <item><description>MPEG2 maps to MPEG2 Main Profile / Main Level (1.2.840.10008.1.2.4.100)</description></item>
+        /// <item><description>H264 maps to H.264 High Profile / Level 4.1 (1.2.840.10008.1.2.4.102)</description></item>
+        /// <item><description>HEVC maps to HEVC Main Profile / Level 5.1 (1.2.840.10008.1.2.4.107)</description></item>
+        /// </list>
+        /// </remarks>
+        public static TransferSyntax MapCodecToTransferSyntax(VideoCodecType codec)
+        {
+            return codec switch
+            {
+                VideoCodecType.MPEG2 => TransferSyntax.MPEG2MainML,
+                VideoCodecType.H264 => TransferSyntax.H264HighProfile41,
+                VideoCodecType.HEVC => TransferSyntax.HEVCMainProfile51,
+                _ => throw new ArgumentOutOfRangeException(nameof(codec), codec, "Unknown video codec type.")
+            };
+        }
+
+        /// <summary>
+        /// Encodes video frames and creates a complete DICOM file in a single operation.
+        /// </summary>
+        /// <param name="frames">The video frames to encode.</param>
+        /// <param name="options">Encoding options.</param>
+        /// <param name="width">Frame width in pixels.</param>
+        /// <param name="height">Frame height in pixels.</param>
+        /// <param name="sopClass">The video SOP class for the DICOM file.</param>
+        /// <param name="templateDataset">Optional template dataset for patient/study attributes.</param>
+        /// <param name="progress">Optional progress callback.</param>
+        /// <returns>A complete DICOM file containing the encoded video.</returns>
+        /// <exception cref="InvalidOperationException">No video encoder backend is registered.</exception>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="frames"/> or <paramref name="options"/> is null.
+        /// </exception>
+        /// <remarks>
+        /// This is a convenience method that combines <see cref="EncodeFromFrames"/> with
+        /// <see cref="VideoDicomBuilder"/> to produce a complete DICOM file. The transfer
+        /// syntax is automatically determined from <see cref="VideoEncoderOptions.Codec"/>
+        /// via <see cref="MapCodecToTransferSyntax"/>.
+        /// </remarks>
+        public static DicomFile CreateVideoDicom(
+            IEnumerable<VideoFrame> frames,
+            VideoEncoderOptions options,
+            int width,
+            int height,
+            VideoSopClass sopClass,
+            DicomDataset? templateDataset = null,
+            IProgress<VideoEncodeProgress>? progress = null)
+        {
+            ThrowHelpers.ThrowIfNull(frames, nameof(frames));
+            ThrowHelpers.ThrowIfNull(options, nameof(options));
+
+            var encoded = EncodeFromFrames(frames, options, width, height, progress);
+            var ts = MapCodecToTransferSyntax(options.Codec);
+
+            var builder = new VideoDicomBuilder()
+                .WithSopClass(sopClass)
+                .WithTransferSyntax(ts)
+                .WithDimensions(width, height)
+                .WithFrameRate(options.FrameRate)
+                .WithPixelData(encoded);
+
+            if (templateDataset != null)
+                builder.WithPatientFromTemplate(templateDataset);
+
+            return builder.Build();
+        }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Encodes video frames from an async stream and creates a complete DICOM file.
+        /// </summary>
+        /// <param name="frames">Async stream of video frames to encode.</param>
+        /// <param name="options">Encoding options.</param>
+        /// <param name="width">Frame width in pixels.</param>
+        /// <param name="height">Frame height in pixels.</param>
+        /// <param name="sopClass">The video SOP class for the DICOM file.</param>
+        /// <param name="templateDataset">Optional template dataset for patient/study attributes.</param>
+        /// <param name="progress">Optional progress callback.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>A complete DICOM file containing the encoded video.</returns>
+        /// <exception cref="InvalidOperationException">No video encoder backend is registered.</exception>
+        /// <exception cref="ArgumentNullException">
+        /// <paramref name="frames"/> or <paramref name="options"/> is null.
+        /// </exception>
+        /// <remarks>
+        /// This is a convenience method that combines <see cref="EncodeFromFramesAsync"/> with
+        /// <see cref="VideoDicomBuilder"/> to produce a complete DICOM file. The transfer
+        /// syntax is automatically determined from <see cref="VideoEncoderOptions.Codec"/>
+        /// via <see cref="MapCodecToTransferSyntax"/>.
+        /// </remarks>
+        public static async Task<DicomFile> CreateVideoDicomAsync(
+            IAsyncEnumerable<VideoFrame> frames,
+            VideoEncoderOptions options,
+            int width,
+            int height,
+            VideoSopClass sopClass,
+            DicomDataset? templateDataset = null,
+            IProgress<VideoEncodeProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            ThrowHelpers.ThrowIfNull(frames, nameof(frames));
+            ThrowHelpers.ThrowIfNull(options, nameof(options));
+
+            var encoded = await EncodeFromFramesAsync(frames, options, width, height, progress, cancellationToken)
+                .ConfigureAwait(false);
+            var ts = MapCodecToTransferSyntax(options.Codec);
+
+            var builder = new VideoDicomBuilder()
+                .WithSopClass(sopClass)
+                .WithTransferSyntax(ts)
+                .WithDimensions(width, height)
+                .WithFrameRate(options.FrameRate)
+                .WithPixelData(encoded);
+
+            if (templateDataset != null)
+                builder.WithPatientFromTemplate(templateDataset);
+
+            return builder.Build();
+        }
+#endif
+
+        /// <summary>
         /// Resets the encoder backend. For testing purposes only.
         /// </summary>
         internal static void Reset()
