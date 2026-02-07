@@ -50,7 +50,10 @@ public sealed class CompatUsageAnalyzer : DiagnosticAnalyzer
 
         // Detect compat layer type usage via semantic analysis on syntax nodes
         // (SymbolKind.NamedType only fires on declarations, not usage sites in user code)
-        context.RegisterSyntaxNodeAction(AnalyzeTypeUsage, SyntaxKind.IdentifierName);
+        context.RegisterSyntaxNodeAction(
+            AnalyzeTypeUsage,
+            SyntaxKind.IdentifierName,
+            SyntaxKind.GenericName);
     }
 
     private static void AnalyzeUsingDirective(SyntaxNodeAnalysisContext context)

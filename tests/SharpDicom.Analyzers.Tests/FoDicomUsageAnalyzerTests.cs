@@ -90,6 +90,51 @@ public sealed class FoDicomUsageAnalyzerTests
     }
 
     /// <summary>
+    /// Detects fo-dicom generic type usage (GenericNameSyntax, not IdentifierNameSyntax).
+    /// </summary>
+    [Test]
+    public async Task DetectsGenericTypeUsage()
+    {
+        const string testCode = @"
+namespace FellowOakDicom
+{
+    public class DicomCollection<T> { }
+    public class DicomDataset { }
+}
+
+class Test
+{
+    void M()
+    {
+        var x = new FellowOakDicom.DicomCollection<FellowOakDicom.DicomDataset>();
+    }
+}
+";
+        var test = new CSharpAnalyzerTest<FoDicomUsageAnalyzer, DefaultVerifier>
+        {
+            TestCode = testCode,
+            ReferenceAssemblies = ReferenceAssemblies.Net.Net80,
+            CompilerDiagnostics = CompilerDiagnostics.None,
+        };
+        // "var" resolves to DicomCollection<DicomDataset>
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult("SD0002", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+                .WithSpan(12, 9, 12, 12)
+                .WithArguments("DicomCollection", "FellowOakDicom"));
+        // GenericName "DicomCollection<DicomDataset>" on the constructor type
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult("SD0002", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+                .WithSpan(12, 36, 12, 80)
+                .WithArguments("DicomCollection", "FellowOakDicom"));
+        // IdentifierName "DicomDataset" on the type argument
+        test.ExpectedDiagnostics.Add(
+            new DiagnosticResult("SD0002", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+                .WithSpan(12, 67, 12, 79)
+                .WithArguments("DicomDataset", "FellowOakDicom"));
+        await test.RunAsync();
+    }
+
+    /// <summary>
     /// Does not flag unrelated namespaces.
     /// </summary>
     [Test]

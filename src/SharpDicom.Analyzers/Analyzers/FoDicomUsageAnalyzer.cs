@@ -59,7 +59,10 @@ public sealed class FoDicomUsageAnalyzer : DiagnosticAnalyzer
 
         // Detect fo-dicom type usage via semantic analysis on syntax nodes
         // (SymbolKind.NamedType only fires on declarations, not usage sites in user code)
-        context.RegisterSyntaxNodeAction(AnalyzeTypeUsage, SyntaxKind.IdentifierName);
+        context.RegisterSyntaxNodeAction(
+            AnalyzeTypeUsage,
+            SyntaxKind.IdentifierName,
+            SyntaxKind.GenericName);
 
         // Detect fo-dicom static method calls
         context.RegisterSyntaxNodeAction(AnalyzeInvocationExpression, SyntaxKind.InvocationExpression);
