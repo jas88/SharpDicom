@@ -3,12 +3,12 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 27 - Extended Codec Support (COMPLETE - VERIFIED 20/20)
-**Plan**: 12 of 12 in current phase
-**Status**: Phase complete, verified
-**Last activity**: 2026-02-07 - Phase 27 verified 20/20 (gap closure plans 27-11, 27-12 executed)
+**Phase**: 28 - DIMSE-N Services (IN PROGRESS)
+**Plan**: 1 of 5 in current phase
+**Status**: In progress
+**Last activity**: 2026-02-07 - Completed 28-01-PLAN.md (N-Service Command Foundation)
 
-**Progress**: ████████████ (12/12 plans in Phase 27)
+**Progress**: █░░░░ (1/5 plans in Phase 28)
 
 **Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 
@@ -166,9 +166,13 @@
 - [x] Phase 27 Plan 11: Video encoder backend registration (NativeCodecs wiring, gap 1+2 closure)
 - [x] Phase 27 Plan 12: Document native build requirements (BUILD-REQUIREMENTS.md, gap 3 closure)
 
+### Phase 28 - DIMSE-N Services (IN PROGRESS)
+
+- [x] Phase 28 Plan 01: N-Service command foundation (12 factory methods, N-Service status codes, MPPS/Storage Commitment UIDs)
+
 ## In Progress
 
-*None*
+*Phase 28 - Plans 02-05 remaining*
 
 ## Blocked
 
@@ -191,6 +195,7 @@
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
+| 28 | DIMSE-N Services | IN PROGRESS | 1/5 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -525,25 +530,29 @@
 | 2026-02-07 | 27-09 | Single encapsulated fragment for video bitstream | Video codecs require contiguous bitstreams, not per-frame fragmentation |
 | 2026-02-07 | 27-10 | Synthetic byte arrays for video test data | No native encoder needed in CI; tests validate managed types and API contracts |
 | 2026-02-07 | 27-10 | Frame rate detection priority: CineRate > RecommendedDisplayFrameRate > FrameTime > FrameTimeVector | Matches implementation in VideoEncoder.DetectFrameRate |
+| 2026-02-07 | 28-01 | N-GET request uses NoDataSetPresent | Attribute identifier list is a separate mechanism, not a data set |
+| 2026-02-07 | 28-01 | N-CREATE request has optional affectedSopInstanceUid (DicomUID?) | Allows SCP to assign instance UIDs when SCU does not specify one |
+| 2026-02-07 | 28-01 | N-DELETE response always uses NoDataSetPresent | Per PS3.7 specification, no dataset in N-DELETE response |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 27-12-PLAN.md (Document Native Build Requirements) -- Phase 27 COMPLETE (all gaps closed)
+**Stopped at**: Completed 28-01-PLAN.md (N-Service Command Foundation)
 **Resume file**: None
-**Next step**: Phase 27 complete. All 3 verification gaps closed. Ready for next phase or milestone completion.
+**Next step**: Continue with 28-02-PLAN.md (next plan in Phase 28)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 27 COMPLETE (Extended Codec Support) - all 12 plans done, all verification gaps closed
-2. **Phase 27-12 deliverables**:
-   - native/BUILD-REQUIREMENTS.md documenting all optional vendor library requirements
-   - 12-bit JPEG build instructions with symbol prefix approach
-   - Gap 3 from 27-VERIFICATION.md closed (build requirements documented)
-3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed)
-4. **Next**: Phase 27 complete. Consider Phase 28 or milestone wrap-up.
+1. **Current phase**: Phase 28 - DIMSE-N Services (IN PROGRESS, 1/5 plans complete)
+2. **Phase 28-01 deliverables**:
+   - 12 N-Service factory methods on DicomCommand (N-EVENT-REPORT, N-GET, N-SET, N-ACTION, N-CREATE, N-DELETE)
+   - N-Service convenience properties and command properties
+   - 8 N-Service status codes in DicomStatus
+   - MPPS and Storage Commitment well-known UIDs
+3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed) -- no regressions
+4. **Next**: Execute 28-02-PLAN.md (N-Service handler interfaces)
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -584,4 +593,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 27 COMPLETE -- 12/12 plans, all 3 verification gaps closed)*
+*Last updated: 2026-02-07 (Phase 28 IN PROGRESS -- 1/5 plans complete)*
