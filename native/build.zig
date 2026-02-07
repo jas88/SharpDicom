@@ -241,16 +241,29 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_MPEG",
                 },
             });
+            lib.addCSourceFile(.{
+                .file = b.path("src/video_encoder.c"),
+                .flags = common_flags ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_FFMPEG_ENC",
+                    "-DSHARPDICOM_WITH_MPEG",
+                },
+            });
             // Add FFmpeg include paths
             lib.addIncludePath(b.path("vendor/ffmpeg/src"));
             // Link against FFmpeg libraries
             lib.linkSystemLibrary("avcodec");
+            lib.linkSystemLibrary("avformat");
             lib.linkSystemLibrary("avutil");
             lib.linkSystemLibrary("swscale");
+            lib.linkSystemLibrary("swresample");
         } else {
             // Build stub version (video functions will error at runtime)
             lib.addCSourceFile(.{
                 .file = b.path("src/video_wrapper.c"),
+                .flags = common_flags,
+            });
+            lib.addCSourceFile(.{
+                .file = b.path("src/video_encoder.c"),
                 .flags = common_flags,
             });
         }
@@ -384,6 +397,16 @@ pub fn build(b: *std.Build) void {
     // Add video_wrapper stub for tests (without FFmpeg for simplicity)
     test_exe.addCSourceFile(.{
         .file = b.path("src/video_wrapper.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+
+    // Add video_encoder stub for tests (without FFmpeg encoding for simplicity)
+    test_exe.addCSourceFile(.{
+        .file = b.path("src/video_encoder.c"),
         .flags = &.{
             "-std=c11",
             "-Wall",
@@ -528,13 +551,26 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/video_encoder.c"),
+            .flags = native_flags ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_FFMPEG_ENC",
+                "-DSHARPDICOM_WITH_MPEG",
+            },
+        });
         native_lib.addIncludePath(b.path("vendor/ffmpeg/src"));
         native_lib.linkSystemLibrary("avcodec");
+        native_lib.linkSystemLibrary("avformat");
         native_lib.linkSystemLibrary("avutil");
         native_lib.linkSystemLibrary("swscale");
+        native_lib.linkSystemLibrary("swresample");
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_wrapper.c"),
+            .flags = native_flags,
+        });
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/video_encoder.c"),
             .flags = native_flags,
         });
     }
