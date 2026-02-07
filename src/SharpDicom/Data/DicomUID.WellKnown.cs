@@ -178,6 +178,37 @@ namespace SharpDicom.Data
 
         #endregion
 
+        #region MPPS and Storage Commitment SOP Classes
+
+        /// <summary>
+        /// Modality Performed Procedure Step SOP Class UID (1.2.840.10008.3.1.2.3.3).
+        /// </summary>
+        /// <remarks>
+        /// Used for N-CREATE and N-SET operations to manage performed procedure step information.
+        /// See DICOM PS3.4 Annex F.
+        /// </remarks>
+        public static readonly DicomUID ModalityPerformedProcedureStep = new("1.2.840.10008.3.1.2.3.3");
+
+        /// <summary>
+        /// Storage Commitment Push Model SOP Class UID (1.2.840.10008.1.20.1.1).
+        /// </summary>
+        /// <remarks>
+        /// Used for N-ACTION and N-EVENT-REPORT operations to request and confirm
+        /// storage commitment of SOP Instances. See DICOM PS3.4 Annex J.
+        /// </remarks>
+        public static readonly DicomUID StorageCommitmentPushModel = new("1.2.840.10008.1.20.1.1");
+
+        /// <summary>
+        /// Storage Commitment Push Model SOP Instance UID (1.2.840.10008.1.20.1).
+        /// </summary>
+        /// <remarks>
+        /// Well-known SOP Instance UID for the Storage Commitment Push Model.
+        /// This is a fixed instance UID used in all Storage Commitment operations.
+        /// </remarks>
+        public static readonly DicomUID StorageCommitmentPushModelInstance = new("1.2.840.10008.1.20.1");
+
+        #endregion
+
         #region Storage SOP Classes (Common)
 
         /// <summary>
