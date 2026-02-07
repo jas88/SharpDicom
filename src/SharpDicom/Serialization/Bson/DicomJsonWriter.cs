@@ -391,7 +391,12 @@ public static class DicomJsonWriter
 
         writer.WriteStartArray("Value");
         for (int i = 0; i < values.Length; i++)
-            writer.WriteNumberValue(values[i]);
+        {
+            if (float.IsNaN(values[i]) || float.IsInfinity(values[i]))
+                writer.WriteNullValue();
+            else
+                writer.WriteNumberValue(values[i]);
+        }
         writer.WriteEndArray();
     }
 
@@ -402,7 +407,12 @@ public static class DicomJsonWriter
 
         writer.WriteStartArray("Value");
         for (int i = 0; i < values.Length; i++)
-            writer.WriteNumberValue(values[i]);
+        {
+            if (double.IsNaN(values[i]) || double.IsInfinity(values[i]))
+                writer.WriteNullValue();
+            else
+                writer.WriteNumberValue(values[i]);
+        }
         writer.WriteEndArray();
     }
 

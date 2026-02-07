@@ -105,6 +105,10 @@ public static class BulkImporter
             else
                 filterValue = sopUid;
 
+            if (filterValue == BsonNull.Value || filterValue.IsBsonNull)
+                throw new InvalidOperationException(
+                    "Cannot upsert a dataset without SOPInstanceUID (0008,0018).");
+
             var filter = Builders<BsonDocument>.Filter.Eq("00080018.Value", filterValue);
             batch.Add(new ReplaceOneModel<BsonDocument>(filter, doc) { IsUpsert = true });
 
