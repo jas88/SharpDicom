@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 29 - MongoDB/BSON Serialization (In progress)
-**Plan**: 1 of ? in current phase
+**Plan**: 3 of 5 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 29-01-PLAN.md
+**Last activity**: 2026-02-07 - Completed 29-03-PLAN.md
 
-**Progress**: █░░░░░░░░░ (1/? plans in Phase 29)
+**Progress**: ██████░░░░ (3/5 plans in Phase 29)
 
-**Test Status**: 4984 tests (4801 pass, 183 skipped, 0 failed)
+**Test Status**: 2438 tests (2383 pass, 55 skipped, 0 failed)
 
 ## Completed
 
@@ -176,8 +176,10 @@
 
 ## In Progress
 
-- [ ] Phase 29 Plan 01: Core BSON serialization types and BsonDicomWriter (COMPLETE)
-- [ ] Phase 29 Plan 02+ (remaining plans TBD)
+- [x] Phase 29 Plan 01: Core BSON serialization types and BsonDicomWriter
+- [x] Phase 29 Plan 02: BsonDicomReader for BSON deserialization
+- [x] Phase 29 Plan 03: DicomJsonWriter and DicomJsonReader for PS3.18 Annex F
+- [ ] Phase 29 Plan 04+: Remaining plans
 
 ## Blocked
 
@@ -201,7 +203,7 @@
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
-| 29 | MongoDB/BSON Serialization | In progress | 1/? | 2026-02-07 | - |
+| 29 | MongoDB/BSON Serialization | In progress | 3/5 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -551,23 +553,32 @@
 | 2026-02-07 | 29-01 | Zero external dependencies for BSON serialization | Pure BinaryPrimitives + UTF8 encoding, no MongoDB driver needed |
 | 2026-02-07 | 29-01 | #if NET8_0_OR_GREATER for ThrowIfNegative | CA1512 compliance on modern TFMs, classic throw on netstandard2.0 |
 | 2026-02-07 | 29-01 | Flatten profile writes first item only | Single-item sequences common in radiology; dot-notation enables direct MongoDB queries |
+| 2026-02-07 | 29-02 | Tag key parsing accepts Hex8, Dotted, and Keyword formats | Any serialized format can be deserialized regardless of BsonTagKeyFormat setting |
+| 2026-02-07 | 29-02 | Sequence items stored as raw byte[] for recursive deserialization | DeserializeCore called recursively on each item's BSON sub-document |
+| 2026-02-07 | 29-02 | FromBson as static method on extensions class | No DicomDataset instance to extend; placed alongside ToBson for discoverability |
+| 2026-02-07 | 29-02 | Flattened keys detected and skipped during deserialization | Informational keys from FlattenProfile are not round-trippable to elements |
+| 2026-02-07 | 29-03 | DicomJsonWriter uses Utf8JsonWriter directly | No System.Text.Json serialization overhead; PS3.18 format is fixed structure |
+| 2026-02-07 | 29-03 | DicomJsonReader uses Utf8JsonReader ref struct | Zero-allocation JSON parsing matching DicomStreamReader pattern |
+| 2026-02-07 | 29-03 | UV values > Int64.Max encoded as JSON strings | PS3.18 F.2.3 specifies string fallback for numbers exceeding JSON range |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 29-01-PLAN.md (Core BSON Serialization)
+**Stopped at**: Completed 29-03-PLAN.md (DICOM JSON serialization/deserialization)
 **Resume file**: None
-**Next step**: Execute 29-02-PLAN.md (BSON deserialization) or continue with remaining Phase 29 plans.
+**Next step**: Execute 29-04-PLAN.md (comprehensive BSON and DICOM-JSON test suite) or 29-05-PLAN.md (MongoDB adapter).
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (In progress, 1/5 plans complete)
+1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (In progress, 3/5 plans complete)
 2. **Phase 29-01 deliverables**: BsonType, BsonTagKeyFormat, BsonOutputMode, BinaryDataReference, FlattenProfile, BsonSerializationOptions, BsonDocumentBuffer, BsonDicomWriter (8 files, 998-line serializer)
-3. **Test coverage**: 4984 tests (4801 pass, 183 skipped, 0 failed) -- no regressions
-4. **Next**: 29-02 (BSON deserialization), 29-03 (DICOM-JSON), 29-04 (test suite), 29-05 (MongoDB adapter)
-5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+3. **Phase 29-02 deliverables**: BsonDicomReader.Deserialize, DicomDatasetBsonExtensions ToBson/FromBson (2 files)
+4. **Phase 29-03 deliverables**: DicomJsonWriter (PS3.18 Annex F serializer), DicomJsonReader (PS3.18 Annex F deserializer) (2 files)
+5. **Test coverage**: 4984 tests (4801 pass, 183 skipped, 0 failed) -- no regressions
+6. **Next**: 29-04 (test suite), 29-05 (MongoDB adapter)
+7. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -607,4 +618,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 29 Plan 01 complete -- Core BSON Serialization)*
+*Last updated: 2026-02-07 (Phase 29 Plans 01-03 complete -- BSON serialization/deserialization + DICOM JSON)*
