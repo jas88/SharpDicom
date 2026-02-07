@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native.Interop;
+using SharpDicom.Codecs.Video;
 #if NET5_0_OR_GREATER
 using System.Runtime.CompilerServices;
 #endif
@@ -555,11 +556,18 @@ namespace SharpDicom.Codecs.Native
                 CodecRegistry.Register(new NativeJpeg12Codec(), CodecRegistry.PriorityNative);
             }
 
-            // Video codec registration - to be implemented in future plan
-            // if (HasFeature(NativeCodecFeature.Video))
-            // {
-            //     CodecRegistry.Register(new NativeVideoCodec(), CodecRegistry.PriorityNative);
-            // }
+            // Video encoder backend registration
+            if (HasFeature(NativeCodecFeature.VideoEncoder))
+            {
+                VideoEncoder.RegisterBackend((frames, options, width, height, progress) =>
+                {
+                    using var encoder = new NativeVideoEncoder(options, width, height);
+                    foreach (var frame in frames)
+                        encoder.EncodeFrame(frame);
+                    encoder.Flush();
+                    return encoder.GetOutput();
+                });
+            }
         }
     }
 
