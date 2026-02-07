@@ -122,6 +122,61 @@ namespace SharpDicom.Codecs.Native.Interop
         internal static partial void jpeg_free(byte* buffer);
 
         // =====================================================================
+        // JPEG 12-bit Codec (libjpeg-turbo 12-bit build)
+        // =====================================================================
+
+        /// <summary>
+        /// Decodes 12-bit JPEG compressed data.
+        /// </summary>
+        /// <remarks>
+        /// Output samples are 16-bit (uint16_t), so the output buffer must be
+        /// width * height * components * 2 bytes.
+        /// </remarks>
+        [LibraryImport(LibraryName, EntryPoint = "jpeg12_decode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int jpeg12_decode(
+            byte* input,
+            int inputLen,
+            byte* output,
+            int outputLen,
+            out int width,
+            out int height,
+            out int components);
+
+        /// <summary>
+        /// Encodes raw 12-bit pixel data to JPEG.
+        /// </summary>
+        /// <remarks>
+        /// Input samples are 16-bit (uint16_t), so the input buffer must be
+        /// width * height * components * 2 bytes.
+        /// </remarks>
+        [LibraryImport(LibraryName, EntryPoint = "jpeg12_encode")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int jpeg12_encode(
+            byte* input,
+            int width,
+            int height,
+            int components,
+            out byte* output,
+            out int outputLen,
+            int quality);
+
+        /// <summary>
+        /// Frees memory allocated by jpeg12_encode.
+        /// </summary>
+        [LibraryImport(LibraryName, EntryPoint = "jpeg12_free")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial void jpeg12_free(byte* buffer);
+
+        /// <summary>
+        /// Checks if 12-bit JPEG support is available in the native library.
+        /// </summary>
+        /// <returns>Non-zero if 12-bit JPEG is supported, 0 otherwise.</returns>
+        [LibraryImport(LibraryName, EntryPoint = "jpeg12_has_support")]
+        [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+        internal static partial int jpeg12_has_support();
+
+        // =====================================================================
         // JPEG 2000 Codec (OpenJPEG)
         // =====================================================================
 
@@ -370,6 +425,33 @@ namespace SharpDicom.Codecs.Native.Interop
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg_free")]
         internal static extern void jpeg_free(byte* buffer);
 
+        // JPEG 12-bit Codec
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg12_decode")]
+        internal static extern int jpeg12_decode(
+            byte* input,
+            int inputLen,
+            byte* output,
+            int outputLen,
+            out int width,
+            out int height,
+            out int components);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg12_encode")]
+        internal static extern int jpeg12_encode(
+            byte* input,
+            int width,
+            int height,
+            int components,
+            out byte* output,
+            out int outputLen,
+            int quality);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg12_free")]
+        internal static extern void jpeg12_free(byte* buffer);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "jpeg12_has_support")]
+        internal static extern int jpeg12_has_support();
+
         // JPEG 2000 Codec
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_decode")]
         internal static extern int j2k_decode(
@@ -520,6 +602,9 @@ namespace SharpDicom.Codecs.Native.Interop
         Gpu = 1 << 4,
 
         /// <summary>Tesseract OCR available.</summary>
-        Tesseract = 1 << 5
+        Tesseract = 1 << 5,
+
+        /// <summary>12-bit JPEG codec available (libjpeg-turbo 12-bit build).</summary>
+        Jpeg12Bit = 1 << 9
     }
 }

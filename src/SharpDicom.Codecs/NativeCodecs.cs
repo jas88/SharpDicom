@@ -132,6 +132,11 @@ namespace SharpDicom.Codecs.Native
         public static bool EnableVideo { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets a value indicating whether the 12-bit JPEG codec is enabled.
+        /// </summary>
+        public static bool EnableJpeg12Bit { get; set; } = true;
+
+        /// <summary>
         /// Gets the name of the GPU device, if available.
         /// </summary>
         public static string? GpuDeviceName { get; private set; }
@@ -232,6 +237,8 @@ namespace SharpDicom.Codecs.Native
                             EnableJpegLs = options.EnableJpegLs.Value;
                         if (options.EnableVideo.HasValue)
                             EnableVideo = options.EnableVideo.Value;
+                        if (options.EnableJpeg12Bit.HasValue)
+                            EnableJpeg12Bit = options.EnableJpeg12Bit.Value;
                     }
 
                     // Probe the native library
@@ -323,6 +330,7 @@ namespace SharpDicom.Codecs.Native
                 NativeCodecFeature.JpegLs => (_availableFeatures & NativeFeatures.JpegLs) != 0 && EnableJpegLs,
                 NativeCodecFeature.Video => (_availableFeatures & NativeFeatures.Video) != 0 && EnableVideo,
                 NativeCodecFeature.Gpu => GpuAvailable && !PreferCpu,
+                NativeCodecFeature.Jpeg12Bit => (_availableFeatures & NativeFeatures.Jpeg12Bit) != 0 && EnableJpeg12Bit,
                 _ => false
             };
         }
@@ -381,6 +389,7 @@ namespace SharpDicom.Codecs.Native
                 EnableJpeg2000 = true;
                 EnableJpegLs = true;
                 EnableVideo = true;
+                EnableJpeg12Bit = true;
             }
         }
 
@@ -610,6 +619,11 @@ namespace SharpDicom.Codecs.Native
         /// Gets or sets whether video codecs should be enabled.
         /// </summary>
         public bool? EnableVideo { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the 12-bit JPEG codec should be enabled.
+        /// </summary>
+        public bool? EnableJpeg12Bit { get; set; }
     }
 
     /// <summary>
@@ -672,6 +686,11 @@ namespace SharpDicom.Codecs.Native
         /// <summary>
         /// GPU acceleration (nvJPEG2000).
         /// </summary>
-        Gpu
+        Gpu,
+
+        /// <summary>
+        /// 12-bit JPEG codec (libjpeg-turbo 12-bit build).
+        /// </summary>
+        Jpeg12Bit
     }
 }
