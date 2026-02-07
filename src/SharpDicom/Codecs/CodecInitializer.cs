@@ -18,6 +18,7 @@ namespace SharpDicom.Codecs
     /// <list type="bullet">
     /// <item><description>RLE Lossless (1.2.840.10008.1.2.5)</description></item>
     /// <item><description>JPEG Baseline (1.2.840.10008.1.2.4.50)</description></item>
+    /// <item><description>JPEG Extended (Process 2,4) (1.2.840.10008.1.2.4.51)</description></item>
     /// <item><description>JPEG Lossless (1.2.840.10008.1.2.4.70)</description></item>
     /// <item><description>JPEG 2000 Lossless (1.2.840.10008.1.2.4.90)</description></item>
     /// <item><description>JPEG 2000 Lossy (1.2.840.10008.1.2.4.91)</description></item>
@@ -59,6 +60,9 @@ namespace SharpDicom.Codecs
 
                 // JPEG Baseline (8-bit lossy)
                 CodecRegistry.Register(new Jpeg.JpegBaselineCodec());
+
+                // JPEG Extended (Process 2,4) - 8/12-bit lossy
+                CodecRegistry.Register(new Jpeg.JpegExtendedCodec());
 
                 // JPEG Lossless (Process 14, SV1)
                 CodecRegistry.Register(new JpegLossless.JpegLosslessCodec());
