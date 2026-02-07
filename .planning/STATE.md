@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 28 - DIMSE-N Services (IN PROGRESS)
-**Plan**: 3 of 5 in current phase
+**Plan**: 4 of 5 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 28-03-PLAN.md (N-Service Infrastructure)
+**Last activity**: 2026-02-07 - Completed 28-04-PLAN.md (MPPS and Storage Commitment Services)
 
-**Progress**: ███░░ (3/5 plans in Phase 28)
+**Progress**: ████░ (4/5 plans in Phase 28)
 
 **Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 
@@ -171,10 +171,11 @@
 - [x] Phase 28 Plan 01: N-Service command foundation (12 factory methods, N-Service status codes, MPPS/Storage Commitment UIDs)
 - [x] Phase 28 Plan 02: Async Operations Window negotiation (0x53 sub-item, DicomClientOptions async ops, FoDicom5.Compat wiring)
 - [x] Phase 28 Plan 03: N-Service infrastructure (6 handler interfaces, NServiceScu, DicomServer N-Service dispatch, DicomServerOptions handler registration)
+- [x] Phase 28 Plan 04: MPPS and Storage Commitment services (MppsScpHandler with state machine, MppsScu, StorageCommitmentScpHandler, StorageCommitmentScu)
 
 ## In Progress
 
-*Phase 28 - Plans 04-05 remaining*
+*Phase 28 - Plan 05 remaining*
 
 ## Blocked
 
@@ -197,7 +198,7 @@
 | 25 | Advanced De-identification | COMPLETE | 4/4 | 2026-02-06 | 2026-02-06 |
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
-| 28 | DIMSE-N Services | IN PROGRESS | 3/5 | 2026-02-07 | - |
+| 28 | DIMSE-N Services | IN PROGRESS | 4/5 | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -539,26 +540,31 @@
 | 2026-02-07 | 28-03 | Unified NServiceResponse for all N-Services | Single type with Status + optional Dataset + optional AffectedSOPInstanceUID covers all use cases |
 | 2026-02-07 | 28-03 | ParseNServiceCommand handles both Affected and Requested SOP UIDs | N-CREATE/N-EVENT-REPORT use Affected, N-SET/N-GET/N-ACTION/N-DELETE use Requested |
 | 2026-02-07 | 28-03 | Handler-absent N-Service returns ProcessingFailure (0x0110) | Consistent with handler pattern; handler absence is a server configuration issue |
+| 2026-02-07 | 28-04 | MPPS state machine rejects all transitions from terminal states with 0x0106 | InProgress->Completed/Discontinued only; Completed and Discontinued are terminal |
+| 2026-02-07 | 28-04 | StorageCommitment SCP stores result for later N-EVENT-REPORT via TakeResult() | Asynchronous protocol: N-ACTION returns immediately, result delivered later |
+| 2026-02-07 | 28-04 | Added 7 DICOM tags to WellKnown for MPPS/StorageCommitment | PerformedProcedureStepStatus, ReferencedSOPClassUID/InstanceUID, TransactionUID, ReferencedSOPSequence, FailedSOPSequence, FailureReason |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 28-03-PLAN.md (N-Service Infrastructure)
+**Stopped at**: Completed 28-04-PLAN.md (MPPS and Storage Commitment Services)
 **Resume file**: None
-**Next step**: Continue with 28-04-PLAN.md (MPPS SOP Class)
+**Next step**: Continue with 28-05-PLAN.md (N-Service integration tests)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 28 - DIMSE-N Services (IN PROGRESS, 1/5 plans complete)
-2. **Phase 28-01 deliverables**:
-   - 12 N-Service factory methods on DicomCommand (N-EVENT-REPORT, N-GET, N-SET, N-ACTION, N-CREATE, N-DELETE)
-   - N-Service convenience properties and command properties
-   - 8 N-Service status codes in DicomStatus
-   - MPPS and Storage Commitment well-known UIDs
+1. **Current phase**: Phase 28 - DIMSE-N Services (IN PROGRESS, 4/5 plans complete)
+2. **Phase 28-04 deliverables**:
+   - MPPS SCP with state machine enforcement (MppsScpHandler implements INCreateHandler + INSetHandler)
+   - MPPS SCU with typed convenience methods (MppsScu wraps NServiceScu)
+   - IMppsPersistence with InMemoryMppsPersistence default
+   - Storage Commitment Push Model SCP (StorageCommitmentScpHandler implements INActionHandler)
+   - Storage Commitment Push Model SCU (StorageCommitmentScu wraps NServiceScu)
+   - Typed request/result types with dataset serialization
 3. **Test coverage**: 4844 tests (4661 pass, 183 skipped, 0 failed) -- no regressions
-4. **Next**: Execute 28-02-PLAN.md (N-Service handler interfaces)
+4. **Next**: Execute 28-05-PLAN.md (N-Service integration tests)
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -599,4 +605,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 28 IN PROGRESS -- 1/5 plans complete)*
+*Last updated: 2026-02-07 (Phase 28 IN PROGRESS -- 4/5 plans complete)*
