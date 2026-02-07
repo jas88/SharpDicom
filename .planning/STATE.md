@@ -3,12 +3,12 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 28 - DIMSE-N Services (COMPLETE - VERIFIED 20/20)
-**Plan**: 5 of 5 in current phase
-**Status**: Phase complete, verified
-**Last activity**: 2026-02-07 - Phase 28 verified 20/20 must-haves
+**Phase**: 29 - MongoDB/BSON Serialization (In progress)
+**Plan**: 1 of ? in current phase
+**Status**: In progress
+**Last activity**: 2026-02-07 - Completed 29-01-PLAN.md
 
-**Progress**: ████████████ (5/5 plans in Phase 28)
+**Progress**: █░░░░░░░░░ (1/? plans in Phase 29)
 
 **Test Status**: 4984 tests (4801 pass, 183 skipped, 0 failed)
 
@@ -176,7 +176,8 @@
 
 ## In Progress
 
-*None - Phase 28 complete*
+- [ ] Phase 29 Plan 01: Core BSON serialization types and BsonDicomWriter (COMPLETE)
+- [ ] Phase 29 Plan 02+ (remaining plans TBD)
 
 ## Blocked
 
@@ -200,6 +201,7 @@
 | 26 | Migration Tooling | COMPLETE | 7/7 | 2026-02-06 | 2026-02-06 |
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
+| 29 | MongoDB/BSON Serialization | In progress | 1/? | 2026-02-07 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -546,22 +548,25 @@
 | 2026-02-07 | 28-04 | Added 7 DICOM tags to WellKnown for MPPS/StorageCommitment | PerformedProcedureStepStatus, ReferencedSOPClassUID/InstanceUID, TransactionUID, ReferencedSOPSequence, FailedSOPSequence, FailureReason |
 | 2026-02-07 | 28-05 | Raw byte scanning for 0x53 sub-item verification | PduReader.TryReadUserInformation doesn't reconstruct UserInformation; raw scan more reliable |
 | 2026-02-07 | 28-05 | DicomNumericElement.GetUInt16() for US VR retrieval | DicomDataset.GetInt32() requires 4 bytes; US VR is 2 bytes |
+| 2026-02-07 | 29-01 | Zero external dependencies for BSON serialization | Pure BinaryPrimitives + UTF8 encoding, no MongoDB driver needed |
+| 2026-02-07 | 29-01 | #if NET8_0_OR_GREATER for ThrowIfNegative | CA1512 compliance on modern TFMs, classic throw on netstandard2.0 |
+| 2026-02-07 | 29-01 | Flatten profile writes first item only | Single-item sequences common in radiology; dot-notation enables direct MongoDB queries |
 
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Phase 28 COMPLETE (VERIFIED 20/20)
+**Stopped at**: Completed 29-01-PLAN.md (Core BSON Serialization)
 **Resume file**: None
-**Next step**: Phase 28 complete and verified. Ready for Phase 29 (MongoDB/BSON Serialization) or milestone wrap-up.
+**Next step**: Execute 29-02-PLAN.md (BSON deserialization) or continue with remaining Phase 29 plans.
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 28 - DIMSE-N Services (COMPLETE, 5/5 plans)
-2. **Phase 28 deliverables**: N-Service command factory methods, Async Operations Window negotiation, N-Service handler interfaces and NServiceScu, MPPS SCP/SCU with state machine, Storage Commitment SCP/SCU, 70 comprehensive tests
+1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (In progress, 1/5 plans complete)
+2. **Phase 29-01 deliverables**: BsonType, BsonTagKeyFormat, BsonOutputMode, BinaryDataReference, FlattenProfile, BsonSerializationOptions, BsonDocumentBuffer, BsonDicomWriter (8 files, 998-line serializer)
 3. **Test coverage**: 4984 tests (4801 pass, 183 skipped, 0 failed) -- no regressions
-4. **Next**: Phase 28 complete. Next phase TBD.
+4. **Next**: 29-02 (BSON deserialization), 29-03 (DICOM-JSON), 29-04 (test suite), 29-05 (MongoDB adapter)
 5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -602,4 +607,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 28 COMPLETE -- VERIFIED 20/20)*
+*Last updated: 2026-02-07 (Phase 29 Plan 01 complete -- Core BSON Serialization)*

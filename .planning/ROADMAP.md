@@ -25,7 +25,7 @@
 | 26 | Migration Tooling | Medium | **COMPLETE** |
 | 27 | Extended Codec Support | Low | **COMPLETE** |
 | 28 | DIMSE-N Services | Low | **COMPLETE** |
-| 29 | MongoDB/BSON Serialization | Medium | Pending |
+| 29 | MongoDB/BSON Serialization | Medium | In progress |
 | 30 | HT Block Coder | Low | Future |
 
 ---
@@ -416,7 +416,7 @@ Plans:
 **Plans:** 5 plans
 
 Plans:
-- [ ] 29-01-PLAN.md — Core BSON types, BsonDocumentBuffer, and BsonDicomWriter serialization engine
+- [x] 29-01-PLAN.md — Core BSON types, BsonDocumentBuffer, and BsonDicomWriter serialization engine
 - [ ] 29-02-PLAN.md — BsonDicomReader deserialization and convenience extension methods
 - [ ] 29-03-PLAN.md — DICOM-JSON (PS3.18 Annex F) writer and reader
 - [ ] 29-04-PLAN.md — Comprehensive BSON and DICOM-JSON test suite (~70 tests)
@@ -473,10 +473,11 @@ Plans:
 
 | Feature | Notes |
 |---------|-------|
+| DICOM Storage Engine | Split storage: metadata in SQL/document store, pixel blobs separate. Compressed concatenation of series/study objects. Access via WebDAV, FUSE, NFS interfaces. |
 | PACS federation daemon | Usenet-style push/pull redundancy |
 | Web DICOM viewer | DICOMweb + browser-based viewer |
 | Cloud storage backends | S3, Azure Blob, GCS for pixel data |
 
 ---
 
-*Last updated: 2026-02-07 (Phase 28 DIMSE-N Services complete -- 5 plans, 70 tests, verified 20/20)*
+*Last updated: 2026-02-07 (Phase 29 Plan 01 complete -- Core BSON Serialization, 8 files, zero dependencies)*
