@@ -6,11 +6,11 @@
 **Phase**: 27 - Extended Codec Support (COMPLETE)
 **Plan**: 12 of 12 in current phase
 **Status**: Phase complete
-**Last activity**: 2026-02-07 - Completed 27-12-PLAN.md (Document Native Build Requirements)
+**Last activity**: 2026-02-07 - Completed 27-11-PLAN.md (Wire VideoEncoder Backend Registration)
 
 **Progress**: ████████████ (12/12 plans in Phase 27)
 
-**Test Status**: 2368 tests (2313 pass, 55 skipped, 0 failed)
+**Test Status**: 4844 tests (4661 pass, 183 skipped, 0 failed)
 
 ## Completed
 
