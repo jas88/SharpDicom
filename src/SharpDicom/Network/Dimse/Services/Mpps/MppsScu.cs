@@ -51,6 +51,13 @@ namespace SharpDicom.Network.Dimse.Services.Mpps
             DicomUID? sopInstanceUid = null,
             CancellationToken ct = default)
         {
+            // Ensure PerformedProcedureStepStatus is set to IN PROGRESS
+            // if the caller hasn't already set it
+            if (attributes.GetString(DicomTag.PerformedProcedureStepStatus) == null)
+            {
+                SetStatusInDataset(attributes, MppsInstance.StatusInProgress);
+            }
+
             return _scu.NCreateAsync(
                 DicomUID.ModalityPerformedProcedureStep,
                 attributes,

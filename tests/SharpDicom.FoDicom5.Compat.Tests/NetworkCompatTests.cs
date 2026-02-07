@@ -158,8 +158,18 @@ public class NetworkCompatTests
     {
         var client = DicomClientFactory.Create("localhost", 104, false, "CALLING", "CALLED");
         await client.NegotiateAsyncOps(5, 3);
-        // Non-zero values are now stored for async operations window negotiation
-        Assert.Pass();
+
+        // Verify values were stored via reflection on the concrete type
+        var clientType = client.GetType();
+        var invokedField = clientType.GetField("_asyncOpsInvoked",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var performedField = clientType.GetField("_asyncOpsPerformed",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+        Assert.That(invokedField, Is.Not.Null, "Field _asyncOpsInvoked not found");
+        Assert.That(performedField, Is.Not.Null, "Field _asyncOpsPerformed not found");
+        Assert.That(invokedField!.GetValue(client), Is.EqualTo((ushort)5));
+        Assert.That(performedField!.GetValue(client), Is.EqualTo((ushort)3));
     }
 
     [Test]

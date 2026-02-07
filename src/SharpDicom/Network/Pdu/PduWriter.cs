@@ -388,6 +388,12 @@ namespace SharpDicom.Network.Pdu
                 subItemsLength += 4 + info.ImplementationVersionName!.Length;
             }
 
+            // Async Operations Window (optional): Header (4) + invoked (2) + performed (2) = 8
+            if (info.HasAsyncOperations)
+            {
+                subItemsLength += 8;
+            }
+
             WriteVariableItemHeader(ItemType.UserInformation, (ushort)subItemsLength);
 
             // Write Max PDU Length sub-item

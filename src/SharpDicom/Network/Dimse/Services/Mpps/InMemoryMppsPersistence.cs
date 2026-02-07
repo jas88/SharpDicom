@@ -63,7 +63,10 @@ namespace SharpDicom.Network.Dimse.Services.Mpps
                     $"MPPS instance with SOP Instance UID '{key}' not found.");
             }
 
-            instance.ApplyModification(modificationList);
+            lock (instance)
+            {
+                instance.ApplyModification(modificationList);
+            }
             return default;
         }
     }

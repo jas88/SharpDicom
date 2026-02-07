@@ -183,7 +183,7 @@ namespace SharpDicom.Tests.Network.Pdu
             performed = 0;
 
             // Search for the 0x53 item type byte followed by reserved byte and 2-byte length = 0x0004
-            for (int i = 0; i < bytes.Length - 7; i++)
+            for (int i = 0; i <= bytes.Length - 7; i++)
             {
                 if (bytes[i] == 0x53 && bytes[i + 1] == 0x00)
                 {

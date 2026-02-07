@@ -147,6 +147,26 @@ namespace SharpDicom.Network.Dimse.Services
 
             // N-GET command has no dataset; attribute identifier list is encoded in the command
             var command = DicomCommand.CreateNGetRequest(messageId, sopClassUid, sopInstanceUid);
+
+            // Per PS3.7 Section 10.3.1, add Attribute Identifier List (0000,1005) to command if specified
+            if (attributeIdentifierList != null && attributeIdentifierList.Length > 0)
+            {
+                var bytes = new byte[attributeIdentifierList.Length * 4];
+                for (int i = 0; i < attributeIdentifierList.Length; i++)
+                {
+                    var tag = attributeIdentifierList[i];
+                    System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(
+                        bytes.AsSpan(i * 4), tag.Group);
+                    System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(
+                        bytes.AsSpan(i * 4 + 2), tag.Element);
+                }
+                command.Dataset.AddOrUpdate(
+                    new DicomBinaryElement(
+                        DicomTag.AttributeIdentifierList,
+                        DicomVR.AT,
+                        bytes));
+            }
+
             await _client.SendDimseRequestAsync(context.Id, command, null, ct).ConfigureAwait(false);
 
             var (responseCmd, responseDataset) = await _client.ReceiveDimseResponseAsync(ct).ConfigureAwait(false);
