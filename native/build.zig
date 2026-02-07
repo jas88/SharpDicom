@@ -7,7 +7,10 @@ const std = @import("std");
 /// - libjpeg-turbo: vendor/libjpeg-turbo/src (downloaded in CI)
 /// - OpenJPEG: vendor/openjpeg/src (downloaded in CI)
 /// - CharLS: vendor/charls/src (downloaded in CI)
-/// - FFmpeg: vendor/ffmpeg/src (downloaded in CI)
+/// - FFmpeg: vendor/ffmpeg/ (downloaded in CI) - decoding and encoding
+/// - x264: vendor/x264/ (downloaded in CI) - H.264 software encoder
+/// - x265: vendor/x265/ (downloaded in CI) - HEVC software encoder
+/// - stb_image: vendor/stb/ (downloaded in CI) - image sequence loading
 pub fn build(b: *std.Build) void {
     // All vendor libraries disabled for Phase 13a - building stubs only.
     // Cross-compilation of vendor libraries requires proper sysroot setup.
@@ -276,15 +279,12 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_MPEG",
                 },
             });
-            // FFmpeg encoding include paths (shared with decode if both enabled)
-            if (!have_ffmpeg) {
-                lib.addIncludePath(b.path("vendor/ffmpeg/src"));
-                lib.linkSystemLibrary("avcodec");
-                lib.linkSystemLibrary("avformat");
-                lib.linkSystemLibrary("avutil");
-                lib.linkSystemLibrary("swscale");
-                lib.linkSystemLibrary("swresample");
-            }
+            // Compile x264 from source (H.264 software encoder)
+            addX264Sources(lib, b);
+            // Compile x265 from source (HEVC software encoder)
+            addX265Sources(lib, b);
+            // Compile FFmpeg encoding libraries from source
+            addFfmpegEncSources(lib, b);
         } else {
             // Build stub version (video encoding functions will error at runtime)
             lib.addCSourceFile(.{
@@ -637,15 +637,12 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
-        // FFmpeg encoding include paths (shared with decode if both enabled)
-        if (!have_ffmpeg) {
-            native_lib.addIncludePath(b.path("vendor/ffmpeg/src"));
-            native_lib.linkSystemLibrary("avcodec");
-            native_lib.linkSystemLibrary("avformat");
-            native_lib.linkSystemLibrary("avutil");
-            native_lib.linkSystemLibrary("swscale");
-            native_lib.linkSystemLibrary("swresample");
-        }
+        // Compile x264 from source (H.264 software encoder)
+        addX264Sources(native_lib, b);
+        // Compile x265 from source (HEVC software encoder)
+        addX265Sources(native_lib, b);
+        // Compile FFmpeg encoding libraries from source
+        addFfmpegEncSources(native_lib, b);
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_encoder.c"),
@@ -807,4 +804,445 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
 
     // Add OpenJPEG include paths
     lib.addIncludePath(b.path(opj_base));
+}
+
+/// Add x264 source files to compilation (H.264 software encoder).
+/// Vendor sources are downloaded by CI into vendor/x264/.
+/// Requires a generated x264_config.h at vendor/x264/x264_config.h.
+///
+/// Build follows the pattern from x264's Makefile:
+/// - Core encoder in common/ and encoder/ directories
+/// - x264_config.h defines X264_BIT_DEPTH=8, X264_CHROMA_FORMAT=0 (all), X264_GPL=1
+///
+/// Reference: https://code.videolan.org/videolan/x264
+fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const x264_base = "vendor/x264";
+
+    // x264 compilation flags - relaxed warnings for third-party code
+    const x264_flags = &[_][]const u8{
+        "-std=c11",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+    };
+
+    // TODO: Populate with actual x264 source files when vendor sources are downloaded.
+    // The file list below covers the core encoder (no CLI, no filters, no asm):
+    //
+    // common/ directory:
+    //   base.c, bitstream.c, cabac.c, common.c, dct.c, deblock.c, frame.c,
+    //   mc.c, mvpred.c, osdep.c, pixel.c, predict.c, quant.c, rectangle.c,
+    //   set.c, vlc.c, threadpool.c, cpu.c, tables.c
+    //
+    // encoder/ directory:
+    //   analyse.c, cabac.c, cavlc.c, encoder.c, lookahead.c,
+    //   macroblock.c, me.c, ratecontrol.c, set.c, slicetype.c
+    const x264_sources = [_][]const u8{
+        // common/
+        "common/base.c",
+        "common/bitstream.c",
+        "common/cabac.c",
+        "common/common.c",
+        "common/dct.c",
+        "common/deblock.c",
+        "common/frame.c",
+        "common/mc.c",
+        "common/mvpred.c",
+        "common/osdep.c",
+        "common/pixel.c",
+        "common/predict.c",
+        "common/quant.c",
+        "common/rectangle.c",
+        "common/set.c",
+        "common/vlc.c",
+        "common/threadpool.c",
+        "common/cpu.c",
+        "common/tables.c",
+        // encoder/
+        "encoder/analyse.c",
+        "encoder/cabac.c",
+        "encoder/cavlc.c",
+        "encoder/encoder.c",
+        "encoder/lookahead.c",
+        "encoder/macroblock.c",
+        "encoder/me.c",
+        "encoder/ratecontrol.c",
+        "encoder/set.c",
+        "encoder/slicetype.c",
+    };
+
+    for (x264_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ x264_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = x264_flags,
+        });
+    }
+
+    // x264 include paths (main dir contains x264.h and generated x264_config.h)
+    lib.addIncludePath(b.path(x264_base));
+    lib.addIncludePath(b.path("vendor/x264/common"));
+}
+
+/// Add x265 source files to compilation (HEVC software encoder).
+/// Vendor sources are downloaded by CI into vendor/x265/.
+/// Requires generated x265_config.h at vendor/x265/source/x265_config.h.
+///
+/// Build follows the pattern from x265's CMakeLists.txt:
+/// - Core encoder in source/common/ and source/encoder/ directories
+/// - x265_config.h defines X265_DEPTH=8, EXPORT_C_API=1, X265_NS=x265
+///
+/// NOTE: x265 is C++, compiled with Zig's C++ compiler mode.
+/// Reference: https://bitbucket.org/multicoreware/x265_git
+fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const x265_base = "vendor/x265/source";
+
+    // x265 compilation flags - C++ mode, relaxed warnings for third-party code
+    const x265_flags = &[_][]const u8{
+        "-std=c++14",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+        "-Wno-class-memaccess",
+        "-DX265_DEPTH=8",
+        "-DEXPORT_C_API=1",
+        "-DX265_NS=x265",
+    };
+
+    // TODO: Populate with actual x265 source files when vendor sources are downloaded.
+    // The file list below covers the core encoder (no CLI, no asm):
+    //
+    // common/ directory:
+    //   bitstream.cpp, common.cpp, constants.cpp, cpu.cpp, cudata.cpp,
+    //   dct.cpp, deblock.cpp, frame.cpp, framedata.cpp, intrapred.cpp,
+    //   ipfilter.cpp, loopfilter.cpp, lowpassdct.cpp, lowres.cpp, md5.cpp,
+    //   param.cpp, piclist.cpp, picyuv.cpp, pixel.cpp, predict.cpp,
+    //   primitives.cpp, quant.cpp, ringmem.cpp, scalinglist.cpp, shortyuv.cpp,
+    //   slice.cpp, threading.cpp, threadpool.cpp, wavefront.cpp, yuv.cpp
+    //
+    // encoder/ directory:
+    //   analysis.cpp, api.cpp, bitcost.cpp, dpb.cpp, encoder.cpp,
+    //   entropy.cpp, frameencoder.cpp, framefilter.cpp, level.cpp,
+    //   motion.cpp, nal.cpp, ratecontrol.cpp, reference.cpp, sao.cpp,
+    //   search.cpp, sei.cpp, slicetype.cpp, weightPrediction.cpp
+    const x265_sources = [_][]const u8{
+        // common/
+        "common/bitstream.cpp",
+        "common/common.cpp",
+        "common/constants.cpp",
+        "common/cpu.cpp",
+        "common/cudata.cpp",
+        "common/dct.cpp",
+        "common/deblock.cpp",
+        "common/frame.cpp",
+        "common/framedata.cpp",
+        "common/intrapred.cpp",
+        "common/ipfilter.cpp",
+        "common/loopfilter.cpp",
+        "common/lowpassdct.cpp",
+        "common/lowres.cpp",
+        "common/md5.cpp",
+        "common/param.cpp",
+        "common/piclist.cpp",
+        "common/picyuv.cpp",
+        "common/pixel.cpp",
+        "common/predict.cpp",
+        "common/primitives.cpp",
+        "common/quant.cpp",
+        "common/ringmem.cpp",
+        "common/scalinglist.cpp",
+        "common/shortyuv.cpp",
+        "common/slice.cpp",
+        "common/threading.cpp",
+        "common/threadpool.cpp",
+        "common/wavefront.cpp",
+        "common/yuv.cpp",
+        // encoder/
+        "encoder/analysis.cpp",
+        "encoder/api.cpp",
+        "encoder/bitcost.cpp",
+        "encoder/dpb.cpp",
+        "encoder/encoder.cpp",
+        "encoder/entropy.cpp",
+        "encoder/frameencoder.cpp",
+        "encoder/framefilter.cpp",
+        "encoder/level.cpp",
+        "encoder/motion.cpp",
+        "encoder/nal.cpp",
+        "encoder/ratecontrol.cpp",
+        "encoder/reference.cpp",
+        "encoder/sao.cpp",
+        "encoder/search.cpp",
+        "encoder/sei.cpp",
+        "encoder/slicetype.cpp",
+        "encoder/weightPrediction.cpp",
+    };
+
+    for (x265_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ x265_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = x265_flags,
+        });
+    }
+
+    // x265 include paths
+    lib.addIncludePath(b.path(x265_base));
+    lib.addIncludePath(b.path("vendor/x265/source/common"));
+    lib.addIncludePath(b.path("vendor/x265/source/encoder"));
+
+    // Link C++ standard library for x265 (C++ code)
+    lib.linkLibCpp();
+}
+
+/// Add FFmpeg encoding library source files to compilation.
+/// Vendor sources are downloaded by CI into vendor/ffmpeg/.
+/// Requires a generated config.h at vendor/ffmpeg/config.h.
+///
+/// This compiles a minimal subset of FFmpeg focused on encoding:
+/// - libavcodec: core encoding framework + specific encoders
+/// - libavutil: utility functions (math, memory, pixfmt, etc.)
+/// - libswscale: pixel format conversion (RGB -> YUV)
+/// - libswresample: audio format conversion
+/// - libavformat: muxing (MPEG-TS, raw H.264/HEVC Annex-B output)
+///
+/// The FFmpeg build bypasses configure/make and compiles C sources directly
+/// via Zig, following the allyourcodebase/ffmpeg pattern.
+///
+/// Minimal encoder configuration (matching RESEARCH.md):
+/// - Video encoders: mpeg2video (built-in), libx264, libx265
+/// - Audio encoders: aac, pcm_s16le
+/// - Video decoders: mpeg2video, h264, hevc (already in have_ffmpeg decode path)
+/// - Audio decoders: aac, pcm_s16le
+/// - Muxers: mpegts, h264, hevc, rawvideo, adts, wav
+///
+/// Reference: https://github.com/FFmpeg/FFmpeg
+fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const ffmpeg_base = "vendor/ffmpeg";
+
+    // FFmpeg compilation flags - relaxed warnings for third-party code
+    // config.h is generated by CI/scripts to enable only the needed codecs
+    const ffmpeg_flags = &[_][]const u8{
+        "-std=c11",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+        "-Wno-pointer-sign",
+        "-Wno-switch",
+        "-Wno-parentheses",
+        "-Wno-deprecated-declarations",
+        "-DHAVE_CONFIG_H", // Use generated config.h
+    };
+
+    // TODO: Populate with actual FFmpeg source files when vendor sources are downloaded.
+    // The file lists below cover the minimal encoding subset.
+    // Each library's sources are listed separately for clarity.
+    //
+    // Source file discovery command (run from vendor/ffmpeg/):
+    //   grep -l 'REGISTER_ENCODER\|ff_mpeg2video_encoder\|ff_libx264_encoder\|ff_libx265_encoder' libavcodec/*.c
+    //
+    // ========================================================================
+    // libavutil sources (utility library - always needed)
+    // ========================================================================
+    // Core: avutil.c, buffer.c, channel_layout.c, cpu.c, crc.c, dict.c,
+    //   error.c, eval.c, fifo.c, frame.c, hwcontext.c, imgutils.c, log.c,
+    //   mathematics.c, mem.c, opt.c, parseutils.c, pixdesc.c, rational.c,
+    //   samplefmt.c, time.c, timecode.c, utils.c
+    //
+    // ========================================================================
+    // libavcodec sources (encoding/decoding framework)
+    // ========================================================================
+    // Core: allcodecs.c, avcodec.c, avpacket.c, bitstream.c, bsf.c,
+    //   codec_desc.c, decode.c, encode.c, options.c, parser.c, profiles.c,
+    //   utils.c
+    // MPEG-2 encoder: mpeg12enc.c, mpeg12data.c, mpegvideo.c, mpegvideo_enc.c,
+    //   motion_est.c, ratecontrol.c
+    // H.264 via libx264: libx264.c
+    // HEVC via libx265: libx265.c
+    // AAC encoder: aacenc.c, aaccoder.c, aacenctab.c, aacpsy.c, psymodel.c
+    // PCM encoder: pcm.c
+    //
+    // ========================================================================
+    // libswscale sources (pixel format conversion)
+    // ========================================================================
+    // Core: input.c, options.c, output.c, rgb2rgb.c, slice.c, swscale.c,
+    //   swscale_unscaled.c, utils.c, yuv2rgb.c
+    //
+    // ========================================================================
+    // libswresample sources (audio format conversion)
+    // ========================================================================
+    // Core: audioconvert.c, dither.c, options.c, rematrix.c, resample.c,
+    //   resample_dsp.c, swresample.c, swresample_frame.c
+    //
+    // ========================================================================
+    // libavformat sources (muxing)
+    // ========================================================================
+    // Core: allformats.c, avio.c, aviobuf.c, format.c, id3v2.c, mux.c,
+    //   mux_utils.c, options.c, protocols.c, url.c, utils.c
+    // MPEG-TS muxer: mpegtsenc.c
+    // Raw muxers: rawenc.c, h264_muxer.c, hevc_muxer.c
+    // Audio muxers: adtsenc.c, wavenc.c
+    //
+    // NOTE: The exact file lists will vary by FFmpeg version. The CI script
+    // that downloads vendor sources should also validate that these files exist
+    // and update the list if needed.
+
+    // For now, define the source file arrays. These will be populated
+    // when the vendor source download script is finalized.
+
+    const avutil_sources = [_][]const u8{
+        "libavutil/avutil.c",
+        "libavutil/buffer.c",
+        "libavutil/channel_layout.c",
+        "libavutil/cpu.c",
+        "libavutil/crc.c",
+        "libavutil/dict.c",
+        "libavutil/error.c",
+        "libavutil/eval.c",
+        "libavutil/fifo.c",
+        "libavutil/frame.c",
+        "libavutil/hwcontext.c",
+        "libavutil/imgutils.c",
+        "libavutil/log.c",
+        "libavutil/mathematics.c",
+        "libavutil/mem.c",
+        "libavutil/opt.c",
+        "libavutil/parseutils.c",
+        "libavutil/pixdesc.c",
+        "libavutil/rational.c",
+        "libavutil/samplefmt.c",
+        "libavutil/time.c",
+        "libavutil/timecode.c",
+        "libavutil/utils.c",
+    };
+
+    const avcodec_sources = [_][]const u8{
+        // Core framework
+        "libavcodec/allcodecs.c",
+        "libavcodec/avcodec.c",
+        "libavcodec/avpacket.c",
+        "libavcodec/bitstream.c",
+        "libavcodec/bsf.c",
+        "libavcodec/codec_desc.c",
+        "libavcodec/decode.c",
+        "libavcodec/encode.c",
+        "libavcodec/options.c",
+        "libavcodec/parser.c",
+        "libavcodec/profiles.c",
+        "libavcodec/utils.c",
+        // MPEG-2 video encoder
+        "libavcodec/mpeg12enc.c",
+        "libavcodec/mpeg12data.c",
+        "libavcodec/mpegvideo.c",
+        "libavcodec/mpegvideo_enc.c",
+        "libavcodec/motion_est.c",
+        "libavcodec/ratecontrol.c",
+        // libx264 wrapper (H.264 encoding via x264)
+        "libavcodec/libx264.c",
+        // libx265 wrapper (HEVC encoding via x265)
+        "libavcodec/libx265.c",
+        // AAC audio encoder
+        "libavcodec/aacenc.c",
+        "libavcodec/aaccoder.c",
+        "libavcodec/aacenctab.c",
+        "libavcodec/aacpsy.c",
+        "libavcodec/psymodel.c",
+        // PCM encoder
+        "libavcodec/pcm.c",
+    };
+
+    const swscale_sources = [_][]const u8{
+        "libswscale/input.c",
+        "libswscale/options.c",
+        "libswscale/output.c",
+        "libswscale/rgb2rgb.c",
+        "libswscale/slice.c",
+        "libswscale/swscale.c",
+        "libswscale/swscale_unscaled.c",
+        "libswscale/utils.c",
+        "libswscale/yuv2rgb.c",
+    };
+
+    const swresample_sources = [_][]const u8{
+        "libswresample/audioconvert.c",
+        "libswresample/dither.c",
+        "libswresample/options.c",
+        "libswresample/rematrix.c",
+        "libswresample/resample.c",
+        "libswresample/resample_dsp.c",
+        "libswresample/swresample.c",
+        "libswresample/swresample_frame.c",
+    };
+
+    const avformat_sources = [_][]const u8{
+        // Core muxing framework
+        "libavformat/allformats.c",
+        "libavformat/avio.c",
+        "libavformat/aviobuf.c",
+        "libavformat/format.c",
+        "libavformat/id3v2.c",
+        "libavformat/mux.c",
+        "libavformat/mux_utils.c",
+        "libavformat/options.c",
+        "libavformat/protocols.c",
+        "libavformat/url.c",
+        "libavformat/utils.c",
+        // MPEG-TS muxer (for MPEG-2 video + audio interleave)
+        "libavformat/mpegtsenc.c",
+        // Raw video/audio muxers
+        "libavformat/rawenc.c",
+        // Audio container muxers
+        "libavformat/adtsenc.c",
+        "libavformat/wavenc.c",
+    };
+
+    // Compile all FFmpeg source files
+    const all_source_groups = [_][]const []const u8{
+        &avutil_sources,
+        &avcodec_sources,
+        &swscale_sources,
+        &swresample_sources,
+        &avformat_sources,
+    };
+
+    for (all_source_groups) |sources| {
+        for (sources) |src| {
+            const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ ffmpeg_base, src }) catch continue;
+            lib.addCSourceFile(.{
+                .file = b.path(full_path),
+                .flags = ffmpeg_flags,
+            });
+        }
+    }
+
+    // FFmpeg include paths
+    // Main directory contains the library headers and generated config.h
+    lib.addIncludePath(b.path(ffmpeg_base));
+    // Individual library directories for internal headers
+    lib.addIncludePath(b.path("vendor/ffmpeg/libavutil"));
+    lib.addIncludePath(b.path("vendor/ffmpeg/libavcodec"));
+    lib.addIncludePath(b.path("vendor/ffmpeg/libavformat"));
+    lib.addIncludePath(b.path("vendor/ffmpeg/libswscale"));
+    lib.addIncludePath(b.path("vendor/ffmpeg/libswresample"));
 }
