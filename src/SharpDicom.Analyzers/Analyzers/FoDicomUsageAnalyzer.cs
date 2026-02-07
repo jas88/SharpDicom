@@ -59,10 +59,7 @@ public sealed class FoDicomUsageAnalyzer : DiagnosticAnalyzer
 
         // Detect fo-dicom type usage via semantic analysis on syntax nodes
         // (SymbolKind.NamedType only fires on declarations, not usage sites in user code)
-        context.RegisterSyntaxNodeAction(
-            AnalyzeTypeUsage,
-            SyntaxKind.IdentifierName,
-            SyntaxKind.ObjectCreationExpression);
+        context.RegisterSyntaxNodeAction(AnalyzeTypeUsage, SyntaxKind.IdentifierName);
 
         // Detect fo-dicom static method calls
         context.RegisterSyntaxNodeAction(AnalyzeInvocationExpression, SyntaxKind.InvocationExpression);
@@ -91,35 +88,19 @@ public sealed class FoDicomUsageAnalyzer : DiagnosticAnalyzer
     {
         var node = context.Node;
 
-        // For ObjectCreationExpression, inspect the type being constructed.
-        // Skip the IdentifierName that is a child of ObjectCreationExpression
-        // to avoid double-reporting on "new DicomFile()".
-        ITypeSymbol? typeSymbol;
-        if (node is ObjectCreationExpressionSyntax creation)
+        // Skip if this is part of a using directive (handled by SD0001)
+        if (node.FirstAncestorOrSelf<UsingDirectiveSyntax>() is not null)
+            return;
+
+        var symbolInfo = context.SemanticModel.GetSymbolInfo(node, context.CancellationToken);
+        var typeSymbol = symbolInfo.Symbol as ITypeSymbol
+                     ?? (symbolInfo.Symbol as IMethodSymbol)?.ContainingType;
+
+        // If GetSymbolInfo didn't yield a type, try GetTypeInfo (covers cast expressions, etc.)
+        if (typeSymbol is null)
         {
-            var typeInfo = context.SemanticModel.GetTypeInfo(creation, context.CancellationToken);
+            var typeInfo = context.SemanticModel.GetTypeInfo(node, context.CancellationToken);
             typeSymbol = typeInfo.Type;
-        }
-        else
-        {
-            // IdentifierName -- skip if parent is an ObjectCreationExpression (already handled above)
-            if (node.Parent is ObjectCreationExpressionSyntax)
-                return;
-
-            // Also skip if this is part of a using directive (handled by SD0001)
-            if (node.FirstAncestorOrSelf<UsingDirectiveSyntax>() is not null)
-                return;
-
-            var symbolInfo = context.SemanticModel.GetSymbolInfo(node, context.CancellationToken);
-            typeSymbol = symbolInfo.Symbol as ITypeSymbol
-                         ?? (symbolInfo.Symbol as IMethodSymbol)?.ContainingType;
-
-            // If GetSymbolInfo didn't yield a type, try GetTypeInfo (covers cast expressions, etc.)
-            if (typeSymbol is null)
-            {
-                var typeInfo = context.SemanticModel.GetTypeInfo(node, context.CancellationToken);
-                typeSymbol = typeInfo.Type;
-            }
         }
 
         if (typeSymbol is not INamedTypeSymbol namedType)
