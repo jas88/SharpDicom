@@ -24,6 +24,8 @@ namespace FellowOakDicom.Network.Client
         private readonly string _calledAE;
         private readonly List<DicomRequest> _requests = new List<DicomRequest>();
         private volatile bool _isBusy;
+        private ushort _asyncOpsInvoked = 1;
+        private ushort _asyncOpsPerformed = 1;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="DicomClient"/> class.
@@ -61,20 +63,18 @@ namespace FellowOakDicom.Network.Client
 
         /// <inheritdoc />
         /// <remarks>
-        /// SharpDicom does not yet support the Asynchronous Operations Window sub-item
-        /// (PS3.8 D.3.3.3) in association negotiation. Values of (0,0) are accepted as
-        /// they represent the default 1:1 window. Non-zero values are rejected because
-        /// they would be silently ignored rather than negotiated with the remote AE.
+        /// Maps fo-dicom convention (0 = default/synchronous) to the DICOM spec convention
+        /// (0 = unlimited, 1 = synchronous). The values are stored and applied to the
+        /// underlying <see cref="DicomClientOptions"/> when <see cref="SendAsync"/> is called,
+        /// enabling the 0x53 Asynchronous Operations Window sub-item in association negotiation.
         /// </remarks>
         public Task NegotiateAsyncOps(int invoked = 0, int performed = 0)
         {
-            if (invoked != 0 || performed != 0)
-            {
-                throw new NotSupportedException(
-                    $"Asynchronous operations negotiation ({invoked} invoked, {performed} performed) " +
-                    "is not yet supported. SharpDicom's association layer does not include the " +
-                    "Asynchronous Operations Window sub-item (PS3.8 D.3.3.3).");
-            }
+            // fo-dicom convention: 0 means "use defaults" (synchronous)
+            // DICOM spec / SharpDicom convention: 0 means unlimited, 1 means synchronous
+            // Map fo-dicom's 0 to SharpDicom's 1 (default/synchronous)
+            _asyncOpsInvoked = invoked == 0 ? (ushort)1 : (ushort)invoked;
+            _asyncOpsPerformed = performed == 0 ? (ushort)1 : (ushort)performed;
             return Task.CompletedTask;
         }
 
@@ -96,6 +96,8 @@ namespace FellowOakDicom.Network.Client
                     Port = _port,
                     CallingAE = _callingAE,
                     CalledAE = _calledAE,
+                    AsyncOperationsInvoked = _asyncOpsInvoked,
+                    AsyncOperationsPerformed = _asyncOpsPerformed,
                 };
 
                 if (_useTls)

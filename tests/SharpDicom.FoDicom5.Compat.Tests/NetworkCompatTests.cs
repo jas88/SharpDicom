@@ -154,11 +154,12 @@ public class NetworkCompatTests
     }
 
     [Test]
-    public void NegotiateAsyncOps_NonZeroValues_ThrowsNotSupported()
+    public async Task NegotiateAsyncOps_NonZeroValues_StoresValues()
     {
         var client = DicomClientFactory.Create("localhost", 104, false, "CALLING", "CALLED");
-        Assert.ThrowsAsync<NotSupportedException>(async () =>
-            await client.NegotiateAsyncOps(1, 1));
+        await client.NegotiateAsyncOps(5, 3);
+        // Non-zero values are now stored for async operations window negotiation
+        Assert.Pass();
     }
 
     [Test]
