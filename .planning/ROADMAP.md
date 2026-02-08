@@ -26,7 +26,7 @@
 | 27 | Extended Codec Support | Low | **COMPLETE** |
 | 28 | DIMSE-N Services | Low | **COMPLETE** |
 | 29 | MongoDB/BSON Serialization | Medium | **COMPLETE** |
-| 30 | HT Block Coder | Low | Planned |
+| 30 | HT Block Coder | Low | **COMPLETE** |
 
 ---
 
@@ -450,16 +450,16 @@ Plans:
 **Plans:** 10 plans
 
 Plans:
-- [ ] 30-01-PLAN.md — Multi-resolution subband infrastructure (SubbandDescriptor, SubbandPartitioner, TileComponent)
-- [ ] 30-02-PLAN.md — IBlockCoder interface and J2K pipeline subband fix (EBCOT wrapper, LL-only bug fix)
-- [ ] 30-03-PLAN.md — HT primitives (VLC lookup tables, MEL run-length coder, three-stream bidirectional bit I/O)
-- [ ] 30-04-PLAN.md — HT Cleanup pass (quad-based VLC+MEL+MagSgn encoding/decoding)
-- [ ] 30-05-PLAN.md — HT SigProp + MagRef refinement passes and HtBlockEncoder/Decoder (IBlockCoder)
-- [ ] 30-06-PLAN.md — HTJ2K codec integration (HT routing, dynamic CAP marker, Tier-2 HT passes, presets)
-- [ ] 30-07-PLAN.md — IProgressiveCodec interface and SIMD expansion (Vector256/512, BMI2, DWT upgrade)
-- [ ] 30-08-PLAN.md — `sharpdcm convert` CLI command (batch transfer syntax transcoding)
-- [ ] 30-09-PLAN.md — Multi-tile pipeline, parallel decode, all 5 progression orders, EBCOT regression suite
-- [ ] 30-10-PLAN.md — Conformance tests (OpenJPH), FsCheck property tests, BenchmarkDotNet performance suite
+- [x] 30-01-PLAN.md — Multi-resolution subband infrastructure (SubbandDescriptor, SubbandPartitioner, TileComponent)
+- [x] 30-02-PLAN.md — IBlockCoder interface and J2K pipeline subband fix (EBCOT wrapper, LL-only bug fix)
+- [x] 30-03-PLAN.md — HT primitives (VLC lookup tables, MEL run-length coder, three-stream bidirectional bit I/O)
+- [x] 30-04-PLAN.md — HT Cleanup pass (quad-based VLC+MEL+MagSgn encoding/decoding)
+- [x] 30-05-PLAN.md — HT SigProp + MagRef refinement passes and HtBlockEncoder/Decoder (IBlockCoder)
+- [x] 30-06-PLAN.md — HTJ2K codec integration (HT routing, dynamic CAP marker, Tier-2 HT passes, presets)
+- [x] 30-07-PLAN.md — IProgressiveCodec interface and SIMD expansion (Vector256/512, BMI2, DWT upgrade)
+- [x] 30-08-PLAN.md — `sharpdcm convert` CLI command (batch transfer syntax transcoding)
+- [x] 30-09-PLAN.md — Multi-tile pipeline, parallel decode, all 5 progression orders, EBCOT regression suite
+- [x] 30-10-PLAN.md — Conformance tests (OpenJPH), FsCheck property tests, BenchmarkDotNet performance suite
 
 **Must-haves**:
 - [ ] HtBlockEncoder implementing ISO/IEC 15444-15 HT algorithm (all 3 passes: Cleanup, SigProp, MagRef)
@@ -501,4 +501,4 @@ Plans:
 
 ---
 
-*Last updated: 2026-02-07 (Phase 30 planned -- HT Block Coder, 10 plans)*
+*Last updated: 2026-02-08 (Phase 30 COMPLETE -- HT Block Coder, 10/10 plans executed)*
