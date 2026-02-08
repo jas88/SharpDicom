@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 6 of 10 in current phase
+**Plan**: 7 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-08 - Completed 30-05-PLAN.md (HtSigProp + HtMagRef + HtBlockEncoder/Decoder)
+**Last activity**: 2026-02-08 - Completed 30-06-PLAN.md (HTJ2K Codec Integration)
 
-**Progress**: ██████░░░░ (6/10 plans in Phase 30)
+**Progress**: ███████░░░ (7/10 plans in Phase 30)
 
-**Test Status**: 2782 tests (2727 pass, 55 skipped, 0 failed)
+**Test Status**: 2806 tests (2751 pass, 55 skipped, 0 failed)
 
 ## Completed
 
