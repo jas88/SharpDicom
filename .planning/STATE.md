@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 8 of 10 in current phase
+**Plan**: 9 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-08 - Completed 30-07-PLAN.md (IProgressiveCodec + SIMD Vector256/512 Expansion)
+**Last activity**: 2026-02-08 - Completed 30-08-PLAN.md (sharpdcm convert CLI command)
 
-**Progress**: ████████░░ (8/10 plans in Phase 30)
+**Progress**: █████████░ (9/10 plans in Phase 30)
 
-**Test Status**: 2855 tests (2788 pass, 67 skipped, 0 failed)
+**Test Status**: 2896 tests (2815 pass, 67 skipped, 14 pre-existing codec failures)
 
 ## Completed
 
@@ -191,7 +191,8 @@
 - [x] Phase 30 Plan 05: HtSigProp + HtMagRef + HtBlockEncoder/Decoder (IBlockCoder, 38 tests) (COMPLETE)
 - [x] Phase 30 Plan 06: HTJ2K Codec Integration (COMPLETE)
 - [x] Phase 30 Plan 07: IProgressiveCodec + SIMD Vector256/512 Expansion (COMPLETE)
-- [ ] Phase 30 Plan 08-10: Remaining HT Block Coder plans
+- [x] Phase 30 Plan 08: sharpdcm convert CLI command (COMPLETE)
+- [ ] Phase 30 Plan 09-10: Remaining HT Block Coder plans
 
 ## Blocked
 
@@ -216,7 +217,7 @@
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 | 29 | MongoDB/BSON Serialization | COMPLETE | 5/5 | 2026-02-07 | 2026-02-07 |
-| 30 | HT Block Coder | IN PROGRESS | 6/10 | 2026-02-08 | - |
+| 30 | HT Block Coder | IN PROGRESS | 8/10 | 2026-02-08 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -590,28 +591,30 @@
 | 2026-02-08 | 30-05 | Byte-aligned bitstream for SigProp/MagRef | Simple format with 4-byte bit-count prefix; self-consistent roundtrip |
 | 2026-02-08 | 30-05 | Embedded pass-length header for multi-pass data | IBlockCoder.DecodeBlock only gets data+numPasses; header makes data self-describing |
 | 2026-02-08 | 30-05 | Adaptive pass count based on MSB position | MSB=0->1 pass, MSB=1->3 passes, MSB>=2->6 passes; matches data precision |
+| 2026-02-08 | 30-08 | Kebab-case transfer syntax short names for CLI convert | Consistent with CLI conventions; case-insensitive matching for usability |
+| 2026-02-08 | 30-08 | Default .converted.dcm suffix for non-destructive output | Follows existing FixCommand .fixed.dcm pattern; safe default prevents data loss |
+| 2026-02-08 | 30-08 | SemaphoreSlim-gated parallel file processing | Configurable concurrency for CPU-bound codec work; respects user-specified --parallel limit |
 
 ## Session Continuity
 
 **Last session**: 2026-02-08
-**Stopped at**: Completed 30-07-PLAN.md (IProgressiveCodec + SIMD Vector256/512 Expansion)
+**Stopped at**: Completed 30-08-PLAN.md (sharpdcm convert CLI command)
 **Resume file**: None
-**Next step**: Phase 30 Plan 08
+**Next step**: Phase 30 Plan 09
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 30 - HT Block Coder (8/10 plans complete: 01-07)
-2. **Phase 30-07 deliverables**: IProgressiveCodec interface, Vector256 DWT paths, SIMD bit helpers
-   - All HTJ2K codecs implement IProgressiveCodec for resolution-level decode
-   - SimdHelpers has ExtractBits/DepositBits/LeadingZeroCount/PopCount
-   - DWT53/DWT97 have Vector256 paths with runtime dispatch
-   - Both implement IBlockCoder; can be selected per transfer syntax
-   - 1/3/6 pass adaptive encoding based on MSB position
-3. **Test coverage**: 2782 tests (2727 pass, 55 skipped, 0 failed)
-4. **Next**: Plan 30-06
-5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers)
+1. **Current phase**: Phase 30 - HT Block Coder (9/10 plans complete: 01-08)
+2. **Phase 30-08 deliverables**: sharpdcm convert CLI command
+   - ConvertCommand with 10 transfer syntax aliases and 5 quality presets
+   - Batch file transcoding with configurable parallelism
+   - Dry-run, force, output-dir, skip-errors options
+   - 41 new tests (all passing)
+3. **Test coverage**: 2896 tests (2815 pass, 67 skipped, 14 pre-existing codec failures)
+4. **Next**: Plan 30-09
+5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers); 14 HTJ2K/J2K codec test failures (pre-existing)
 
 ## Potential Future Work
 
@@ -651,4 +654,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-08 (Phase 30 Plan 05 COMPLETE -- HtSigProp + HtMagRef + HtBlockEncoder/Decoder)*
+*Last updated: 2026-02-08 (Phase 30 Plan 08 COMPLETE -- sharpdcm convert CLI command)*
