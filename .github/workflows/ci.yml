@@ -49,24 +49,16 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev ccache libboost-program-options-dev
-          version: 1.6
+          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev libboost-program-options-dev
+          version: 1.7
           execute_install_scripts: true
 
       # ccache for native C/C++ builds
       - name: Setup ccache
-        uses: actions/cache@v4
+        uses: hendrikmuhs/ccache-action@v1
         with:
-          path: ~/.cache/ccache
-          key: ccache-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
-          restore-keys: ccache-${{ runner.os }}-
-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --zero-stats
-          echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
-          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+          max-size: 500M
+          key: native-builds
 
       # Build OpenJPH from source (openjph-tools not available in Noble 24.04)
       - name: Build and install OpenJPH
@@ -89,12 +81,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DBUILD_MANPAGES=OFF
           cmake --build /tmp/charls-tools/build --parallel $(nproc)
           sudo cmake --install /tmp/charls-tools/build
-
-      - name: Show ccache stats
-        run: ccache --show-stats
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
