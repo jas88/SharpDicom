@@ -32,6 +32,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
     {
         private static readonly string? OjphCompressPath = FindOjphCompress();
         private static readonly string? OjphExpandPath = FindOjphExpand();
+        private static readonly char[] PgmWhitespace = { ' ', '\t', '\r', '\n' };
 
         private static string? FindOjphCompress()
         {
@@ -89,22 +90,12 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             return null;
         }
 
-        [SetUp]
-        public void Setup()
-        {
-            if (OjphExpandPath == null && OjphCompressPath == null)
-            {
-                Assert.Ignore("OpenJPH not installed - skipping conformance tests. Install with: brew install openjph");
-            }
-        }
-
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OurEncode_OjphDecode_Grayscale8_Matches()
         {
             if (OjphExpandPath == null)
             {
-                Assert.Ignore("ojph_expand not found");
+                Assert.Fail("ojph_expand not found - install openjph-tools");
                 return;
             }
 
@@ -160,12 +151,11 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OjphEncode_OurDecode_Grayscale8_Matches()
         {
             if (OjphCompressPath == null)
             {
-                Assert.Ignore("ojph_compress not found");
+                Assert.Fail("ojph_compress not found - install openjph-tools");
                 return;
             }
 
@@ -184,7 +174,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                 var process = Process.Start(new ProcessStartInfo
                 {
                     FileName = OjphCompressPath,
-                    Arguments = $"-i \"{tempPgm}\" -o \"{tempJ2c}\" -reversible on",
+                    Arguments = $"-i \"{tempPgm}\" -o \"{tempJ2c}\" -reversible true",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -231,12 +221,11 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OurEncode_OjphDecode_Grayscale16_Matches()
         {
             if (OjphExpandPath == null)
             {
-                Assert.Ignore("ojph_expand not found");
+                Assert.Fail("ojph_expand not found - install openjph-tools");
                 return;
             }
 
@@ -292,12 +281,11 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_OjphEncode_OurDecode_Grayscale16_Matches()
         {
             if (OjphCompressPath == null)
             {
-                Assert.Ignore("ojph_compress not found");
+                Assert.Fail("ojph_compress not found - install openjph-tools");
                 return;
             }
 
@@ -316,7 +304,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                 var process = Process.Start(new ProcessStartInfo
                 {
                     FileName = OjphCompressPath,
-                    Arguments = $"-i \"{tempPgm}\" -o \"{tempJ2c}\" -reversible on",
+                    Arguments = $"-i \"{tempPgm}\" -o \"{tempJ2c}\" -reversible true",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -388,7 +376,6 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void Htj2k_LosslessRpcl_UsesCorrectProgressionOrder()
         {
             var codec = new Htj2kLosslessRpclCodec();
@@ -580,23 +567,68 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             // Read binary data (P5) or ASCII data (P2)
             if (lines[0] == "P5")
             {
-                // Binary format
-                int headerSize = 0;
-                for (int i = 0; i <= lineIdx; i++)
+                // Binary format - read raw bytes from file, skipping the header.
+                // Compute header size by searching for the end of the maxval line
+                // in the raw file bytes to handle any line-ending style correctly.
+                var allBytes = File.ReadAllBytes(path);
+                int headerSize = FindP5DataOffset(allBytes, lineIdx);
+
+                int bytesPerPixel = maxVal > 255 ? 2 : 1;
+                var dataSize = width * height * bytesPerPixel;
+                var result = new byte[dataSize];
+
+                if (bytesPerPixel == 2)
                 {
-                    headerSize += lines[i].Length + 1; // +1 for newline
+                    // PGM P5 stores 16-bit samples in big-endian byte order.
+                    // Convert to little-endian to match DICOM pixel data layout.
+                    for (int i = 0; i < width * height; i++)
+                    {
+                        int srcOffset = headerSize + i * 2;
+                        byte hi = allBytes[srcOffset];
+                        byte lo = allBytes[srcOffset + 1];
+                        result[i * 2] = lo;       // LE low byte
+                        result[i * 2 + 1] = hi;   // LE high byte
+                    }
+                }
+                else
+                {
+                    Array.Copy(allBytes, headerSize, result, 0, dataSize);
                 }
 
-                var allBytes = File.ReadAllBytes(path);
-                var dataSize = width * height * (maxVal > 255 ? 2 : 1);
-                var result = new byte[dataSize];
-                Array.Copy(allBytes, headerSize, result, 0, dataSize);
                 return result;
             }
             else
             {
-                // ASCII format (P2) - not commonly used by ojph but handle anyway
-                throw new NotImplementedException("P2 ASCII PGM format not implemented");
+                // ASCII format (P2) - parse whitespace-separated decimal values
+                var allText = File.ReadAllText(path);
+                // Skip header lines (already parsed)
+                int headerEnd = 0;
+                for (int i = 0; i <= lineIdx; i++)
+                {
+                    headerEnd += lines[i].Length + 1; // +1 for newline
+                }
+                var dataText = allText.Substring(headerEnd);
+                var values = dataText.Split(PgmWhitespace, StringSplitOptions.RemoveEmptyEntries);
+
+                int bytesPerPixel = maxVal > 255 ? 2 : 1;
+                var result = new byte[width * height * bytesPerPixel];
+
+                for (int i = 0; i < width * height && i < values.Length; i++)
+                {
+                    int val = int.Parse(values[i], CultureInfo.InvariantCulture);
+                    if (bytesPerPixel == 2)
+                    {
+                        // Store in little-endian to match DICOM pixel data layout
+                        result[i * 2] = (byte)(val & 0xFF);
+                        result[i * 2 + 1] = (byte)(val >> 8);
+                    }
+                    else
+                    {
+                        result[i] = (byte)val;
+                    }
+                }
+
+                return result;
             }
         }
 
@@ -614,7 +646,25 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             writer.Flush();
 
             // Write binary pixel data
-            stream.Write(data, 0, data.Length);
+            // PGM P5 format requires big-endian byte order for 16-bit samples,
+            // but DICOM pixel data is little-endian. Byte-swap if needed.
+            if (bitsPerSample > 8)
+            {
+                int pixelCount = width * height;
+                for (int i = 0; i < pixelCount; i++)
+                {
+                    int offset = i * 2;
+                    ushort value = BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(offset));
+                    byte hi = (byte)(value >> 8);
+                    byte lo = (byte)(value & 0xFF);
+                    stream.WriteByte(hi);
+                    stream.WriteByte(lo);
+                }
+            }
+            else
+            {
+                stream.Write(data, 0, data.Length);
+            }
         }
 
         private static byte[] CreateGradient12Bit(int width, int height)
@@ -768,6 +818,27 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             double denominator = (muX * muX + muY * muY + c1) * (sigmaX2 + sigmaY2 + c2);
 
             return numerator / denominator;
+        }
+
+        /// <summary>
+        /// Finds the byte offset where P5 binary pixel data begins.
+        /// Scans the raw file bytes for the required number of header lines
+        /// (magic, optional comments, dimensions, maxval), handling both
+        /// LF and CR+LF line endings correctly.
+        /// </summary>
+        private static int FindP5DataOffset(byte[] data, int lineCount)
+        {
+            int pos = 0;
+            int linesFound = 0;
+            while (pos < data.Length && linesFound < lineCount)
+            {
+                if (data[pos] == (byte)'\n')
+                {
+                    linesFound++;
+                }
+                pos++;
+            }
+            return pos;
         }
 
         private static void TryDelete(string path)

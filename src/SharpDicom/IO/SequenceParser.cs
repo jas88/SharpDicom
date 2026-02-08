@@ -296,10 +296,20 @@ namespace SharpDicom.IO
                     // Regular element - read value
                     if (elemLength == UndefinedLength)
                     {
-                        // Undefined length for non-SQ (e.g., encapsulated pixel data)
-                        // Skip for now - this will be handled in Phase 5
-                        throw new DicomDataException(
-                            $"Undefined length for non-sequence element {elemTag} not yet supported");
+                        // Undefined length for non-SQ (e.g., encapsulated pixel data inside sequence items)
+                        // Scan for SequenceDelimitationItem to find content boundary
+                        var remaining = buffer.Slice(position);
+                        int contentLength = FindSequenceContentLength(remaining);
+
+                        var undefinedValue = remaining.Slice(0, contentLength).ToArray();
+                        position += contentLength;
+
+                        // Skip the SequenceDelimitationItem (8 bytes: tag + zero length)
+                        position += 8;
+
+                        var undefinedElement = CreateElement(elemTag, elemVR, undefinedValue);
+                        dataset.Add(undefinedElement);
+                        continue;
                     }
 
                     if (position + (int)elemLength > buffer.Length)

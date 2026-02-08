@@ -729,19 +729,30 @@ namespace SharpDicom.Network
                 // Read the dataset from subsequent P-DATA PDUs
                 try
                 {
-                    // For buffered mode, check size incrementally during reading to prevent memory exhaustion
-                    var maxSize = _options.StoreHandlerMode == CStoreHandlerMode.Buffered
-                        ? _options.MaxBufferedDatasetSize
-                        : long.MaxValue;
+                    if (_options.StoreHandlerMode == CStoreHandlerMode.Streaming
+                        && _options.StreamingCStoreHandler != null)
+                    {
+                        // Streaming mode: read raw bytes, parse metadata up to pixel data,
+                        // then pass pixel data as a stream to the handler
+                        var datasetBytes = await ReadDatasetAsync(stream, long.MaxValue, ct)
+                            .ConfigureAwait(false);
+                        status = await InvokeStreamingCStoreHandlerAsync(
+                            requestContext, datasetBytes, association, command.PresentationContextId, ct)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // Buffered mode: check size incrementally during reading to prevent memory exhaustion
+                        var maxSize = _options.MaxBufferedDatasetSize;
+                        var datasetBytes = await ReadDatasetAsync(stream, maxSize, ct).ConfigureAwait(false);
 
-                    var datasetBytes = await ReadDatasetAsync(stream, maxSize, ct).ConfigureAwait(false);
+                        // Parse the dataset
+                        var dataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
 
-                    // Parse the dataset
-                    var dataset = ParseDataset(datasetBytes, association, command.PresentationContextId);
-
-                    // Call the appropriate handler
-                    status = await InvokeCStoreHandlerAsync(requestContext, dataset, ct)
-                        .ConfigureAwait(false);
+                        // Call the appropriate handler
+                        status = await InvokeCStoreHandlerAsync(requestContext, dataset, ct)
+                            .ConfigureAwait(false);
+                    }
                 }
                 catch (InvalidOperationException ex) when (ex.Message.Contains("exceeds maximum"))
                 {
@@ -792,6 +803,125 @@ namespace SharpDicom.Network
 
                 // No handler - should not reach here if HasCStoreHandler was true
                 return DicomStatus.NoSuchSOPClass;
+            }
+            catch (Exception)
+            {
+                return DicomStatus.ProcessingFailure;
+            }
+        }
+
+        /// <summary>
+        /// Invokes the streaming C-STORE handler by splitting the raw dataset bytes into
+        /// metadata (all elements before pixel data) and a pixel data stream.
+        /// </summary>
+        private async ValueTask<DicomStatus> InvokeStreamingCStoreHandlerAsync(
+            CStoreRequestContext context,
+            byte[] datasetBytes,
+            DicomAssociation association,
+            byte contextId,
+            CancellationToken ct)
+        {
+            try
+            {
+                var handler = _options.StreamingCStoreHandler!;
+
+                // Get the accepted transfer syntax for this presentation context
+                var pc = association.GetPresentationContext(contextId);
+                var transferSyntax = pc?.AcceptedTransferSyntax ?? TransferSyntax.ImplicitVRLittleEndian;
+
+                // Scan the raw bytes to find where pixel data starts
+                var span = datasetBytes.AsSpan();
+                var reader = new DicomStreamReader(span, transferSyntax.IsExplicitVR, transferSyntax.IsLittleEndian);
+                int pixelDataOffset = -1;
+
+                // Create SequenceParser for handling sequences in metadata
+                var sequenceParser = new SequenceParser(
+                    transferSyntax.IsExplicitVR,
+                    transferSyntax.IsLittleEndian,
+                    null);
+
+                var metadata = new DicomDataset();
+
+                while (reader.TryReadElementHeader(out var tag, out var vr, out var valueLength))
+                {
+                    // Check if we've reached pixel data
+                    if (tag == DicomTag.PixelData)
+                    {
+                        // Record the position of the pixel data tag header start.
+                        // The reader has already advanced past the header, so we need to
+                        // go back. In explicit VR, pixel data (OB/OW) has: tag(4) + VR(2) + reserved(2) + len(4) = 12 bytes.
+                        // In implicit VR: tag(4) + len(4) = 8 bytes.
+                        int headerSize = transferSyntax.IsExplicitVR ? 12 : 8;
+                        pixelDataOffset = reader.Position - headerSize;
+
+                        // For undefined length, the remaining bytes are the pixel data (encapsulated).
+                        // For defined length, valueLength bytes follow the header.
+                        // Either way, everything from pixelDataOffset is pixel data.
+                        break;
+                    }
+
+                    // Parse metadata elements the same way as ParseDataset
+                    if (valueLength == 0xFFFFFFFF)
+                    {
+                        if (vr == DicomVR.SQ)
+                        {
+                            var remainingBuffer = span.Slice(reader.Position);
+                            var sequence = sequenceParser.ParseSequence(remainingBuffer, tag, valueLength, metadata);
+                            metadata.Add(sequence);
+                            var bytesConsumed = FindSequenceEndPosition(remainingBuffer, transferSyntax.IsExplicitVR, transferSyntax.IsLittleEndian);
+                            reader.Skip(bytesConsumed);
+                        }
+                        else
+                        {
+                            // Undefined length for non-SQ/non-PixelData
+                            throw new DicomDataException($"Undefined length for non-sequence element {tag} not supported");
+                        }
+                        continue;
+                    }
+
+                    if (vr == DicomVR.SQ)
+                    {
+                        var seqBuffer = span.Slice(reader.Position, (int)valueLength);
+                        var sequence = sequenceParser.ParseSequence(seqBuffer, tag, valueLength, metadata);
+                        metadata.Add(sequence);
+                        reader.Skip((int)valueLength);
+                        continue;
+                    }
+
+                    if (!reader.TryReadValue(valueLength, out var value))
+                        break;
+
+                    var valueData = value.ToArray();
+                    var vrInfo = DicomVRInfo.GetInfo(vr);
+                    IDicomElement element = vrInfo.IsStringVR
+                        ? new DicomStringElement(tag, vr, valueData)
+                        : new DicomNumericElement(tag, vr, valueData);
+                    metadata.Add(element);
+                }
+
+                // Create the pixel data stream
+                Stream pixelDataStream;
+                if (pixelDataOffset >= 0)
+                {
+                    // Wrap pixel data bytes (from the tag header onward) in a MemoryStream
+                    pixelDataStream = new MemoryStream(
+                        datasetBytes, pixelDataOffset, datasetBytes.Length - pixelDataOffset, writable: false);
+                }
+                else
+                {
+                    // No pixel data found - provide an empty stream
+                    pixelDataStream = new MemoryStream(Array.Empty<byte>(), writable: false);
+                }
+
+#if NETSTANDARD2_0
+                using (pixelDataStream)
+#else
+                await using (pixelDataStream.ConfigureAwait(false))
+#endif
+                {
+                    return await handler.OnCStoreStreamingAsync(context, metadata, pixelDataStream, ct)
+                        .ConfigureAwait(false);
+                }
             }
             catch (Exception)
             {

@@ -161,11 +161,8 @@ public class CStoreScpTests
     }
 
     [Test]
-    public void DicomServerOptions_HasCStoreHandler_FalseWhenOnlyStreamingHandlerSet()
+    public void DicomServerOptions_HasCStoreHandler_TrueWhenStreamingHandlerSet()
     {
-        // Streaming mode is not yet fully implemented - StreamingCStoreHandler alone
-        // does not enable C-STORE handling. Use buffered mode with CStoreHandler or
-        // OnCStoreRequest delegate instead.
         var options = new DicomServerOptions
         {
             AETitle = "TEST",
@@ -173,8 +170,8 @@ public class CStoreScpTests
             StreamingCStoreHandler = new MockStreamingCStoreHandler()
         };
 
-        Assert.That(options.HasCStoreHandler, Is.False,
-            "HasCStoreHandler should be false for streaming-only config until streaming mode is implemented");
+        Assert.That(options.HasCStoreHandler, Is.True,
+            "HasCStoreHandler should be true when StreamingCStoreHandler is set");
     }
 
     [Test]

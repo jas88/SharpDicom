@@ -372,7 +372,7 @@ public class CFindIntegrationTests
         // Check if DCMTK is available
         if (!IsDcmtkAvailable())
         {
-            Assert.Ignore("DCMTK not found in PATH");
+            Assert.Fail("DCMTK not found in PATH - install with: apt install dcmtk (Linux) or brew install dcmtk (macOS)");
             return;
         }
 

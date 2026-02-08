@@ -25,7 +25,6 @@ namespace SharpDicom.Tests.Codecs
     public class CodecIntegrationTests
     {
         [Test]
-        [Ignore("JPEG-LS encoder/decoder has known issues - see plan 21-01 (12 failures)")]
         public void JpegLs_Encode_Decode_Registry_Integration()
         {
             // Initialize codecs
@@ -58,7 +57,6 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        [Ignore("HTJ2K codec uses J2K decoder which may have issues - needs investigation")]
         public void Htj2k_Encode_Decode_Registry_Integration()
         {
             // Initialize codecs
@@ -91,7 +89,6 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        [Ignore("Truncated streams currently succeed with partial decode - lenient behavior")]
         public void JpegLs_TruncatedStream_FailsGracefully()
         {
             var codec = new JpegLsLosslessCodec();
@@ -155,7 +152,6 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        [Ignore("Truncated streams currently succeed with partial decode - lenient behavior")]
         public void Htj2k_TruncatedStream_FailsGracefully()
         {
             var codec = new Htj2kLosslessCodec();
@@ -190,7 +186,6 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        [Ignore("JPEG-LS encoder/decoder has known issues - see plan 21-01")]
         public void JpegLs_MultiFrame_IndependentDecoding()
         {
             CodecInitializer.Reset();
@@ -263,7 +258,6 @@ namespace SharpDicom.Tests.Codecs
         }
 
         [Test]
-        [Ignore("JPEG-LS 16-bit support has known issues - see plan 21-01")]
         public void JpegLs_16Bit_Encode_Decode_Roundtrip()
         {
             CodecInitializer.Reset();

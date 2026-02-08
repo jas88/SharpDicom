@@ -601,28 +601,31 @@ namespace SharpDicom.Network
                     throw new DicomNetworkException($"Expected P-DATA-TF, got PDU type: {pduType}");
 
                 var reader = new PduReader(pdu.AsSpan(6));
-                if (!reader.TryReadPresentationDataValue(
-                    out var pcid,
-                    out var isCommand,
-                    out var isLastFragment,
-                    out var data))
+
+                // Process ALL PDVs in this P-DATA-TF PDU - the server may pack
+                // multiple PDVs (e.g. command + dataset) in a single PDU
+                while (reader.Remaining > 0)
                 {
-                    throw new DicomNetworkException("Failed to parse PDV.");
+                    if (!reader.TryReadPresentationDataValue(
+                        out var pcid,
+                        out var isCommand,
+                        out var isLastFragment,
+                        out var data))
+                    {
+                        throw new DicomNetworkException("Failed to parse PDV.");
+                    }
+
+                    // Skip command PDVs - server may pack command and data in one P-DATA-TF
+                    if (isCommand)
+                        continue;
+
+                    // Accumulate data from data PDVs
+                    dataBuffer.AddRange(data.ToArray());
+
+                    if (isLastFragment)
+                        return ParseDataset(dataBuffer.ToArray());
                 }
-
-                if (isCommand)
-                    throw new DicomNetworkException("Expected data PDV, got command PDV.");
-
-                // Accumulate data
-                dataBuffer.AddRange(data.ToArray());
-
-                if (isLastFragment)
-                    break;
             }
-
-            // Parse dataset - need to determine transfer syntax from presentation context
-            // For now, use Implicit VR Little Endian as fallback
-            return ParseDataset(dataBuffer.ToArray());
         }
 
         /// <summary>

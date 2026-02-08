@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
@@ -360,12 +361,14 @@ namespace SharpDicom.Codecs.Jpeg2000
                     firstInclusion[i] = true;
                 }
 
-                var segments = DecodeComponentPackets(
+                var (segments, bytesConsumed) = DecodeComponentPackets(
                     tileData.Slice(dataOffset),
                     totalCodeBlocks,
                     header.NumberOfLayers,
                     packetDecoder,
                     firstInclusion);
+
+                dataOffset += bytesConsumed;
 
                 // Use TileComponent to place decoded coefficients in correct subband positions
                 using var tileComp = new TileComponent(0, c, width, height, levels, cbWidth, cbHeight);
@@ -600,7 +603,11 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <summary>
         /// Decodes packets for a component and accumulates code-block data.
         /// </summary>
-        private static (ReadOnlyMemory<byte> Data, int TotalPasses, int ZeroBitPlanes)[] DecodeComponentPackets(
+        /// <returns>
+        /// A tuple of (segments, bytesConsumed) where bytesConsumed is the total
+        /// number of bytes consumed from packetData for this component's packets.
+        /// </returns>
+        private static ((ReadOnlyMemory<byte> Data, int TotalPasses, int ZeroBitPlanes)[] Segments, int BytesConsumed) DecodeComponentPackets(
             ReadOnlySpan<byte> packetData,
             int numCodeBlocks,
             int numLayers,
@@ -614,6 +621,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 results[i] = (ReadOnlyMemory<byte>.Empty, 0, 0);
             }
 
+            int bytesConsumed = 0;
+
             if (!packetData.IsEmpty)
             {
                 var segments = decoder.DecodePacket(packetData, numCodeBlocks, firstInclusion);
@@ -624,11 +633,22 @@ namespace SharpDicom.Codecs.Jpeg2000
                     if (seg.NumNewPasses > 0)
                     {
                         results[i] = (seg.Data, seg.NumNewPasses, seg.ZeroBitPlanes);
+
+                        // Track consumed bytes: segment Data is a slice of an internal
+                        // array copy. The end of the furthest slice tells us total consumed.
+                        if (MemoryMarshal.TryGetArray(seg.Data, out var arraySegment))
+                        {
+                            int end = arraySegment.Offset + arraySegment.Count;
+                            if (end > bytesConsumed)
+                            {
+                                bytesConsumed = end;
+                            }
+                        }
                     }
                 }
             }
 
-            return results;
+            return (results, bytesConsumed);
         }
 
         /// <summary>

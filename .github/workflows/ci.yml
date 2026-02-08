@@ -49,7 +49,7 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm
+          packages: dcmtk libcharls-dev libcharls2 lld llvm openjph-tools
           version: 1.4
           execute_install_scripts: true
 
@@ -62,12 +62,16 @@ jobs:
 
       - name: Verify package installations
         run: |
-          # DCMTK
-          dcmsend --version || true
-          dcmrecv --version || true
+          # DCMTK - required for interop tests
+          dcmsend --version
+          dcmrecv --version
 
-          # CharLS
-          pkg-config --modversion charls || true
+          # CharLS - required for JPEG-LS conformance tests
+          pkg-config --modversion charls
+
+          # OpenJPH - required for HTJ2K conformance tests
+          ojph_compress --help 2>&1 | head -1 || ojph_compress -h 2>&1 | head -1
+          ojph_expand --help 2>&1 | head -1 || ojph_expand -h 2>&1 | head -1
 
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
@@ -138,7 +142,6 @@ jobs:
 
       # Integration Tests: DCMTK
       - name: Integration tests with DCMTK
-        continue-on-error: true  # DCMTK tests are optional for now
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK"
         env:
           DCMTK_ROOT: /usr

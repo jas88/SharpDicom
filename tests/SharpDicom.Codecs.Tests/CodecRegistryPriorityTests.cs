@@ -245,7 +245,7 @@ namespace SharpDicom.Codecs.Tests
 
             if (!NativeCodecs.IsAvailable)
             {
-                Assert.Ignore("Native codecs not available - skipping priority test");
+                Assert.Fail("Native codecs not available - ensure native codecs are built (zig build)");
             }
 
             // If native JPEG is available, check priority
@@ -272,7 +272,7 @@ namespace SharpDicom.Codecs.Tests
 
             if (!NativeCodecs.IsAvailable || !NativeCodecs.HasFeature(NativeCodecFeature.Jpeg))
             {
-                Assert.Ignore("Native JPEG codec not available - skipping override test");
+                Assert.Fail("Native JPEG codec not available - ensure native codecs are built (zig build)");
             }
 
             // Native codec should have replaced the pure C# one

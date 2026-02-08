@@ -399,7 +399,6 @@ namespace SharpDicom.Tests.Network
         #region End-to-End Network Tests (Explicit)
 
         [Test]
-        [Explicit("Requires full P-DATA PDV interleaving - pending networking fixes")]
         [Category("Integration")]
         public async Task CFindScp_Network_ReturnsMatchingResults()
         {
@@ -446,7 +445,6 @@ namespace SharpDicom.Tests.Network
         }
 
         [Test]
-        [Explicit("Requires full P-DATA PDV interleaving - pending networking fixes")]
         [Category("Integration")]
         public async Task CStoreThenCFind_Network_Roundtrip()
         {

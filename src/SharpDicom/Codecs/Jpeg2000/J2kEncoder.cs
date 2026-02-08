@@ -820,7 +820,7 @@ namespace SharpDicom.Codecs.Jpeg2000
         private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info, int tileWidth, int tileHeight)
         {
             int components = info.SamplesPerPixel;
-            int segmentLength = 38 + components * 3 + 2; // +2 for length itself
+            int segmentLength = 38 + components * 3; // Lsiz per ITU-T T.800 Table A.9
 
             WriteMarker(buffer, J2kMarkers.SIZ);
 

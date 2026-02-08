@@ -78,7 +78,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         {
             if (CharlsPath == null)
             {
-                Assert.Ignore("CharLS not installed - skipping conformance tests. Install with: brew install charls");
+                Assert.Fail("CharLS not installed - install with: apt install libcharls-dev (Linux) or brew install charls (macOS)");
             }
         }
 

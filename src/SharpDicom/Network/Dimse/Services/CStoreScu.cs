@@ -171,12 +171,16 @@ public sealed class CStoreScu
             throw new ArgumentNullException(nameof(dataset));
 #endif
 
-        // Separate pixel source is not yet implemented
+        // If a separate pixel data source is provided, load its data
+        // and inject it into the dataset as a DicomPixelDataElement
         if (pixels != null)
         {
-            throw new NotImplementedException(
-                "Separate pixel data source is not yet supported. " +
-                "Include pixel data in the dataset, or pass null for the pixels parameter.");
+            var pixelData = await pixels.GetDataAsync(ct).ConfigureAwait(false);
+            var source = new ImmediatePixelDataSource(pixelData);
+            var info = PixelDataInfo.FromDataset(dataset);
+            var vr = info.BitsAllocated.GetValueOrDefault(16) > 8 ? DicomVR.OW : DicomVR.OB;
+            var element = new DicomPixelDataElement(source, vr, info, isEncapsulated: false);
+            dataset.Add(element);
         }
 
         // Extract SOP Class and Instance UIDs from dataset

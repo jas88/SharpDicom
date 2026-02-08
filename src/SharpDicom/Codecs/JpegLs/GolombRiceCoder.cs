@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Numerics;
@@ -253,6 +254,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// Reads a single bit from the input stream.
         /// </summary>
         /// <returns>The bit value (0 or 1).</returns>
+        /// <exception cref="InvalidDataException">Thrown when the input stream is exhausted prematurely.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadBit()
         {
@@ -261,7 +263,7 @@ namespace SharpDicom.Codecs.JpegLs
             {
                 if (_pos >= _data.Length)
                 {
-                    return 0; // End of stream
+                    throw new InvalidDataException("Truncated JPEG-LS stream");
                 }
 
                 _buffer = _data[_pos++];

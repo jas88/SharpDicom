@@ -72,7 +72,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         /// Test 2: Verify DWT + EBCOT integration without tier-2 packets.
         /// </summary>
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         [Category("Pipeline")]
         public void DWT_EBCOT_Roundtrip_SingleComponent()
         {
@@ -127,7 +126,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         /// Test 3: Verify full encode/decode path for single component produces correct output.
         /// </summary>
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         [Category("Pipeline")]
         public void DWT_EBCOT_Tier2_Roundtrip_SingleComponent()
         {
@@ -280,7 +278,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         /// Test 6: Verify encoder assembles tile data correctly from code-block contributions.
         /// </summary>
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         [Category("Encoder")]
         public void Encoder_AssemblesTileDataCorrectly()
         {

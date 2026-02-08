@@ -66,7 +66,18 @@ namespace SharpDicom.Codecs.Htj2k
             // Auto-detect block coder from CAP marker:
             // - HTJ2K codestreams (with CAP marker) use HtBlockEncoder
             // - Standard J2K codestreams fall back to EBCOT
-            return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex, null);
+            try
+            {
+                return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex, null);
+            }
+            catch (System.IO.InvalidDataException ex)
+            {
+                return DecodeResult.Fail(frameIndex, 0, $"HTJ2K decode error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                return DecodeResult.Fail(frameIndex, 0, $"HTJ2K decode error: {ex.Message}");
+            }
         }
 
         /// <inheritdoc />

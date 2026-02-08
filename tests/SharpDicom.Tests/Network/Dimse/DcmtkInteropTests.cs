@@ -57,7 +57,7 @@ public sealed class DcmtkInteropTests
     public void Setup()
     {
         if (!IsDcmtkAvailable())
-            Assert.Ignore("DCMTK not found in PATH - install with: brew install dcmtk (macOS) or apt install dcmtk (Linux)");
+            Assert.Fail("DCMTK not found in PATH - install with: apt install dcmtk (Linux) or brew install dcmtk (macOS)");
     }
 
     /// <summary>
