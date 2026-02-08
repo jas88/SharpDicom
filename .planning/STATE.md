@@ -3,14 +3,14 @@
 ## Current Status
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
-**Phase**: 29 - MongoDB/BSON Serialization (COMPLETE)
-**Plan**: 5 of 5 in current phase
-**Status**: Complete
-**Last activity**: 2026-02-07 - Phase 29 complete (all 5 plans)
+**Phase**: 30 - HT Block Coder (In Progress)
+**Plan**: 1 of 10 in current phase
+**Status**: In progress
+**Last activity**: 2026-02-08 - Completed 30-01-PLAN.md (Subband Infrastructure)
 
-**Progress**: ██████████ (5/5 plans in Phase 29)
+**Progress**: █░░░░░░░░░ (1/10 plans in Phase 30)
 
-**Test Status**: 2511 tests (2456 pass, 55 skipped, 0 failed)
+**Test Status**: 2560+ tests (2505+ pass, 55 skipped, 0 failed from new code)
 
 ## Completed
 
@@ -184,7 +184,8 @@
 
 ## In Progress
 
-*None*
+- [ ] Phase 30 Plan 01: Subband Infrastructure (COMPLETE)
+- [ ] Phase 30 Plan 02-10: Remaining HT Block Coder plans
 
 ## Blocked
 
@@ -209,6 +210,7 @@
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 | 29 | MongoDB/BSON Serialization | COMPLETE | 5/5 | 2026-02-07 | 2026-02-07 |
+| 30 | HT Block Coder | IN PROGRESS | 1/10 | 2026-02-08 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -568,26 +570,26 @@
 | 2026-02-07 | 29-05 | MongoDB.Driver 3.6.0 over 2.x legacy line | Current actively-developed line; netstandard2.1+ requirement acceptable for optional adapter |
 | 2026-02-07 | 29-05 | Target netstandard2.1 not netstandard2.0 for MongoDB adapter | MongoDB.Driver 3.x requires netstandard2.1+; adapter users will be on modern .NET |
 | 2026-02-07 | 29-05 | Single MongoDB.Driver package reference | MongoDB.Bson is a transitive dependency; reduces Central Package Management overhead |
+| 2026-02-08 | 30-01 | SubbandType enum matches existing EBCOT convention (HL=1, LH=2) | Existing DwtTransform and EbcotEncoder use 0=LL, 1=HL, 2=LH, 3=HH consistently |
 
 ## Session Continuity
 
-**Last session**: 2026-02-07
-**Stopped at**: Phase 29 COMPLETE (all 5 plans)
+**Last session**: 2026-02-08
+**Stopped at**: Completed 30-01-PLAN.md (Subband Infrastructure)
 **Resume file**: None
-**Next step**: Phase 30 (HT Block Coder) or milestone v3.0 completion
+**Next step**: Phase 30 Plan 02 (EBCOT context table fix)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 29 - MongoDB/BSON Serialization (COMPLETE, 5/5 plans)
-2. **Phase 29 deliverables**: 16 source files across 2 projects, 73 new tests
-   - Core BSON: BsonType, BsonTagKeyFormat, BsonOutputMode, BinaryDataReference, FlattenProfile, BsonSerializationOptions, BsonDocumentBuffer, BsonDicomWriter, BsonDicomReader, DicomDatasetBsonExtensions
-   - DICOM-JSON: DicomJsonWriter, DicomJsonReader
-   - MongoDB adapter: BsonDocumentAdapter, IndexRecommendations, DicomCollectionHelper, BulkImporter
-3. **Test coverage**: 2511 tests (2456 pass, 55 skipped, 0 failed) -- no regressions
-4. **Next**: Phase 30 (HT Block Coder) or milestone v3.0 audit/completion
-5. **Known issues**: P-DATA PDV interleaving issue in SharpDicom-to-SharpDicom network roundtrip (pre-existing, works with DCMTK peers)
+1. **Current phase**: Phase 30 - HT Block Coder (1/10 plans complete)
+2. **Phase 30-01 deliverables**: 3 source files, 2 test files, 49 new tests
+   - SubbandDescriptor, SubbandPartitioner, TileComponent in Codecs/Jpeg2000/Subband/
+3. **Test coverage**: 2560+ tests (2505+ pass, 55 skipped, 0 failed from new code)
+   - Note: 7 pre-existing failures from parallel plan 30-03 (VlcTable/MelCoder tests)
+4. **Next**: Plan 30-02 should fix EBCOT context tables using new SubbandType enum
+5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -627,4 +629,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 29 COMPLETE -- MongoDB/BSON Serialization, all 5 plans)*
+*Last updated: 2026-02-08 (Phase 30 Plan 01 COMPLETE -- Subband Infrastructure)*
