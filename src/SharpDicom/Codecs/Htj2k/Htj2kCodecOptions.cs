@@ -7,25 +7,33 @@ namespace SharpDicom.Codecs.Htj2k
     /// <param name="DecompositionLevels">Number of wavelet decomposition levels (typically 5).</param>
     /// <param name="UseRpcl">Whether to use RPCL (Resolution Position Component Layer) progression.</param>
     /// <param name="GenerateBasicOffsetTable">Whether to generate a Basic Offset Table for multi-frame images.</param>
+    /// <param name="HtOptions">HT-specific encoder options controlling pass count and quality presets. Null uses defaults based on lossless/lossy mode.</param>
     public readonly record struct Htj2kCodecOptions(
         bool UseLossless,
         int DecompositionLevels,
         bool UseRpcl,
-        bool GenerateBasicOffsetTable)
+        bool GenerateBasicOffsetTable,
+        HtEncoderOptions? HtOptions = null)
     {
+        /// <summary>
+        /// Gets the effective HT encoder options, falling back to preset defaults based on mode.
+        /// </summary>
+        public HtEncoderOptions EffectiveHtOptions =>
+            HtOptions ?? (UseLossless ? HtEncoderOptions.Lossless : HtEncoderOptions.Diagnostic);
+
         /// <summary>
         /// Default options for lossless HTJ2K encoding.
         /// </summary>
-        public static Htj2kCodecOptions Default { get; } = new(true, 5, false, true);
+        public static Htj2kCodecOptions Default { get; } = new(true, 5, false, true, HtEncoderOptions.Lossless);
 
         /// <summary>
         /// Options for lossless HTJ2K with RPCL progression (optimized for streaming/progressive decode).
         /// </summary>
-        public static Htj2kCodecOptions LosslessRpcl { get; } = new(true, 5, true, true);
+        public static Htj2kCodecOptions LosslessRpcl { get; } = new(true, 5, true, true, HtEncoderOptions.Lossless);
 
         /// <summary>
         /// Options for lossy HTJ2K encoding.
         /// </summary>
-        public static Htj2kCodecOptions Lossy { get; } = new(false, 5, false, true);
+        public static Htj2kCodecOptions Lossy { get; } = new(false, 5, false, true, HtEncoderOptions.Diagnostic);
     }
 }

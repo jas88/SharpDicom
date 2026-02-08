@@ -55,12 +55,27 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private int _bytePosition;
         private int _bitBuffer;
         private int _bitsAvailable;
+        private bool _htMode;
 
         /// <summary>
         /// Initializes a new packet decoder.
         /// </summary>
         public PacketDecoder()
         {
+        }
+
+        /// <summary>
+        /// Gets or sets whether to use HT mode for pass count decoding.
+        /// </summary>
+        /// <remarks>
+        /// When true, pass counts are read as 3-bit values (range 1-6)
+        /// instead of the EBCOT variable-length encoding (range 1-164).
+        /// This should be set based on the CAP marker in the codestream header.
+        /// </remarks>
+        public bool IsHtMode
+        {
+            get => _htMode;
+            set => _htMode = value;
         }
 
         /// <summary>
@@ -297,10 +312,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Reads number of coding passes per ITU-T T.800 Table B.4.
+        /// Reads number of coding passes.
         /// </summary>
         /// <remarks>
-        /// ITU-T T.800 Table B.4 specifies:
+        /// <para>
+        /// In EBCOT mode, uses ITU-T T.800 Table B.4:
         /// | Passes | Coding                        |
         /// |--------|-------------------------------|
         /// | 1      | 0                             |
@@ -308,9 +324,19 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// | 3-5    | 11xx (00=3, 01=4, 10=5)       |
         /// | 6-36   | 1111 + 5-bit (0-30)           |
         /// | 37-164 | 1111 1111 + 7-bit (0-127)     |
+        /// </para>
+        /// <para>
+        /// In HT mode, uses a simple 3-bit encoding for pass counts 1-6.
+        /// </para>
         /// </remarks>
         private int ReadNumPasses()
         {
+            if (_htMode)
+            {
+                // HT mode: 3-bit value representing 1-6 passes
+                return ReadBits(3) + 1;
+            }
+
             // ITU-T T.800 Table B.4
             if (ReadBit() == 0)
             {

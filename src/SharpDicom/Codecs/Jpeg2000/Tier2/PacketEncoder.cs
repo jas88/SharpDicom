@@ -88,6 +88,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private readonly List<byte> _headerBuffer;
         private int _bitBuffer;
         private int _bitsInBuffer;
+        private bool _htMode;
 
         /// <summary>
         /// Initializes a new packet encoder.
@@ -106,6 +107,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <param name="numLayers">Number of quality layers.</param>
         /// <param name="progression">Progression order.</param>
         /// <param name="numResolutions">Number of resolution levels.</param>
+        /// <param name="isHtMode">
+        /// When true, uses HT pass count encoding (range 1-6) instead of EBCOT
+        /// variable-length encoding (range 1-164). Per ITU-T T.814 section 7.3.
+        /// </param>
         /// <returns>Packets organized by layer.</returns>
         public PacketData[] EncodePackets(
             CodeBlockData[] codeBlocks,
@@ -113,7 +118,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             int codeBlocksHigh,
             int numLayers,
             ProgressionOrder progression,
-            int numResolutions = 1)
+            int numResolutions = 1,
+            bool isHtMode = false)
         {
             if (codeBlocks == null || codeBlocks.Length == 0)
             {
@@ -125,6 +131,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             {
                 throw new ArgumentException("Code block array is too small for the specified dimensions.");
             }
+
+            _htMode = isHtMode;
 
             // Track which passes have been included for each code-block
             int[] passesIncluded = new int[numCodeBlocks];
@@ -436,8 +444,18 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <summary>
         /// Writes number of coding passes.
         /// </summary>
+        /// <remarks>
+        /// In EBCOT mode, uses ITU-T T.800 Table B.4 variable-length coding (1-164 passes).
+        /// In HT mode, uses a simpler 3-bit encoding for pass counts 1-6 per ITU-T T.814.
+        /// </remarks>
         private void WriteNumPasses(int passes)
         {
+            if (_htMode)
+            {
+                WriteNumPassesHt(passes);
+                return;
+            }
+
             // ITU-T T.800 Table B.4: Variable-length coding for number of passes
             if (passes == 1)
             {
@@ -487,6 +505,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 WriteBit((suffix >> 1) & 1);
                 WriteBit(suffix & 1);
             }
+        }
+
+        /// <summary>
+        /// Writes number of coding passes for HT mode (range 1-6).
+        /// </summary>
+        /// <remarks>
+        /// HT blocks have at most 6 coding passes (2 HT Sets x 3 passes per set).
+        /// Encoded as a simple 3-bit value (0-5 representing 1-6 passes).
+        /// </remarks>
+        private void WriteNumPassesHt(int passes)
+        {
+            int value = passes - 1; // 0-5 range
+            WriteBit((value >> 2) & 1);
+            WriteBit((value >> 1) & 1);
+            WriteBit(value & 1);
         }
 
         /// <summary>

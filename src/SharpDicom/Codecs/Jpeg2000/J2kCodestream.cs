@@ -72,6 +72,9 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <summary>Comment marker.</summary>
         public const ushort COM = 0xFF64;
 
+        /// <summary>Extended capabilities marker (ITU-T T.800 Amendment 4 / Part 15).</summary>
+        public const ushort CAP = 0xFF50;
+
         /// <summary>
         /// Determines whether the specified marker has a variable-length segment.
         /// </summary>
@@ -125,11 +128,30 @@ namespace SharpDicom.Codecs.Jpeg2000
     }
 
     /// <summary>
+    /// HT (High-Throughput) coding mode detected from the CAP marker.
+    /// </summary>
+    public enum HtMode
+    {
+        /// <summary>No HT coding; standard EBCOT (Part 1) only.</summary>
+        None = 0,
+
+        /// <summary>All code-blocks use HT coding (HTOnly).</summary>
+        HtOnly = 1,
+
+        /// <summary>HT extensions declared; may have mixed EBCOT/HT code-blocks.</summary>
+        HtDeclared = 2,
+
+        /// <summary>Mixed mode: both EBCOT and HT code-blocks are present.</summary>
+        Mixed = 3
+    }
+
+    /// <summary>
     /// Parsed JPEG 2000 codestream header information.
     /// </summary>
     /// <remarks>
     /// This class parses the main header of a JPEG 2000 codestream (Part 1, ITU-T T.800).
-    /// It extracts information from the SIZ (image size) and COD (coding style) markers.
+    /// It extracts information from the SIZ (image size), COD (coding style), and
+    /// CAP (extended capabilities) markers.
     /// </remarks>
     public sealed class J2kCodestream
     {
@@ -200,6 +222,67 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <summary>Gets whether EPH markers are present in the codestream.</summary>
         public bool HasEphMarkers { get; init; }
 
+        // From CAP marker (ITU-T T.800 Amendment 4 / Part 15)
+
+        /// <summary>Gets the Pcap field from the CAP marker (0 if no CAP marker present).</summary>
+        public uint Pcap { get; init; }
+
+        /// <summary>Gets the Ccap[15] value for Part 15 extensions (0 if not present).</summary>
+        public ushort Ccap15 { get; init; }
+
+        /// <summary>Gets whether this codestream uses HTJ2K (High-Throughput) coding.</summary>
+        public bool IsHtj2k => HtCodingMode != HtMode.None;
+
+        /// <summary>Gets the HT coding mode detected from the CAP marker.</summary>
+        public HtMode HtCodingMode { get; init; }
+
+        /// <summary>Gets the HT precision value extracted from Ccap[15] (bits 4-0).</summary>
+        public int HtPrecision { get; init; }
+
+        /// <summary>
+        /// Builds a CAP marker segment for HTJ2K identification.
+        /// </summary>
+        /// <param name="isHtOnly">True if all code-blocks use HT coding.</param>
+        /// <param name="isLossless">True if using lossless (reversible) compression.</param>
+        /// <param name="precision">Bit precision for the HT block coder (typically matches image bit depth, 0-31).</param>
+        /// <returns>The complete CAP marker segment including the marker prefix.</returns>
+        /// <remarks>
+        /// <para>
+        /// The CAP marker (0xFF50) signals Part 15 (HTJ2K) extensions per ITU-T T.800
+        /// Amendment 4. It contains:
+        /// <list type="bullet">
+        ///   <item>Pcap (4 bytes): Bit mask indicating which parts have extensions.
+        ///     Bit 15 set = Part 15 extensions present.</item>
+        ///   <item>Ccap[15] (2 bytes): HT capability descriptor.
+        ///     Bit 5 = HTONLY (all code-blocks use HT), bits 4-0 = precision.</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        public static byte[] BuildCapMarker(bool isHtOnly, bool isLossless, int precision)
+        {
+            // Pcap: bit 15 set means Part 15 extensions present
+            // Bit numbering: bit 31 is Part 1, bit 30 is Part 2, ... bit 16 is Part 15+1
+            // Actually per spec, Pcap bit (32-i) indicates Part i present
+            // Part 15 -> bit (32-15) = bit 17
+            uint pcap = 0x00020000u; // Bit 17 = Part 15 extensions
+
+            // Ccap[15]: HT capability bits
+            // Bit 5 (0x0020): HTONLY flag - all code-blocks use HT coding
+            // Bits 4-0: precision (0-31)
+            ushort ccap = (ushort)((precision & 0x1F) | (isHtOnly ? 0x0020 : 0));
+
+            // Marker format: FF50 + Length(2) + Pcap(4) + Ccap[15](2)
+            // Length includes itself: 2 + 4 + 2 = 8
+            return new byte[]
+            {
+                0xFF, 0x50,                                      // CAP marker
+                0x00, 0x08,                                      // Length = 8
+                (byte)(pcap >> 24), (byte)(pcap >> 16),
+                (byte)(pcap >> 8), (byte)pcap,                   // Pcap
+                (byte)(ccap >> 8), (byte)ccap                    // Ccap[15]
+            };
+        }
+
         /// <summary>
         /// Parses a JPEG 2000 codestream header.
         /// </summary>
@@ -250,6 +333,12 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             bool foundSiz = false;
             bool foundCod = false;
+
+            // CAP marker fields
+            uint pcap = 0;
+            ushort ccap15 = 0;
+            HtMode htCodingMode = HtMode.None;
+            int htPrecision = 0;
 
             // Parse markers until we hit SOT or SOD
             while (position + 2 <= data.Length)
@@ -311,6 +400,10 @@ namespace SharpDicom.Codecs.Jpeg2000
                         foundCod = true;
                         break;
 
+                    case J2kMarkers.CAP:
+                        ParseCapMarker(segmentData, out pcap, out ccap15, out htCodingMode, out htPrecision);
+                        break;
+
                     // Skip other markers
                     default:
                         break;
@@ -353,7 +446,11 @@ namespace SharpDicom.Codecs.Jpeg2000
                 NumberOfLayers = numberOfLayers,
                 UsesMct = usesMct,
                 HasSopMarkers = hasSopMarkers,
-                HasEphMarkers = hasEphMarkers
+                HasEphMarkers = hasEphMarkers,
+                Pcap = pcap,
+                Ccap15 = ccap15,
+                HtCodingMode = htCodingMode,
+                HtPrecision = htPrecision
             };
 
             return true;
@@ -651,6 +748,85 @@ namespace SharpDicom.Codecs.Jpeg2000
             usesReversibleTransform = wavelet == 1;
 
             return true;
+        }
+
+        /// <summary>
+        /// Parses a CAP marker segment to extract HTJ2K capability information.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The CAP marker (0xFF50) was added in ITU-T T.800 Amendment 4 to signal
+        /// extended capabilities. Part 15 (HTJ2K) uses bit 17 of Pcap and Ccap[15]
+        /// to indicate HT block coding.
+        /// </para>
+        /// <para>
+        /// Ccap[15] layout:
+        /// <list type="bullet">
+        ///   <item>Bit 14: MULTIHT (multiple HT sets).</item>
+        ///   <item>Bit 5: HTONLY (all code-blocks use HT coding).</item>
+        ///   <item>Bits 4-0: Precision (bit depth for HT coder).</item>
+        /// </list>
+        /// </para>
+        /// </remarks>
+        private static void ParseCapMarker(
+            ReadOnlySpan<byte> data,
+            out uint pcap,
+            out ushort ccap15,
+            out HtMode htCodingMode,
+            out int htPrecision)
+        {
+            pcap = 0;
+            ccap15 = 0;
+            htCodingMode = HtMode.None;
+            htPrecision = 0;
+
+            if (data.Length < 4)
+            {
+                return;
+            }
+
+            pcap = BinaryPrimitives.ReadUInt32BigEndian(data);
+
+            // Check if Part 15 extensions are present (bit 17 of Pcap)
+            // Pcap bit numbering: bit (32-i) indicates Part i
+            // Part 15 -> bit 17
+            bool hasPart15 = (pcap & 0x00020000u) != 0;
+
+            if (!hasPart15)
+            {
+                return;
+            }
+
+            // Ccap values follow Pcap in order of set bits
+            // Count set bits before bit 17 to find Ccap[15] position
+            int ccapIndex = 0;
+            for (int bit = 31; bit > 17; bit--)
+            {
+                if ((pcap & (1u << bit)) != 0)
+                {
+                    ccapIndex++;
+                }
+            }
+
+            int ccapOffset = 4 + ccapIndex * 2;
+            if (ccapOffset + 2 <= data.Length)
+            {
+                ccap15 = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(ccapOffset));
+
+                // Extract fields from Ccap[15]
+                htPrecision = ccap15 & 0x1F;         // Bits 4-0: precision
+                bool htOnly = (ccap15 & 0x0020) != 0;  // Bit 5: HTONLY
+
+                if (htOnly)
+                {
+                    htCodingMode = HtMode.HtOnly;
+                }
+                else
+                {
+                    // Part 15 declared but not HTONLY -> could be mixed or declared
+                    htCodingMode = HtMode.HtDeclared;
+                }
+            }
         }
     }
 }
