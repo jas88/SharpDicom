@@ -113,7 +113,7 @@ jobs:
 
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
-        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults --collect:"XPlat Code Coverage"
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc

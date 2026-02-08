@@ -89,6 +89,11 @@
   <!-- Import shared build standards -->
   <Import Project="build-standards/Directory.Build.props.shared" />
 
+  <!-- Code coverage for all test projects -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="coverlet.collector" PrivateAssets="all" />
+  </ItemGroup>
+
   <!-- Project-specific overrides -->
   <PropertyGroup>
     <!-- SharpDicom uses explicit usings for clarity -->
