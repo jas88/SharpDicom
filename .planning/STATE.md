@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 9 of 10 in current phase
+**Plan**: 10 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-08 - Completed 30-08-PLAN.md (sharpdcm convert CLI command)
+**Last activity**: 2026-02-08 - Completed 30-09-PLAN.md (multi-tile pipeline + EBCOT regression)
 
 **Progress**: █████████░ (9/10 plans in Phase 30)
 
-**Test Status**: 2896 tests (2815 pass, 67 skipped, 14 pre-existing codec failures)
+**Test Status**: 5885 tests (5687 pass, 198 skipped, 0 failed)
 
 ## Completed
 
@@ -192,7 +192,8 @@
 - [x] Phase 30 Plan 06: HTJ2K Codec Integration (COMPLETE)
 - [x] Phase 30 Plan 07: IProgressiveCodec + SIMD Vector256/512 Expansion (COMPLETE)
 - [x] Phase 30 Plan 08: sharpdcm convert CLI command (COMPLETE)
-- [ ] Phase 30 Plan 09-10: Remaining HT Block Coder plans
+- [x] Phase 30 Plan 09: Multi-tile Pipeline + EBCOT Regression (COMPLETE)
+- [ ] Phase 30 Plan 10: Remaining HT Block Coder plan
 
 ## Blocked
 
@@ -217,7 +218,7 @@
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 | 29 | MongoDB/BSON Serialization | COMPLETE | 5/5 | 2026-02-07 | 2026-02-07 |
-| 30 | HT Block Coder | IN PROGRESS | 8/10 | 2026-02-08 | - |
+| 30 | HT Block Coder | IN PROGRESS | 9/10 | 2026-02-08 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -594,27 +595,33 @@
 | 2026-02-08 | 30-08 | Kebab-case transfer syntax short names for CLI convert | Consistent with CLI conventions; case-insensitive matching for usability |
 | 2026-02-08 | 30-08 | Default .converted.dcm suffix for non-destructive output | Follows existing FixCommand .fixed.dcm pattern; safe default prevents data loss |
 | 2026-02-08 | 30-08 | SemaphoreSlim-gated parallel file processing | Configurable concurrency for CPU-bound codec work; respects user-specified --parallel limit |
+| 2026-02-08 | 30-09 | Color transforms applied before tile extraction | RCT/ICT operate on full image per J2K spec; tile extraction happens after color transform |
+| 2026-02-08 | 30-09 | Thread-safe parallel decode via per-tile EbcotBlockCoder | EbcotBlockCoder singleton not thread-safe; create separate instances for Parallel.For tiles |
+| 2026-02-08 | 30-09 | PLT variable-length encoding per ITU-T T.800 B.8 | 7-bit groups with continuation bit for packet length markers |
+| 2026-02-08 | 30-09 | DecodeFrame backward compatible with maxDegreeOfParallelism=1 | Existing 4-parameter overload calls new overload with sequential default |
+| 2026-02-08 | 30-09 | Subband type test assertions use non-zero checks | EBCOT context varies by subband type; exact value assertions fragile |
 
 ## Session Continuity
 
 **Last session**: 2026-02-08
-**Stopped at**: Completed 30-08-PLAN.md (sharpdcm convert CLI command)
+**Stopped at**: Completed 30-09-PLAN.md (multi-tile pipeline + EBCOT regression)
 **Resume file**: None
-**Next step**: Phase 30 Plan 09
+**Next step**: Phase 30 Plan 10
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 30 - HT Block Coder (9/10 plans complete: 01-08)
-2. **Phase 30-08 deliverables**: sharpdcm convert CLI command
-   - ConvertCommand with 10 transfer syntax aliases and 5 quality presets
-   - Batch file transcoding with configurable parallelism
-   - Dry-run, force, output-dir, skip-errors options
-   - 41 new tests (all passing)
-3. **Test coverage**: 2896 tests (2815 pass, 67 skipped, 14 pre-existing codec failures)
-4. **Next**: Plan 30-09
-5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers); 14 HTJ2K/J2K codec test failures (pre-existing)
+1. **Current phase**: Phase 30 - HT Block Coder (9/10 plans complete: 01-09)
+2. **Phase 30-09 deliverables**: Multi-tile J2K pipeline + EBCOT regression
+   - Multi-tile encoder with configurable TileWidth/TileHeight
+   - Parallel tile decode via Parallel.For with MaxDegreeOfParallelism
+   - All 5 progression orders (LRCP, RLCP, RPCL, PCRL, CPRL)
+   - PLT marker emission per tile
+   - 30 new tests (13 pipeline + 17 EBCOT regression)
+3. **Test coverage**: 5885 tests (5687 pass, 198 skipped, 0 failed)
+4. **Next**: Plan 30-10
+5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
 
@@ -654,4 +661,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-08 (Phase 30 Plan 08 COMPLETE -- sharpdcm convert CLI command)*
+*Last updated: 2026-02-08 (Phase 30 Plan 09 COMPLETE -- multi-tile pipeline + EBCOT regression)*
