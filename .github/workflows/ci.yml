@@ -59,12 +59,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /usr/local/bin/ojph_*
-          key: openjph-0.9.0-${{ runner.os }}
+          key: openjph-0.26.0-${{ runner.os }}
 
       - name: Build and install OpenJPH
         if: steps.cache-openjph.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch 0.9.0 https://github.com/aous72/OpenJPH.git /tmp/openjph
+          git clone --depth 1 --branch 0.26.0 https://github.com/aous72/OpenJPH.git /tmp/openjph
           cmake -S /tmp/openjph -B /tmp/openjph/build -DCMAKE_BUILD_TYPE=Release
           cmake --build /tmp/openjph/build --parallel $(nproc)
           sudo cp /tmp/openjph/build/bin/ojph_compress /usr/local/bin/
