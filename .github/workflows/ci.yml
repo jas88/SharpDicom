@@ -49,26 +49,52 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev
-          version: 1.5
+          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev ccache
+          version: 1.6
           execute_install_scripts: true
 
-      # Build OpenJPH from source (openjph-tools not available in Noble 24.04)
-      - name: Cache OpenJPH build
-        id: cache-openjph
+      # ccache for native C/C++ builds
+      - name: Setup ccache
         uses: actions/cache@v4
         with:
-          path: /usr/local/bin/ojph_*
-          key: openjph-0.26.0-${{ runner.os }}
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: ccache-${{ runner.os }}-
 
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+
+      # Build OpenJPH from source (openjph-tools not available in Noble 24.04)
       - name: Build and install OpenJPH
-        if: steps.cache-openjph.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch 0.26.0 https://github.com/aous72/OpenJPH.git /tmp/openjph
-          cmake -S /tmp/openjph -B /tmp/openjph/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake -S /tmp/openjph -B /tmp/openjph/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build /tmp/openjph/build --parallel $(nproc)
           sudo cmake --install /tmp/openjph/build
           sudo ldconfig
+
+      # Build charls-tools from source (cjpls/djpls CLI)
+      - name: Build and install charls-tools
+        run: |
+          git clone --depth 1 https://github.com/malaterre/charls-tools.git /tmp/charls-tools
+          cmake -S /tmp/charls-tools -B /tmp/charls-tools/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build /tmp/charls-tools/build --parallel $(nproc)
+          sudo cmake --install /tmp/charls-tools/build
+
+      - name: Show ccache stats
+        run: ccache --show-stats
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
@@ -83,8 +109,9 @@ jobs:
           dcmsend --version
           dcmrecv --version
 
-          # CharLS - required for JPEG-LS conformance tests
-          pkg-config --modversion charls
+          # CharLS tools - required for JPEG-LS conformance tests
+          which cjpls
+          which djpls
 
           # OpenJPH - required for HTJ2K conformance tests
           which ojph_compress

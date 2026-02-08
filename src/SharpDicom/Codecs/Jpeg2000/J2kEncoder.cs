@@ -263,7 +263,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             // Build codestream with all tiles
-            return BuildMultiTileCodestream(info, options, lossless, tileResults, tileW, tileH, tileCols, tileRows);
+            return BuildMultiTileCodestream(info, options, lossless, isHtMode, tileResults, tileW, tileH, tileCols, tileRows);
         }
 
         /// <summary>
@@ -463,6 +463,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             PixelDataInfo info,
             J2kEncoderOptions options,
             bool lossless,
+            bool isHtj2k,
             TileEncodeResult[] tiles,
             int tileW, int tileH,
             int tileCols, int tileRows)
@@ -473,7 +474,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             WriteMarker(buffer, J2kMarkers.SOC);
 
             // Write SIZ marker with tile dimensions
-            WriteSizMarker(buffer, info, tileW, tileH);
+            WriteSizMarker(buffer, info, tileW, tileH, isHtj2k);
 
             // Write COD marker
             WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3);
@@ -816,7 +817,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(2);
         }
 
-        private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info, int tileWidth, int tileHeight)
+        private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info, int tileWidth, int tileHeight, bool isHtj2k)
         {
             int components = info.SamplesPerPixel;
             int segmentLength = 38 + components * 3; // Lsiz per ITU-T T.800 Table A.9
@@ -830,8 +831,9 @@ namespace SharpDicom.Codecs.Jpeg2000
             BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), (ushort)segmentLength);
             offset += 2;
 
-            // Rsiz (capabilities) - Profile 0 (no extensions)
-            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), 0);
+            // Rsiz (capabilities) - HTJ2K requires bit 14 set per ITU-T T.814
+            ushort rsiz = isHtj2k ? (ushort)0x4000 : (ushort)0;
+            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), rsiz);
             offset += 2;
 
             // Xsiz (reference grid width)
