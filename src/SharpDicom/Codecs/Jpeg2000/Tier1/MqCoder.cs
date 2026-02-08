@@ -116,7 +116,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private uint _c;           // Code register
         private int _ct;           // Counter
         private byte[] _buffer;    // Output buffer
-        private int _bp;           // Current byte position
+        // _bp mirrors OpenJPEG's bp: points at the last written byte.
+        // -1 means no byte written yet (equivalent to OpenJPEG's bp = start - 1).
+        private int _bp;
         private bool _disposed;
 
         // Per-context state: index into States table and MPS value
@@ -136,14 +138,14 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         }
 
         /// <summary>
-        /// Resets the encoder state for a new code block.
+        /// Resets the encoder state for a new code block per ITU-T T.800 C.2.8 (INITENC).
         /// </summary>
         public void Reset()
         {
-            _a = 0x8000;  // Interval starts at 0x8000
+            _a = 0x8000;
             _c = 0;
-            _ct = 12;     // Initial shift count
-            _bp = 0;
+            _ct = 12;
+            _bp = -1;  // No byte written yet (like OpenJPEG's bp = start - 1)
 
             // Initialize all contexts to state 0, MPS=0
             Array.Clear(_contextState, 0, _contextState.Length);
@@ -167,39 +169,67 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int mps = _contextMps[context];
             var (qe, nmps, nlps, swt) = MqCoder.States[state];
 
-            _a -= qe;
-
             if (bit == mps)
             {
-                // Coding MPS
-                if (_a < 0x8000)
-                {
-                    // Need to renormalize
-                    if (_a < qe)
-                    {
-                        // LPS becomes MPS
-                        _c += _a;
-                        _a = qe;
-                    }
-                    _contextState[context] = nmps;
-                    Renormalize();
-                }
+                CodeMps(context, qe, nmps);
             }
             else
             {
-                // Coding LPS
-                if (_a >= qe)
+                CodeLps(context, qe, nlps, swt);
+            }
+        }
+
+        /// <summary>
+        /// Encodes the most probable symbol per OpenJPEG opj_mqc_codemps.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void CodeMps(int context, ushort qe, byte nmps)
+        {
+            _a -= qe;
+            if ((_a & 0x8000) == 0)
+            {
+                // Need renormalization
+                if (_a < qe)
                 {
-                    _c += _a;
+                    // Conditional exchange: a < qe means LPS sub-interval is larger
                     _a = qe;
                 }
-                if (swt == 1)
+                else
                 {
-                    _contextMps[context] = (byte)(1 - mps);
+                    _c += qe;
                 }
-                _contextState[context] = nlps;
+                _contextState[context] = nmps;
                 Renormalize();
             }
+            else
+            {
+                // No renormalization needed
+                _c += qe;
+            }
+        }
+
+        /// <summary>
+        /// Encodes the least probable symbol per OpenJPEG opj_mqc_codelps.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void CodeLps(int context, ushort qe, byte nlps, byte swt)
+        {
+            _a -= qe;
+            if (_a < qe)
+            {
+                // Conditional exchange: MPS sub-interval is smaller
+                _c += qe;
+            }
+            else
+            {
+                _a = qe;
+            }
+            if (swt == 1)
+            {
+                _contextMps[context] = (byte)(1 - _contextMps[context]);
+            }
+            _contextState[context] = nlps;
+            Renormalize();
         }
 
         /// <summary>
@@ -229,12 +259,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         }
 
         /// <summary>
-        /// Flushes the encoder and returns the encoded data.
+        /// Flushes the encoder and returns the encoded data per ITU-T T.800 C.2.9 (FLUSH).
         /// </summary>
         /// <returns>The encoded byte sequence.</returns>
         public ReadOnlySpan<byte> Flush()
         {
-            // Final renormalization
+            // Final renormalization per Figure C.11 – FLUSH procedure
             SetBits();
 
             // Output remaining bytes from code register
@@ -243,8 +273,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _c <<= _ct;
             ByteOut();
 
+            // Per ITU-T T.800: coding pass must not end with 0xFF.
+            // If last byte is not 0xFF, advance past it for length calculation.
+            int length = _bp + 1;  // _bp points at last written byte
+
             // Remove trailing 0xFF if present
-            int length = _bp;
             while (length > 0 && _buffer[length - 1] == 0xFF)
             {
                 length--;
@@ -259,7 +292,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <returns>The encoded byte sequence so far.</returns>
         public ReadOnlySpan<byte> GetEncodedData()
         {
-            return new ReadOnlySpan<byte>(_buffer, 0, _bp);
+            int length = _bp + 1;  // _bp points at last written byte
+            if (length <= 0) return ReadOnlySpan<byte>.Empty;
+            return new ReadOnlySpan<byte>(_buffer, 0, length);
         }
 
         /// <summary>
@@ -292,60 +327,87 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             while (_a < 0x8000);
         }
 
+        /// <summary>
+        /// Outputs a byte per ITU-T T.800 C.2.4 (BYTEOUT), matching OpenJPEG opj_mqc_byteout.
+        /// _bp points at the last written byte (-1 if none written yet).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ByteOut()
         {
             EnsureCapacity();
 
-            uint t = _c >> 19;
+            // Get current "last byte" value (0x00 if none written)
+            byte lastByte = _bp >= 0 ? _buffer[_bp] : (byte)0;
 
-            if (t > 0xFF)
+            if (lastByte == 0xFF)
             {
-                // Carry propagation
-                if (_bp > 0)
-                {
-                    _buffer[_bp - 1]++;
-                }
-                _c &= 0x7FFFF;
-                t = _c >> 19;
-            }
-
-            if (t == 0xFF)
-            {
-                // Stuff byte
-                _buffer[_bp++] = 0xFF;
-                _c &= 0x7FFFF;
+                // After 0xFF: bit-stuffing — output 7 bits shifted by 20
+                _bp++;
+                _buffer[_bp] = (byte)(_c >> 20);
+                _c &= 0xFFFFF;   // Keep lower 20 bits
                 _ct = 7;
             }
             else
             {
-                if (_bp > 0 && _buffer[_bp - 1] == 0xFF)
+                if ((_c & 0x8000000) == 0)
                 {
-                    _ct = 7;
+                    // No carry: output 8 bits shifted by 19
+                    _bp++;
+                    _buffer[_bp] = (byte)(_c >> 19);
+                    _c &= 0x7FFFF;  // Keep lower 19 bits
+                    _ct = 8;
                 }
-                _buffer[_bp++] = (byte)t;
-                _c &= 0x7FFFF;
-                _ct = 8;
+                else
+                {
+                    // Carry: increment last byte
+                    if (_bp >= 0)
+                    {
+                        _buffer[_bp]++;
+                        lastByte = _buffer[_bp];
+                    }
+
+                    if (lastByte == 0xFF)
+                    {
+                        // Carry made last byte 0xFF: bit-stuffing
+                        _c &= 0x7FFFFFF;  // Clear carry bit
+                        _bp++;
+                        _buffer[_bp] = (byte)(_c >> 20);
+                        _c &= 0xFFFFF;
+                        _ct = 7;
+                    }
+                    else
+                    {
+                        // Normal after carry
+                        _bp++;
+                        _buffer[_bp] = (byte)(_c >> 19);
+                        _c &= 0x7FFFF;
+                        _ct = 8;
+                    }
+                }
             }
         }
 
+        /// <summary>
+        /// Fills code register C with 1's for flushing, per OpenJPEG opj_mqc_setbits.
+        /// </summary>
         private void SetBits()
         {
-            uint t = _a + _c - 1;
-            t &= 0xFFFF0000;
-            if (t < _c)
+            uint tempc = _c + _a;
+            _c |= 0xFFFF;
+            if (_c >= tempc)
             {
-                t += 0x8000;
+                _c -= 0x8000;
             }
-            _c = t;
         }
 
         private void EnsureCapacity()
         {
-            if (_bp >= _buffer.Length - 2)
+            // _bp is the index of last written byte; ByteOut will write at _bp+1
+            if (_bp + 2 >= _buffer.Length)
             {
                 byte[] newBuffer = ArrayPool<byte>.Shared.Rent(_buffer.Length * 2);
-                Buffer.BlockCopy(_buffer, 0, newBuffer, 0, _bp);
+                int copyLen = Math.Max(0, _bp + 1);
+                Buffer.BlockCopy(_buffer, 0, newBuffer, 0, copyLen);
                 ArrayPool<byte>.Shared.Return(_buffer);
                 _buffer = newBuffer;
             }
@@ -361,13 +423,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
     /// It maintains context states that adapt during decoding, mirroring
     /// the encoder's state transitions.
     /// </para>
+    /// <para>
+    /// Matches OpenJPEG's opj_mqc implementation exactly:
+    /// _bp points at the last consumed byte (like OpenJPEG's mqc->bp).
+    /// ByteIn reads *(bp+1) and checks *bp for 0xFF bit-stuffing.
+    /// </para>
     /// </remarks>
     public sealed class MqDecoder
     {
         private uint _a;           // Interval register
         private uint _c;           // Code register
         private int _ct;           // Counter
-        private int _bp;           // Current byte position
+        // _bp: index of last consumed byte (like OpenJPEG's mqc->bp).
+        // ByteIn reads data[_bp+1] and checks data[_bp] for 0xFF.
+        private int _bp;
+        private int _dataLength;
         private readonly ReadOnlyMemory<byte> _data;
 
         // Per-context state
@@ -381,50 +451,53 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         public MqDecoder(ReadOnlyMemory<byte> data)
         {
             _data = data;
+            _dataLength = data.Length;
             _contextState = new byte[MqCoder.NumContexts];
             _contextMps = new byte[MqCoder.NumContexts];
             Reset();
         }
 
         /// <summary>
-        /// Resets the decoder state for a new code block.
+        /// Resets the decoder state per ITU-T T.800 C.3.5 (INITDEC),
+        /// matching OpenJPEG's opj_mqc_init_dec exactly.
         /// </summary>
         public void Reset()
         {
             _a = 0x8000;
-            _bp = 0;
+            _dataLength = _data.Length;
 
             // Initialize all contexts
             Array.Clear(_contextState, 0, _contextState.Length);
             Array.Clear(_contextMps, 0, _contextMps.Length);
 
-            // Initialize code register by reading first bytes
+            // Initialize code register per OpenJPEG opj_mqc_init_dec:
+            // c = *bp << 16 (first byte)
+            // Then bytein (reads second byte)
+            // Then c <<= 7, ct -= 7
             ReadOnlySpan<byte> span = _data.Span;
-            _c = 0;
-
-            // Read first byte
-            if (_bp < span.Length)
+            if (span.Length == 0)
             {
-                byte b = span[_bp++];
-                if (b == 0xFF)
-                {
-                    // Check for stuffing
-                    if (_bp < span.Length && span[_bp] == 0x00)
-                    {
-                        _bp++;
-                    }
-                }
-                _c = (uint)(b << 16);
+                _c = 0xFF << 16;  // Match OpenJPEG: len==0 case
+                _bp = 0;
+                _ct = 0;
+            }
+            else
+            {
+                _c = (uint)(span[0] << 16);
+                _bp = 0;  // bp points at byte 0 (the byte we just loaded)
             }
 
-            // Read second byte
+            // ByteIn reads *(bp+1) and checks *bp
             ByteIn();
+
+            // Final init step
             _c <<= 7;
             _ct -= 7;
         }
 
         /// <summary>
-        /// Decodes a single bit using the specified context.
+        /// Decodes a single bit using the specified context per ITU-T T.800 C.3.2 (DECODE).
+        /// Matches OpenJPEG opj_mqc_decode_macro exactly.
         /// </summary>
         /// <param name="context">Context index (0 to NumContexts-1).</param>
         /// <returns>The decoded bit (0 or 1).</returns>
@@ -443,15 +516,38 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _a -= qe;
 
             int d;
-            if ((_c >> 16) < _a)
+            if ((_c >> 16) < qe)
             {
-                // MPS path
-                if (_a < 0x8000)
+                // LPS exchange path
+                if (_a < qe)
                 {
-                    // Need to renormalize
+                    // Exchange: a < qe means MPS sub-interval is smaller
+                    _a = qe;
+                    d = mps;
+                    _contextState[context] = nmps;
+                }
+                else
+                {
+                    _a = qe;
+                    d = 1 - mps;
+                    if (swt == 1)
+                    {
+                        _contextMps[context] = (byte)(1 - mps);
+                    }
+                    _contextState[context] = nlps;
+                }
+                RenormalizeDecoder();
+            }
+            else
+            {
+                // MPS path: subtract qe from C
+                _c -= (uint)(qe << 16);
+                if ((_a & 0x8000) == 0)
+                {
+                    // MPS exchange path (renorm needed)
                     if (_a < qe)
                     {
-                        // LPS actually
+                        // Exchange: a < qe means LPS sub-interval is larger
                         d = 1 - mps;
                         if (swt == 1)
                         {
@@ -468,30 +564,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 }
                 else
                 {
+                    // No renormalization needed
                     d = mps;
                 }
-            }
-            else
-            {
-                // LPS path
-                _c -= (uint)(_a << 16);
-                if (_a < qe)
-                {
-                    // Actually MPS
-                    d = mps;
-                    _contextState[context] = nmps;
-                }
-                else
-                {
-                    d = 1 - mps;
-                    if (swt == 1)
-                    {
-                        _contextMps[context] = (byte)(1 - mps);
-                    }
-                    _contextState[context] = nlps;
-                }
-                _a = qe;
-                RenormalizeDecoder();
             }
 
             return d;
@@ -548,52 +623,46 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             while (_a < 0x8000);
         }
 
+        /// <summary>
+        /// Reads the next byte into the code register per ITU-T T.800 C.3.4,
+        /// matching OpenJPEG's opj_mqc_bytein_macro exactly.
+        /// _bp points at the last consumed byte. This reads data[_bp+1].
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void ByteIn()
         {
             ReadOnlySpan<byte> span = _data.Span;
 
-            if (_bp >= span.Length)
-            {
-                // Past end of data, use padding
-                _ct = 8;
-                return;
-            }
+            // Read next byte (lookahead at bp+1)
+            // If bp+1 is past end, use 0xFF padding (matching OpenJPEG's
+            // artificial 0xFF 0xFF sentinel at end of data)
+            int nextIdx = _bp + 1;
+            byte nextByte = nextIdx < _dataLength ? span[nextIdx] : (byte)0xFF;
 
-            byte b = span[_bp++];
+            // Check current byte (*bp) for 0xFF
+            byte curByte = _bp >= 0 && _bp < _dataLength ? span[_bp] : (byte)0;
 
-            if (b == 0xFF)
+            if (curByte == 0xFF)
             {
-                // Check next byte
-                if (_bp < span.Length)
+                if (nextByte > 0x8F)
                 {
-                    byte b1 = span[_bp];
-                    if (b1 > 0x8F)
-                    {
-                        // Marker - don't consume it, use 0xFF as data
-                        _c |= 0xFF00;
-                        _ct = 8;
-                    }
-                    else
-                    {
-                        // Stuffed byte - skip 0x00 or continue
-                        if (b1 == 0x00)
-                        {
-                            _bp++;
-                        }
-                        _c |= 0xFF00;
-                        _ct = 8;
-                    }
+                    // Marker detected: pad with 0xFF00, don't advance bp
+                    _c += 0xFF00;
+                    _ct = 8;
                 }
                 else
                 {
-                    _c |= 0xFF00;
-                    _ct = 8;
+                    // Bit-stuffed byte: 7 bits, shifted by 9
+                    _bp++;
+                    _c += (uint)(nextByte << 9);
+                    _ct = 7;
                 }
             }
             else
             {
-                _c |= (uint)(b << 8);
+                // Normal byte: 8 bits, shifted by 8
+                _bp++;
+                _c += (uint)(nextByte << 8);
                 _ct = 8;
             }
         }

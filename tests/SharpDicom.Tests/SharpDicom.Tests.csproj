@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="FsCheck" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />

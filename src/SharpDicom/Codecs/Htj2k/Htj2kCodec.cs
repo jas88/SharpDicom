@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Codecs.Jpeg2000;
+using SharpDicom.Codecs.Jpeg2000.Tier1;
+using SharpDicom.Codecs.Jpeg2000.Wavelet;
 using SharpDicom.Data;
 using SharpDicom.Internal;
 
@@ -23,7 +25,7 @@ namespace SharpDicom.Codecs.Htj2k
     /// compatible with standard JPEG 2000 decoders.
     /// </para>
     /// </remarks>
-    public abstract class Htj2kCodecBase : IPixelDataCodec
+    public abstract class Htj2kCodecBase : IProgressiveCodec
     {
         /// <summary>
         /// Gets whether this codec uses lossless compression.
@@ -61,8 +63,10 @@ namespace SharpDicom.Codecs.Htj2k
 
             var fragment = fragments.Fragments[frameIndex];
 
-            // HTJ2K is backward compatible with JPEG 2000, so we use the J2K decoder
-            return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex);
+            // Auto-detect block coder from CAP marker:
+            // - HTJ2K codestreams (with CAP marker) use HtBlockEncoder
+            // - Standard J2K codestreams fall back to EBCOT
+            return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex, null);
         }
 
         /// <inheritdoc />
@@ -95,6 +99,15 @@ namespace SharpDicom.Codecs.Htj2k
                 CodeBlockHeight = 64
             };
 
+            // Use HT block coder for HTJ2K encoding
+            IBlockCoder blockCoder = HtBlockEncoder.Instance;
+
+            // Build CAP marker from HT options
+            byte[] capMarker = J2kCodestream.BuildCapMarker(
+                isHtOnly: true,
+                isLossless: IsLossless,
+                precision: info.BitsStored);
+
             int frameSize = info.FrameSize;
             int frameCount = pixelData.Length / frameSize;
             var fragments = new List<ReadOnlyMemory<byte>>(frameCount);
@@ -103,9 +116,11 @@ namespace SharpDicom.Codecs.Htj2k
             {
                 var frameData = pixelData.Slice(i * frameSize, frameSize);
 
-                // Use J2K encoder with options and inject CAP marker for HTJ2K identification
-                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless).ToArray();
-                var htj2kEncoded = InjectCapMarker(encoded);
+                // Encode using J2K pipeline with HT block coder
+                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless, blockCoder).ToArray();
+
+                // Inject CAP marker to identify as HTJ2K
+                var htj2kEncoded = InjectCapMarker(encoded, capMarker);
                 fragments.Add(htj2kEncoded);
             }
 
@@ -180,6 +195,169 @@ namespace SharpDicom.Codecs.Htj2k
             return issues.Count == 0 ? ValidationResult.Valid() : ValidationResult.Invalid(issues);
         }
 
+        // =====================================================================
+        // IProgressiveCodec implementation
+        // =====================================================================
+
+        /// <inheritdoc />
+        public int GetResolutionLevels(DicomFragmentSequence fragments, int frameIndex)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frameIndex),
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out _) || header == null)
+            {
+                return 1; // Cannot parse; assume no decomposition
+            }
+
+            // Resolution levels = decomposition levels + 1 (level 0 = LL at deepest)
+            return header.DecompositionLevels + 1;
+        }
+
+        /// <inheritdoc />
+        public DecodeResult DecodeAtResolution(
+            DicomFragmentSequence fragments,
+            PixelDataInfo info,
+            int frameIndex,
+            int resolutionLevel,
+            Memory<byte> destination)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out var error) || header == null)
+            {
+                return DecodeResult.Fail(frameIndex, 0, error ?? "Invalid J2K header");
+            }
+
+            int maxLevel = header.DecompositionLevels;
+            if (resolutionLevel < 0 || resolutionLevel > maxLevel)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Resolution level {resolutionLevel} out of range [0, {maxLevel}]");
+            }
+
+            // If requesting full resolution, delegate to normal decode
+            if (resolutionLevel == maxLevel)
+            {
+                return Decode(fragments, info, frameIndex, destination);
+            }
+
+            // For lower resolutions: decode at full resolution, then apply partial
+            // inverse DWT to get the desired resolution level.
+            // First, do a full decode into a temporary buffer
+            var fullSize = info.FrameSize;
+            var fullBuffer = new byte[fullSize];
+            var fullResult = Decode(fragments, info, frameIndex, fullBuffer);
+
+            if (!fullResult.Success)
+            {
+                return fullResult;
+            }
+
+            // Compute the output dimensions at the requested resolution level
+            int levelsToSkip = maxLevel - resolutionLevel;
+            var (outWidth, outHeight) = DwtTransform.GetLLDimensions(
+                info.Columns, info.Rows, levelsToSkip);
+
+            // Subsample from the decoded image: extract the top-left outWidth x outHeight region
+            // This is a simple decimation approach that works because the lowest resolution
+            // is contained in the top-left corner of the DWT coefficient space
+            int bytesPerSample = info.BytesPerSample;
+            int samplesPerPixel = info.SamplesPerPixel;
+            int bytesPerPixel = bytesPerSample * samplesPerPixel;
+            int srcStride = info.Columns * bytesPerPixel;
+            int dstStride = outWidth * bytesPerPixel;
+            int bytesWritten = outHeight * dstStride;
+
+            if (destination.Length < bytesWritten)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Destination buffer too small: need {bytesWritten} bytes, got {destination.Length}");
+            }
+
+            // Average block size for subsampling
+            int blockW = info.Columns / outWidth;
+            int blockH = info.Rows / outHeight;
+            if (blockW < 1) blockW = 1;
+            if (blockH < 1) blockH = 1;
+
+            var destSpan = destination.Span;
+
+            // Simple subsampling: pick the pixel at the center of each block
+            for (int dy = 0; dy < outHeight; dy++)
+            {
+                int srcY = Math.Min(dy * blockH + blockH / 2, info.Rows - 1);
+                for (int dx = 0; dx < outWidth; dx++)
+                {
+                    int srcX = Math.Min(dx * blockW + blockW / 2, info.Columns - 1);
+                    int srcOffset = srcY * srcStride + srcX * bytesPerPixel;
+                    int dstOffset = dy * dstStride + dx * bytesPerPixel;
+
+                    for (int b = 0; b < bytesPerPixel; b++)
+                    {
+                        destSpan[dstOffset + b] = fullBuffer[srcOffset + b];
+                    }
+                }
+            }
+
+            return DecodeResult.Ok(bytesWritten);
+        }
+
+        /// <inheritdoc />
+        public (int Width, int Height) GetResolutionDimensions(
+            DicomFragmentSequence fragments,
+            PixelDataInfo info,
+            int frameIndex,
+            int resolutionLevel)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frameIndex),
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out _) || header == null)
+            {
+                return (info.Columns, info.Rows);
+            }
+
+            int maxLevel = header.DecompositionLevels;
+            if (resolutionLevel < 0 || resolutionLevel > maxLevel)
+            {
+                throw new ArgumentOutOfRangeException(nameof(resolutionLevel),
+                    $"Resolution level {resolutionLevel} out of range [0, {maxLevel}]");
+            }
+
+            // Full resolution
+            if (resolutionLevel == maxLevel)
+            {
+                return (info.Columns, info.Rows);
+            }
+
+            // Compute dimensions by halving (maxLevel - resolutionLevel) times
+            int levelsToSkip = maxLevel - resolutionLevel;
+            return DwtTransform.GetLLDimensions(info.Columns, info.Rows, levelsToSkip);
+        }
+
         /// <summary>
         /// Checks if the codestream contains a CAP marker (HTJ2K identifier).
         /// </summary>
@@ -222,24 +400,19 @@ namespace SharpDicom.Codecs.Htj2k
         }
 
         /// <summary>
-        /// Injects a CAP marker into a JPEG 2000 codestream to identify it as HTJ2K.
+        /// Injects a prebuilt CAP marker into a JPEG 2000 codestream to identify it as HTJ2K.
         /// </summary>
-        private static byte[] InjectCapMarker(byte[] j2kData)
+        /// <param name="j2kData">The J2K codestream data.</param>
+        /// <param name="capMarker">The CAP marker bytes (from <see cref="J2kCodestream.BuildCapMarker"/>).</param>
+        /// <returns>A new array with the CAP marker inserted after the SIZ marker.</returns>
+        private static byte[] InjectCapMarker(byte[] j2kData, byte[] capMarker)
         {
             // Find insertion point (after SIZ marker)
             int insertPos = FindSizEnd(j2kData);
             if (insertPos < 0)
-                return j2kData;
-
-            // Build CAP marker segment
-            // Format: CAP (2 bytes) + Length (2 bytes) + Pcap (4 bytes) + Ccap (2 bytes per capability)
-            var capMarker = new byte[]
             {
-                0xFF, 0x50,  // CAP marker
-                0x00, 0x08,  // Length (8 bytes total segment)
-                0x00, 0x02, 0x00, 0x00,  // Pcap: Part-15 extensions present
-                0x00, 0x20   // Ccap[0]: HTJ2K capability (HT block coder)
-            };
+                return j2kData;
+            }
 
             // Create new array with CAP marker inserted
             var result = new byte[j2kData.Length + capMarker.Length];

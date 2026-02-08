@@ -38,7 +38,32 @@ namespace SharpDicom.Codecs.Simd
             false;
 #endif
 
+        /// <summary>
+        /// Gets whether Vector512 (AVX-512) SIMD operations are hardware-accelerated.
+        /// </summary>
+        public static bool IsAvx512Supported =>
 #if NET8_0_OR_GREATER
+            Vector512.IsHardwareAccelerated;
+#else
+            false;
+#endif
+
+        /// <summary>
+        /// Gets whether BMI2 bit manipulation instructions are supported.
+        /// </summary>
+        public static bool IsBmi2Supported =>
+#if NET8_0_OR_GREATER
+            Bmi2.X64.IsSupported || Bmi2.IsSupported;
+#else
+            false;
+#endif
+
+#if NET8_0_OR_GREATER
+
+        // =====================================================================
+        // Vector128 operations
+        // =====================================================================
+
         /// <summary>
         /// Computes the horizontal sum of all elements in a Vector128 of integers.
         /// </summary>
@@ -148,6 +173,234 @@ namespace SharpDicom.Codecs.Simd
             var vAsInt = v.AsInt32();
             var resultAsInt = Vector128.BitwiseAnd(vAsInt, mask);
             return resultAsInt.AsSingle();
+        }
+
+        // =====================================================================
+        // Vector256 operations
+        // =====================================================================
+
+        /// <summary>
+        /// Computes the horizontal sum of all elements in a Vector256 of integers.
+        /// </summary>
+        /// <param name="v">The vector to sum.</param>
+        /// <returns>The sum of all 8 elements.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int HorizontalSum(Vector256<int> v)
+        {
+            // Split into two 128-bit halves and sum them
+            var lo = v.GetLower();
+            var hi = v.GetUpper();
+            var sum128 = lo + hi;
+            return HorizontalSum(sum128);
+        }
+
+        /// <summary>
+        /// Computes the horizontal sum of all elements in a Vector256 of floats.
+        /// </summary>
+        /// <param name="v">The vector to sum.</param>
+        /// <returns>The sum of all 8 elements.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float HorizontalSum(Vector256<float> v)
+        {
+            // Split into two 128-bit halves and sum them
+            var lo = v.GetLower();
+            var hi = v.GetUpper();
+            var sum128 = lo + hi;
+            return HorizontalSum(sum128);
+        }
+
+        /// <summary>
+        /// Clamps all elements in a Vector256 of integers to the specified range.
+        /// </summary>
+        /// <param name="v">The vector to clamp.</param>
+        /// <param name="min">The minimum value.</param>
+        /// <param name="max">The maximum value.</param>
+        /// <returns>A vector with all elements clamped to [min, max].</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector256<int> Clamp(Vector256<int> v, int min, int max)
+        {
+            var minVec = Vector256.Create(min);
+            var maxVec = Vector256.Create(max);
+            return Vector256.Min(Vector256.Max(v, minVec), maxVec);
+        }
+
+        /// <summary>
+        /// Computes the absolute value of all elements in a Vector256 of integers.
+        /// </summary>
+        /// <param name="v">The vector.</param>
+        /// <returns>A vector with absolute values of all elements.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Vector256<int> Abs(Vector256<int> v)
+        {
+            // Use portable Vector256 operations
+            var negated = Vector256.Negate(v);
+            return Vector256.Max(v, negated);
+        }
+#endif
+
+        // =====================================================================
+        // Bit manipulation operations (scalar with BMI2 acceleration)
+        // =====================================================================
+
+        /// <summary>
+        /// Extracts bits from a source value using a bit mask (PEXT operation).
+        /// For each set bit in the mask, the corresponding bit from the source is
+        /// extracted and packed into contiguous low bits of the result.
+        /// </summary>
+        /// <param name="source">The source value to extract bits from.</param>
+        /// <param name="mask">The bit mask selecting which bits to extract.</param>
+        /// <returns>The extracted bits packed into contiguous low bits.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong ExtractBits(ulong source, ulong mask)
+        {
+#if NET8_0_OR_GREATER
+            if (Bmi2.X64.IsSupported)
+            {
+                return Bmi2.X64.ParallelBitExtract(source, mask);
+            }
+#endif
+            return ExtractBitsScalar(source, mask);
+        }
+
+        /// <summary>
+        /// Deposits bits from a source value into positions selected by a bit mask (PDEP operation).
+        /// The contiguous low bits of the source are spread to the positions of set bits in the mask.
+        /// </summary>
+        /// <param name="source">The source value whose low bits are deposited.</param>
+        /// <param name="mask">The bit mask selecting target positions.</param>
+        /// <returns>The deposited bits at the mask positions.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ulong DepositBits(ulong source, ulong mask)
+        {
+#if NET8_0_OR_GREATER
+            if (Bmi2.X64.IsSupported)
+            {
+                return Bmi2.X64.ParallelBitDeposit(source, mask);
+            }
+#endif
+            return DepositBitsScalar(source, mask);
+        }
+
+        /// <summary>
+        /// Counts the number of leading zero bits in a 32-bit unsigned integer.
+        /// </summary>
+        /// <param name="value">The value to inspect.</param>
+        /// <returns>The count of leading zeros (0-32).</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int LeadingZeroCount(uint value)
+        {
+#if NET8_0_OR_GREATER
+            return BitOperations.LeadingZeroCount(value);
+#else
+            return LeadingZeroCountScalar(value);
+#endif
+        }
+
+        /// <summary>
+        /// Counts the number of set bits (population count) in a 32-bit unsigned integer.
+        /// </summary>
+        /// <param name="value">The value to inspect.</param>
+        /// <returns>The number of set bits (0-32).</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int PopCount(uint value)
+        {
+#if NET8_0_OR_GREATER
+            return BitOperations.PopCount(value);
+#else
+            return PopCountScalar(value);
+#endif
+        }
+
+        // =====================================================================
+        // Scalar fallbacks
+        // =====================================================================
+
+        /// <summary>
+        /// Scalar fallback for PEXT (Parallel Bit Extract).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong ExtractBitsScalar(ulong source, ulong mask)
+        {
+            ulong result = 0;
+            int destBit = 0;
+
+            while (mask != 0)
+            {
+                // Find lowest set bit in mask
+                ulong lsb = mask & (~mask + 1);
+
+                // Get the bit position of lsb
+                if ((source & lsb) != 0)
+                {
+                    result |= 1UL << destBit;
+                }
+
+                destBit++;
+                mask &= mask - 1; // Clear lowest set bit
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Scalar fallback for PDEP (Parallel Bit Deposit).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong DepositBitsScalar(ulong source, ulong mask)
+        {
+            ulong result = 0;
+            int srcBit = 0;
+
+            while (mask != 0)
+            {
+                // Find lowest set bit in mask
+                ulong lsb = mask & (~mask + 1);
+
+                // If source bit is set, set the corresponding mask position
+                if ((source & (1UL << srcBit)) != 0)
+                {
+                    result |= lsb;
+                }
+
+                srcBit++;
+                mask &= mask - 1; // Clear lowest set bit
+            }
+
+            return result;
+        }
+
+#if !NET8_0_OR_GREATER
+        /// <summary>
+        /// Scalar fallback for LeadingZeroCount on netstandard2.0.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int LeadingZeroCountScalar(uint value)
+        {
+            if (value == 0)
+            {
+                return 32;
+            }
+
+            int count = 0;
+            if ((value & 0xFFFF0000u) == 0) { count += 16; value <<= 16; }
+            if ((value & 0xFF000000u) == 0) { count += 8; value <<= 8; }
+            if ((value & 0xF0000000u) == 0) { count += 4; value <<= 4; }
+            if ((value & 0xC0000000u) == 0) { count += 2; value <<= 2; }
+            if ((value & 0x80000000u) == 0) { count += 1; }
+            return count;
+        }
+
+        /// <summary>
+        /// Scalar fallback for PopCount on netstandard2.0.
+        /// Uses the standard divide-and-conquer parallel bit count algorithm.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int PopCountScalar(uint value)
+        {
+            value -= (value >> 1) & 0x55555555u;
+            value = (value & 0x33333333u) + ((value >> 2) & 0x33333333u);
+            value = (value + (value >> 4)) & 0x0F0F0F0Fu;
+            return (int)((value * 0x01010101u) >> 24);
         }
 #endif
     }

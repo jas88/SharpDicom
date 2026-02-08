@@ -70,6 +70,8 @@ rootCommand.Subcommands.Add(LintCommand.Create());
 
 rootCommand.Subcommands.Add(FixCommand.Create());
 
+rootCommand.Subcommands.Add(ConvertCommand.Create());
+
 // ---- Run ------------------------------------------------------------------
 
 return await rootCommand.Parse(args).InvokeAsync();

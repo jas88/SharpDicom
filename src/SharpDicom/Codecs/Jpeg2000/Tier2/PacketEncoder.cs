@@ -88,6 +88,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private readonly List<byte> _headerBuffer;
         private int _bitBuffer;
         private int _bitsInBuffer;
+        private bool _htMode;
 
         /// <summary>
         /// Initializes a new packet encoder.
@@ -106,6 +107,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <param name="numLayers">Number of quality layers.</param>
         /// <param name="progression">Progression order.</param>
         /// <param name="numResolutions">Number of resolution levels.</param>
+        /// <param name="isHtMode">
+        /// When true, uses HT pass count encoding (range 1-6) instead of EBCOT
+        /// variable-length encoding (range 1-164). Per ITU-T T.814 section 7.3.
+        /// </param>
         /// <returns>Packets organized by layer.</returns>
         public PacketData[] EncodePackets(
             CodeBlockData[] codeBlocks,
@@ -113,7 +118,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             int codeBlocksHigh,
             int numLayers,
             ProgressionOrder progression,
-            int numResolutions = 1)
+            int numResolutions = 1,
+            bool isHtMode = false)
         {
             if (codeBlocks == null || codeBlocks.Length == 0)
             {
@@ -125,6 +131,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             {
                 throw new ArgumentException("Code block array is too small for the specified dimensions.");
             }
+
+            _htMode = isHtMode;
 
             // Track which passes have been included for each code-block
             int[] passesIncluded = new int[numCodeBlocks];
@@ -215,13 +223,27 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     newPasses = 0;
                 }
 
-                // Calculate data length
+                // Calculate data length from cumulative PassLengths array.
+                // PassLengths[i] = cumulative bytes after pass i (0-indexed).
+                // If all passes are included (alreadyIncluded + newPasses == totalPasses),
+                // use cb.Data.Length as the total to account for Flush() bytes.
                 int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
                     ? cb.PassLengths[Math.Min(alreadyIncluded - 1, cb.PassLengths.Length - 1)]
                     : 0;
-                int endLength = (alreadyIncluded + newPasses > 0 && cb.PassLengths.Length > 0)
-                    ? cb.PassLengths[Math.Min(alreadyIncluded + newPasses - 1, cb.PassLengths.Length - 1)]
-                    : 0;
+                int endLength;
+                if (alreadyIncluded + newPasses >= totalPasses)
+                {
+                    // Include all remaining data (accounts for Flush bytes beyond passLengths)
+                    endLength = cb.Data.Length;
+                }
+                else if (alreadyIncluded + newPasses > 0 && cb.PassLengths.Length > 0)
+                {
+                    endLength = cb.PassLengths[Math.Min(alreadyIncluded + newPasses - 1, cb.PassLengths.Length - 1)];
+                }
+                else
+                {
+                    endLength = 0;
+                }
                 int dataLength = endLength - startLength;
 
                 // Extract data slice
@@ -436,8 +458,18 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <summary>
         /// Writes number of coding passes.
         /// </summary>
+        /// <remarks>
+        /// In EBCOT mode, uses ITU-T T.800 Table B.4 variable-length coding (1-164 passes).
+        /// In HT mode, uses a simpler 3-bit encoding for pass counts 1-6 per ITU-T T.814.
+        /// </remarks>
         private void WriteNumPasses(int passes)
         {
+            if (_htMode)
+            {
+                WriteNumPassesHt(passes);
+                return;
+            }
+
             // ITU-T T.800 Table B.4: Variable-length coding for number of passes
             if (passes == 1)
             {
@@ -473,8 +505,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else
             {
-                // 1111 1111 + 7-bit suffix
-                for (int i = 0; i < 8; i++)
+                // ITU-T T.800 Table B.4: 9 ones + 7-bit suffix (16 bits total)
+                // OpenJPEG: opj_bio_write(bio, 0xff80 | (n-37), 16)
+                // 0xff80 = 1111111110000000 = 9 ones followed by 7 zeros
+                for (int i = 0; i < 9; i++)
                 {
                     WriteBit(1);
                 }
@@ -490,31 +524,40 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
+        /// Writes number of coding passes for HT mode (range 1-6).
+        /// </summary>
+        /// <remarks>
+        /// HT blocks have at most 6 coding passes (2 HT Sets x 3 passes per set).
+        /// Encoded as a simple 3-bit value (0-5 representing 1-6 passes).
+        /// </remarks>
+        private void WriteNumPassesHt(int passes)
+        {
+            if (passes < 1 || passes > 6)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(passes),
+                    passes,
+                    "HT pass count must be in the range 1-6.");
+            }
+
+            int value = passes - 1; // 0-5 range
+            WriteBit((value >> 2) & 1);
+            WriteBit((value >> 1) & 1);
+            WriteBit(value & 1);
+        }
+
+        /// <summary>
         /// Writes code-block data length.
         /// </summary>
         private void WriteLength(int length)
         {
-            // Use Golomb coding or simple binary representation
-            // Simplified: determine number of bits needed, write that count, then value
+            // Prefix-free coding for code-block data length.
+            // Must exactly match ReadLength in PacketDecoder.
+            //   0-15:    prefix 0 + 4 bits (5 bits total)
+            //   16-255:  prefix 10 + 8 bits (10 bits total)
+            //   256+:    prefix 11 + 16 bits (18 bits total)
 
-            if (length == 0)
-            {
-                // Special case: zero length
-                WriteBit(0);
-                return;
-            }
-
-            // Find number of bits needed
-            int bits = 1;
-            int temp = length;
-            while ((temp >> bits) != 0)
-            {
-                bits++;
-            }
-
-            // Write number of additional bits as unary + binary value
-            // Simplified scheme: prefix-free coding
-            if (bits <= 4)
+            if (length <= 15)
             {
                 // Short length: 0 + 4 bits
                 WriteBit(0);
@@ -523,7 +566,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 WriteBit((length >> 1) & 1);
                 WriteBit(length & 1);
             }
-            else if (bits <= 8)
+            else if (length <= 255)
             {
                 // Medium: 10 + 8 bits
                 WriteBit(1);

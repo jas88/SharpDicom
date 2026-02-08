@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -12,19 +13,21 @@ using PixelDataInfo = SharpDicom.Codecs.PixelDataInfo;
 namespace SharpDicom.Tests.Codecs.Htj2k
 {
     /// <summary>
-    /// Conformance tests that verify HTJ2K output against OpenJPH reference implementation.
+    /// Conformance tests that verify HTJ2K codec quality, lossless exactness,
+    /// and cross-decoder compatibility with OpenJPH.
     /// </summary>
     /// <remarks>
-    /// These tests require the OpenJPH command-line tools to be installed:
+    /// <para>
+    /// Cross-decoder tests require the OpenJPH command-line tools to be installed:
     /// - macOS: brew install openjph
     /// - Linux: Build from source (https://github.com/aous72/OpenJPH)
     /// - Windows: Download binaries from GitHub releases
-    ///
-    /// Tests are skipped automatically when OpenJPH is not available.
-    /// Run with: dotnet test --filter "Category=Conformance"
+    /// </para>
+    /// <para>
+    /// PSNR, SSIM, and lossless roundtrip tests run unconditionally.
+    /// </para>
     /// </remarks>
     [TestFixture]
-    [Category("Conformance")]
     public class Htj2kConformanceTests
     {
         private static readonly string? OjphCompressPath = FindOjphCompress();
@@ -404,6 +407,111 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             Assert.That(decoded, Is.EqualTo(pixelData), "RPCL roundtrip should preserve data");
         }
 
+        // ================================================================
+        // PSNR verification tests (always run)
+        // ================================================================
+
+        [Test]
+        public void Psnr_DiagnosticPreset_AtLeast40dB()
+        {
+            AssertLossyPsnr(HtEncoderOptions.Diagnostic, 40.0, 64, 64, 8);
+        }
+
+        [Test]
+        public void Psnr_ArchivePreset_AtLeast35dB()
+        {
+            AssertLossyPsnr(HtEncoderOptions.Archive, 35.0, 64, 64, 8);
+        }
+
+        [Test]
+        public void Psnr_ReviewPreset_AtLeast30dB()
+        {
+            AssertLossyPsnr(HtEncoderOptions.Review, 30.0, 64, 64, 8);
+        }
+
+        [Test]
+        public void Psnr_FastPreset_AtLeast25dB()
+        {
+            AssertLossyPsnr(HtEncoderOptions.Fast, 25.0, 64, 64, 8);
+        }
+
+        // ================================================================
+        // SSIM verification tests (always run)
+        // ================================================================
+
+        [Test]
+        public void Ssim_DiagnosticPreset_AtLeast098()
+        {
+            AssertLossySsim(HtEncoderOptions.Diagnostic, 0.98, 64, 64, 8);
+        }
+
+        [Test]
+        public void Ssim_FastPreset_AtLeast085()
+        {
+            AssertLossySsim(HtEncoderOptions.Fast, 0.85, 64, 64, 8);
+        }
+
+        // ================================================================
+        // Lossless exactness tests (always run)
+        // ================================================================
+
+        [Test]
+        public void LosslessExact_8Bit_BytePerfectRoundtrip()
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = PixelDataInfo.Grayscale8(128, 128);
+            var original = CreateGradientImage8(128, 128);
+
+            var fragments = codec.Encode(original, info);
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(original),
+                "8-bit lossless roundtrip must produce byte-identical output");
+        }
+
+        [Test]
+        public void LosslessExact_12Bit_BytePerfectRoundtrip()
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = new PixelDataInfo(
+                Rows: 128, Columns: 128,
+                BitsAllocated: 16, BitsStored: 12, HighBit: 11,
+                SamplesPerPixel: 1, PixelRepresentation: 0,
+                PlanarConfiguration: 0, NumberOfFrames: 1);
+
+            var original = CreateGradient12Bit(128, 128);
+
+            var fragments = codec.Encode(original, info);
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(original),
+                "12-bit lossless roundtrip must produce byte-identical output");
+        }
+
+        [Test]
+        public void LosslessExact_16Bit_BytePerfectRoundtrip()
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = PixelDataInfo.Grayscale16(128, 128);
+            var original = CreateGradientImage16(128, 128);
+
+            var fragments = codec.Encode(original, info);
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(original),
+                "16-bit lossless roundtrip must produce byte-identical output");
+        }
+
+        // ================================================================
+        // Cross-decoder tests (Explicit, require OpenJPH)
+        // ================================================================
+
         // Helper methods
 
         private static byte[] CreateGradientImage8(int width, int height)
@@ -507,6 +615,159 @@ namespace SharpDicom.Tests.Codecs.Htj2k
 
             // Write binary pixel data
             stream.Write(data, 0, data.Length);
+        }
+
+        private static byte[] CreateGradient12Bit(int width, int height)
+        {
+            var data = new byte[width * height * 2];
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    ushort value = (ushort)(((x + y) * 17) % 4096); // 0-4095 range
+                    int offset = (y * width + x) * 2;
+                    data[offset] = (byte)(value & 0xFF);
+                    data[offset + 1] = (byte)(value >> 8);
+                }
+            }
+            return data;
+        }
+
+        /// <summary>
+        /// Encodes and decodes using a lossy HTJ2K preset, then asserts PSNR is above threshold.
+        /// </summary>
+        private static void AssertLossyPsnr(HtEncoderOptions preset, double minPsnr, int width, int height, int bitsStored)
+        {
+            var codec = new Htj2kLossyCodec();
+            PixelDataInfo info;
+            byte[] original;
+
+            if (bitsStored == 8)
+            {
+                info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+                original = CreateGradientImage8(width, height);
+            }
+            else
+            {
+                info = PixelDataInfo.Grayscale16((ushort)height, (ushort)width);
+                original = CreateGradientImage16(width, height);
+            }
+
+            var opts = new Htj2kCodecOptions(false, 5, false, true, preset);
+            var fragments = codec.Encode(original, info, opts);
+
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+
+            int maxVal = (1 << bitsStored) - 1;
+            double psnr = CalculatePsnr(original, decoded, maxVal, bitsStored > 8 ? 2 : 1);
+
+            // If PSNR is infinite (lossless output), that exceeds any threshold
+            if (!double.IsPositiveInfinity(psnr))
+            {
+                Assert.That(psnr, Is.GreaterThanOrEqualTo(minPsnr),
+                    $"PSNR {psnr:F2} dB is below threshold {minPsnr} dB for preset {preset}");
+            }
+        }
+
+        /// <summary>
+        /// Encodes and decodes using a lossy HTJ2K preset, then asserts SSIM is above threshold.
+        /// </summary>
+        private static void AssertLossySsim(HtEncoderOptions preset, double minSsim, int width, int height, int bitsStored)
+        {
+            var codec = new Htj2kLossyCodec();
+            var info = PixelDataInfo.Grayscale8((ushort)height, (ushort)width);
+            var original = CreateGradientImage8(width, height);
+
+            var opts = new Htj2kCodecOptions(false, 5, false, true, preset);
+            var fragments = codec.Encode(original, info, opts);
+
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+
+            int maxVal = (1 << bitsStored) - 1;
+            double ssim = CalculateSsim(original, decoded, width, height, maxVal);
+
+            Assert.That(ssim, Is.GreaterThanOrEqualTo(minSsim),
+                $"SSIM {ssim:F4} is below threshold {minSsim} for preset {preset}");
+        }
+
+        /// <summary>
+        /// Calculates PSNR: 10 * log10(maxVal^2 / MSE).
+        /// </summary>
+        private static double CalculatePsnr(byte[] original, byte[] decoded, int maxVal, int bytesPerSample)
+        {
+            int sampleCount = original.Length / bytesPerSample;
+            double mse = 0;
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                int origVal, decVal;
+                if (bytesPerSample == 1)
+                {
+                    origVal = original[i];
+                    decVal = decoded[i];
+                }
+                else
+                {
+                    origVal = BinaryPrimitives.ReadUInt16LittleEndian(original.AsSpan(i * 2));
+                    decVal = BinaryPrimitives.ReadUInt16LittleEndian(decoded.AsSpan(i * 2));
+                }
+
+                double diff = origVal - decVal;
+                mse += diff * diff;
+            }
+
+            mse /= sampleCount;
+
+            if (mse == 0)
+            {
+                return double.PositiveInfinity;
+            }
+
+            return 10.0 * Math.Log10((double)maxVal * maxVal / mse);
+        }
+
+        /// <summary>
+        /// Calculates SSIM (Structural Similarity Index) between two 8-bit grayscale images.
+        /// Uses the standard formula with k1=0.01, k2=0.03.
+        /// </summary>
+        private static double CalculateSsim(byte[] original, byte[] decoded, int width, int height, int maxVal)
+        {
+            // Full-image SSIM using the standard formula
+            double c1 = (0.01 * maxVal) * (0.01 * maxVal);
+            double c2 = (0.03 * maxVal) * (0.03 * maxVal);
+
+            int n = width * height;
+
+            double muX = 0, muY = 0;
+            for (int i = 0; i < n; i++)
+            {
+                muX += original[i];
+                muY += decoded[i];
+            }
+            muX /= n;
+            muY /= n;
+
+            double sigmaX2 = 0, sigmaY2 = 0, sigmaXy = 0;
+            for (int i = 0; i < n; i++)
+            {
+                double dx = original[i] - muX;
+                double dy = decoded[i] - muY;
+                sigmaX2 += dx * dx;
+                sigmaY2 += dy * dy;
+                sigmaXy += dx * dy;
+            }
+            sigmaX2 /= n;
+            sigmaY2 /= n;
+            sigmaXy /= n;
+
+            double numerator = (2 * muX * muY + c1) * (2 * sigmaXy + c2);
+            double denominator = (muX * muX + muY * muY + c1) * (sigmaX2 + sigmaY2 + c2);
+
+            return numerator / denominator;
         }
 
         private static void TryDelete(string path)
