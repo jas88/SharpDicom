@@ -130,7 +130,14 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
             }
 
 #if NET8_0_OR_GREATER
-            // Use SIMD for longer rows
+            // Prefer Vector256 for longer rows when available
+            if (Vector256.IsHardwareAccelerated && n >= 32)
+            {
+                ForwardHorizontalSimd256(row);
+                return;
+            }
+
+            // Use Vector128 for medium rows
             if (Vector128.IsHardwareAccelerated && n >= 16)
             {
                 ForwardHorizontalSimd(row);
@@ -196,7 +203,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// SIMD-optimized implementation of forward horizontal transform.
+        /// SIMD-optimized implementation of forward horizontal transform using Vector128.
         /// </summary>
         private static void ForwardHorizontalSimd(Span<float> row)
         {
@@ -237,6 +244,93 @@ namespace SharpDicom.Codecs.Jpeg2000.Wavelet
             }
 
             // Remaining steps use scalar (beta, gamma, delta, scaling)
+            for (i = 0; i < n; i += 2)
+            {
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
+                row[i] += Beta * (left + right);
+            }
+
+            for (i = 1; i < n; i += 2)
+            {
+                float left = row[i - 1];
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
+                row[i] += Gamma * (left + right);
+            }
+
+            for (i = 0; i < n; i += 2)
+            {
+                float left = (i > 0) ? row[i - 1] : row[1];
+                float right = (i + 1 < n) ? row[i + 1] : left;
+                row[i] += Delta * (left + right);
+            }
+
+            // Scaling
+            for (i = 0; i < n; i += 2)
+            {
+                row[i] *= K;
+            }
+            for (i = 1; i < n; i += 2)
+            {
+                row[i] *= InvK;
+            }
+
+            Deinterleave(row);
+        }
+
+        /// <summary>
+        /// SIMD-optimized implementation of forward horizontal transform using Vector256.
+        /// Processes 8 float elements per iteration for higher throughput on AVX2-capable hardware.
+        /// </summary>
+        private static void ForwardHorizontalSimd256(Span<float> row)
+        {
+            int n = row.Length;
+            var alphaVec = Vector256.Create(Alpha);
+
+            // Step 1: Process 8 odd samples at a time with Vector256
+            int i = 1;
+
+            while (i + 15 < n)
+            {
+                if (i % 2 == 1)
+                {
+                    var center = Vector256.Create(
+                        row[i], row[i + 2], row[i + 4], row[i + 6],
+                        row[i + 8], row[i + 10], row[i + 12], row[i + 14]);
+                    var left = Vector256.Create(
+                        row[i - 1], row[i + 1], row[i + 3], row[i + 5],
+                        row[i + 7], row[i + 9], row[i + 11], row[i + 13]);
+                    var right = Vector256.Create(
+                        row[i + 1], row[i + 3], row[i + 5], row[i + 7],
+                        row[i + 9], row[i + 11], row[i + 13], row[i + 15]);
+
+                    var result = center + alphaVec * (left + right);
+
+                    row[i] = result.GetElement(0);
+                    row[i + 2] = result.GetElement(1);
+                    row[i + 4] = result.GetElement(2);
+                    row[i + 6] = result.GetElement(3);
+                    row[i + 8] = result.GetElement(4);
+                    row[i + 10] = result.GetElement(5);
+                    row[i + 12] = result.GetElement(6);
+                    row[i + 14] = result.GetElement(7);
+                    i += 16;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            // Handle remaining odd samples with scalar
+            for (; i < n; i += 2)
+            {
+                float left = row[i - 1];
+                float right = (i + 1 < n) ? row[i + 1] : row[i - 1];
+                row[i] += Alpha * (left + right);
+            }
+
+            // Steps 2-4 and scaling use scalar (complex boundary conditions)
             for (i = 0; i < n; i += 2)
             {
                 float left = (i > 0) ? row[i - 1] : row[1];

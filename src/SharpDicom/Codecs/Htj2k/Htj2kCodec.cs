@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Codecs.Jpeg2000;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
+using SharpDicom.Codecs.Jpeg2000.Wavelet;
 using SharpDicom.Data;
 using SharpDicom.Internal;
 
@@ -24,7 +25,7 @@ namespace SharpDicom.Codecs.Htj2k
     /// compatible with standard JPEG 2000 decoders.
     /// </para>
     /// </remarks>
-    public abstract class Htj2kCodecBase : IPixelDataCodec
+    public abstract class Htj2kCodecBase : IProgressiveCodec
     {
         /// <summary>
         /// Gets whether this codec uses lossless compression.
@@ -192,6 +193,169 @@ namespace SharpDicom.Codecs.Htj2k
             }
 
             return issues.Count == 0 ? ValidationResult.Valid() : ValidationResult.Invalid(issues);
+        }
+
+        // =====================================================================
+        // IProgressiveCodec implementation
+        // =====================================================================
+
+        /// <inheritdoc />
+        public int GetResolutionLevels(DicomFragmentSequence fragments, int frameIndex)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frameIndex),
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out _) || header == null)
+            {
+                return 1; // Cannot parse; assume no decomposition
+            }
+
+            // Resolution levels = decomposition levels + 1 (level 0 = LL at deepest)
+            return header.DecompositionLevels + 1;
+        }
+
+        /// <inheritdoc />
+        public DecodeResult DecodeAtResolution(
+            DicomFragmentSequence fragments,
+            PixelDataInfo info,
+            int frameIndex,
+            int resolutionLevel,
+            Memory<byte> destination)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out var error) || header == null)
+            {
+                return DecodeResult.Fail(frameIndex, 0, error ?? "Invalid J2K header");
+            }
+
+            int maxLevel = header.DecompositionLevels;
+            if (resolutionLevel < 0 || resolutionLevel > maxLevel)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Resolution level {resolutionLevel} out of range [0, {maxLevel}]");
+            }
+
+            // If requesting full resolution, delegate to normal decode
+            if (resolutionLevel == maxLevel)
+            {
+                return Decode(fragments, info, frameIndex, destination);
+            }
+
+            // For lower resolutions: decode at full resolution, then apply partial
+            // inverse DWT to get the desired resolution level.
+            // First, do a full decode into a temporary buffer
+            var fullSize = info.FrameSize;
+            var fullBuffer = new byte[fullSize];
+            var fullResult = Decode(fragments, info, frameIndex, fullBuffer);
+
+            if (!fullResult.Success)
+            {
+                return fullResult;
+            }
+
+            // Compute the output dimensions at the requested resolution level
+            int levelsToSkip = maxLevel - resolutionLevel;
+            var (outWidth, outHeight) = DwtTransform.GetLLDimensions(
+                info.Columns, info.Rows, levelsToSkip);
+
+            // Subsample from the decoded image: extract the top-left outWidth x outHeight region
+            // This is a simple decimation approach that works because the lowest resolution
+            // is contained in the top-left corner of the DWT coefficient space
+            int bytesPerSample = info.BytesPerSample;
+            int samplesPerPixel = info.SamplesPerPixel;
+            int bytesPerPixel = bytesPerSample * samplesPerPixel;
+            int srcStride = info.Columns * bytesPerPixel;
+            int dstStride = outWidth * bytesPerPixel;
+            int bytesWritten = outHeight * dstStride;
+
+            if (destination.Length < bytesWritten)
+            {
+                return DecodeResult.Fail(frameIndex, 0,
+                    $"Destination buffer too small: need {bytesWritten} bytes, got {destination.Length}");
+            }
+
+            // Average block size for subsampling
+            int blockW = info.Columns / outWidth;
+            int blockH = info.Rows / outHeight;
+            if (blockW < 1) blockW = 1;
+            if (blockH < 1) blockH = 1;
+
+            var destSpan = destination.Span;
+
+            // Simple subsampling: pick the pixel at the center of each block
+            for (int dy = 0; dy < outHeight; dy++)
+            {
+                int srcY = Math.Min(dy * blockH + blockH / 2, info.Rows - 1);
+                for (int dx = 0; dx < outWidth; dx++)
+                {
+                    int srcX = Math.Min(dx * blockW + blockW / 2, info.Columns - 1);
+                    int srcOffset = srcY * srcStride + srcX * bytesPerPixel;
+                    int dstOffset = dy * dstStride + dx * bytesPerPixel;
+
+                    for (int b = 0; b < bytesPerPixel; b++)
+                    {
+                        destSpan[dstOffset + b] = fullBuffer[srcOffset + b];
+                    }
+                }
+            }
+
+            return DecodeResult.Ok(bytesWritten);
+        }
+
+        /// <inheritdoc />
+        public (int Width, int Height) GetResolutionDimensions(
+            DicomFragmentSequence fragments,
+            PixelDataInfo info,
+            int frameIndex,
+            int resolutionLevel)
+        {
+            ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
+
+            if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frameIndex),
+                    $"Frame index {frameIndex} out of range [0, {fragments.Fragments.Count})");
+            }
+
+            var fragment = fragments.Fragments[frameIndex];
+
+            if (!J2kCodestream.TryParse(fragment.Span, out var header, out _) || header == null)
+            {
+                return (info.Columns, info.Rows);
+            }
+
+            int maxLevel = header.DecompositionLevels;
+            if (resolutionLevel < 0 || resolutionLevel > maxLevel)
+            {
+                throw new ArgumentOutOfRangeException(nameof(resolutionLevel),
+                    $"Resolution level {resolutionLevel} out of range [0, {maxLevel}]");
+            }
+
+            // Full resolution
+            if (resolutionLevel == maxLevel)
+            {
+                return (info.Columns, info.Rows);
+            }
+
+            // Compute dimensions by halving (maxLevel - resolutionLevel) times
+            int levelsToSkip = maxLevel - resolutionLevel;
+            return DwtTransform.GetLLDimensions(info.Columns, info.Rows, levelsToSkip);
         }
 
         /// <summary>
