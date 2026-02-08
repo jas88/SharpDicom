@@ -228,9 +228,17 @@ namespace SharpDicom.Codecs.Jpeg2000
                             ? new EbcotBlockCoder()
                             : blockCoder;
 
-                        tileResults[tileIdx] = EncodeSingleTile(
-                            tileComponentData, actualTileW, actualTileH, components,
-                            options, lossless, localCoder, isHtMode);
+                        try
+                        {
+                            tileResults[tileIdx] = EncodeSingleTile(
+                                tileComponentData, actualTileW, actualTileH, components,
+                                options, lossless, localCoder, isHtMode);
+                        }
+                        finally
+                        {
+                            if (localCoder is IDisposable d && !ReferenceEquals(localCoder, blockCoder))
+                                d.Dispose();
+                        }
                     });
                 }
                 else
