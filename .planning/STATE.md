@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 7 of 10 in current phase
+**Plan**: 8 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-08 - Completed 30-06-PLAN.md (HTJ2K Codec Integration)
+**Last activity**: 2026-02-08 - Completed 30-07-PLAN.md (IProgressiveCodec + SIMD Vector256/512 Expansion)
 
-**Progress**: ███████░░░ (7/10 plans in Phase 30)
+**Progress**: ████████░░ (8/10 plans in Phase 30)
 
-**Test Status**: 2806 tests (2751 pass, 55 skipped, 0 failed)
+**Test Status**: 2855 tests (2788 pass, 67 skipped, 0 failed)
 
 ## Completed
 
@@ -189,7 +189,9 @@
 - [x] Phase 30 Plan 03: HT Primitive Components (VlcTable, MelCoder, HtBitIO) (COMPLETE)
 - [x] Phase 30 Plan 04: HT Cleanup Pass (HtCleanup encode/decode, 89 tests) (COMPLETE)
 - [x] Phase 30 Plan 05: HtSigProp + HtMagRef + HtBlockEncoder/Decoder (IBlockCoder, 38 tests) (COMPLETE)
-- [ ] Phase 30 Plan 06-10: Remaining HT Block Coder plans
+- [x] Phase 30 Plan 06: HTJ2K Codec Integration (COMPLETE)
+- [x] Phase 30 Plan 07: IProgressiveCodec + SIMD Vector256/512 Expansion (COMPLETE)
+- [ ] Phase 30 Plan 08-10: Remaining HT Block Coder plans
 
 ## Blocked
 
@@ -592,17 +594,19 @@
 ## Session Continuity
 
 **Last session**: 2026-02-08
-**Stopped at**: Completed 30-05-PLAN.md (HtSigProp + HtMagRef + HtBlockEncoder/Decoder)
+**Stopped at**: Completed 30-07-PLAN.md (IProgressiveCodec + SIMD Vector256/512 Expansion)
 **Resume file**: None
-**Next step**: Phase 30 Plan 06
+**Next step**: Phase 30 Plan 08
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 30 - HT Block Coder (6/10 plans complete: 01, 02, 03, 04, 05)
-2. **Phase 30-05 deliverables**: HtSigProp, HtMagRef, HtBlockEncoder (IBlockCoder), HtBlockDecoder
-   - HtBlockEncoder.Instance is drop-in replacement for EbcotBlockCoder.Instance
+1. **Current phase**: Phase 30 - HT Block Coder (8/10 plans complete: 01-07)
+2. **Phase 30-07 deliverables**: IProgressiveCodec interface, Vector256 DWT paths, SIMD bit helpers
+   - All HTJ2K codecs implement IProgressiveCodec for resolution-level decode
+   - SimdHelpers has ExtractBits/DepositBits/LeadingZeroCount/PopCount
+   - DWT53/DWT97 have Vector256 paths with runtime dispatch
    - Both implement IBlockCoder; can be selected per transfer syntax
    - 1/3/6 pass adaptive encoding based on MSB position
 3. **Test coverage**: 2782 tests (2727 pass, 55 skipped, 0 failed)
