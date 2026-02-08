@@ -113,7 +113,7 @@ jobs:
 
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
-        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings -- --coverage --coverage-output-format cobertura --coverage-output $GITHUB_WORKSPACE/coverage.cobertura.xml
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc
@@ -147,7 +147,8 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: ${{ github.workspace }}/coverage.cobertura.xml
+          directory: ${{ github.workspace }}/TestResults
+          flags: unittests
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
