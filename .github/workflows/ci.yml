@@ -144,10 +144,19 @@ jobs:
           DCMTK_ROOT: /usr
 
       # Upload coverage
+      - name: Collect coverage files
+        id: coverage
+        run: |
+          FILES=$(find $GITHUB_WORKSPACE/TestResults -name '*.cobertura.xml' -printf '%p,' 2>/dev/null | sed 's/,$//')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Found coverage files: $FILES"
+
       - name: Upload coverage to Codecov
+        if: steps.coverage.outputs.files != ''
         uses: codecov/codecov-action@v5
         with:
-          directory: ${{ github.workspace }}/TestResults
+          files: ${{ steps.coverage.outputs.files }}
+          disable_search: true
           flags: unittests
           fail_ci_if_error: false
         env:
