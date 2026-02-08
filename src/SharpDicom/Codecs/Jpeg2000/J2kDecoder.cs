@@ -370,6 +370,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 // Use TileComponent to place decoded coefficients in correct subband positions
                 using var tileComp = new TileComponent(0, c, width, height, levels, cbWidth, cbHeight);
                 int cbIdx = 0;
+                int cbBufferSize = cbWidth * cbHeight;
+                int[] cbBuffer = new int[cbBufferSize];
 
                 // Iterate subbands in the SAME canonical order as encoder
                 for (int s = 0; s < subbands.Length; s++)
@@ -393,23 +395,37 @@ namespace SharpDicom.Codecs.Jpeg2000
 
                                 int msbPosition = Math.Max(0, 31 - zeroBitPlanes);
 
-                                // Decode into tightly-packed buffer with actual dimensions
-                                int[] packed = new int[actualW * actualH];
-                                blockCoder.DecodeBlock(
-                                    data.Span,
-                                    totalPasses,
-                                    packed,
-                                    actualW, actualH,
-                                    msbPosition,
-                                    subbandType);
-
-                                // Unpack into cbWidth-stride buffer for SetCodeBlockCoefficients
-                                int[] cbBuffer = new int[cbWidth * cbHeight];
-                                for (int y = 0; y < actualH; y++)
+                                if (actualW == cbWidth && actualH == cbHeight)
                                 {
-                                    for (int x = 0; x < actualW; x++)
+                                    // Full-size block: decode directly into cbBuffer (no repacking needed)
+                                    Array.Clear(cbBuffer, 0, cbBufferSize);
+                                    blockCoder.DecodeBlock(
+                                        data.Span,
+                                        totalPasses,
+                                        cbBuffer,
+                                        actualW, actualH,
+                                        msbPosition,
+                                        subbandType);
+                                }
+                                else
+                                {
+                                    // Edge block: decode into packed buffer, then repack to cbWidth stride
+                                    int[] packed = new int[actualW * actualH];
+                                    blockCoder.DecodeBlock(
+                                        data.Span,
+                                        totalPasses,
+                                        packed,
+                                        actualW, actualH,
+                                        msbPosition,
+                                        subbandType);
+
+                                    Array.Clear(cbBuffer, 0, cbBufferSize);
+                                    for (int y = 0; y < actualH; y++)
                                     {
-                                        cbBuffer[y * cbWidth + x] = packed[y * actualW + x];
+                                        for (int x = 0; x < actualW; x++)
+                                        {
+                                            cbBuffer[y * cbWidth + x] = packed[y * actualW + x];
+                                        }
                                     }
                                 }
 

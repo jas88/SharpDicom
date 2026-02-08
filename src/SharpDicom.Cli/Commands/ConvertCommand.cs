@@ -439,7 +439,7 @@ internal static class ConvertCommand
             if (!file.HasPixelData)
             {
                 // No pixel data: just re-save with the new transfer syntax
-                var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
+                var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath, ensureDirectory: true);
                 var writerOptions = new DicomWriterOptions { TransferSyntax = targetTs };
                 await file.SaveAsync(outputPath, writerOptions, ct).ConfigureAwait(false);
                 return ConvertResult.Converted;
@@ -516,7 +516,7 @@ internal static class ConvertCommand
                 if (!targetTs.IsEncapsulated)
                 {
                     // Uncompressed to uncompressed: just re-save with new TS
-                    var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
+                    var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath, ensureDirectory: true);
                     var writerOptions = new DicomWriterOptions { TransferSyntax = targetTs };
                     await file.SaveAsync(outputPath, writerOptions, ct).ConfigureAwait(false);
                     return ConvertResult.Converted;
@@ -540,7 +540,7 @@ internal static class ConvertCommand
             }
 
             // Write the result
-            var finalOutputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
+            var finalOutputPath = DetermineOutputPath(path, force, outputDir, inputBasePath, ensureDirectory: true);
             var finalWriterOptions = new DicomWriterOptions { TransferSyntax = targetTs };
             await file.SaveAsync(finalOutputPath, finalWriterOptions, ct).ConfigureAwait(false);
             return ConvertResult.Converted;
@@ -574,7 +574,7 @@ internal static class ConvertCommand
             NumberOfFrames: info.NumberOfFrames.GetValueOrDefault(1));
     }
 
-    internal static string DetermineOutputPath(string originalPath, bool force, string? outputDir, string? inputBasePath = null)
+    internal static string DetermineOutputPath(string originalPath, bool force, string? outputDir, string? inputBasePath = null, bool ensureDirectory = false)
     {
         if (outputDir != null)
         {
@@ -582,9 +582,12 @@ internal static class ConvertCommand
             {
                 var relativePath = Path.GetRelativePath(inputBasePath, originalPath);
                 var outputPath = Path.Combine(outputDir, relativePath);
-                var outputSubDir = Path.GetDirectoryName(outputPath);
-                if (outputSubDir != null && !Directory.Exists(outputSubDir))
-                    Directory.CreateDirectory(outputSubDir);
+                if (ensureDirectory)
+                {
+                    var outputSubDir = Path.GetDirectoryName(outputPath);
+                    if (outputSubDir != null && !Directory.Exists(outputSubDir))
+                        Directory.CreateDirectory(outputSubDir);
+                }
                 return outputPath;
             }
 

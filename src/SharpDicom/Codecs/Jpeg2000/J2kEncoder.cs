@@ -223,9 +223,14 @@ namespace SharpDicom.Codecs.Jpeg2000
                         int[][] tileComponentData = ExtractTileRegion(
                             componentData, width, components, tx0, ty0, actualTileW, actualTileH);
 
+                        // EbcotBlockCoder is not thread-safe; create a per-thread instance
+                        IBlockCoder localCoder = blockCoder is EbcotBlockCoder
+                            ? new EbcotBlockCoder()
+                            : blockCoder;
+
                         tileResults[tileIdx] = EncodeSingleTile(
                             tileComponentData, actualTileW, actualTileH, components,
-                            options, lossless, blockCoder, isHtMode);
+                            options, lossless, localCoder, isHtMode);
                     });
                 }
                 else
