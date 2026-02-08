@@ -734,7 +734,7 @@ namespace SharpDicom.Network
                     {
                         // Streaming mode: read raw bytes, parse metadata up to pixel data,
                         // then pass pixel data as a stream to the handler
-                        var datasetBytes = await ReadDatasetAsync(stream, long.MaxValue, ct)
+                        var datasetBytes = await ReadDatasetAsync(stream, _options.MaxBufferedDatasetSize, ct)
                             .ConfigureAwait(false);
                         status = await InvokeStreamingCStoreHandlerAsync(
                             requestContext, datasetBytes, association, command.PresentationContextId, ct)

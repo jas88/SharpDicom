@@ -65,10 +65,9 @@ jobs:
         if: steps.cache-openjph.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch 0.26.0 https://github.com/aous72/OpenJPH.git /tmp/openjph
-          cmake -S /tmp/openjph -B /tmp/openjph/build -DCMAKE_BUILD_TYPE=Release
+          cmake -S /tmp/openjph -B /tmp/openjph/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build /tmp/openjph/build --parallel $(nproc)
-          sudo cp /tmp/openjph/build/bin/ojph_compress /usr/local/bin/
-          sudo cp /tmp/openjph/build/bin/ojph_expand /usr/local/bin/
+          sudo cmake --install /tmp/openjph/build
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
@@ -87,8 +86,8 @@ jobs:
           pkg-config --modversion charls
 
           # OpenJPH - required for HTJ2K conformance tests
-          ojph_compress --help 2>&1 | head -1 || ojph_compress -h 2>&1 | head -1
-          ojph_expand --help 2>&1 | head -1 || ojph_expand -h 2>&1 | head -1
+          which ojph_compress
+          which ojph_expand
 
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 

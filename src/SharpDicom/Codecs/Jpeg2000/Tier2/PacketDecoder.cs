@@ -57,6 +57,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private int _bitBuffer;
         private int _bitsAvailable;
         private bool _htMode;
+        private int _totalBytesConsumed;
 
         /// <summary>
         /// Initializes a new packet decoder.
@@ -64,6 +65,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         public PacketDecoder()
         {
         }
+
+        /// <summary>
+        /// Gets the total bytes consumed by the last <see cref="DecodePacket"/> call
+        /// (header + all code-block data).
+        /// </summary>
+        public int BytesConsumed => _totalBytesConsumed;
 
         /// <summary>
         /// Gets or sets whether to use HT mode for pass count decoding.
@@ -93,6 +100,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         {
             if (packetData.IsEmpty)
             {
+                _totalBytesConsumed = 0;
                 return CreateEmptySegments(numCodeBlocks);
             }
 
@@ -107,6 +115,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             if (nonEmpty == 0)
             {
                 // Empty packet - all code-blocks have no contribution
+                _totalBytesConsumed = _bytePosition;
                 return CreateEmptySegments(numCodeBlocks);
             }
 
@@ -204,6 +213,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 dataOffset += info.DataLength;
             }
 
+            _totalBytesConsumed = dataOffset;
             return segments.ToArray();
         }
 

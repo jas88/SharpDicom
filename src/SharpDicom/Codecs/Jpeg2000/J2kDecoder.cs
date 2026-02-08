@@ -1,7 +1,6 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
@@ -621,34 +620,23 @@ namespace SharpDicom.Codecs.Jpeg2000
                 results[i] = (ReadOnlyMemory<byte>.Empty, 0, 0);
             }
 
-            int bytesConsumed = 0;
-
-            if (!packetData.IsEmpty)
+            if (packetData.IsEmpty)
             {
-                var segments = decoder.DecodePacket(packetData, numCodeBlocks, firstInclusion);
+                return (results, 0);
+            }
 
-                for (int i = 0; i < numCodeBlocks; i++)
+            var segments = decoder.DecodePacket(packetData, numCodeBlocks, firstInclusion);
+
+            for (int i = 0; i < numCodeBlocks; i++)
+            {
+                var seg = segments[i];
+                if (seg.NumNewPasses > 0)
                 {
-                    var seg = segments[i];
-                    if (seg.NumNewPasses > 0)
-                    {
-                        results[i] = (seg.Data, seg.NumNewPasses, seg.ZeroBitPlanes);
-
-                        // Track consumed bytes: segment Data is a slice of an internal
-                        // array copy. The end of the furthest slice tells us total consumed.
-                        if (MemoryMarshal.TryGetArray(seg.Data, out var arraySegment))
-                        {
-                            int end = arraySegment.Offset + arraySegment.Count;
-                            if (end > bytesConsumed)
-                            {
-                                bytesConsumed = end;
-                            }
-                        }
-                    }
+                    results[i] = (seg.Data, seg.NumNewPasses, seg.ZeroBitPlanes);
                 }
             }
 
-            return (results, bytesConsumed);
+            return (results, decoder.BytesConsumed);
         }
 
         /// <summary>
