@@ -105,6 +105,25 @@ namespace SharpDicom.Codecs.Jpeg2000
             J2kEncoderOptions options,
             bool lossless)
         {
+            return EncodeFrame(pixelData, info, options, lossless, EbcotBlockCoder.Instance);
+        }
+
+        /// <summary>
+        /// Encodes a single frame to JPEG 2000 format with a custom block coder.
+        /// </summary>
+        /// <param name="pixelData">Raw pixel data.</param>
+        /// <param name="info">Pixel data information.</param>
+        /// <param name="options">Encoder options.</param>
+        /// <param name="lossless">True for lossless encoding (5/3 wavelet), false for lossy (9/7).</param>
+        /// <param name="blockCoder">Block coder implementation (EBCOT or HT).</param>
+        /// <returns>Encoded JPEG 2000 codestream.</returns>
+        public static ReadOnlyMemory<byte> EncodeFrame(
+            ReadOnlySpan<byte> pixelData,
+            PixelDataInfo info,
+            J2kEncoderOptions options,
+            bool lossless,
+            IBlockCoder blockCoder)
+        {
             if (pixelData.Length < info.FrameSize)
             {
                 throw new ArgumentException("Pixel data is too small for the specified image dimensions.");
@@ -132,8 +151,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                 DwtTransform.Forward(componentData[c], width, height, options.DecompositionLevels, lossless);
             }
 
-            // EBCOT tier-1 encoding via IBlockCoder abstraction
-            var blockCoder = EbcotBlockCoder.Instance;
+            // Tier-1 encoding via IBlockCoder abstraction
             var packetEncoder = new PacketEncoder();
 
             // For simplicity, encode as single tile with single quality layer
@@ -156,6 +174,8 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             // Tier-2: Create packets
+            // Use HT mode for packet encoding when the block coder is the HT encoder
+            bool isHtMode = blockCoder is HtBlockEncoder;
             var allPackets = new List<PacketData[]>(components);
             for (int c = 0; c < components; c++)
             {
@@ -164,7 +184,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                     cbsWide, cbsHigh,
                     options.NumberOfLayers,
                     options.Progression,
-                    options.DecompositionLevels + 1);
+                    options.DecompositionLevels + 1,
+                    isHtMode);
                 allPackets.Add(packets);
             }
 
@@ -302,7 +323,7 @@ namespace SharpDicom.Codecs.Jpeg2000
         private static CodeBlockData[] EncodeComponentCodeBlocks(
             int[] data, int width, int height,
             int cbWidth, int cbHeight, int cbsWide, int cbsHigh,
-            EbcotBlockCoder blockCoder, int decompositionLevels)
+            IBlockCoder blockCoder, int decompositionLevels)
         {
             int numCodeBlocks = cbsWide * cbsHigh;
             var codeBlocks = new CodeBlockData[numCodeBlocks];

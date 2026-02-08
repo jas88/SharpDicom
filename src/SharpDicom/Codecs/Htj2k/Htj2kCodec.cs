@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Codecs.Jpeg2000;
+using SharpDicom.Codecs.Jpeg2000.Tier1;
 using SharpDicom.Data;
 using SharpDicom.Internal;
 
@@ -61,8 +62,10 @@ namespace SharpDicom.Codecs.Htj2k
 
             var fragment = fragments.Fragments[frameIndex];
 
-            // HTJ2K is backward compatible with JPEG 2000, so we use the J2K decoder
-            return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex);
+            // Auto-detect block coder from CAP marker:
+            // - HTJ2K codestreams (with CAP marker) use HtBlockEncoder
+            // - Standard J2K codestreams fall back to EBCOT
+            return J2kDecoder.DecodeFrame(fragment.Span, info, destination.Span, frameIndex, null);
         }
 
         /// <inheritdoc />
@@ -95,6 +98,15 @@ namespace SharpDicom.Codecs.Htj2k
                 CodeBlockHeight = 64
             };
 
+            // Use HT block coder for HTJ2K encoding
+            IBlockCoder blockCoder = HtBlockEncoder.Instance;
+
+            // Build CAP marker from HT options
+            byte[] capMarker = J2kCodestream.BuildCapMarker(
+                isHtOnly: true,
+                isLossless: IsLossless,
+                precision: info.BitsStored);
+
             int frameSize = info.FrameSize;
             int frameCount = pixelData.Length / frameSize;
             var fragments = new List<ReadOnlyMemory<byte>>(frameCount);
@@ -103,9 +115,11 @@ namespace SharpDicom.Codecs.Htj2k
             {
                 var frameData = pixelData.Slice(i * frameSize, frameSize);
 
-                // Use J2K encoder with options and inject CAP marker for HTJ2K identification
-                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless).ToArray();
-                var htj2kEncoded = InjectCapMarker(encoded);
+                // Encode using J2K pipeline with HT block coder
+                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless, blockCoder).ToArray();
+
+                // Inject CAP marker to identify as HTJ2K
+                var htj2kEncoded = InjectCapMarker(encoded, capMarker);
                 fragments.Add(htj2kEncoded);
             }
 
@@ -222,24 +236,19 @@ namespace SharpDicom.Codecs.Htj2k
         }
 
         /// <summary>
-        /// Injects a CAP marker into a JPEG 2000 codestream to identify it as HTJ2K.
+        /// Injects a prebuilt CAP marker into a JPEG 2000 codestream to identify it as HTJ2K.
         /// </summary>
-        private static byte[] InjectCapMarker(byte[] j2kData)
+        /// <param name="j2kData">The J2K codestream data.</param>
+        /// <param name="capMarker">The CAP marker bytes (from <see cref="J2kCodestream.BuildCapMarker"/>).</param>
+        /// <returns>A new array with the CAP marker inserted after the SIZ marker.</returns>
+        private static byte[] InjectCapMarker(byte[] j2kData, byte[] capMarker)
         {
             // Find insertion point (after SIZ marker)
             int insertPos = FindSizEnd(j2kData);
             if (insertPos < 0)
-                return j2kData;
-
-            // Build CAP marker segment
-            // Format: CAP (2 bytes) + Length (2 bytes) + Pcap (4 bytes) + Ccap (2 bytes per capability)
-            var capMarker = new byte[]
             {
-                0xFF, 0x50,  // CAP marker
-                0x00, 0x08,  // Length (8 bytes total segment)
-                0x00, 0x02, 0x00, 0x00,  // Pcap: Part-15 extensions present
-                0x00, 0x20   // Ccap[0]: HTJ2K capability (HT block coder)
-            };
+                return j2kData;
+            }
 
             // Create new array with CAP marker inserted
             var result = new byte[j2kData.Length + capMarker.Length];

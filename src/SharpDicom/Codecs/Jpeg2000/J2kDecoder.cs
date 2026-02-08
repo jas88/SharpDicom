@@ -37,6 +37,28 @@ namespace SharpDicom.Codecs.Jpeg2000
             Span<byte> output,
             int frameIndex)
         {
+            return DecodeFrame(codestream, info, output, frameIndex, null);
+        }
+
+        /// <summary>
+        /// Decodes a JPEG 2000 codestream to raw pixel data using a specific block coder.
+        /// </summary>
+        /// <param name="codestream">The JPEG 2000 codestream data.</param>
+        /// <param name="info">Expected pixel data information.</param>
+        /// <param name="output">Destination buffer for decoded pixel data.</param>
+        /// <param name="frameIndex">Frame index for error reporting.</param>
+        /// <param name="blockCoder">
+        /// Block coder to use for decoding. If null, auto-detects from the CAP marker:
+        /// uses HtBlockEncoder for HTJ2K codestreams, EbcotBlockCoder for standard J2K.
+        /// </param>
+        /// <returns>Decode result indicating success or failure.</returns>
+        public static DecodeResult DecodeFrame(
+            ReadOnlySpan<byte> codestream,
+            PixelDataInfo info,
+            Span<byte> output,
+            int frameIndex,
+            IBlockCoder? blockCoder)
+        {
             // 1. Parse codestream header
             if (!J2kCodestream.TryParse(codestream, out var header, out var error))
             {
@@ -56,16 +78,21 @@ namespace SharpDicom.Codecs.Jpeg2000
                     $"Component count mismatch: J2K {header.ComponentCount} vs expected {info.SamplesPerPixel}");
             }
 
-            // 3. Find tile data
+            // 3. Auto-detect block coder from CAP marker if not specified
+            IBlockCoder effectiveCoder = blockCoder ?? (header.IsHtj2k
+                ? Tier1.HtBlockEncoder.Instance
+                : (IBlockCoder)EbcotBlockCoder.Instance);
+
+            // 4. Find tile data
             int tileDataOffset = J2kCodestream.FindTileDataOffset(codestream, 0);
             if (tileDataOffset < 0)
             {
                 return DecodeResult.Fail(frameIndex, 0, "Could not find tile data");
             }
 
-            // 4. Decode tile data
+            // 5. Decode tile data
             ReadOnlySpan<byte> tileData = codestream.Slice(tileDataOffset);
-            return DecodeTile(tileData, header, info, output, frameIndex);
+            return DecodeTile(tileData, header, info, output, frameIndex, effectiveCoder);
         }
 
         /// <summary>
@@ -92,7 +119,8 @@ namespace SharpDicom.Codecs.Jpeg2000
             J2kCodestream header,
             PixelDataInfo info,
             Span<byte> output,
-            int frameIndex)
+            int frameIndex,
+            IBlockCoder? blockCoder = null)
         {
             int width = header.ImageWidth;
             int height = header.ImageHeight;
@@ -116,7 +144,10 @@ namespace SharpDicom.Codecs.Jpeg2000
 
             // Parse packets and decode code-blocks using IBlockCoder abstraction
             var packetDecoder = new PacketDecoder();
-            var blockCoder = EbcotBlockCoder.Instance;
+            IBlockCoder effectiveBlockCoder = blockCoder ?? EbcotBlockCoder.Instance;
+
+            // Enable HT mode on packet decoder if using HT block coder
+            packetDecoder.IsHtMode = header.IsHtj2k;
 
             // Build subband descriptors for subband type lookup
             var subbands = SubbandPartitioner.GetSubbands(
@@ -171,7 +202,7 @@ namespace SharpDicom.Codecs.Jpeg2000
 
                         // Decode code-block via IBlockCoder
                         Array.Clear(cbBuffer, 0, cbBuffer.Length);
-                        blockCoder.DecodeBlock(
+                        effectiveBlockCoder.DecodeBlock(
                             data.Span,
                             totalPasses,
                             cbBuffer,
