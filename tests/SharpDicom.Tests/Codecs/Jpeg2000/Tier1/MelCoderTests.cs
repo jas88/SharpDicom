@@ -422,5 +422,190 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         }
 
         #endregion
+
+        #region Bit-Stuffing Tests
+
+        [Test]
+        public void MelDecoder_BitStuffing_After0xFF_Only7BitsUsed()
+        {
+            // Construct raw MEL data where bit-stuffing matters.
+            // Decoder reads backward, so byte[2] is read first, then byte[1], then byte[0].
+            //
+            // Byte layout (read order):
+            //   byte[2] = 0xFF  -> 8 bits available (no previous 0xFF), sets _prevWasFF = true
+            //   byte[1] = 0x7F  -> 7 bits available (bit-stuffing: MSB skipped), _prevWasFF = false
+            //   byte[0] = 0xAA  -> 8 bits available (previous was not 0xFF)
+            //
+            // Without bit-stuffing fix, byte[1] would contribute 8 bits, corrupting decode.
+            //
+            // Bit stream (MSB-first from each byte, skipping stuffing bit):
+            //   From 0xFF: 1111 1111 (8 bits)
+            //   From 0x7F with stuffing: [skip MSB=0] 111 1111 (7 bits)
+            //   From 0xAA: 1010 1010 (8 bits)
+            // Total: 8 + 7 + 8 = 23 data bits
+            //
+            // At state 0, MelE[0]=0: each decode reads 1 bit.
+            //   bit=1 -> significant (state stays 0)
+            // So the first 15 bits (all 1s from 0xFF + 0x7F) give 15 significant quads.
+            // Then from 0xAA = 1010 1010:
+            //   bit=1 -> significant
+            //   bit=0 -> insignificant (run of 1, state -> 1)
+            //   At state 1, MelE[1]=0: bit=1 -> significant (state -> 0)
+            //   bit=0 -> insignificant (run of 1, state -> 1)
+            //   bit=1 -> significant (state -> 0)
+            //   bit=0 -> insignificant (run of 1, state -> 1)
+            //   bit=1 -> significant (state -> 0)
+            //   bit=0 -> insignificant (run of 1, state -> 1)
+
+            byte[] data = { 0xAA, 0x7F, 0xFF };
+            var decoder = new MelDecoder(data, data.Length);
+
+            // First 15 bits are all 1s (8 from 0xFF + 7 from 0x7F): 15 significant quads
+            for (int i = 0; i < 15; i++)
+            {
+                bool sig = decoder.DecodeQuadSignificance();
+                Assert.That(sig, Is.True, $"Quad {i}: expected significant (from 0xFF/0x7F all-1 bits)");
+            }
+
+            // Then from 0xAA (10101010): alternating significant/insignificant
+            bool[] expectedFromAA = { true, false, true, false, true, false, true, false };
+            for (int i = 0; i < expectedFromAA.Length; i++)
+            {
+                bool sig = decoder.DecodeQuadSignificance();
+                Assert.That(sig, Is.EqualTo(expectedFromAA[i]),
+                    $"Quad {15 + i}: expected {expectedFromAA[i]} (from 0xAA pattern)");
+            }
+        }
+
+        [Test]
+        public void MelDecoder_BitStuffing_Consecutive0xFF_Each7Bits()
+        {
+            // Two consecutive 0xFF bytes followed by a normal byte.
+            // Read order (backward): byte[2]=0xFF, byte[1]=0xFF, byte[0]=0x80
+            //
+            // Bit contributions:
+            //   byte[2] = 0xFF: 8 bits (no previous 0xFF), _prevWasFF = true
+            //   byte[1] = 0xFF: 7 bits (bit-stuffing), _prevWasFF = true
+            //   byte[0] = 0x80: 7 bits (bit-stuffing after 0xFF), _prevWasFF = false
+            //
+            // Total data bits: 8 + 7 + 7 = 22 bits
+            // From 0xFF (8 bits): 11111111 -> 8 significant quads
+            // From 0xFF (7 bits, skip MSB): 1111111 -> 7 significant quads
+            // From 0x80 (7 bits, skip MSB): 0000000 -> 7 insignificant quads
+            // Total: 15 significant, then 7 insignificant
+
+            byte[] data = { 0x80, 0xFF, 0xFF };
+            var decoder = new MelDecoder(data, data.Length);
+
+            // First 15 quads should be significant (8 + 7 all-1 bits)
+            for (int i = 0; i < 15; i++)
+            {
+                bool sig = decoder.DecodeQuadSignificance();
+                Assert.That(sig, Is.True, $"Quad {i}: expected significant");
+            }
+
+            // Next 7 quads should be insignificant (0x80 with MSB skipped = 0000000)
+            // At this point state is 0 (decremented 15 times from 0, clamped at 0)
+            // Actually, state transitions matter:
+            // After 15 significant quads at state 0, state stays at max(0-1,0)=0 each time
+            // A 0-bit at state 0: run of 1 insig quad, state -> 1
+            // A 0-bit at state 1: run of 1 insig quad, state -> 2
+            // ... and so on for 7 zero bits
+            for (int i = 0; i < 7; i++)
+            {
+                bool sig = decoder.DecodeQuadSignificance();
+                Assert.That(sig, Is.False, $"Quad {15 + i}: expected insignificant");
+            }
+        }
+
+        [Test]
+        public void MelRoundtrip_WithBitStuffing_LongSignificantRun()
+        {
+            // Encode enough significant quads to produce 0xFF bytes in the MEL stream,
+            // then decode and verify. This ensures encoder and decoder agree on bit-stuffing.
+            int count = 30; // Enough to produce multiple 0xFF bytes
+
+            var encoder = new MelEncoder(64);
+            byte[] reversed;
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    encoder.EncodeQuadSignificance(true);
+                }
+                var data = encoder.Flush();
+
+                // Verify that the encoded data actually contains 0xFF bytes
+                bool has0xFF = false;
+                for (int i = 0; i < data.Length; i++)
+                {
+                    if (data[i] == 0xFF)
+                    {
+                        has0xFF = true;
+                        break;
+                    }
+                }
+                Assert.That(has0xFF, Is.True,
+                    "Encoded data should contain 0xFF bytes to exercise bit-stuffing");
+
+                reversed = ReverseArray(data);
+            }
+            finally
+            {
+                encoder.Dispose();
+            }
+
+            var decoder = new MelDecoder(reversed, reversed.Length);
+
+            for (int i = 0; i < count; i++)
+            {
+                bool decoded = decoder.DecodeQuadSignificance();
+                Assert.That(decoded, Is.True,
+                    $"Quad {i}: should be significant (roundtrip with bit-stuffing)");
+            }
+        }
+
+        [Test]
+        public void MelRoundtrip_MixedPattern_With0xFFBytes()
+        {
+            // A pattern designed to produce 0xFF in the stream (many 1-bits)
+            // followed by a pattern change, to ensure bit-stuffing boundaries are handled.
+            bool[] pattern = new bool[40];
+
+            // First 16: all significant (produces 1-bits, will create 0xFF bytes)
+            for (int i = 0; i < 16; i++)
+                pattern[i] = true;
+
+            // Then alternating to change the bit pattern after the 0xFF boundary
+            for (int i = 16; i < 40; i++)
+                pattern[i] = (i % 3) != 0; // true, true, false, true, true, false, ...
+
+            var encoder = new MelEncoder(64);
+            byte[] reversed;
+            try
+            {
+                foreach (bool sig in pattern)
+                {
+                    encoder.EncodeQuadSignificance(sig);
+                }
+                var data = encoder.Flush();
+                reversed = ReverseArray(data);
+            }
+            finally
+            {
+                encoder.Dispose();
+            }
+
+            var decoder = new MelDecoder(reversed, reversed.Length);
+
+            for (int i = 0; i < pattern.Length; i++)
+            {
+                bool decoded = decoder.DecodeQuadSignificance();
+                Assert.That(decoded, Is.EqualTo(pattern[i]),
+                    $"Quad {i}: expected {pattern[i]}, got {decoded}");
+            }
+        }
+
+        #endregion
     }
 }

@@ -209,22 +209,43 @@ namespace SharpDicom.Codecs.Jpeg2000
                 // Multi-tile encoding
                 // Each tile is encoded independently after DWT
                 // Tiles share the color-transformed full image data but operate on separate regions
-                for (int tileIdx = 0; tileIdx < numTiles; tileIdx++)
+                if (options.MaxDegreeOfParallelism > 1)
                 {
-                    int tileRow = tileIdx / tileCols;
-                    int tileCol = tileIdx % tileCols;
-                    int tx0 = tileCol * tileW;
-                    int ty0 = tileRow * tileH;
-                    int actualTileW = Math.Min(tileW, width - tx0);
-                    int actualTileH = Math.Min(tileH, height - ty0);
+                    Parallel.For(0, numTiles, new ParallelOptions { MaxDegreeOfParallelism = options.MaxDegreeOfParallelism }, tileIdx =>
+                    {
+                        int tileRow = tileIdx / tileCols;
+                        int tileCol = tileIdx % tileCols;
+                        int tx0 = tileCol * tileW;
+                        int ty0 = tileRow * tileH;
+                        int actualTileW = Math.Min(tileW, width - tx0);
+                        int actualTileH = Math.Min(tileH, height - ty0);
 
-                    // Extract tile pixel data from color-transformed full image
-                    int[][] tileComponentData = ExtractTileRegion(
-                        componentData, width, components, tx0, ty0, actualTileW, actualTileH);
+                        int[][] tileComponentData = ExtractTileRegion(
+                            componentData, width, components, tx0, ty0, actualTileW, actualTileH);
 
-                    tileResults[tileIdx] = EncodeSingleTile(
-                        tileComponentData, actualTileW, actualTileH, components,
-                        options, lossless, blockCoder, isHtMode);
+                        tileResults[tileIdx] = EncodeSingleTile(
+                            tileComponentData, actualTileW, actualTileH, components,
+                            options, lossless, blockCoder, isHtMode);
+                    });
+                }
+                else
+                {
+                    for (int tileIdx = 0; tileIdx < numTiles; tileIdx++)
+                    {
+                        int tileRow = tileIdx / tileCols;
+                        int tileCol = tileIdx % tileCols;
+                        int tx0 = tileCol * tileW;
+                        int ty0 = tileRow * tileH;
+                        int actualTileW = Math.Min(tileW, width - tx0);
+                        int actualTileH = Math.Min(tileH, height - ty0);
+
+                        int[][] tileComponentData = ExtractTileRegion(
+                            componentData, width, components, tx0, ty0, actualTileW, actualTileH);
+
+                        tileResults[tileIdx] = EncodeSingleTile(
+                            tileComponentData, actualTileW, actualTileH, components,
+                            options, lossless, blockCoder, isHtMode);
+                    }
                 }
             }
 
@@ -269,30 +290,31 @@ namespace SharpDicom.Codecs.Jpeg2000
                 DwtTransform.Forward(componentData[c], tileWidth, tileHeight, options.DecompositionLevels, lossless);
             }
 
-            // Tier-1 encoding via IBlockCoder
+            // Tier-1 encoding via IBlockCoder (per-subband using TileComponent)
             var packetEncoder = new PacketEncoder();
             int cbWidth = options.CodeBlockWidth;
             int cbHeight = options.CodeBlockHeight;
-            int cbsWide = (tileWidth + cbWidth - 1) / cbWidth;
-            int cbsHigh = (tileHeight + cbHeight - 1) / cbHeight;
 
             var allCodeBlocks = new List<CodeBlockData[]>(components);
+            int totalCodeBlocksPerComponent = 0;
             for (int c = 0; c < components; c++)
             {
-                var codeBlocks = EncodeComponentCodeBlocks(
+                var (codeBlocks, total) = EncodeComponentCodeBlocks(
                     componentData[c], tileWidth, tileHeight,
-                    cbWidth, cbHeight, cbsWide, cbsHigh,
+                    cbWidth, cbHeight,
                     blockCoder, options.DecompositionLevels);
                 allCodeBlocks.Add(codeBlocks);
+                totalCodeBlocksPerComponent = total;
             }
 
             // Tier-2: Create packets
+            // Pass (total, 1) since PacketEncoder only uses wide*high to compute count
             var allPackets = new List<PacketData[]>(components);
             for (int c = 0; c < components; c++)
             {
                 var packets = packetEncoder.EncodePackets(
                     allCodeBlocks[c],
-                    cbsWide, cbsHigh,
+                    totalCodeBlocksPerComponent, 1,
                     options.NumberOfLayers,
                     options.Progression,
                     options.DecompositionLevels + 1,
@@ -711,78 +733,68 @@ namespace SharpDicom.Codecs.Jpeg2000
         }
 
         /// <summary>
-        /// Encodes code-blocks for a single component using the SubbandPartitioner
-        /// to determine the correct subband type for each code-block position.
+        /// Encodes code-blocks for a single component by iterating per-subband,
+        /// using <see cref="TileComponent"/> to extract code-block coefficients
+        /// from the correct subband regions in the DWT coefficient array.
         /// </summary>
-        private static CodeBlockData[] EncodeComponentCodeBlocks(
+        /// <returns>
+        /// A tuple of (CodeBlocks, TotalCodeBlocks) where code blocks are ordered
+        /// by subband (LL first, then HL/LH/HH per level) and raster within each subband.
+        /// </returns>
+        private static (CodeBlockData[] CodeBlocks, int TotalCodeBlocks) EncodeComponentCodeBlocks(
             int[] data, int width, int height,
-            int cbWidth, int cbHeight, int cbsWide, int cbsHigh,
+            int cbWidth, int cbHeight,
             IBlockCoder blockCoder, int decompositionLevels)
         {
-            int numCodeBlocks = cbsWide * cbsHigh;
-            var codeBlocks = new CodeBlockData[numCodeBlocks];
+            using var tileComp = new TileComponent(0, 0, width, height, decompositionLevels, cbWidth, cbHeight);
+
+            // Copy DWT coefficients into TileComponent
+            data.AsSpan(0, width * height).CopyTo(tileComp.Coefficients);
+
+            // Compute total code blocks across all subbands
+            int totalCodeBlocks = 0;
+            for (int s = 0; s < tileComp.Subbands.Length; s++)
+            {
+                totalCodeBlocks += tileComp.Subbands[s].TotalCodeBlocks;
+            }
+
+            var codeBlocks = new CodeBlockData[totalCodeBlocks];
             int[] cbBuffer = new int[cbWidth * cbHeight];
+            int cbIdx = 0;
 
-            // Build subband descriptors for this component's DWT decomposition
-            var subbands = SubbandPartitioner.GetSubbands(
-                width, height, decompositionLevels, cbWidth, cbHeight);
-
-            for (int cbY = 0; cbY < cbsHigh; cbY++)
+            // Iterate subbands in canonical order (matches SubbandPartitioner output)
+            for (int s = 0; s < tileComp.Subbands.Length; s++)
             {
-                for (int cbX = 0; cbX < cbsWide; cbX++)
+                var sb = tileComp.Subbands[s];
+                int subbandType = (int)sb.Type;
+
+                for (int cbY = 0; cbY < sb.CodeBlockGridHeight; cbY++)
                 {
-                    int cbIdx = cbY * cbsWide + cbX;
-
-                    // Extract code-block data
-                    int startX = cbX * cbWidth;
-                    int startY = cbY * cbHeight;
-                    int actualWidth = Math.Min(cbWidth, width - startX);
-                    int actualHeight = Math.Min(cbHeight, height - startY);
-
-                    // Determine subband type based on position in coefficient array
-                    // using the SubbandPartitioner from Plan 01
-                    int subbandType = FindSubbandTypeForPosition(subbands, startX, startY);
-
-                    // Clear buffer and copy data
-                    Array.Clear(cbBuffer, 0, cbBuffer.Length);
-                    for (int y = 0; y < actualHeight; y++)
+                    for (int cbX = 0; cbX < sb.CodeBlockGridWidth; cbX++)
                     {
-                        for (int x = 0; x < actualWidth; x++)
+                        // Extract code-block coefficients from the correct subband region
+                        var (actualW, actualH) = tileComp.GetCodeBlockCoefficients(s, cbX, cbY, cbBuffer);
+
+                        // Repack into a tightly-packed buffer with actual dimensions
+                        // (GetCodeBlockCoefficients uses cbWidth stride, but EBCOT expects actualW stride)
+                        int[] packed = new int[actualW * actualH];
+                        for (int y = 0; y < actualH; y++)
                         {
-                            cbBuffer[y * cbWidth + x] = data[(startY + y) * width + (startX + x)];
+                            for (int x = 0; x < actualW; x++)
+                            {
+                                packed[y * actualW + x] = cbBuffer[y * cbWidth + x];
+                            }
                         }
+
+                        // Encode with actual dimensions and correct subband type
+                        codeBlocks[cbIdx] = blockCoder.EncodeBlock(
+                            packed, actualW, actualH, subbandType, msbPosition: -1);
+                        cbIdx++;
                     }
-
-                    // Encode code-block with proper subband type via IBlockCoder
-                    codeBlocks[cbIdx] = blockCoder.EncodeBlock(
-                        cbBuffer, cbWidth, cbHeight, subbandType, msbPosition: -1);
                 }
             }
 
-            return codeBlocks;
-        }
-
-        /// <summary>
-        /// Finds the subband type for a given position in the DWT coefficient array.
-        /// </summary>
-        /// <param name="subbands">Subband descriptors from SubbandPartitioner.</param>
-        /// <param name="x">Horizontal position in the coefficient array.</param>
-        /// <param name="y">Vertical position in the coefficient array.</param>
-        /// <returns>Subband type integer (0=LL, 1=HL, 2=LH, 3=HH).</returns>
-        private static int FindSubbandTypeForPosition(SubbandDescriptor[] subbands, int x, int y)
-        {
-            for (int i = 0; i < subbands.Length; i++)
-            {
-                var sb = subbands[i];
-                if (x >= sb.OriginX && x < sb.OriginX + sb.Width &&
-                    y >= sb.OriginY && y < sb.OriginY + sb.Height)
-                {
-                    return (int)sb.Type;
-                }
-            }
-
-            // Default to LL if no subband found (should not happen with correct partitioning)
-            return 0;
+            return (codeBlocks, totalCodeBlocks);
         }
 
         private static void WriteMarker(BufferWriter buffer, ushort marker)

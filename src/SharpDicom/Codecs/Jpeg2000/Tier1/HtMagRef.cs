@@ -130,6 +130,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <param name="width">Code-block width in samples.</param>
         /// <param name="height">Code-block height in samples.</param>
         /// <param name="bitplane">The bitplane being refined.</param>
+        /// <exception cref="ArgumentException">
+        /// Thrown when buffer lengths are inconsistent with dimensions.
+        /// </exception>
         public static void Decode(
             ReadOnlySpan<byte> data,
             Span<int> coefficients,
@@ -137,6 +140,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int width, int height,
             int bitplane)
         {
+            int size = width * height;
+            if (coefficients.Length < size)
+            {
+                throw new ArgumentException(
+                    $"Coefficient buffer length {coefficients.Length} is less than {width}x{height}={size}.",
+                    nameof(coefficients));
+            }
+
+            if (sigState.Length < size)
+            {
+                throw new ArgumentException(
+                    $"Significance state length {sigState.Length} is less than {width}x{height}={size}.",
+                    nameof(sigState));
+            }
+
             if (data.Length < 4)
             {
                 return; // No data

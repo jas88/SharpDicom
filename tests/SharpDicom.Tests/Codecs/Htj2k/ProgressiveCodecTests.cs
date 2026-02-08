@@ -16,9 +16,20 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         /// for testing progressive codec methods without requiring full encode/decode.
         /// </summary>
         private static DicomFragmentSequence BuildTestFragments(
-            ushort width, ushort height, int decompositionLevels, bool reversible = true)
+            ushort width, ushort height,
+            int decompositionLevels = 5,
+            bool reversible = true)
         {
-            var codec = new Htj2kLosslessCodec();
+            Htj2kCodecBase codec = reversible
+                ? new Htj2kLosslessCodec()
+                : new Htj2kLossyCodec();
+
+            var options = new Htj2kCodecOptions(
+                UseLossless: reversible,
+                DecompositionLevels: decompositionLevels,
+                UseRpcl: false,
+                GenerateBasicOffsetTable: true);
+
             var info = PixelDataInfo.Grayscale8(width, height);
 
             // Create simple gradient pixel data
@@ -28,7 +39,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                 pixelData[i] = (byte)(i % 256);
             }
 
-            return codec.Encode(pixelData, info);
+            return codec.Encode(pixelData, info, options);
         }
 
         [Test]
@@ -36,7 +47,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         {
             // Default HTJ2K options use 5 decomposition levels
             // So resolution levels = 5 + 1 = 6
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
 
             int levels = codec.GetResolutionLevels(fragments, 0);
@@ -57,7 +68,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionLevels_ThrowsOnInvalidFrameIndex()
         {
-            var fragments = BuildTestFragments(16, 16, 5);
+            var fragments = BuildTestFragments(16, 16);
             var codec = new Htj2kLosslessCodec();
 
             Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -70,7 +81,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionDimensions_FullResolution_MatchesOriginal()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
             int maxLevel = codec.GetResolutionLevels(fragments, 0) - 1;
@@ -84,7 +95,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionDimensions_Level0_IsSmallest()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -98,7 +109,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionDimensions_IntermediateLevel_CorrectSize()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -112,7 +123,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionDimensions_ThrowsOnInvalidLevel()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -125,7 +136,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_Level0_ProducesSmallOutput()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -142,7 +153,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_MaxLevel_IdenticalToFullDecode()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -166,7 +177,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_IntermediateLevel_ProducesValidPixels()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -194,7 +205,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void DecodeAtResolution_InvalidResolutionLevel_ReturnsFail()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -209,7 +220,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void DecodeAtResolution_InvalidFrameIndex_ReturnsFail()
         {
-            var fragments = BuildTestFragments(64, 64, 5);
+            var fragments = BuildTestFragments(64, 64);
             var codec = new Htj2kLosslessCodec();
             var info = PixelDataInfo.Grayscale8(64, 64);
 
@@ -238,25 +249,23 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void GetResolutionDimensions_NonSquareImage_CorrectSizes()
         {
-            // 128x64 with 5 levels
+            // Non-square 64 rows x 32 columns with 5 decomposition levels.
+            // Uses BuildTestFragments to pass options consistently.
+            // Note: BuildTestFragments passes (width, height) as Grayscale8(rows, columns),
+            // so (64, 32) gives rows=64, columns=32.
+            var fragments = BuildTestFragments(64, 32);
             var codec = new Htj2kLosslessCodec();
-            var info128x64 = PixelDataInfo.Grayscale8(64, 128);
-            var pixelData = new byte[info128x64.FrameSize];
-            for (int i = 0; i < pixelData.Length; i++)
-            {
-                pixelData[i] = (byte)(i % 256);
-            }
-            var fragments = codec.Encode(pixelData, info128x64);
+            var info = PixelDataInfo.Grayscale8(64, 32);
 
             // Level 0: halved 5 times
-            // 128x64 -> 64x32 -> 32x16 -> 16x8 -> 8x4 -> 4x2
-            var (w0, h0) = codec.GetResolutionDimensions(fragments, info128x64, 0, 0);
-            Assert.That(w0, Is.EqualTo(4));
+            // columns: 32->16->8->4->2->1, rows: 64->32->16->8->4->2
+            var (w0, h0) = codec.GetResolutionDimensions(fragments, info, 0, 0);
+            Assert.That(w0, Is.EqualTo(1));
             Assert.That(h0, Is.EqualTo(2));
 
             // Full resolution (level 5)
-            var (wMax, hMax) = codec.GetResolutionDimensions(fragments, info128x64, 0, 5);
-            Assert.That(wMax, Is.EqualTo(128));
+            var (wMax, hMax) = codec.GetResolutionDimensions(fragments, info, 0, 5);
+            Assert.That(wMax, Is.EqualTo(32));
             Assert.That(hMax, Is.EqualTo(64));
         }
     }

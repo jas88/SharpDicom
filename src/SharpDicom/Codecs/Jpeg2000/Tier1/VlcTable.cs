@@ -422,7 +422,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// </summary>
         private readonly struct VlcCodeword
         {
-            /// <summary>The VLC codeword (LSB-first, right-aligned).</summary>
+            /// <summary>The VLC codeword (MSB-first, right-aligned). Reversed to LSB-first during table construction.</summary>
             public readonly int Code;
 
             /// <summary>Length of the codeword in bits (1-7).</summary>

@@ -64,14 +64,23 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int msbPosition,
             int subbandType)
         {
+            int count = width * height;
+            if (output.Length < count)
+            {
+                throw new ArgumentException(
+                    $"Output buffer length {output.Length} is less than the required {width}x{height}={count}.",
+                    nameof(output));
+            }
+
             int[] decoded = _decoder.DecodeCodeBlock(data, numPasses, width, height, msbPosition, subbandType);
 
-            // Copy decoded coefficients into the output span
-            int count = width * height;
-            for (int i = 0; i < count && i < decoded.Length && i < output.Length; i++)
+            if (decoded.Length < count)
             {
-                output[i] = decoded[i];
+                throw new InvalidOperationException(
+                    $"Decoder returned {decoded.Length} coefficients but {width}x{height}={count} were expected.");
             }
+
+            decoded.AsSpan(0, count).CopyTo(output);
         }
 
         /// <summary>

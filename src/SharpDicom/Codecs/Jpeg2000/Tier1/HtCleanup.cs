@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 #if !NETSTANDARD2_0
 using System.Numerics;
@@ -92,14 +91,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int quadW = (width + 1) >> 1;
             int quadH = (height + 1) >> 1;
 
-            // Significance state array for context formation
-            int sigStateSize = quadW * quadH;
-            byte[]? rentedSigState = null;
-            Span<byte> sigState = sigStateSize <= 1024
-                ? stackalloc byte[sigStateSize]
-                : (rentedSigState = ArrayPool<byte>.Shared.Rent(sigStateSize)).AsSpan(0, sigStateSize);
-            sigState.Clear();
-
             // Estimate segment size (generous: ~4 bits/sample worst case + overhead)
             int estimatedSize = Math.Max(64, (width * height * 4) / 8 + 32);
             var writer = new HtCleanupWriter(estimatedSize);
@@ -133,9 +124,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
                         if (isSignificant)
                         {
-                            // Store significance state for context
-                            sigState[qr * quadW + qc] = 1;
-
                             // Write raw 4-bit significance pattern to VLC stream
                             writer.WriteVlcBits((uint)sigPattern, SigPatternBits);
 
@@ -150,10 +138,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             finally
             {
                 writer.Dispose();
-                if (rentedSigState != null)
-                {
-                    ArrayPool<byte>.Shared.Return(rentedSigState);
-                }
             }
         }
 
@@ -194,50 +178,29 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int quadW = (width + 1) >> 1;
             int quadH = (height + 1) >> 1;
 
-            // Significance state for context formation
-            int sigStateSize = quadW * quadH;
-            byte[]? rentedSigState = null;
-            Span<byte> sigState = sigStateSize <= 1024
-                ? stackalloc byte[sigStateSize]
-                : (rentedSigState = ArrayPool<byte>.Shared.Rent(sigStateSize)).AsSpan(0, sigStateSize);
-            sigState.Clear();
-
             var reader = new HtCleanupReader(segment);
 
-            try
+            for (int qr = 0; qr < quadH; qr++)
             {
-                for (int qr = 0; qr < quadH; qr++)
+                for (int qc = 0; qc < quadW; qc++)
                 {
-                    for (int qc = 0; qc < quadW; qc++)
+                    // MEL decode: is this quad significant?
+                    bool isSignificant = reader.DecodeMelSignificance();
+
+                    if (!isSignificant)
                     {
-                        // MEL decode: is this quad significant?
-                        bool isSignificant = reader.DecodeMelSignificance();
-
-                        if (!isSignificant)
-                        {
-                            // Insignificant quad: all four samples are zero (already cleared)
-                            continue;
-                        }
-
-                        // Mark as significant for context
-                        sigState[qr * quadW + qc] = 1;
-
-                        // Read raw 4-bit significance pattern from VLC stream
-                        byte sigPattern = (byte)reader.ReadVlcBits(SigPatternBits);
-
-                        // Decode MagSgn for each significant sample
-                        int r = qr * 2;
-                        int c = qc * 2;
-
-                        DecodeMagSgnQuad(ref reader, output, sigPattern, r, c, width, height);
+                        // Insignificant quad: all four samples are zero (already cleared)
+                        continue;
                     }
-                }
-            }
-            finally
-            {
-                if (rentedSigState != null)
-                {
-                    ArrayPool<byte>.Shared.Return(rentedSigState);
+
+                    // Read raw 4-bit significance pattern from VLC stream
+                    byte sigPattern = (byte)reader.ReadVlcBits(SigPatternBits);
+
+                    // Decode MagSgn for each significant sample
+                    int r = qr * 2;
+                    int c = qc * 2;
+
+                    DecodeMagSgnQuad(ref reader, output, sigPattern, r, c, width, height);
                 }
             }
         }
@@ -390,6 +353,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             while (reader.ReadMagSgnBits(1) == 1)
             {
                 e++;
+                if (e > 31)
+                {
+                    throw new InvalidOperationException(
+                        "Corrupt MagSgn stream: magnitude exponent exceeds 31.");
+                }
             }
             // The 0-bit was consumed as the terminator
 

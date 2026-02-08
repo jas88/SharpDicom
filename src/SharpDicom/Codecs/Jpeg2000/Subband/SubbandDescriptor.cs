@@ -157,10 +157,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Subband
                 hash = hash * 31 + Height;
                 hash = hash * 31 + OriginX;
                 hash = hash * 31 + OriginY;
+                hash = hash * 31 + CodeBlockGridWidth;
+                hash = hash * 31 + CodeBlockGridHeight;
                 return hash;
             }
 #else
-            return HashCode.Combine(Type, ResolutionLevel, Width, Height, OriginX, OriginY);
+            var hc = new HashCode();
+            hc.Add(Type);
+            hc.Add(ResolutionLevel);
+            hc.Add(Width);
+            hc.Add(Height);
+            hc.Add(OriginX);
+            hc.Add(OriginY);
+            hc.Add(CodeBlockGridWidth);
+            hc.Add(CodeBlockGridHeight);
+            return hc.ToHashCode();
 #endif
         }
 

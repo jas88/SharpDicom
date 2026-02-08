@@ -462,31 +462,31 @@ Plans:
 - [x] 30-10-PLAN.md — Conformance tests (OpenJPH), FsCheck property tests, BenchmarkDotNet performance suite
 
 **Must-haves**:
-- [ ] HtBlockEncoder implementing ISO/IEC 15444-15 HT algorithm (all 3 passes: Cleanup, SigProp, MagRef)
-- [ ] VLC lookup tables, MEL 13-state coder, three-stream bidirectional bit I/O
-- [ ] Multi-resolution subband infrastructure fixing LL-only bug
-- [ ] IBlockCoder abstraction for pluggable EBCOT/HT routing
-- [ ] Integration routing in J2kEncoder/Decoder to use HT when requested
-- [ ] Dynamic CAP marker generation based on actual encoding parameters
-- [ ] Named quality presets (Diagnostic 40+ dB, Archive 35+ dB, Review 30+ dB, Fast 25+ dB)
-- [ ] Multi-tile encoding/decoding with parallel tile decode
-- [ ] IProgressiveCodec for resolution-level decode
-- [ ] `sharpdcm convert` CLI command
-- [ ] 10x performance improvement over EBCOT for typical medical images
+- [x] HtBlockEncoder implementing ISO/IEC 15444-15 HT algorithm (all 3 passes: Cleanup, SigProp, MagRef)
+- [x] VLC lookup tables, MEL 13-state coder, three-stream bidirectional bit I/O
+- [x] Multi-resolution subband infrastructure fixing LL-only bug
+- [x] IBlockCoder abstraction for pluggable EBCOT/HT routing
+- [x] Integration routing in J2kEncoder/Decoder to use HT when requested
+- [x] Dynamic CAP marker generation based on actual encoding parameters
+- [x] Named quality presets (Diagnostic 40+ dB, Archive 35+ dB, Review 30+ dB, Fast 25+ dB)
+- [x] Multi-tile encoding/decoding with parallel tile decode
+- [x] IProgressiveCodec for resolution-level decode
+- [x] `sharpdcm convert` CLI command
+- [x] 10x performance improvement over EBCOT for typical medical images
 
 **Should-haves**:
-- [ ] SIMD optimization (Vector256/512, BMI2 PDEP/PEXT)
-- [ ] Conformance test vectors against OpenJPH
-- [ ] BenchmarkDotNet performance tracking suite
-- [ ] All 5 progression orders (LRCP, RLCP, RPCL, PCRL, CPRL)
-- [ ] FsCheck property-based codec testing
+- [x] SIMD optimization (Vector256/512, BMI2 PDEP/PEXT)
+- [x] Conformance test vectors against OpenJPH
+- [x] BenchmarkDotNet performance tracking suite
+- [x] All 5 progression orders (LRCP, RLCP, RPCL, PCRL, CPRL)
+- [x] FsCheck property-based codec testing
 
 **Success Criteria**:
-- [ ] HTJ2K encoding 10x faster than standard J2K (EBCOT)
-- [ ] Output decodable by OpenJPH
-- [ ] Lossless roundtrip pixel-perfect for 8/12/16-bit
-- [ ] Lossy presets meet PSNR thresholds
-- [ ] All existing J2K/EBCOT tests pass (regression suite)
+- [x] HTJ2K encoding 10x faster than standard J2K (EBCOT)
+- [x] Output decodable by OpenJPH
+- [x] Lossless roundtrip pixel-perfect for 8/12/16-bit
+- [x] Lossy presets meet PSNR thresholds
+- [x] All existing J2K/EBCOT tests pass (regression suite)
 
 ---
 

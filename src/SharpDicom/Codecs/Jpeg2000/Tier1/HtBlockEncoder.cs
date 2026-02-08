@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.IO;
 using System.Runtime.CompilerServices;
 #if !NETSTANDARD2_0
 using System.Numerics;
@@ -241,7 +242,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                                  (data[offset + 2] << 16) | (data[offset + 3] << 24);
             }
 
+            // Validate pass lengths are monotonically non-decreasing and within bounds
             ReadOnlySpan<byte> passData = data.Slice(headerSize);
+            for (int i = 0; i < numPasses; i++)
+            {
+                if (passLengths[i] < 0 || passLengths[i] > passData.Length)
+                {
+                    throw new InvalidDataException(
+                        $"Pass length [{i}]={passLengths[i]} is out of bounds (data length={passData.Length}).");
+                }
+                if (i > 0 && passLengths[i] < passLengths[i - 1])
+                {
+                    throw new InvalidDataException(
+                        $"Pass lengths are not monotonically non-decreasing: [{i-1}]={passLengths[i-1]}, [{i}]={passLengths[i]}.");
+                }
+            }
 
             // Pass 1: Cleanup
             int cleanupLen = passLengths[0];

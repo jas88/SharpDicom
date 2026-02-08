@@ -72,6 +72,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private int _run;            // Remaining run count
         private int _state;          // Current state (0-12)
         private bool _significantPending; // Whether a significant quad follows the current partial run
+        private bool _prevWasFF;     // Whether the previously read byte was 0xFF (for bit-stuffing)
 
         /// <summary>
         /// Initializes a new MEL decoder.
@@ -87,6 +88,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _run = 0;
             _state = 0;
             _significantPending = false;
+            _prevWasFF = false;
         }
 
         /// <summary>
@@ -188,14 +190,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// </summary>
         /// <remarks>
         /// MEL bytes are read backward from the end of the segment.
-        /// Unlike the MQ coder, the MEL stream does not use byte stuffing
-        /// (no 0xFF special handling). Each byte provides exactly 8 data bits.
+        /// Per T.814 section F.4, bit-stuffing applies to the MEL stream: after a 0xFF
+        /// byte, the next byte contributes only 7 valid bits.
         /// </remarks>
         private void FillBitBuffer()
         {
             if (_pos <= 0)
             {
-                // No more data available - pad with zeros
                 _bitBuffer = 0;
                 _bitsAvailable = 8;
                 return;
@@ -204,7 +205,17 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _pos--;
             byte b = _data[_pos];
             _bitBuffer = b;
-            _bitsAvailable = 8;
+
+            // T.814 bit-stuffing: after a 0xFF byte, the next byte contributes only 7 valid bits
+            if (_prevWasFF)
+            {
+                _bitsAvailable = 7;
+            }
+            else
+            {
+                _bitsAvailable = 8;
+            }
+            _prevWasFF = (b == 0xFF);
         }
     }
 
@@ -221,6 +232,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private int _pos;             // Current write position
         private uint _bitBuffer;      // Bit accumulator
         private int _bitsInBuffer;    // Number of bits accumulated
+        private int _maxBits;         // Max bits for current byte (7 after 0xFF, else 8)
         private int _run;             // Current run count
         private int _state;           // Current state (0-12)
         private bool _rented;         // Whether buffer was rented from ArrayPool
@@ -236,6 +248,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _pos = 0;
             _bitBuffer = 0;
             _bitsInBuffer = 0;
+            _maxBits = 8;
             _run = 0;
             _state = 0;
         }
@@ -303,11 +316,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             // Flush any remaining bits in the buffer
             if (_bitsInBuffer > 0)
             {
-                // Pad remaining bits with zeros and emit
-                _bitBuffer <<= (8 - _bitsInBuffer);
+                // Pad remaining bits with zeros up to _maxBits (7 after 0xFF, else 8)
+                _bitBuffer <<= (_maxBits - _bitsInBuffer);
                 EmitByte((byte)_bitBuffer);
                 _bitBuffer = 0;
                 _bitsInBuffer = 0;
+                _maxBits = 8;
             }
 
             return new ReadOnlySpan<byte>(_buffer, 0, _pos);
@@ -329,24 +343,24 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <summary>
         /// Writes a single bit to the MEL stream.
         /// </summary>
+        /// <remarks>
+        /// Per T.814 section F.4, bit-stuffing applies: after emitting a 0xFF byte,
+        /// the next byte can hold only 7 valid bits (the MSB is a stuffing bit).
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void WriteBit(int bit)
         {
             _bitBuffer = (_bitBuffer << 1) | (uint)(bit & 1);
             _bitsInBuffer++;
 
-            if (_bitsInBuffer == 8)
+            if (_bitsInBuffer >= _maxBits)
             {
-                EmitByte((byte)_bitBuffer);
+                byte emitted = (byte)_bitBuffer;
+                EmitByte(emitted);
+                // After emitting 0xFF, the next byte has only 7 valid bits
+                _maxBits = (emitted == 0xFF) ? 7 : 8;
                 _bitBuffer = 0;
                 _bitsInBuffer = 0;
-
-                // Byte stuffing: after 0xFF, next byte has only 7 valid bits
-                if ((byte)_bitBuffer == 0xFF)
-                {
-                    // The max bits for next byte is 7
-                    // (handled implicitly since we always fill to 8 and emit)
-                }
             }
         }
 

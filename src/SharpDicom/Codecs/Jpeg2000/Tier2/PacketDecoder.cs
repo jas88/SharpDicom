@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace SharpDicom.Codecs.Jpeg2000.Tier2
@@ -334,7 +335,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             if (_htMode)
             {
                 // HT mode: 3-bit value representing 1-6 passes
-                return ReadBits(3) + 1;
+                int htPasses = ReadBits(3) + 1;
+                if (htPasses > 6)
+                {
+                    throw new InvalidDataException(
+                        $"HT pass count {htPasses} is out of the valid range 1-6.");
+                }
+                return htPasses;
             }
 
             // ITU-T T.800 Table B.4
@@ -358,22 +365,22 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
 
             // next2 == 3 means we read "1111"
-            // Now check if this is 1111 + 5-bit or 1111 1111 + 7-bit
-            // Read 4 more bits to check for 1111 1111
-            int next4 = ReadBits(4);
-            if (next4 < 15)
+            // Now distinguish between:
+            //   1111 + 5-bit suffix (passes 6-36, suffix 0-30)
+            //   1111 1111 + 7-bit suffix (passes 37-164, suffix 0-127)
+            // Read the 5-bit suffix. If it's 31 (all ones), we've actually
+            // read 1111 11111 and the 9th bit is the start of the long form.
+            int suffix5 = ReadBits(5);
+            if (suffix5 <= 30)
             {
-                // This is 1111 + 5-bit where we've read 4 of 5 bits
-                // We need to read 1 more bit to complete the 5-bit suffix
-                int lastBit = ReadBit();
-                int suffix = (next4 << 1) | lastBit;
-                return 6 + suffix;
+                return 6 + suffix5;
             }
 
-            // next4 == 15 means we've read "1111 1111"
-            // Read 7-bit suffix for passes 37-164
-            int suffix7 = ReadBits(7);
-            return 37 + suffix7;
+            // suffix5 == 31 means we read "1111 11111" (9 ones total).
+            // The encoder format for 37-164 is 0xff80 | (n-37) in 16 bits:
+            //   bits[15:12] = 1111, bits[11:7] = 11111, bits[6:0] = suffix
+            // We consumed bits[15:7]. Now read the remaining 7 bits.
+            return 37 + ReadBits(7);
         }
 
         /// <summary>

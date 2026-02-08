@@ -365,6 +365,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             // Calculate ILW value (VLC start offset = MagSgn length)
             int vlcOffset = _magSgnPos;
 
+            if (vlcOffset > 4095)
+            {
+                throw new InvalidOperationException(
+                    $"VLC start offset {vlcOffset} exceeds the 12-bit ILW maximum of 4095. " +
+                    "The code-block is too large to encode in a single HT cleanup pass segment.");
+            }
+
             // Total segment size: MagSgn + VLC + MEL (reversed) + 2 (ILW)
             int totalSize = _magSgnPos + _vlcPos + melData.Length + 2;
             byte[] segment = new byte[totalSize];

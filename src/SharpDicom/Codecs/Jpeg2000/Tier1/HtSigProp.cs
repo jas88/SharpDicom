@@ -73,13 +73,19 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     nameof(sigState));
             }
 
-            // Estimate output size: at most 1 bit per non-significant sample with a
-            // significant neighbor, plus sign+magnitude for newly significant ones.
-            int estimatedBytes = Math.Max(16, (size * 3) / 8 + 4);
+            // Worst-case output: every sample is a SigProp candidate (not yet significant
+            // but has a significant neighbor). Each candidate emits:
+            //   1 significance bit
+            //   + if newly significant: 1 sign bit + bitplane mantissa bits
+            // = 1 + 1 + bitplane = 2 + bitplane bits per sample maximum.
+            int bitsPerSample = 2 + Math.Max(bitplane, 0);
+            long maxBits = (long)size * bitsPerSample;
+            int bufferBytes = (int)Math.Min((maxBits + 7) / 8 + 4, int.MaxValue);
+            bufferBytes = Math.Max(16, bufferBytes);
             byte[]? rented = null;
-            Span<byte> buffer = estimatedBytes <= 1024
-                ? stackalloc byte[estimatedBytes]
-                : (rented = ArrayPool<byte>.Shared.Rent(estimatedBytes)).AsSpan(0, estimatedBytes);
+            Span<byte> buffer = bufferBytes <= 1024
+                ? stackalloc byte[bufferBytes]
+                : (rented = ArrayPool<byte>.Shared.Rent(bufferBytes)).AsSpan(0, bufferBytes);
             buffer.Clear();
 
             int bitPos = 0;
@@ -274,18 +280,24 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <summary>
         /// Writes a single bit to the buffer at the specified bit position.
         /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the bit position exceeds the buffer capacity.
+        /// </exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteBit(Span<byte> buffer, ref int bitPos, int bit)
         {
             int byteIdx = bitPos >> 3;
             int bitIdx = 7 - (bitPos & 7);
 
-            if (byteIdx < buffer.Length)
+            if ((uint)byteIdx >= (uint)buffer.Length)
             {
-                if (bit != 0)
-                {
-                    buffer[byteIdx] |= (byte)(1 << bitIdx);
-                }
+                throw new InvalidOperationException(
+                    $"SigProp bitstream buffer overflow at bit {bitPos} (buffer is {buffer.Length} bytes).");
+            }
+
+            if (bit != 0)
+            {
+                buffer[byteIdx] |= (byte)(1 << bitIdx);
             }
 
             bitPos++;

@@ -376,7 +376,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             {
                 uint readBits = reader.ReadVlcBits(bitCounts[i]);
                 Assert.That(readBits, Is.EqualTo(expectedBits[i]),
-                    $"VLC group {i}: expected {expectedBits[i]:B7}, got {readBits:B7}");
+                    $"VLC group {i}: expected {Convert.ToString((int)expectedBits[i], 2).PadLeft(7, '0')}, got {Convert.ToString((int)readBits, 2).PadLeft(7, '0')}");
             }
         }
 
@@ -521,6 +521,59 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             int vlcOffset = (segment[^2] << 4) | (segment[^1] >> 4);
             Assert.That(vlcOffset, Is.EqualTo(0),
                 "No MagSgn written, VLC offset should be 0");
+        }
+
+        [Test]
+        public void HtCleanupWriter_VlcOffsetExceeds12BitMax_Throws()
+        {
+            var writer = new HtCleanupWriter(8192);
+            try
+            {
+                // Write 4096 bytes of MagSgn data, which makes _magSgnPos = 4096 > 4095
+                for (int i = 0; i < 4096; i++)
+                {
+                    writer.WriteMagSgnBits(0xAA, 8);
+                }
+
+                try
+                {
+                    writer.Finalize();
+                    Assert.Fail("Expected InvalidOperationException for VLC offset > 4095");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    Assert.That(ex.Message, Does.Contain("4095"));
+                }
+            }
+            finally
+            {
+                writer.Dispose();
+            }
+        }
+
+        [Test]
+        public void HtCleanupWriter_VlcOffsetAt12BitMax_Succeeds()
+        {
+            var writer = new HtCleanupWriter(8192);
+            try
+            {
+                // Write exactly 4095 bytes of MagSgn data (max valid ILW value)
+                for (int i = 0; i < 4095; i++)
+                {
+                    writer.WriteMagSgnBits(0xBB, 8);
+                }
+
+                byte[] segment = writer.Finalize();
+
+                // Parse ILW and verify it encodes 4095 correctly
+                int vlcOffset = (segment[^2] << 4) | (segment[^1] >> 4);
+                Assert.That(vlcOffset, Is.EqualTo(4095),
+                    "ILW should encode VLC offset of 4095 (12-bit max)");
+            }
+            finally
+            {
+                writer.Dispose();
+            }
         }
 
         [Test]

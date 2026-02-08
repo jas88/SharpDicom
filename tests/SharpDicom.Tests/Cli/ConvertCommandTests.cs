@@ -201,7 +201,7 @@ public class ConvertCommandTests
     }
 
     [Test]
-    public void DetermineOutputPath_WithOutputDir_CombinesDirectoryAndFilename()
+    public void DetermineOutputPath_WithOutputDir_NoBasePath_CombinesDirectoryAndFilename()
     {
         var result = ConvertCommand.DetermineOutputPath("/tmp/test.dcm", false, "/output");
 
@@ -215,6 +215,26 @@ public class ConvertCommandTests
         var result = ConvertCommand.DetermineOutputPath("/tmp/test.dcm", true, "/output");
 
         Assert.That(result, Is.EqualTo(Path.Combine("/output", "test.dcm")));
+    }
+
+    [Test]
+    public void DetermineOutputPath_WithOutputDirAndBasePath_PreservesRelativeStructure()
+    {
+        var result = ConvertCommand.DetermineOutputPath(
+            "/data/input/sub/deep/scan.dcm", false, _tempDir!, "/data/input");
+
+        var expected = Path.Combine(_tempDir!, "sub", "deep", "scan.dcm");
+        Assert.That(result, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void DetermineOutputPath_WithOutputDirAndBasePath_FileInBaseDir_NoExtraSubdir()
+    {
+        var result = ConvertCommand.DetermineOutputPath(
+            "/data/input/scan.dcm", false, _tempDir!, "/data/input");
+
+        var expected = Path.Combine(_tempDir!, "scan.dcm");
+        Assert.That(result, Is.EqualTo(expected));
     }
 
     #endregion

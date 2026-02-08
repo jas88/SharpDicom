@@ -243,6 +243,31 @@ internal static class ConvertCommand
         if (parallelism < 1)
             parallelism = 1;
 
+        // Compute the base input path for preserving directory structure under --output
+        string? inputBasePath = input is DirectoryInfo
+            ? input.FullName
+            : Path.GetDirectoryName(input.FullName);
+
+        // 5a. Detect output path collisions before processing any files
+        if (outputDir != null && filePaths.Count > 1)
+        {
+            var outputPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in filePaths)
+            {
+                var candidateOutput = DetermineOutputPath(path, force, outputDir, inputBasePath);
+                var normalised = Path.GetFullPath(candidateOutput);
+                if (outputPathMap.TryGetValue(normalised, out var existingSource))
+                {
+                    Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                        $"Output path collision: both '{existingSource}' and '{path}' would write to '{normalised}'."));
+                    Console.Error.WriteLine("Use --output with a directory input so relative paths are preserved, or process directories separately.");
+                    return ExitCodes.UsageError;
+                }
+
+                outputPathMap[normalised] = path;
+            }
+        }
+
         int convertedCount = 0;
         int skippedCount = 0;
         int errorCount = 0;
@@ -264,7 +289,7 @@ internal static class ConvertCommand
                         continue;
                     }
 
-                    var outputPath = DetermineOutputPath(path, force, outputDir);
+                    var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
                     Console.Out.WriteLine(string.Create(CultureInfo.InvariantCulture,
                         $"{path}: {currentTs.UID} -> {targetTs.UID} => {outputPath}"));
                     convertedCount++;
@@ -292,7 +317,7 @@ internal static class ConvertCommand
                     foreach (var path in filePaths)
                     {
                         innerCt.ThrowIfCancellationRequested();
-                        var result = await ConvertFileAsync(path, targetTs, encoderOptions, force, outputDir, innerCt)
+                        var result = await ConvertFileAsync(path, targetTs, encoderOptions, force, outputDir, inputBasePath, innerCt)
                             .ConfigureAwait(false);
                         UpdateCounts(result, ref convertedCount, ref skippedCount, ref errorCount, skipErrors, path);
                         advance(1);
@@ -307,11 +332,11 @@ internal static class ConvertCommand
                     using var semaphore = new SemaphoreSlim(parallelism, parallelism);
                     var tasks = new List<Task>();
                     var results = new ConcurrentBag<(string Path, ConvertResult Result)>();
-                    var shouldStop = false;
+                    var shouldStop = 0;
 
                     foreach (var path in filePaths)
                     {
-                        if (shouldStop)
+                        if (Volatile.Read(ref shouldStop) != 0)
                         {
                             advance(1);
                             continue;
@@ -324,12 +349,12 @@ internal static class ConvertCommand
                         {
                             try
                             {
-                                var result = await ConvertFileAsync(path, targetTs, encoderOptions, force, outputDir, innerCt)
+                                var result = await ConvertFileAsync(path, targetTs, encoderOptions, force, outputDir, inputBasePath, innerCt)
                                     .ConfigureAwait(false);
                                 results.Add((path, result));
 
                                 if (result == ConvertResult.Error && !skipErrors)
-                                    shouldStop = true;
+                                    Interlocked.Exchange(ref shouldStop, 1);
                             }
                             finally
                             {
@@ -396,6 +421,7 @@ internal static class ConvertCommand
         HtEncoderOptions encoderOptions,
         bool force,
         string? outputDir,
+        string? inputBasePath,
         CancellationToken ct)
     {
         try
@@ -413,7 +439,7 @@ internal static class ConvertCommand
             if (!file.HasPixelData)
             {
                 // No pixel data: just re-save with the new transfer syntax
-                var outputPath = DetermineOutputPath(path, force, outputDir);
+                var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
                 var writerOptions = new DicomWriterOptions { TransferSyntax = targetTs };
                 await file.SaveAsync(outputPath, writerOptions, ct).ConfigureAwait(false);
                 return ConvertResult.Converted;
@@ -490,7 +516,7 @@ internal static class ConvertCommand
                 if (!targetTs.IsEncapsulated)
                 {
                     // Uncompressed to uncompressed: just re-save with new TS
-                    var outputPath = DetermineOutputPath(path, force, outputDir);
+                    var outputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
                     var writerOptions = new DicomWriterOptions { TransferSyntax = targetTs };
                     await file.SaveAsync(outputPath, writerOptions, ct).ConfigureAwait(false);
                     return ConvertResult.Converted;
@@ -514,7 +540,7 @@ internal static class ConvertCommand
             }
 
             // Write the result
-            var finalOutputPath = DetermineOutputPath(path, force, outputDir);
+            var finalOutputPath = DetermineOutputPath(path, force, outputDir, inputBasePath);
             var finalWriterOptions = new DicomWriterOptions { TransferSyntax = targetTs };
             await file.SaveAsync(finalOutputPath, finalWriterOptions, ct).ConfigureAwait(false);
             return ConvertResult.Converted;
@@ -548,10 +574,20 @@ internal static class ConvertCommand
             NumberOfFrames: info.NumberOfFrames.GetValueOrDefault(1));
     }
 
-    internal static string DetermineOutputPath(string originalPath, bool force, string? outputDir)
+    internal static string DetermineOutputPath(string originalPath, bool force, string? outputDir, string? inputBasePath = null)
     {
         if (outputDir != null)
         {
+            if (inputBasePath != null)
+            {
+                var relativePath = Path.GetRelativePath(inputBasePath, originalPath);
+                var outputPath = Path.Combine(outputDir, relativePath);
+                var outputSubDir = Path.GetDirectoryName(outputPath);
+                if (outputSubDir != null && !Directory.Exists(outputSubDir))
+                    Directory.CreateDirectory(outputSubDir);
+                return outputPath;
+            }
+
             var fileName = Path.GetFileName(originalPath);
             return Path.Combine(outputDir, fileName);
         }
