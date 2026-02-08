@@ -4,11 +4,11 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 4 of 10 in current phase
+**Plan**: 5 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-07 - Completed 30-04-PLAN.md (HT Cleanup Pass)
+**Last activity**: 2026-02-07 - Completed 30-02-PLAN.md (IBlockCoder Interface and Subband Routing Fix)
 
-**Progress**: ████░░░░░░ (4/10 plans in Phase 30)
+**Progress**: █████░░░░░ (5/10 plans in Phase 30)
 
 **Test Status**: 2744 tests (2689 pass, 55 skipped, 0 failed)
 
@@ -185,7 +185,7 @@
 ## In Progress
 
 - [x] Phase 30 Plan 01: Subband Infrastructure (COMPLETE)
-- [ ] Phase 30 Plan 02: EBCOT Context Table Fix
+- [x] Phase 30 Plan 02: IBlockCoder Interface and Subband Routing Fix (COMPLETE)
 - [x] Phase 30 Plan 03: HT Primitive Components (VlcTable, MelCoder, HtBitIO) (COMPLETE)
 - [x] Phase 30 Plan 04: HT Cleanup Pass (HtCleanup encode/decode, 89 tests) (COMPLETE)
 - [ ] Phase 30 Plan 05-10: Remaining HT Block Coder plans
@@ -213,7 +213,7 @@
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 | 29 | MongoDB/BSON Serialization | COMPLETE | 5/5 | 2026-02-07 | 2026-02-07 |
-| 30 | HT Block Coder | IN PROGRESS | 4/10 | 2026-02-08 | - |
+| 30 | HT Block Coder | IN PROGRESS | 5/10 | 2026-02-08 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -577,6 +577,9 @@
 | 2026-02-08 | 30-03 | VLC codewords bit-reversed for LSB-first table indexing | Stream bits are consumed LSB-first; table index must match raw stream bit order |
 | 2026-02-08 | 30-03 | MEL partial runs encoded as MelE[state] bits after break signal | Without partial run encoding, decoder cannot determine insignificant quad count in broken runs |
 | 2026-02-08 | 30-03 | MEL stream does not use JPEG byte stuffing | Byte stuffing is specific to MQ coder; MEL uses simple 8-bit bytes |
+| 2026-02-07 | 30-02 | Concrete EbcotBlockCoder type in private methods (not IBlockCoder interface) | CA1859 analyzer treats interface usage as warning/error when only one concrete implementation exists |
+| 2026-02-07 | 30-02 | Singleton Instance pattern for EbcotBlockCoder | EBCOT encoder is IDisposable but safe for sequential use; avoids per-call allocation overhead |
+| 2026-02-07 | 30-02 | Duplicated FindSubbandTypeForPosition in encoder and decoder | Code locality preferred over shared utility for 10-line private helper |
 | 2026-02-07 | 30-04 | Raw 4-bit significance patterns instead of VLC table encode/decode | VLC tables only define 8 of 16 patterns per context; raw 4-bit writes guarantee lossless roundtrip |
 | 2026-02-07 | 30-04 | Unary-terminated exponent MagSgn format | Self-delimiting format: [sign:1][(E-1) ones][0-term][(E-1) mantissa]; consistent encode/decode |
 | 2026-02-07 | 30-04 | FloorLog2 conditional compilation for netstandard2.0 | BitOperations.LeadingZeroCount not available on netstandard2.0; manual fallback |
@@ -584,7 +587,7 @@
 ## Session Continuity
 
 **Last session**: 2026-02-07
-**Stopped at**: Completed 30-04-PLAN.md (HT Cleanup Pass)
+**Stopped at**: Completed 30-02-PLAN.md (IBlockCoder Interface and Subband Routing Fix)
 **Resume file**: None
 **Next step**: Phase 30 Plan 05 (HT Set Structure)
 
@@ -592,12 +595,12 @@
 
 If resuming after a break:
 
-1. **Current phase**: Phase 30 - HT Block Coder (4/10 plans complete: 01, 03, 04)
-2. **Phase 30-04 deliverables**: HtCleanup.cs (Encode/Decode), HtCleanupTests.cs (89 tests)
-   - Raw 4-bit VLC significance patterns for self-consistent lossless roundtrip
-   - MagSgn unary-exponent encoding for magnitude/sign
+1. **Current phase**: Phase 30 - HT Block Coder (5/10 plans complete: 01, 02, 03, 04)
+2. **Phase 30-02 deliverables**: IBlockCoder.cs, EbcotBlockCoder.cs, SubbandPartitioner integration in J2kEncoder/J2kDecoder
+   - IBlockCoder interface for pluggable EBCOT/HT block coders
+   - SubbandPartitioner replaces hardcoded subbandType=0
 3. **Test coverage**: 2744 tests (2689 pass, 55 skipped, 0 failed)
-4. **Next**: Plan 30-05 (HT Set Structure) or Plan 30-02 (EBCOT Context Table Fix)
+4. **Next**: Plan 30-05 (HT Set Structure)
 5. **Known issues**: P-DATA PDV interleaving issue (pre-existing, works with DCMTK peers)
 
 ## Potential Future Work
@@ -638,4 +641,4 @@ If resuming after a break:
 **Coverage**: 30/30 requirements mapped
 
 ---
-*Last updated: 2026-02-07 (Phase 30 Plan 04 COMPLETE -- HT Cleanup Pass)*
+*Last updated: 2026-02-07 (Phase 30 Plan 02 COMPLETE -- IBlockCoder Interface and Subband Routing Fix)*
