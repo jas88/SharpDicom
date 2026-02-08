@@ -81,10 +81,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DBUILD_MANPAGES=OFF
-          cmake --build /tmp/charls-tools/build --parallel $(nproc)
-          sudo cmake --install /tmp/charls-tools/build
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build /tmp/charls-tools/build --target cjpls djpls --parallel $(nproc)
+          sudo install /tmp/charls-tools/build/cjpls /usr/local/bin/
+          sudo install /tmp/charls-tools/build/djpls /usr/local/bin/
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
