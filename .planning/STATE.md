@@ -4,13 +4,13 @@
 
 **Milestone**: v3.0.0 - Polish, CLI & Migration
 **Phase**: 30 - HT Block Coder (In Progress)
-**Plan**: 1 of 10 in current phase
+**Plan**: 3 of 10 in current phase
 **Status**: In progress
-**Last activity**: 2026-02-08 - Completed 30-01-PLAN.md (Subband Infrastructure)
+**Last activity**: 2026-02-08 - Completed 30-03-PLAN.md (HT Primitive Components)
 
-**Progress**: █░░░░░░░░░ (1/10 plans in Phase 30)
+**Progress**: ███░░░░░░░ (3/10 plans in Phase 30)
 
-**Test Status**: 2560+ tests (2505+ pass, 55 skipped, 0 failed from new code)
+**Test Status**: 2663 tests (2608 pass, 55 skipped, 0 failed)
 
 ## Completed
 
@@ -184,8 +184,10 @@
 
 ## In Progress
 
-- [ ] Phase 30 Plan 01: Subband Infrastructure (COMPLETE)
-- [ ] Phase 30 Plan 02-10: Remaining HT Block Coder plans
+- [x] Phase 30 Plan 01: Subband Infrastructure (COMPLETE)
+- [ ] Phase 30 Plan 02: EBCOT Context Table Fix
+- [x] Phase 30 Plan 03: HT Primitive Components (VlcTable, MelCoder, HtBitIO) (COMPLETE)
+- [ ] Phase 30 Plan 04-10: Remaining HT Block Coder plans
 
 ## Blocked
 
@@ -210,7 +212,7 @@
 | 27 | Extended Codec Support | COMPLETE (VERIFIED) | 12/12 | 2026-02-07 | 2026-02-07 |
 | 28 | DIMSE-N Services | COMPLETE (VERIFIED) | 5/5 | 2026-02-07 | 2026-02-07 |
 | 29 | MongoDB/BSON Serialization | COMPLETE | 5/5 | 2026-02-07 | 2026-02-07 |
-| 30 | HT Block Coder | IN PROGRESS | 1/10 | 2026-02-08 | - |
+| 30 | HT Block Coder | IN PROGRESS | 3/10 | 2026-02-08 | - |
 
 ## v1.0.0 Phase Progress (Complete)
 
@@ -571,20 +573,23 @@
 | 2026-02-07 | 29-05 | Target netstandard2.1 not netstandard2.0 for MongoDB adapter | MongoDB.Driver 3.x requires netstandard2.1+; adapter users will be on modern .NET |
 | 2026-02-07 | 29-05 | Single MongoDB.Driver package reference | MongoDB.Bson is a transitive dependency; reduces Central Package Management overhead |
 | 2026-02-08 | 30-01 | SubbandType enum matches existing EBCOT convention (HL=1, LH=2) | Existing DwtTransform and EbcotEncoder use 0=LL, 1=HL, 2=LH, 3=HH consistently |
+| 2026-02-08 | 30-03 | VLC codewords bit-reversed for LSB-first table indexing | Stream bits are consumed LSB-first; table index must match raw stream bit order |
+| 2026-02-08 | 30-03 | MEL partial runs encoded as MelE[state] bits after break signal | Without partial run encoding, decoder cannot determine insignificant quad count in broken runs |
+| 2026-02-08 | 30-03 | MEL stream does not use JPEG byte stuffing | Byte stuffing is specific to MQ coder; MEL uses simple 8-bit bytes |
 
 ## Session Continuity
 
 **Last session**: 2026-02-08
-**Stopped at**: Completed 30-01-PLAN.md (Subband Infrastructure)
+**Stopped at**: Completed 30-03-PLAN.md (HT Primitive Components)
 **Resume file**: None
-**Next step**: Phase 30 Plan 02 (EBCOT context table fix)
+**Next step**: Phase 30 Plan 04 (or Plan 02 if not yet done)
 
 ## Context for Next Session
 
 If resuming after a break:
 
-1. **Current phase**: Phase 30 - HT Block Coder (1/10 plans complete)
-2. **Phase 30-01 deliverables**: 3 source files, 2 test files, 49 new tests
+1. **Current phase**: Phase 30 - HT Block Coder (3/10 plans complete: 01, 03)
+2. **Phase 30-03 deliverables**: 3 source files, 3 test files, 103 new tests
    - SubbandDescriptor, SubbandPartitioner, TileComponent in Codecs/Jpeg2000/Subband/
 3. **Test coverage**: 2560+ tests (2505+ pass, 55 skipped, 0 failed from new code)
    - Note: 7 pre-existing failures from parallel plan 30-03 (VlcTable/MelCoder tests)
