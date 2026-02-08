@@ -68,6 +68,7 @@ jobs:
           cmake -S /tmp/openjph -B /tmp/openjph/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build /tmp/openjph/build --parallel $(nproc)
           sudo cmake --install /tmp/openjph/build
+          sudo ldconfig
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
