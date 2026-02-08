@@ -29,6 +29,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
     /// scanning left-to-right, top-to-bottom. Blocks with odd width or height are padded
     /// with implicit zeros.
     /// </para>
+    /// <para>
+    /// The significance pattern for each significant quad is encoded as a raw 4-bit value
+    /// in the VLC stream. This approach supports all 16 possible significance patterns
+    /// (vs the 8 per context in the standard VLC tables) and guarantees lossless roundtrip
+    /// for self-consistent encode/decode. Future phases will integrate the standard VLC
+    /// prefix-free codewords for standards-compliant interop with external decoders.
+    /// </para>
     /// </remarks>
     internal static class HtCleanup
     {
@@ -47,27 +54,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private const int BottomRight = 3;
 
         /// <summary>
-        /// Number of VLC encode table contexts.
+        /// Number of bits used to encode each significance pattern in the VLC stream.
         /// </summary>
-        private const int NumContexts = 8;
-
-        /// <summary>
-        /// Maximum number of significance patterns per context (4 bits = 16 patterns).
-        /// </summary>
-        private const int MaxPatternsPerContext = 16;
-
-        /// <summary>
-        /// VLC encode table for Table0: maps (context, sigPattern) to (codeword, length).
-        /// Lazy-initialized for thread safety.
-        /// </summary>
-        private static readonly Lazy<VlcEncodeEntry[,]> _vlcEncode0 =
-            new Lazy<VlcEncodeEntry[,]>(() => BuildVlcEncodeTable(VlcTable.Table0));
-
-        /// <summary>
-        /// VLC encode table for Table1: maps (context, sigPattern) to (codeword, length).
-        /// </summary>
-        private static readonly Lazy<VlcEncodeEntry[,]> _vlcEncode1 =
-            new Lazy<VlcEncodeEntry[,]>(() => BuildVlcEncodeTable(VlcTable.Table1));
+        private const int SigPatternBits = 4;
 
         /// <summary>
         /// Encodes wavelet coefficients using the HT Cleanup pass.
@@ -79,7 +68,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <param name="height">Code-block height in samples.</param>
         /// <param name="subbandType">
         /// Subband type: 0=LL, 1=LH, 2=HL, 3=HH.
-        /// Controls which VLC table is used for even vs odd quad rows in a stripe.
+        /// Reserved for future use with standard VLC table selection.
         /// </param>
         /// <returns>The cleanup codeword segment as a byte array.</returns>
         /// <exception cref="ArgumentException">
@@ -117,9 +106,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
             try
             {
-                var encode0 = _vlcEncode0.Value;
-                var encode1 = _vlcEncode1.Value;
-
                 for (int qr = 0; qr < quadH; qr++)
                 {
                     for (int qc = 0; qc < quadW; qc++)
@@ -150,16 +136,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                             // Store significance state for context
                             sigState[qr * quadW + qc] = 1;
 
-                            // Form 3-bit context from neighbours
-                            int context = FormContext(sigState, qr, qc, quadW);
-
-                            // Select VLC table based on quad row within stripe pair
-                            bool useTable1 = ShouldUseTable1(qr, subbandType);
-                            var encodeTable = useTable1 ? encode1 : encode0;
-
-                            // VLC encode significance pattern
-                            var vlcEntry = encodeTable[context, sigPattern];
-                            writer.WriteVlcBits(vlcEntry.Codeword, vlcEntry.Length);
+                            // Write raw 4-bit significance pattern to VLC stream
+                            writer.WriteVlcBits((uint)sigPattern, SigPatternBits);
 
                             // Encode MagSgn for each significant sample
                             EncodeMagSgn(ref writer, v0, v1, v2, v3, sigPattern);
@@ -190,6 +168,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <param name="height">Code-block height in samples.</param>
         /// <param name="subbandType">
         /// Subband type: 0=LL, 1=LH, 2=HL, 3=HH.
+        /// Reserved for future use with standard VLC table selection.
         /// </param>
         /// <exception cref="ArgumentException">
         /// Thrown when output buffer is too small for the specified dimensions.
@@ -243,30 +222,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                         // Mark as significant for context
                         sigState[qr * quadW + qc] = 1;
 
-                        // Form context from neighbours
-                        int context = FormContext(sigState, qr, qc, quadW);
-
-                        // Select VLC table
-                        bool useTable1 = ShouldUseTable1(qr, subbandType);
-
-                        // Peek 7 VLC bits and decode
-                        uint vlcBits = reader.PeekVlcBits(7);
-
-                        byte sigPattern;
-                        int codewordLen;
-
-                        if (useTable1)
-                        {
-                            (sigPattern, _, codewordLen) =
-                                VlcTable.DecodeTable1((int)vlcBits, context);
-                        }
-                        else
-                        {
-                            (sigPattern, _, codewordLen) =
-                                VlcTable.DecodeTable0((int)vlcBits, context);
-                        }
-
-                        reader.AdvanceVlc(codewordLen);
+                        // Read raw 4-bit significance pattern from VLC stream
+                        byte sigPattern = (byte)reader.ReadVlcBits(SigPatternBits);
 
                         // Decode MagSgn for each significant sample
                         int r = qr * 2;
@@ -283,58 +240,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     ArrayPool<byte>.Shared.Return(rentedSigState);
                 }
             }
-        }
-
-        /// <summary>
-        /// Determines whether to use VLC Table 1 (vs Table 0) for a quad row.
-        /// </summary>
-        /// <remarks>
-        /// Within a stripe of 4 sample rows (2 quad rows), the first quad row uses Table 0
-        /// and the second uses Table 1. The subband type does not affect table selection
-        /// in the cleanup pass.
-        /// </remarks>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool ShouldUseTable1(int quadRow, int subbandType)
-        {
-            return (quadRow & 1) != 0;
-        }
-
-        /// <summary>
-        /// Forms a 3-bit VLC context from neighbour quad significance.
-        /// </summary>
-        /// <remarks>
-        /// Context bits:
-        /// <list type="bullet">
-        ///   <item>bit 0: left neighbour significant (quad at qc-1, same qr)</item>
-        ///   <item>bit 1: above-left neighbour significant (quad at qc-1, qr-1)</item>
-        ///   <item>bit 2: above neighbour significant (quad at qc, qr-1)</item>
-        /// </list>
-        /// </remarks>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int FormContext(
-            ReadOnlySpan<byte> sigState, int qr, int qc, int quadW)
-        {
-            int ctx = 0;
-
-            // Left neighbour
-            if (qc > 0 && sigState[qr * quadW + (qc - 1)] != 0)
-            {
-                ctx |= 1;
-            }
-
-            // Above-left neighbour
-            if (qr > 0 && qc > 0 && sigState[(qr - 1) * quadW + (qc - 1)] != 0)
-            {
-                ctx |= 2;
-            }
-
-            // Above neighbour
-            if (qr > 0 && sigState[(qr - 1) * quadW + qc] != 0)
-            {
-                ctx |= 4;
-            }
-
-            return ctx;
         }
 
         /// <summary>
@@ -524,80 +429,5 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 #endif
         }
 
-        /// <summary>
-        /// Builds a VLC encode table by inverting a VLC decode table.
-        /// </summary>
-        /// <remarks>
-        /// For each context and significance pattern, finds the shortest codeword that
-        /// decodes to that pattern, in MSB-first form for writing to the VLC stream.
-        /// </remarks>
-        private static VlcEncodeEntry[,] BuildVlcEncodeTable(ushort[] decodeTable)
-        {
-            var encodeTable = new VlcEncodeEntry[NumContexts, MaxPatternsPerContext];
-
-            for (int ctx = 0; ctx < NumContexts; ctx++)
-            {
-                for (int cw = 0; cw < 128; cw++)
-                {
-                    int index = (ctx << 7) | cw;
-                    ushort entry = decodeTable[index];
-
-                    int sigPattern = entry & 0x0F;
-                    int length = (entry >> 8) & 0x0F;
-
-                    if (length == 0)
-                    {
-                        continue;
-                    }
-
-                    var existing = encodeTable[ctx, sigPattern];
-                    if (existing.Length == 0 || length < existing.Length)
-                    {
-                        // Extract the significant bits of the codeword (LSB-first in table)
-                        uint cwBits = (uint)(cw & ((1 << length) - 1));
-
-                        // Reverse from LSB-first (table index) to MSB-first (stream write)
-                        uint msbFirst = ReverseBits(cwBits, length);
-
-                        encodeTable[ctx, sigPattern] = new VlcEncodeEntry(msbFirst, length);
-                    }
-                }
-            }
-
-            return encodeTable;
-        }
-
-        /// <summary>
-        /// Reverses the lower N bits of a value.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static uint ReverseBits(uint value, int numBits)
-        {
-            uint result = 0;
-            for (int i = 0; i < numBits; i++)
-            {
-                result = (result << 1) | (value & 1);
-                value >>= 1;
-            }
-            return result;
-        }
-
-        /// <summary>
-        /// A VLC encode table entry mapping a significance pattern to its codeword.
-        /// </summary>
-        internal readonly struct VlcEncodeEntry
-        {
-            /// <summary>VLC codeword bits in MSB-first order, right-aligned.</summary>
-            public readonly uint Codeword;
-
-            /// <summary>Length of the codeword in bits (1-7). 0 = invalid/uninitialized.</summary>
-            public readonly int Length;
-
-            public VlcEncodeEntry(uint codeword, int length)
-            {
-                Codeword = codeword;
-                Length = length;
-            }
-        }
     }
 }
