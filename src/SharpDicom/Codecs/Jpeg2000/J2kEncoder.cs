@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
 using SharpDicom.Codecs.Jpeg2000.Tier2;
 using SharpDicom.Codecs.Jpeg2000.Wavelet;
@@ -131,8 +132,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 DwtTransform.Forward(componentData[c], width, height, options.DecompositionLevels, lossless);
             }
 
-            // EBCOT tier-1 encoding
-            using var ebcotEncoder = new EbcotEncoder();
+            // EBCOT tier-1 encoding via IBlockCoder abstraction
+            var blockCoder = EbcotBlockCoder.Instance;
             var packetEncoder = new PacketEncoder();
 
             // For simplicity, encode as single tile with single quality layer
@@ -150,7 +151,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                 var codeBlocks = EncodeComponentCodeBlocks(
                     componentData[c], width, height,
                     cbWidth, cbHeight, cbsWide, cbsHigh,
-                    ebcotEncoder);
+                    blockCoder, options.DecompositionLevels);
                 allCodeBlocks.Add(codeBlocks);
             }
 
@@ -295,16 +296,21 @@ namespace SharpDicom.Codecs.Jpeg2000
         }
 
         /// <summary>
-        /// Encodes code-blocks for a single component with proper subband type tracking.
+        /// Encodes code-blocks for a single component using the SubbandPartitioner
+        /// to determine the correct subband type for each code-block position.
         /// </summary>
         private static CodeBlockData[] EncodeComponentCodeBlocks(
             int[] data, int width, int height,
             int cbWidth, int cbHeight, int cbsWide, int cbsHigh,
-            EbcotEncoder encoder)
+            EbcotBlockCoder blockCoder, int decompositionLevels)
         {
             int numCodeBlocks = cbsWide * cbsHigh;
             var codeBlocks = new CodeBlockData[numCodeBlocks];
             int[] cbBuffer = new int[cbWidth * cbHeight];
+
+            // Build subband descriptors for this component's DWT decomposition
+            var subbands = SubbandPartitioner.GetSubbands(
+                width, height, decompositionLevels, cbWidth, cbHeight);
 
             for (int cbY = 0; cbY < cbsHigh; cbY++)
             {
@@ -319,17 +325,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                     int actualHeight = Math.Min(cbHeight, height - startY);
 
                     // Determine subband type based on position in coefficient array
-                    // After DWT, the structure is:
-                    // +----+----+
-                    // | LL | LH |  LL = low-low (approximation)
-                    // +----+----+  LH = low-high (horizontal detail)
-                    // | HL | HH |  HL = high-low (vertical detail)
-                    // +----+----+  HH = high-high (diagonal detail)
-                    //
-                    // For simplicity, use LL subband type (0) for all code-blocks.
-                    // A full implementation would track which subband each code-block belongs to
-                    // based on the DWT decomposition structure.
-                    int subbandType = 0; // LL subband (approximation coefficients)
+                    // using the SubbandPartitioner from Plan 01
+                    int subbandType = FindSubbandTypeForPosition(subbands, startX, startY);
 
                     // Clear buffer and copy data
                     Array.Clear(cbBuffer, 0, cbBuffer.Length);
@@ -341,12 +338,36 @@ namespace SharpDicom.Codecs.Jpeg2000
                         }
                     }
 
-                    // Encode code-block with proper subband type
-                    codeBlocks[cbIdx] = encoder.EncodeCodeBlock(cbBuffer, cbWidth, cbHeight, subbandType);
+                    // Encode code-block with proper subband type via IBlockCoder
+                    codeBlocks[cbIdx] = blockCoder.EncodeBlock(
+                        cbBuffer, cbWidth, cbHeight, subbandType, msbPosition: -1);
                 }
             }
 
             return codeBlocks;
+        }
+
+        /// <summary>
+        /// Finds the subband type for a given position in the DWT coefficient array.
+        /// </summary>
+        /// <param name="subbands">Subband descriptors from SubbandPartitioner.</param>
+        /// <param name="x">Horizontal position in the coefficient array.</param>
+        /// <param name="y">Vertical position in the coefficient array.</param>
+        /// <returns>Subband type integer (0=LL, 1=HL, 2=LH, 3=HH).</returns>
+        private static int FindSubbandTypeForPosition(SubbandDescriptor[] subbands, int x, int y)
+        {
+            for (int i = 0; i < subbands.Length; i++)
+            {
+                var sb = subbands[i];
+                if (x >= sb.OriginX && x < sb.OriginX + sb.Width &&
+                    y >= sb.OriginY && y < sb.OriginY + sb.Height)
+                {
+                    return (int)sb.Type;
+                }
+            }
+
+            // Default to LL if no subband found (should not happen with correct partitioning)
+            return 0;
         }
 
         /// <summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
 using SharpDicom.Codecs.Jpeg2000.Tier2;
 using SharpDicom.Codecs.Jpeg2000.Wavelet;
@@ -113,9 +114,13 @@ namespace SharpDicom.Codecs.Jpeg2000
                 componentData[c] = new int[width * height];
             }
 
-            // Parse packets and decode code-blocks
+            // Parse packets and decode code-blocks using IBlockCoder abstraction
             var packetDecoder = new PacketDecoder();
-            var ebcotDecoder = new EbcotDecoder();
+            var blockCoder = EbcotBlockCoder.Instance;
+
+            // Build subband descriptors for subband type lookup
+            var subbands = SubbandPartitioner.GetSubbands(
+                width, height, levels, cbWidth, cbHeight);
 
             // For each component, decode its packets and code-blocks
             // This is a simplified single-tile, single-layer decoder
@@ -139,7 +144,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                     packetDecoder,
                     firstInclusion);
 
-                // Decode code-blocks using EBCOT
+                // Decode code-blocks using block coder
                 int[] cbBuffer = new int[cbWidth * cbHeight];
 
                 for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
@@ -155,19 +160,26 @@ namespace SharpDicom.Codecs.Jpeg2000
                             msbPosition = 0;
                         }
 
-                        // Decode code-block
-                        int[] decoded = ebcotDecoder.DecodeCodeBlock(
-                            data.Span,
-                            totalPasses,
-                            cbWidth, cbHeight,
-                            msbPosition,
-                            subbandType: 0);
-
-                        // Copy to component buffer
+                        // Determine code-block position for subband type lookup
                         int cbX = cbIdx % cbsWide;
                         int cbY = cbIdx / cbsWide;
                         int startX = cbX * cbWidth;
                         int startY = cbY * cbHeight;
+
+                        // Find the correct subband type for this code-block position
+                        int subbandType = FindSubbandTypeForPosition(subbands, startX, startY);
+
+                        // Decode code-block via IBlockCoder
+                        Array.Clear(cbBuffer, 0, cbBuffer.Length);
+                        blockCoder.DecodeBlock(
+                            data.Span,
+                            totalPasses,
+                            cbBuffer,
+                            cbWidth, cbHeight,
+                            msbPosition,
+                            subbandType);
+
+                        // Copy to component buffer
                         int actualWidth = Math.Min(cbWidth, width - startX);
                         int actualHeight = Math.Min(cbHeight, height - startY);
 
@@ -176,7 +188,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                             for (int x = 0; x < actualWidth; x++)
                             {
                                 componentData[c][(startY + y) * width + (startX + x)] =
-                                    decoded[y * cbWidth + x];
+                                    cbBuffer[y * cbWidth + x];
                             }
                         }
                     }
@@ -236,6 +248,29 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Finds the subband type for a given position in the DWT coefficient array.
+        /// </summary>
+        /// <param name="subbands">Subband descriptors from SubbandPartitioner.</param>
+        /// <param name="x">Horizontal position in the coefficient array.</param>
+        /// <param name="y">Vertical position in the coefficient array.</param>
+        /// <returns>Subband type integer (0=LL, 1=HL, 2=LH, 3=HH).</returns>
+        private static int FindSubbandTypeForPosition(SubbandDescriptor[] subbands, int x, int y)
+        {
+            for (int i = 0; i < subbands.Length; i++)
+            {
+                var sb = subbands[i];
+                if (x >= sb.OriginX && x < sb.OriginX + sb.Width &&
+                    y >= sb.OriginY && y < sb.OriginY + sb.Height)
+                {
+                    return (int)sb.Type;
+                }
+            }
+
+            // Default to LL if no subband found (should not happen with correct partitioning)
+            return 0;
         }
 
         /// <summary>
