@@ -56,7 +56,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private int _bytePosition;
         private int _bitBuffer;
         private int _bitsAvailable;
-        private bool _htMode;
         private int _totalBytesConsumed;
 
         /// <summary>
@@ -71,20 +70,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// (header + all code-block data).
         /// </summary>
         public int BytesConsumed => _totalBytesConsumed;
-
-        /// <summary>
-        /// Gets or sets whether to use HT mode for pass count decoding.
-        /// </summary>
-        /// <remarks>
-        /// When true, pass counts are read as 3-bit values (range 1-6)
-        /// instead of the EBCOT variable-length encoding (range 1-164).
-        /// This should be set based on the CAP marker in the codestream header.
-        /// </remarks>
-        public bool IsHtMode
-        {
-            get => _htMode;
-            set => _htMode = value;
-        }
 
         /// <summary>
         /// Decodes a packet and extracts code-block segments.
@@ -323,11 +308,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Reads number of coding passes.
+        /// Reads number of coding passes using ITU-T T.800 Table B.4.
         /// </summary>
         /// <remarks>
-        /// <para>
-        /// In EBCOT mode, uses ITU-T T.800 Table B.4:
+        /// Both EBCOT and HTJ2K use the same variable-length encoding:
         /// | Passes | Coding                        |
         /// |--------|-------------------------------|
         /// | 1      | 0                             |
@@ -335,25 +319,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// | 3-5    | 11xx (00=3, 01=4, 10=5)       |
         /// | 6-36   | 1111 + 5-bit (0-30)           |
         /// | 37-164 | 1111 1111 + 7-bit (0-127)     |
-        /// </para>
-        /// <para>
-        /// In HT mode, uses a simple 3-bit encoding for pass counts 1-6.
-        /// </para>
         /// </remarks>
         private int ReadNumPasses()
         {
-            if (_htMode)
-            {
-                // HT mode: 3-bit value representing 1-6 passes
-                int htPasses = ReadBits(3) + 1;
-                if (htPasses > 6)
-                {
-                    throw new InvalidDataException(
-                        $"HT pass count {htPasses} is out of the valid range 1-6.");
-                }
-                return htPasses;
-            }
-
             // ITU-T T.800 Table B.4
             if (ReadBit() == 0)
             {

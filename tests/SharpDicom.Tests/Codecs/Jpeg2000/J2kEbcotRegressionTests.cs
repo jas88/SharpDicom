@@ -599,8 +599,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
                 codeBlocks, totalCodeBlocks, 1,
                 header.NumberOfLayers,
                 header.Progression,
-                levels + 1,
-                isHtMode: false);
+                levels + 1);
 
             Console.WriteLine($"  Packets count: {packets.Length}");
             for (int p = 0; p < packets.Length; p++)
@@ -621,7 +620,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
             // 4e: Tier-2 Packet Decoding (from the packet data directly)
             Console.WriteLine("\n--- Step 4e: PacketDecoder (direct from packet data) ---");
             var packetDecoder = new PacketDecoder();
-            packetDecoder.IsHtMode = false;
+
 
             bool[] firstInclusion = new bool[totalCodeBlocks];
             for (int i = 0; i < totalCodeBlocks; i++) firstInclusion[i] = true;
@@ -826,13 +825,12 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
             // Step 5: Packet encode
             Console.WriteLine("\n--- Step 5: PacketEncoder ---");
             var pe = new PacketEncoder();
-            var packets = pe.EncodePackets(encCodeBlocks, totalCB, 1, header.NumberOfLayers, header.Progression, levels + 1, false);
+            var packets = pe.EncodePackets(encCodeBlocks, totalCB, 1, header.NumberOfLayers, header.Progression, levels + 1);
             Console.WriteLine($"  Packets: {packets.Length}");
 
             // Step 6: Packet decode
             Console.WriteLine("\n--- Step 6: PacketDecoder ---");
             var pd = new PacketDecoder();
-            pd.IsHtMode = false;
             bool[] firstInc = new bool[totalCB];
             for (int i = 0; i < totalCB; i++) firstInc[i] = true;
 

@@ -330,8 +330,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                     totalCodeBlocksPerComponent, 1,
                     options.NumberOfLayers,
                     options.Progression,
-                    options.DecompositionLevels + 1,
-                    isHtMode);
+                    options.DecompositionLevels + 1);
                 allPackets.Add(packets);
             }
 

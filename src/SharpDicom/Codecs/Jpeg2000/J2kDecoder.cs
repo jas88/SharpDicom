@@ -348,7 +348,6 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             var packetDecoder = new PacketDecoder();
-            packetDecoder.IsHtMode = header.IsHtj2k;
 
             int dataOffset = 0;
 
