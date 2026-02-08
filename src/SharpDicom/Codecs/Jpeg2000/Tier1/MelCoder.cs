@@ -71,6 +71,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private int _bitsAvailable;  // Number of valid bits in buffer
         private int _run;            // Remaining run count
         private int _state;          // Current state (0-12)
+        private bool _significantPending; // Whether a significant quad follows the current partial run
 
         /// <summary>
         /// Initializes a new MEL decoder.
@@ -85,6 +86,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _bitsAvailable = 0;
             _run = 0;
             _state = 0;
+            _significantPending = false;
         }
 
         /// <summary>
@@ -110,6 +112,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             if (_run > 0)
             {
                 _run--;
+                if (_run == 0 && _significantPending)
+                {
+                    // The partial run has ended; the next quad is significant
+                    _significantPending = false;
+                    _state = Math.Max(_state - 1, 0);
+                    return true;
+                }
                 return false; // insignificant (part of run)
             }
 
@@ -117,7 +126,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int bit = ReadBit();
             if (bit == 0)
             {
-                // Run continues: 2^MelE[state] insignificant quads follow
+                // Full run: 2^MelE[state] insignificant quads follow
                 int runLength = 1 << MelCoder.MelE[_state];
                 _run = runLength - 1; // this quad counts as first
                 _state = Math.Min(_state + 1, MelCoder.MaxState); // transition up
@@ -125,8 +134,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             }
             else
             {
-                // Run broken: this quad is significant
-                _state = Math.Max(_state - 1, 0); // transition down
+                // Run broken: read MelE[state] bits for partial run count
+                int numBits = MelCoder.MelE[_state];
+                if (numBits > 0)
+                {
+                    int partialRun = ReadBits(numBits);
+                    if (partialRun > 0)
+                    {
+                        // There are some insignificant quads before the significant one
+                        _run = partialRun; // includes the significant quad at the end
+                        _significantPending = true;
+                        return false; // this quad is insignificant (first of partial run)
+                    }
+                }
+                // No partial run: this quad is directly significant
+                _state = Math.Max(_state - 1, 0);
                 return true;
             }
         }
@@ -148,12 +170,26 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         }
 
         /// <summary>
+        /// Reads multiple bits from the MEL stream (MSB-first).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int ReadBits(int count)
+        {
+            int result = 0;
+            for (int i = 0; i < count; i++)
+            {
+                result = (result << 1) | ReadBit();
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Fills the bit buffer by reading the next byte backward.
         /// </summary>
         /// <remarks>
-        /// MEL bytes are read backward from the end of the segment. Byte stuffing
-        /// is applied: after a 0xFF byte, only 7 bits are valid in the next byte
-        /// (same convention as MQ coder).
+        /// MEL bytes are read backward from the end of the segment.
+        /// Unlike the MQ coder, the MEL stream does not use byte stuffing
+        /// (no 0xFF special handling). Each byte provides exactly 8 data bits.
         /// </remarks>
         private void FillBitBuffer()
         {
@@ -168,16 +204,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             _pos--;
             byte b = _data[_pos];
             _bitBuffer = b;
-
-            // Check for byte stuffing: if previous byte was 0xFF, only 7 bits valid
-            if (_pos > 0 && _data[_pos - 1] == 0xFF)
-            {
-                _bitsAvailable = 7;
-            }
-            else
-            {
-                _bitsAvailable = 8;
-            }
+            _bitsAvailable = 8;
         }
     }
 
@@ -249,22 +276,14 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             }
             else
             {
-                // Run broken: emit 1-bit, then emit remaining run bits, transition down
-                if (_run > 0)
+                // Run broken: emit 1-bit followed by MelE[state] bits encoding
+                // the partial run count (how many insignificant quads preceded this
+                // significant one in the current run).
+                int numBits = MelCoder.MelE[_state];
+                WriteBit(1);
+                if (numBits > 0)
                 {
-                    // Need to emit partial run information
-                    // For the MEL coder, a partial run is signaled by emitting
-                    // the run count as MelE[state] bits after the 1-bit
-                    int numBits = MelCoder.MelE[_state];
-                    WriteBit(1);
-                    if (numBits > 0)
-                    {
-                        WriteBits(_run, numBits);
-                    }
-                }
-                else
-                {
-                    WriteBit(1);
+                    WriteBits(_run, numBits);
                 }
                 _run = 0;
                 _state = Math.Max(_state - 1, 0);

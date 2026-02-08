@@ -389,16 +389,32 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 int suffixBits = 7 - cw.Length;
                 int numEntries = 1 << suffixBits;
 
-                // The codeword occupies the LSBs of the 7-bit index
-                // (VLC bits are read LSB-first from the stream)
-                int baseIndex = cw.Code;
+                // The codeword is defined MSB-first (left-to-right reading order).
+                // The table is indexed by raw stream bits where bit 0 corresponds to
+                // the first bit read. So we reverse the codeword bits to get the
+                // correct base index for the lookup table.
+                int reversedCode = ReverseBits(cw.Code, cw.Length);
 
                 for (int i = 0; i < numEntries; i++)
                 {
-                    int index = contextOffset | (i << cw.Length) | baseIndex;
+                    int index = contextOffset | (i << cw.Length) | reversedCode;
                     table[index] = entry;
                 }
             }
+        }
+
+        /// <summary>
+        /// Reverses the lower N bits of a value.
+        /// </summary>
+        private static int ReverseBits(int value, int numBits)
+        {
+            int result = 0;
+            for (int i = 0; i < numBits; i++)
+            {
+                result = (result << 1) | (value & 1);
+                value >>= 1;
+            }
+            return result;
         }
 
         /// <summary>
