@@ -49,7 +49,7 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev ccache
+          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev ccache libboost-program-options-dev
           version: 1.6
           execute_install_scripts: true
 
