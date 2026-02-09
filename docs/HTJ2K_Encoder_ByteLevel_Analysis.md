@@ -176,8 +176,8 @@ The codeblock data is completely different. This could be due to:
 3. ✅ Fix CAP Ccap[15] to 0x0002 (HTJ2K basic mode only) - **DONE**
 4. ✅ Fix QCD Sqcd to use guard bits without quantization style bits - **DONE**
 5. ✅ Implement BIBO gain-based QCD step size calculation - **DONE**
-6. 🟡 Fix QCD length field (ours: 0x14/20, should be 0x13/19) - **IN PROGRESS**
-7. 🔴 Debug packet/codeblock data encoding (requires deeper analysis)
+6. ✅ Fix QCD marker - **DONE** (was dotnet-script cache issue)
+7. 🔴 Fix codeblock encoding - OpenJPH now accepts headers but fails at codeblock decode
 
 ## Test Commands
 
