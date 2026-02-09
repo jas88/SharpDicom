@@ -932,8 +932,6 @@ namespace SharpDicom.Codecs.Jpeg2000
             int numSubbands = 1 + 3 * options.DecompositionLevels; // LL + 3 subbands per level
             int segmentLength = 2 + 1 + numSubbands; // Length field (2) + Sqcd (1) + SPqcd (numSubbands)
 
-            System.Diagnostics.Debug.WriteLine($"QCD: numSubbands={numSubbands}, segmentLength={segmentLength}, bitDepth={bitDepth}");
-
             WriteMarker(buffer, J2kMarkers.QCD);
 
             Span<byte> span = buffer.GetSpan(segmentLength);
