@@ -21,6 +21,7 @@ namespace SharpDicom.Tests.Benchmarks
     /// </para>
     /// </remarks>
     [TestFixture]
+    [Explicit("Benchmark test - run manually")]
     public class Htj2kBenchmarkSmokeTests
     {
         private const int BlockWidth = 64;
