@@ -77,7 +77,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         {
             if (DjplsPath == null || CjplsPath == null)
             {
-                Assert.Fail("charls-tools not installed - build cjpls/djpls from: https://github.com/malaterre/charls-tools");
+                Assert.Ignore("charls-tools not installed - build cjpls/djpls from: https://github.com/malaterre/charls-tools");
             }
         }
 

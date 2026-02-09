@@ -152,6 +152,8 @@ jobs:
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc
@@ -179,6 +181,7 @@ jobs:
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK"
         env:
           DCMTK_ROOT: /usr
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
 
       # Upload coverage
       - name: Collect coverage files

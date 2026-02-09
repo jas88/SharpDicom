@@ -477,7 +477,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             WriteSizMarker(buffer, info, tileW, tileH, isHtj2k);
 
             // Write COD marker
-            WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3);
+            WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3, isHtj2k);
 
             // Write QCD marker
             WriteQcdMarker(buffer, options, lossless);
@@ -881,7 +881,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(segmentLength);
         }
 
-        private static void WriteCodMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, bool usesMct)
+        private static void WriteCodMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, bool usesMct, bool isHtj2k)
         {
             int segmentLength = 12; // Fixed segment length
 
@@ -916,8 +916,8 @@ namespace SharpDicom.Codecs.Jpeg2000
             // Code-block height exponent
             span[offset++] = (byte)(GetExponent(options.CodeBlockHeight) - 2);
 
-            // Code-block style
-            span[offset++] = 0x00;
+            // Code-block style: bit 6 = HT mode flag per ITU-T T.814
+            span[offset++] = isHtj2k ? (byte)0x40 : (byte)0x00;
 
             // Wavelet transform: 0 = 9/7, 1 = 5/3
             span[offset++] = lossless ? (byte)1 : (byte)0;

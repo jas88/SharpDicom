@@ -5,148 +5,233 @@ using System.Runtime.CompilerServices;
 namespace SharpDicom.Codecs.Jpeg2000.Tier1
 {
     /// <summary>
-    /// Three-stream reader for HT cleanup pass codeword segments.
+    /// Three-stream reader for HT cleanup pass codeword segments per ITU-T T.814.
     /// </summary>
     /// <remarks>
     /// <para>
     /// The HT cleanup pass packs three byte-streams into a single codeword segment:
     /// <list type="bullet">
-    ///   <item>MagSgn: reads forward from byte 0 (magnitude and sign bits)</item>
-    ///   <item>VLC: reads forward from a boundary offset (variable-length codes)</item>
-    ///   <item>MEL: reads backward from the end of the segment (run-length codes)</item>
+    ///   <item>MagSgn: reads forward from byte 0 with 0xFF bit-stuffing</item>
+    ///   <item>MEL: reads forward from the MagSgn/MEL boundary with 0xFF bit-stuffing</item>
+    ///   <item>VLC: reads backward from the end of the segment with >0x8F bit-stuffing</item>
     /// </list>
     /// </para>
     /// <para>
-    /// The ILW (Interface Locator Word) is stored in the last 2 bytes of the segment.
-    /// It is a 12-bit value encoding the byte offset where VLC data begins (also marking
-    /// the end of MagSgn data). The MEL data starts just before the ILW bytes and grows
-    /// backward.
+    /// The ILW (Interface Locator Word) is a 12-bit value stored across the last two bytes
+    /// of the segment. It encodes the combined length of MEL + VLC data (scup).
+    /// The MagSgn data occupies the first (totalLength - scup) bytes.
     /// </para>
     /// <para>
     /// Segment layout:
     /// <code>
-    /// [MagSgn bytes...] [VLC bytes...] [MEL bytes (reversed)] [ILW (2 bytes)]
-    ///  ^-- forward        ^-- vlcStart     ^-- backward           ^-- segment end
+    /// [MagSgn bytes...] [MEL bytes...] [VLC bytes (reversed)]
+    ///  ^-- byte 0        ^-- lcup-scup  ^-- reads backward from lcup-1
     /// </code>
     /// </para>
     /// </remarks>
     internal ref struct HtCleanupReader
     {
-        // MagSgn stream state (forward reader)
+        // MagSgn stream state (forward reader with 0xFF bit-stuffing)
         private readonly ReadOnlySpan<byte> _segment;
-        private int _magSgnBytePos;
-        private uint _magSgnBitBuffer;
-        private int _magSgnBitsAvailable;
+        private int _msPos;
+        private int _msSize;
+        private ulong _msTmp;
+        private int _msBits;
+        private bool _msUnstuff;
 
-        // VLC stream state (forward reader from vlcStart)
-        private int _vlcBytePos;
-        private uint _vlcBitBuffer;
-        private int _vlcBitsAvailable;
-        private readonly int _vlcEnd;    // End of VLC data (start of MEL backwards region)
+        // VLC stream state (backward reader with >0x8F bit-stuffing)
+        private int _vlcPos;       // Points into _segment, reads backward
+        private int _vlcSize;      // Remaining bytes
+        private ulong _vlcTmp;
+        private int _vlcBits;
+        private bool _vlcUnstuff;
 
-        // MEL decoder (backward reader)
+        // MEL decoder
         private MelDecoder _melDecoder;
 
         // Stream boundaries
-        private readonly int _vlcStart;
-        private readonly int _melEnd;    // Last MEL byte position (just before ILW)
+        private readonly int _lcup;
+        private readonly int _scup;
 
         /// <summary>
-        /// Initializes a new HT cleanup reader by parsing the segment and locating stream boundaries.
+        /// Initializes a new HT cleanup reader by parsing the ILW and locating stream boundaries.
         /// </summary>
         /// <param name="segment">The cleanup codeword segment bytes.</param>
-        /// <exception cref="ArgumentException">Thrown when segment is too short (minimum 2 bytes for ILW).</exception>
+        /// <exception cref="ArgumentException">Thrown when segment is too short or ILW is invalid.</exception>
         public HtCleanupReader(ReadOnlySpan<byte> segment)
         {
-            if (segment.Length < 2)
+            // Empty segment is valid for all-zero codeblocks
+            if (segment.IsEmpty)
             {
-                throw new ArgumentException("Cleanup segment must be at least 2 bytes (ILW).", nameof(segment));
+                _segment = segment;
+                _lcup = 0;
+                _scup = 0;
+                _msPos = 0;
+                _msSize = 0;
+                _msTmp = 0;
+                _msBits = 0;
+                _msUnstuff = false;
+                _vlcPos = 0;
+                _vlcSize = 0;
+                _vlcTmp = 0;
+                _vlcBits = 0;
+                _vlcUnstuff = false;
+                _melDecoder = default;
+                return;
+            }
+
+            if (segment.Length == 1)
+            {
+                // Single-byte segment: treat as degenerate case with no streams
+                _segment = segment;
+                _lcup = 1;
+                _scup = 0;
+                _msPos = 0;
+                _msSize = 0;
+                _msTmp = 0;
+                _msBits = 0;
+                _msUnstuff = false;
+                _vlcPos = 0;
+                _vlcSize = 0;
+                _vlcTmp = 0;
+                _vlcBits = 0;
+                _vlcUnstuff = false;
+                _melDecoder = default;
+                return;
             }
 
             _segment = segment;
+            _lcup = segment.Length;
 
-            // Parse ILW from the last 2 bytes
-            // ILW is a 12-bit value: upper 8 bits from second-to-last byte,
-            // lower 4 bits from upper nibble of last byte
-            int ilwByte0 = segment[segment.Length - 2];
-            int ilwByte1 = segment[segment.Length - 1];
-            int vlcOffset = (ilwByte0 << 4) | (ilwByte1 >> 4);
+            // Parse ILW (scup) from the last 2 bytes
+            // scup = (last_byte << 4) | (second_to_last_byte & 0xF)
+            _scup = (segment[_lcup - 1] << 4) + (segment[_lcup - 2] & 0x0F);
 
-            _vlcStart = vlcOffset;
+            if (_scup < 2 || _scup > _lcup || _scup > 4079)
+            {
+                throw new ArgumentException(
+                    $"Invalid ILW value {_scup} (lcup={_lcup}).", nameof(segment));
+            }
 
-            // MEL data ends just before the ILW (2 bytes from end)
-            _melEnd = segment.Length - 2;
+            int msLen = _lcup - _scup; // MagSgn length
 
-            // VLC data goes from vlcStart to just before MEL backward region
-            // The VLC and MEL share the middle region; VLC reads forward, MEL backward
-            _vlcEnd = _melEnd;
+            // Initialize MagSgn forward reader
+            _msPos = 0;
+            _msSize = msLen;
+            _msTmp = 0;
+            _msBits = 0;
+            _msUnstuff = false;
 
-            // Initialize MagSgn forward reader at byte 0
-            _magSgnBytePos = 0;
-            _magSgnBitBuffer = 0;
-            _magSgnBitsAvailable = 0;
+            // Initialize VLC backward reader
+            // VLC data starts at the end and reads backward.
+            // The first byte read is segment[lcup-2], and the top 4 bits are discarded (ILW).
+            _vlcPos = 0;
+            _vlcSize = 0;
+            _vlcTmp = 0;
+            _vlcBits = 0;
+            _vlcUnstuff = false;
 
-            // Initialize VLC forward reader at vlcStart
-            _vlcBytePos = _vlcStart;
-            _vlcBitBuffer = 0;
-            _vlcBitsAvailable = 0;
+            // Initialize MEL decoder
+            _melDecoder = new MelDecoder(segment, _lcup, _scup);
 
-            // Initialize MEL backward reader
-            _melDecoder = new MelDecoder(segment, _melEnd);
+            // Initialize VLC stream (reads backward from segment end)
+            InitVlc();
+
+            // Pre-fill MagSgn buffer
+            FillMagSgn();
         }
 
         /// <summary>
-        /// Gets the VLC start offset parsed from the ILW.
+        /// Gets the total segment length (lcup).
         /// </summary>
-        public readonly int VlcStart => _vlcStart;
+        public readonly int Lcup => _lcup;
 
         /// <summary>
-        /// Gets the MEL end position (last byte before ILW).
+        /// Gets the MEL+VLC combined length (scup).
         /// </summary>
-        public readonly int MelEnd => _melEnd;
+        public readonly int Scup => _scup;
 
         /// <summary>
-        /// Reads bits from the MagSgn stream (forward).
+        /// Initializes the VLC backward reader, consuming the ILW bits from the first byte.
         /// </summary>
-        /// <param name="count">Number of bits to read (1-25).</param>
+        private void InitVlc()
+        {
+            // VLC reads backward from segment[lcup-2] (the second-to-last byte).
+            // The first half-byte (lower nibble) is the ILW, so we start with the upper 4 bits.
+            int startPos = _lcup - 2;
+            _vlcSize = _scup - 2; // remaining bytes after this initial read
+
+            byte d = _segment[startPos];
+            _vlcTmp = (ulong)(d >> 4);
+            _vlcBits = 4 - ((_vlcTmp & 7) == 7 ? 1 : 0);
+            _vlcUnstuff = (d | 0xF) > 0x8F;
+
+            // Set position to read backward from startPos - 1
+            _vlcPos = startPos - 1;
+
+            // Fill initial bits
+            FillVlcBuffer();
+        }
+
+        /// <summary>
+        /// Reads bits from the MagSgn stream (forward, with 0xFF bit-stuffing).
+        /// </summary>
+        /// <param name="count">Number of bits to read (0-32).</param>
         /// <returns>The read bits, right-aligned.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint ReadMagSgnBits(int count)
         {
-            while (_magSgnBitsAvailable < count)
+            if (count == 0)
             {
-                FillMagSgnBuffer();
+                return 0;
             }
 
-            _magSgnBitsAvailable -= count;
-            uint bits = (_magSgnBitBuffer >> _magSgnBitsAvailable) & ((1u << count) - 1);
-            return bits;
+            if (_msBits < 32)
+            {
+                FillMagSgn();
+                if (_msBits < 32)
+                {
+                    FillMagSgn();
+                }
+            }
+
+            uint result = (uint)_msTmp & ((1u << count) - 1);
+            _msTmp >>= count;
+            _msBits -= count;
+            return result;
         }
 
         /// <summary>
-        /// Peeks bits from the VLC stream without advancing the position.
+        /// Peeks bits from the VLC stream without advancing.
         /// </summary>
-        /// <param name="count">Number of bits to peek (1-7, typically 7).</param>
+        /// <param name="count">Number of bits to peek.</param>
         /// <returns>The peeked bits, right-aligned.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint PeekVlcBits(int count)
         {
-            while (_vlcBitsAvailable < count)
+            if (_vlcBits < 32)
             {
                 FillVlcBuffer();
+                if (_vlcBits < 32)
+                {
+                    FillVlcBuffer();
+                }
             }
 
-            return (_vlcBitBuffer >> (_vlcBitsAvailable - count)) & ((1u << count) - 1);
+            return (uint)_vlcTmp & ((1u << count) - 1);
         }
 
         /// <summary>
-        /// Advances the VLC stream position by the specified number of bits.
+        /// Advances the VLC stream by the specified number of bits.
         /// </summary>
         /// <param name="bits">Number of bits to advance.</param>
+        /// <returns>The new head of the VLC buffer after advancement.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void AdvanceVlc(int bits)
+        public uint AdvanceVlc(int bits)
         {
-            _vlcBitsAvailable -= bits;
+            _vlcTmp >>= bits;
+            _vlcBits -= bits;
+            return (uint)_vlcTmp;
         }
 
         /// <summary>
@@ -157,9 +242,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint ReadVlcBits(int count)
         {
-            uint bits = PeekVlcBits(count);
+            uint val = PeekVlcBits(count);
             AdvanceVlc(count);
-            return bits;
+            return val;
         }
 
         /// <summary>
@@ -175,225 +260,307 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         }
 
         /// <summary>
-        /// Fills the MagSgn bit buffer from the next byte in the MagSgn region.
+        /// Fills the MagSgn bit buffer by reading bytes forward with 0xFF bit-stuffing.
+        /// When the MagSgn stream is exhausted, 0xFF bytes are fed in (per ITU-T T.814).
         /// </summary>
-        private void FillMagSgnBuffer()
+        private void FillMagSgn()
         {
-            if (_magSgnBytePos >= _vlcStart)
+            if (_msBits > 32)
             {
-                // Past MagSgn region - pad with zeros
-                _magSgnBitBuffer = (_magSgnBitBuffer << 8);
-                _magSgnBitsAvailable += 8;
                 return;
             }
 
-            byte b = _segment[_magSgnBytePos++];
-            _magSgnBitBuffer = (_magSgnBitBuffer << 8) | b;
-            _magSgnBitsAvailable += 8;
+            // Read up to 4 bytes
+            for (int i = 0; i < 4; i++)
+            {
+                ulong d;
+                if (_msPos < _msSize)
+                {
+                    d = _segment[_msPos++];
+                }
+                else
+                {
+                    d = 0xFF; // pad with 0xFF when exhausted
+                }
+
+                _msTmp |= d << _msBits;
+                _msBits += 8 - (_msUnstuff ? 1 : 0);
+                _msUnstuff = (d & 0xFF) == 0xFF;
+            }
         }
 
         /// <summary>
-        /// Fills the VLC bit buffer from the next byte in the VLC region.
+        /// Fills the VLC bit buffer by reading bytes backward with >0x8F bit-stuffing.
         /// </summary>
         private void FillVlcBuffer()
         {
-            if (_vlcBytePos >= _vlcEnd)
+            if (_vlcBits > 32)
             {
-                // Past VLC region - pad with zeros
-                _vlcBitBuffer = (_vlcBitBuffer << 8);
-                _vlcBitsAvailable += 8;
                 return;
             }
 
-            byte b = _segment[_vlcBytePos++];
-            _vlcBitBuffer = (_vlcBitBuffer << 8) | b;
-            _vlcBitsAvailable += 8;
+            // Read up to 4 bytes backward
+            for (int i = 0; i < 4; i++)
+            {
+                if (_vlcSize <= 0)
+                {
+                    break;
+                }
+
+                ulong d = _segment[_vlcPos];
+                _vlcPos--;
+                _vlcSize--;
+
+                // Unstuff: if last byte was >0x8F and this byte is 0x7F, skip MSB
+                int dBits = 8 - ((_vlcUnstuff && ((d & 0x7F) == 0x7F)) ? 1 : 0);
+                _vlcTmp |= d << _vlcBits;
+                _vlcBits += dBits;
+                _vlcUnstuff = d > 0x8F;
+            }
         }
     }
 
     /// <summary>
-    /// Three-stream writer for constructing HT cleanup pass codeword segments.
+    /// Three-stream writer for constructing HT cleanup pass codeword segments per ITU-T T.814.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Builds a cleanup segment by writing three streams independently:
     /// <list type="bullet">
-    ///   <item>MagSgn: written forward from byte 0</item>
-    ///   <item>VLC: written forward into a separate buffer</item>
-    ///   <item>MEL: written forward into a separate buffer (reversed during finalization)</item>
+    ///   <item>MagSgn (ms): written forward from byte 0 with 0xFF bit-stuffing</item>
+    ///   <item>MEL: written forward with 0xFF bit-stuffing (shared buffer with VLC)</item>
+    ///   <item>VLC: written backward from end of buffer with >0x8F bit-stuffing</item>
     /// </list>
     /// </para>
     /// <para>
-    /// During <see cref="Finalize"/>, the three streams are merged into a single segment
-    /// with the ILW (Interface Locator Word) appended at the end.
+    /// During <see cref="Finalize"/>, the streams are terminated and merged. The MEL and VLC
+    /// streams are fused at termination per the ITU-T T.814 specification. The final segment
+    /// layout is [MagSgn][MEL][VLC] with the ILW encoding mel.pos + vlc.pos.
     /// </para>
     /// </remarks>
     internal ref struct HtCleanupWriter
     {
-        // MagSgn stream (forward, built in place)
-        private byte[] _magSgnBuffer;
-        private int _magSgnPos;
-        private uint _magSgnBitBuffer;
-        private int _magSgnBitsInBuffer;
-        private bool _magSgnRented;
+        // MagSgn stream (forward with 0xFF bit-stuffing)
+        private byte[] _msBuffer;
+        private int _msPos;
+        private int _msMaxBits;
+        private int _msUsedBits;
+        private uint _msTmp;
+        private bool _msRented;
 
-        // VLC stream (forward, separate buffer)
-        private byte[] _vlcBuffer;
+        // MEL/VLC shared buffer
+        private byte[] _melVlcBuffer;
+        private bool _melVlcRented;
+
+        // MEL encoder state (forward in _melVlcBuffer)
+        private int _melPos;
+        private int _melRemainingBits;
+        private int _melTmp;
+        private int _melRun;
+        private int _melK;
+        private int _melThreshold;
+
+        // VLC encoder state (backward in _melVlcBuffer)
+        // vlc.buf points to last byte of vlc region; vlc writes at *(buf - pos)
+        private int _vlcBufOffset; // offset within _melVlcBuffer of the "last byte"
         private int _vlcPos;
-        private uint _vlcBitBuffer;
-        private int _vlcBitsInBuffer;
-        private bool _vlcRented;
-
-        // MEL encoder
-        private MelEncoder _melEncoder;
+        private int _vlcUsedBits;
+        private int _vlcTmp;
+        private bool _vlcLastGreaterThan8F;
 
         /// <summary>
-        /// Initializes a new HT cleanup writer.
+        /// MEL exponent table for states 0-12.
+        /// </summary>
+        private static ReadOnlySpan<int> MelExp => new int[]
+        {
+            0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5
+        };
+
+        /// <summary>
+        /// Initializes a new HT cleanup writer with separate MagSgn and MEL/VLC buffers.
         /// </summary>
         /// <param name="estimatedSize">Estimated total segment size in bytes.</param>
         public HtCleanupWriter(int estimatedSize)
         {
-            int bufSize = Math.Max(estimatedSize, 64);
-            _magSgnBuffer = ArrayPool<byte>.Shared.Rent(bufSize);
-            _magSgnRented = true;
-            _magSgnPos = 0;
-            _magSgnBitBuffer = 0;
-            _magSgnBitsInBuffer = 0;
+            int bufSize = Math.Max(estimatedSize, 128);
 
-            _vlcBuffer = ArrayPool<byte>.Shared.Rent(bufSize);
-            _vlcRented = true;
-            _vlcPos = 0;
-            _vlcBitBuffer = 0;
-            _vlcBitsInBuffer = 0;
+            // MagSgn buffer
+            _msBuffer = ArrayPool<byte>.Shared.Rent(bufSize);
+            _msRented = true;
+            _msPos = 0;
+            _msMaxBits = 8;
+            _msUsedBits = 0;
+            _msTmp = 0;
 
-            _melEncoder = new MelEncoder(bufSize / 4);
+            // MEL/VLC shared buffer
+            int melVlcSize = Math.Max(bufSize, 256);
+            _melVlcBuffer = ArrayPool<byte>.Shared.Rent(melVlcSize);
+            _melVlcRented = true;
+
+            // MEL state (forward from byte 0 of _melVlcBuffer)
+            _melPos = 0;
+            _melRemainingBits = 8;
+            _melTmp = 0;
+            _melRun = 0;
+            _melK = 0;
+            _melThreshold = 1; // 1 << MelExp[0]
+
+            // VLC state (backward from end of _melVlcBuffer)
+            _vlcBufOffset = _melVlcBuffer.Length - 1;
+            _melVlcBuffer[_vlcBufOffset] = 0xFF;
+            _vlcPos = 1;
+            _vlcUsedBits = 4;
+            _vlcTmp = 0xF;
+            _vlcLastGreaterThan8F = true;
         }
 
         /// <summary>
-        /// Writes bits to the MagSgn stream.
+        /// Writes bits to the MagSgn stream with 0xFF bit-stuffing.
         /// </summary>
-        /// <param name="bits">Bit value to write, right-aligned.</param>
-        /// <param name="count">Number of bits to write (1-25).</param>
-        public void WriteMagSgnBits(uint bits, int count)
+        /// <param name="cwd">Codeword bits to write, right-aligned.</param>
+        /// <param name="cwdLen">Number of bits to write.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteMagSgnBits(uint cwd, int cwdLen)
         {
-            for (int i = count - 1; i >= 0; i--)
+            while (cwdLen > 0)
             {
-                _magSgnBitBuffer = (_magSgnBitBuffer << 1) | ((bits >> i) & 1);
-                _magSgnBitsInBuffer++;
+                int t = Math.Min(_msMaxBits - _msUsedBits, cwdLen);
+                _msTmp |= (cwd & ((1u << t) - 1)) << _msUsedBits;
+                _msUsedBits += t;
+                cwd >>= t;
+                cwdLen -= t;
 
-                if (_magSgnBitsInBuffer == 8)
+                if (_msUsedBits >= _msMaxBits)
                 {
-                    EnsureMagSgnCapacity();
-                    _magSgnBuffer[_magSgnPos++] = (byte)_magSgnBitBuffer;
-                    _magSgnBitBuffer = 0;
-                    _magSgnBitsInBuffer = 0;
+                    EnsureMsCapacity();
+                    _msBuffer[_msPos++] = (byte)_msTmp;
+                    _msMaxBits = (_msTmp == 0xFF) ? 7 : 8;
+                    _msTmp = 0;
+                    _msUsedBits = 0;
                 }
             }
         }
 
         /// <summary>
-        /// Writes bits to the VLC stream.
+        /// Writes bits to the VLC stream (backward with >0x8F bit-stuffing).
         /// </summary>
-        /// <param name="bits">Bit value to write, right-aligned.</param>
-        /// <param name="count">Number of bits to write (1-7).</param>
-        public void WriteVlcBits(uint bits, int count)
+        /// <param name="cwd">Codeword bits to write, right-aligned.</param>
+        /// <param name="cwdLen">Number of bits to write.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteVlcBits(uint cwd, int cwdLen)
         {
-            for (int i = count - 1; i >= 0; i--)
+            int cw = (int)cwd;
+            int len = cwdLen;
+            while (len > 0)
             {
-                _vlcBitBuffer = (_vlcBitBuffer << 1) | ((bits >> i) & 1);
-                _vlcBitsInBuffer++;
+                int availBits = 8 - (_vlcLastGreaterThan8F ? 1 : 0) - _vlcUsedBits;
+                int t = Math.Min(availBits, len);
+                _vlcTmp |= (cw & ((1 << t) - 1)) << _vlcUsedBits;
+                _vlcUsedBits += t;
+                availBits -= t;
+                len -= t;
+                cw >>= t;
 
-                if (_vlcBitsInBuffer == 8)
+                if (availBits == 0)
                 {
+                    if (_vlcLastGreaterThan8F && _vlcTmp != 0x7F)
+                    {
+                        _vlcLastGreaterThan8F = false;
+                        continue; // one empty bit remaining
+                    }
+
                     EnsureVlcCapacity();
-                    _vlcBuffer[_vlcPos++] = (byte)_vlcBitBuffer;
-                    _vlcBitBuffer = 0;
-                    _vlcBitsInBuffer = 0;
+                    _melVlcBuffer[_vlcBufOffset - _vlcPos] = (byte)_vlcTmp;
+                    _vlcPos++;
+                    _vlcLastGreaterThan8F = _vlcTmp > 0x8F;
+                    _vlcTmp = 0;
+                    _vlcUsedBits = 0;
                 }
             }
         }
 
         /// <summary>
-        /// Encodes a MEL quad significance value.
+        /// Encodes a MEL event (significance of a quad).
         /// </summary>
         /// <param name="isSignificant">Whether the quad is significant.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EncodeMel(bool isSignificant)
         {
-            _melEncoder.EncodeQuadSignificance(isSignificant);
+            if (!isSignificant)
+            {
+                _melRun++;
+                if (_melRun >= _melThreshold)
+                {
+                    MelEmitBit(1);
+                    _melRun = 0;
+                    _melK = Math.Min(12, _melK + 1);
+                    _melThreshold = 1 << MelExp[_melK];
+                }
+            }
+            else
+            {
+                MelEmitBit(0);
+                int e = MelExp[_melK];
+                int run = _melRun;
+                for (int i = e - 1; i >= 0; i--)
+                {
+                    MelEmitBit((run >> i) & 1);
+                }
+
+                _melRun = 0;
+                _melK = Math.Max(0, _melK - 1);
+                _melThreshold = 1 << MelExp[_melK];
+            }
         }
 
         /// <summary>
-        /// Finalizes the segment by merging all three streams and appending the ILW.
+        /// Finalizes the segment by terminating MEL/VLC, terminating MagSgn,
+        /// and assembling the final segment with the ILW.
         /// </summary>
-        /// <returns>The complete cleanup codeword segment.</returns>
-        /// <remarks>
-        /// <para>
-        /// Segment layout after finalization:
-        /// <code>
-        /// [MagSgn bytes] [VLC bytes] [MEL bytes (reversed)] [ILW (2 bytes)]
-        /// </code>
-        /// </para>
-        /// <para>
-        /// The ILW encodes the byte offset where VLC data starts (= MagSgn length).
-        /// </para>
-        /// </remarks>
+        /// <returns>The complete cleanup codeword segment as a byte array.</returns>
         public byte[] Finalize()
         {
-            // Flush remaining MagSgn bits
-            if (_magSgnBitsInBuffer > 0)
+            // Terminate MEL and VLC together (fuse last bytes if possible)
+            TerminateMelVlc();
+
+            // Terminate MagSgn
+            TerminateMagSgn();
+
+            // Assemble final segment: [MagSgn][MEL][VLC]
+            int totalLen = _msPos + _melPos + _vlcPos;
+            byte[] segment = new byte[totalLen];
+
+            // Copy MagSgn bytes (forward from byte 0)
+            if (_msPos > 0)
             {
-                _magSgnBitBuffer <<= (8 - _magSgnBitsInBuffer);
-                EnsureMagSgnCapacity();
-                _magSgnBuffer[_magSgnPos++] = (byte)_magSgnBitBuffer;
-                _magSgnBitBuffer = 0;
-                _magSgnBitsInBuffer = 0;
+                Buffer.BlockCopy(_msBuffer, 0, segment, 0, _msPos);
             }
 
-            // Flush remaining VLC bits
-            if (_vlcBitsInBuffer > 0)
+            // Copy MEL bytes (forward from _melVlcBuffer[0..melPos])
+            if (_melPos > 0)
             {
-                _vlcBitBuffer <<= (8 - _vlcBitsInBuffer);
-                EnsureVlcCapacity();
-                _vlcBuffer[_vlcPos++] = (byte)_vlcBitBuffer;
-                _vlcBitBuffer = 0;
-                _vlcBitsInBuffer = 0;
+                Buffer.BlockCopy(_melVlcBuffer, 0, segment, _msPos, _melPos);
             }
 
-            // Flush MEL encoder
-            ReadOnlySpan<byte> melData = _melEncoder.Flush();
+            // Copy VLC bytes (backward from _melVlcBuffer[vlcBufOffset])
+            // VLC data is at _melVlcBuffer[vlcBufOffset - vlcPos + 1 .. vlcBufOffset]
+            if (_vlcPos > 0)
+            {
+                int vlcSrcStart = _vlcBufOffset - _vlcPos + 1;
+                Buffer.BlockCopy(_melVlcBuffer, vlcSrcStart, segment, _msPos + _melPos, _vlcPos);
+            }
 
-            // Calculate ILW value (VLC start offset = MagSgn length)
-            int vlcOffset = _magSgnPos;
-
-            if (vlcOffset > 4095)
+            // Write the ILW (Interface Locator Word) into the last 2 bytes
+            int numBytes = _melPos + _vlcPos; // scup = mel + vlc length
+            if (numBytes > 4079)
             {
                 throw new InvalidOperationException(
-                    $"VLC start offset {vlcOffset} exceeds the 12-bit ILW maximum of 4095. " +
-                    "The code-block is too large to encode in a single HT cleanup pass segment.");
+                    $"MEL+VLC combined length {numBytes} exceeds the 12-bit ILW maximum of 4079.");
             }
 
-            // Total segment size: MagSgn + VLC + MEL (reversed) + 2 (ILW)
-            int totalSize = _magSgnPos + _vlcPos + melData.Length + 2;
-            byte[] segment = new byte[totalSize];
-
-            // Copy MagSgn (forward)
-            Buffer.BlockCopy(_magSgnBuffer, 0, segment, 0, _magSgnPos);
-
-            // Copy VLC (forward, starting at vlcOffset)
-            Buffer.BlockCopy(_vlcBuffer, 0, segment, _magSgnPos, _vlcPos);
-
-            // Copy MEL (reversed into segment)
-            int melDst = _magSgnPos + _vlcPos;
-            for (int i = 0; i < melData.Length; i++)
-            {
-                segment[melDst + i] = melData[melData.Length - 1 - i];
-            }
-
-            // Write ILW at the end (12-bit value in 2 bytes)
-            // ILW byte 0: upper 8 bits of vlcOffset
-            // ILW byte 1: lower 4 bits of vlcOffset in upper nibble, lower nibble = 0
-            segment[totalSize - 2] = (byte)(vlcOffset >> 4);
-            segment[totalSize - 1] = (byte)((vlcOffset & 0x0F) << 4);
+            // ILW: last byte = numBytes >> 4, second-to-last byte low nibble = numBytes & 0xF
+            segment[totalLen - 1] = (byte)(numBytes >> 4);
+            segment[totalLen - 2] = (byte)((segment[totalLen - 2] & 0xF0) | (numBytes & 0xF));
 
             return segment;
         }
@@ -403,43 +570,188 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// </summary>
         public void Dispose()
         {
-            if (_magSgnRented && _magSgnBuffer != null)
+            if (_msRented && _msBuffer != null)
             {
-                ArrayPool<byte>.Shared.Return(_magSgnBuffer);
-                _magSgnBuffer = Array.Empty<byte>();
-                _magSgnRented = false;
+                ArrayPool<byte>.Shared.Return(_msBuffer);
+                _msBuffer = Array.Empty<byte>();
+                _msRented = false;
             }
-            if (_vlcRented && _vlcBuffer != null)
+
+            if (_melVlcRented && _melVlcBuffer != null)
             {
-                ArrayPool<byte>.Shared.Return(_vlcBuffer);
-                _vlcBuffer = Array.Empty<byte>();
-                _vlcRented = false;
+                ArrayPool<byte>.Shared.Return(_melVlcBuffer);
+                _melVlcBuffer = Array.Empty<byte>();
+                _melVlcRented = false;
             }
-            _melEncoder.Dispose();
         }
 
-        private void EnsureMagSgnCapacity()
+        /// <summary>
+        /// Emits a single bit to the MEL stream (forward with 0xFF bit-stuffing).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void MelEmitBit(int v)
         {
-            if (_magSgnPos >= _magSgnBuffer.Length)
+            _melTmp = (_melTmp << 1) + v;
+            _melRemainingBits--;
+
+            if (_melRemainingBits == 0)
             {
-                byte[] newBuffer = ArrayPool<byte>.Shared.Rent(_magSgnBuffer.Length * 2);
-                Buffer.BlockCopy(_magSgnBuffer, 0, newBuffer, 0, _magSgnPos);
-                if (_magSgnRented) ArrayPool<byte>.Shared.Return(_magSgnBuffer);
-                _magSgnBuffer = newBuffer;
-                _magSgnRented = true;
+                EnsureMelCapacity();
+                _melVlcBuffer[_melPos++] = (byte)_melTmp;
+                _melRemainingBits = (_melTmp == 0xFF) ? 7 : 8;
+                _melTmp = 0;
             }
         }
 
+        /// <summary>
+        /// Terminates MagSgn stream per ITU-T T.814: pads remaining bits with 1s,
+        /// emits final byte unless it would be 0xFF.
+        /// </summary>
+        private void TerminateMagSgn()
+        {
+            if (_msUsedBits > 0)
+            {
+                int t = _msMaxBits - _msUsedBits; // unused bits
+                _msTmp |= (0xFFu & ((1u << t) - 1)) << _msUsedBits;
+                _msUsedBits += t;
+
+                if (_msTmp != 0xFF)
+                {
+                    EnsureMsCapacity();
+                    _msBuffer[_msPos++] = (byte)_msTmp;
+                }
+            }
+            else if (_msMaxBits == 7)
+            {
+                // Previous byte was 0xFF, which should not end the stream.
+                // Back up one position per the reference implementation.
+                _msPos--;
+            }
+        }
+
+        /// <summary>
+        /// Terminates MEL and VLC streams together per ITU-T T.814.
+        /// Attempts to fuse the final MEL and VLC bytes into a single byte.
+        /// </summary>
+        private void TerminateMelVlc()
+        {
+            // If there is an incomplete MEL run, emit a 1-bit to signal it
+            if (_melRun > 0)
+            {
+                MelEmitBit(1);
+            }
+
+            // Shift MEL tmp to fill remaining bits
+            _melTmp = _melTmp << _melRemainingBits;
+            int melMask = (0xFF << _melRemainingBits) & 0xFF;
+            int vlcMask = 0xFF >> (8 - _vlcUsedBits);
+
+            if ((melMask | vlcMask) == 0)
+            {
+                // No remaining bits to write
+                return;
+            }
+
+            int fuse = _melTmp | _vlcTmp;
+            if ((((fuse ^ _melTmp) & melMask) | ((fuse ^ _vlcTmp) & vlcMask)) == 0
+                && fuse != 0xFF && _vlcPos > 1)
+            {
+                // MEL and VLC can be fused into one byte
+                EnsureMelCapacity();
+                _melVlcBuffer[_melPos++] = (byte)fuse;
+            }
+            else
+            {
+                // Cannot fuse; write them separately
+                EnsureMelCapacity();
+                _melVlcBuffer[_melPos++] = (byte)_melTmp; // melTmp cannot be 0xFF
+
+                EnsureVlcCapacity();
+                _melVlcBuffer[_vlcBufOffset - _vlcPos] = (byte)_vlcTmp;
+                _vlcPos++;
+            }
+        }
+
+        /// <summary>
+        /// Ensures the MagSgn buffer has capacity for at least one more byte.
+        /// </summary>
+        private void EnsureMsCapacity()
+        {
+            if (_msPos >= _msBuffer.Length)
+            {
+                byte[] newBuffer = ArrayPool<byte>.Shared.Rent(_msBuffer.Length * 2);
+                Buffer.BlockCopy(_msBuffer, 0, newBuffer, 0, _msPos);
+                if (_msRented)
+                {
+                    ArrayPool<byte>.Shared.Return(_msBuffer);
+                }
+
+                _msBuffer = newBuffer;
+                _msRented = true;
+            }
+        }
+
+        /// <summary>
+        /// Ensures the MEL region of the shared buffer has capacity.
+        /// MEL writes forward from byte 0; VLC writes backward from the end.
+        /// If they would collide, we grow the buffer.
+        /// </summary>
+        private void EnsureMelCapacity()
+        {
+            // MEL writes at _melPos; VLC has written _vlcPos bytes from the end.
+            // Check if they would overlap.
+            int vlcStart = _vlcBufOffset - _vlcPos + 1;
+            if (_melPos >= vlcStart)
+            {
+                GrowMelVlcBuffer();
+            }
+        }
+
+        /// <summary>
+        /// Ensures the VLC region of the shared buffer has capacity.
+        /// </summary>
         private void EnsureVlcCapacity()
         {
-            if (_vlcPos >= _vlcBuffer.Length)
+            int vlcWritePos = _vlcBufOffset - _vlcPos;
+            if (vlcWritePos < 0 || vlcWritePos <= _melPos)
             {
-                byte[] newBuffer = ArrayPool<byte>.Shared.Rent(_vlcBuffer.Length * 2);
-                Buffer.BlockCopy(_vlcBuffer, 0, newBuffer, 0, _vlcPos);
-                if (_vlcRented) ArrayPool<byte>.Shared.Return(_vlcBuffer);
-                _vlcBuffer = newBuffer;
-                _vlcRented = true;
+                GrowMelVlcBuffer();
             }
+        }
+
+        /// <summary>
+        /// Grows the shared MEL/VLC buffer, preserving both ends.
+        /// MEL data stays at the beginning; VLC data stays at the end.
+        /// </summary>
+        private void GrowMelVlcBuffer()
+        {
+            int newSize = _melVlcBuffer.Length * 2;
+            byte[] newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
+
+            // Copy MEL data (from beginning)
+            if (_melPos > 0)
+            {
+                Buffer.BlockCopy(_melVlcBuffer, 0, newBuffer, 0, _melPos);
+            }
+
+            // Copy VLC data (from end).
+            // VLC bytes are at _melVlcBuffer[_vlcBufOffset - _vlcPos + 1 .. _vlcBufOffset]
+            int newVlcBufOffset = newBuffer.Length - 1;
+            if (_vlcPos > 0)
+            {
+                int oldVlcStart = _vlcBufOffset - _vlcPos + 1;
+                int newVlcStart = newVlcBufOffset - _vlcPos + 1;
+                Buffer.BlockCopy(_melVlcBuffer, oldVlcStart, newBuffer, newVlcStart, _vlcPos);
+            }
+
+            if (_melVlcRented)
+            {
+                ArrayPool<byte>.Shared.Return(_melVlcBuffer);
+            }
+
+            _melVlcBuffer = newBuffer;
+            _melVlcRented = true;
+            _vlcBufOffset = newVlcBufOffset;
         }
     }
 }

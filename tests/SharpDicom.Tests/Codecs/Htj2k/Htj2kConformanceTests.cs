@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using NUnit.Framework;
 using SharpDicom.Codecs;
@@ -95,7 +96,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         {
             if (OjphExpandPath == null)
             {
-                Assert.Fail("ojph_expand not found - install openjph-tools");
+                Assert.Ignore("ojph_expand not found - install openjph-tools");
                 return;
             }
 
@@ -131,16 +132,32 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                     return;
                 }
 
-                process.WaitForExit(5000);
+                bool exited = process.WaitForExit(5000);
+
+                if (!exited)
+                {
+                    process.Kill();
+                    Assert.Fail("ojph_expand timed out after 5 seconds");
+                }
 
                 if (process.ExitCode != 0)
                 {
-                    var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"ojph_expand failed with exit code {process.ExitCode}: {error}");
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    Assert.Fail($"ojph_expand failed with exit code {process.ExitCode}\nStdout: {stdout}\nStderr: {stderr}");
                 }
 
                 // Parse PGM and compare
                 var decoded = ParsePgm(tempPgm);
+
+                if (!decoded.SequenceEqual(original))
+                {
+                    var firstDiff = FindFirstDifference(original, decoded);
+                    Assert.Fail($"OurEncode->OjphDecode (8-bit): Data mismatch at byte {firstDiff.Offset}: " +
+                                $"expected 0x{original[firstDiff.Offset]:X2}, got 0x{decoded[firstDiff.Offset]:X2}. " +
+                                $"Total differing bytes: {firstDiff.DiffCount}/{original.Length}");
+                }
+
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
             }
             finally
@@ -155,7 +172,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         {
             if (OjphCompressPath == null)
             {
-                Assert.Fail("ojph_compress not found - install openjph-tools");
+                Assert.Ignore("ojph_compress not found - install openjph-tools");
                 return;
             }
 
@@ -187,12 +204,19 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                     return;
                 }
 
-                process.WaitForExit(5000);
+                bool exited = process.WaitForExit(5000);
+
+                if (!exited)
+                {
+                    process.Kill();
+                    Assert.Fail("ojph_compress timed out after 5 seconds");
+                }
 
                 if (process.ExitCode != 0)
                 {
-                    var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"ojph_compress failed with exit code {process.ExitCode}: {error}");
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    Assert.Fail($"ojph_compress failed with exit code {process.ExitCode}\nStdout: {stdout}\nStderr: {stderr}");
                 }
 
                 // Read encoded data
@@ -210,6 +234,19 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                 var decoded = new byte[info.FrameSize];
                 var result = codec.Decode(fragments, info, 0, decoded);
 
+                if (!result.Success)
+                {
+                    Assert.Fail($"OjphEncode->OurDecode (8-bit): Decode failed: {result.Diagnostic?.Message}");
+                }
+
+                if (!decoded.SequenceEqual(original))
+                {
+                    var firstDiff = FindFirstDifference(original, decoded);
+                    Assert.Fail($"OjphEncode->OurDecode (8-bit): Data mismatch at byte {firstDiff.Offset}: " +
+                                $"expected 0x{original[firstDiff.Offset]:X2}, got 0x{decoded[firstDiff.Offset]:X2}. " +
+                                $"Total differing bytes: {firstDiff.DiffCount}/{original.Length}");
+                }
+
                 Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic?.Message}");
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
             }
@@ -225,7 +262,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         {
             if (OjphExpandPath == null)
             {
-                Assert.Fail("ojph_expand not found - install openjph-tools");
+                Assert.Ignore("ojph_expand not found - install openjph-tools");
                 return;
             }
 
@@ -261,16 +298,32 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                     return;
                 }
 
-                process.WaitForExit(5000);
+                bool exited = process.WaitForExit(5000);
+
+                if (!exited)
+                {
+                    process.Kill();
+                    Assert.Fail("ojph_expand timed out after 5 seconds");
+                }
 
                 if (process.ExitCode != 0)
                 {
-                    var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"ojph_expand failed with exit code {process.ExitCode}: {error}");
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    Assert.Fail($"ojph_expand failed with exit code {process.ExitCode}\nStdout: {stdout}\nStderr: {stderr}");
                 }
 
                 // Parse PGM and compare
                 var decoded = ParsePgm(tempPgm);
+
+                if (!decoded.SequenceEqual(original))
+                {
+                    var firstDiff = FindFirstDifference(original, decoded);
+                    Assert.Fail($"OurEncode->OjphDecode (16-bit): Data mismatch at byte {firstDiff.Offset}: " +
+                                $"expected 0x{original[firstDiff.Offset]:X2}, got 0x{decoded[firstDiff.Offset]:X2}. " +
+                                $"Total differing bytes: {firstDiff.DiffCount}/{original.Length}");
+                }
+
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
             }
             finally
@@ -285,7 +338,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         {
             if (OjphCompressPath == null)
             {
-                Assert.Fail("ojph_compress not found - install openjph-tools");
+                Assert.Ignore("ojph_compress not found - install openjph-tools");
                 return;
             }
 
@@ -317,12 +370,19 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                     return;
                 }
 
-                process.WaitForExit(5000);
+                bool exited = process.WaitForExit(5000);
+
+                if (!exited)
+                {
+                    process.Kill();
+                    Assert.Fail("ojph_compress timed out after 5 seconds");
+                }
 
                 if (process.ExitCode != 0)
                 {
-                    var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"ojph_compress failed with exit code {process.ExitCode}: {error}");
+                    var stdout = process.StandardOutput.ReadToEnd();
+                    var stderr = process.StandardError.ReadToEnd();
+                    Assert.Fail($"ojph_compress failed with exit code {process.ExitCode}\nStdout: {stdout}\nStderr: {stderr}");
                 }
 
                 // Read encoded data
@@ -339,6 +399,19 @@ namespace SharpDicom.Tests.Codecs.Htj2k
                 var codec = new Htj2kLosslessCodec();
                 var decoded = new byte[info.FrameSize];
                 var result = codec.Decode(fragments, info, 0, decoded);
+
+                if (!result.Success)
+                {
+                    Assert.Fail($"OjphEncode->OurDecode (16-bit): Decode failed: {result.Diagnostic?.Message}");
+                }
+
+                if (!decoded.SequenceEqual(original))
+                {
+                    var firstDiff = FindFirstDifference(original, decoded);
+                    Assert.Fail($"OjphEncode->OurDecode (16-bit): Data mismatch at byte {firstDiff.Offset}: " +
+                                $"expected 0x{original[firstDiff.Offset]:X2}, got 0x{decoded[firstDiff.Offset]:X2}. " +
+                                $"Total differing bytes: {firstDiff.DiffCount}/{original.Length}");
+                }
 
                 Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic?.Message}");
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
@@ -854,6 +927,28 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             {
                 // Ignore cleanup errors
             }
+        }
+
+        private static (int Offset, int DiffCount) FindFirstDifference(byte[] expected, byte[] actual)
+        {
+            int firstDiff = -1;
+            int diffCount = 0;
+            int len = Math.Min(expected.Length, actual.Length);
+
+            for (int i = 0; i < len; i++)
+            {
+                if (expected[i] != actual[i])
+                {
+                    if (firstDiff == -1)
+                        firstDiff = i;
+                    diffCount++;
+                }
+            }
+
+            if (expected.Length != actual.Length)
+                diffCount += Math.Abs(expected.Length - actual.Length);
+
+            return (firstDiff == -1 ? 0 : firstDiff, diffCount);
         }
     }
 }

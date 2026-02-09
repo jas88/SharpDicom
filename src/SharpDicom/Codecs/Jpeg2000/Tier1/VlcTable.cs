@@ -1,59 +1,106 @@
 using System;
 using System.Runtime.CompilerServices;
+#if !NETSTANDARD2_0
+using System.Numerics;
+#endif
 
 namespace SharpDicom.Codecs.Jpeg2000.Tier1
 {
     /// <summary>
-    /// VLC (Variable Length Code) lookup tables for HT block coding.
+    /// VLC (Variable Length Code) and UVLC lookup tables for HT block coding.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Implements the two VLC decode tables defined in ITU-T T.814 (ISO/IEC 15444-15).
-    /// Each table has 1024 entries indexed by a 10-bit value: 3-bit context (bits 9:7) + 7-bit
-    /// codeword (bits 6:0). Table values derived from the specification. Reference implementation:
-    /// OpenJPH (BSD-2-Clause) table0.h/table1.h.
+    /// Implements the VLC encode and decode tables defined in ITU-T T.814 (ISO/IEC 15444-15).
+    /// Raw codeword data derived from the OpenJPH reference implementation (BSD-2-Clause)
+    /// table0.h/table1.h.
     /// </para>
     /// <para>
-    /// Each entry is a ushort encoding:
-    /// - bits [3:0]: 4-bit significance pattern for the quad (which of the 4 samples are significant)
-    /// - bits [7:4]: 4-bit embedded magnitude bits (EMB) pattern
-    /// - bits [11:8]: codeword length (1-7 bits consumed from VLC stream)
+    /// <b>Encode tables</b> (2048 entries each): indexed by <c>(c_q &lt;&lt; 8) | (rho &lt;&lt; 4) | emb</c>.
+    /// Each entry is a ushort: <c>(cwd &lt;&lt; 8) | (cwd_len &lt;&lt; 4) | e_k</c>.
+    /// </para>
+    /// <para>
+    /// <b>Decode tables</b> (1024 entries each): indexed by <c>(context &lt;&lt; 7) | vlcBits</c>.
+    /// Each entry is a ushort: <c>(rho &lt;&lt; 8) | (emb &lt;&lt; 4) | cwd_len</c> where rho is the
+    /// significance pattern and emb is the EMB pattern. Built from the encode tables by
+    /// reversing the codeword-to-pattern mapping.
+    /// </para>
+    /// <para>
+    /// <b>UVLC table</b> (75 entries): encodes the u_off values for quad pairs as prefix+suffix
+    /// codes per ITU-T T.814.
     /// </para>
     /// </remarks>
     internal static class VlcTable
     {
         /// <summary>
-        /// Number of entries per table (3-bit context * 128 codeword values = 1024).
+        /// Number of entries per encode table: 8 contexts * 16 rho values * 16 emb values = 2048.
         /// </summary>
-        private const int TableSize = 1024;
+        private const int EncodeTableSize = 2048;
 
         /// <summary>
-        /// Bit mask for significance pattern extraction (bits 3:0).
+        /// Number of entries per decode table: 8 contexts * 128 vlc bit patterns = 1024.
         /// </summary>
-        private const int SigPatternMask = 0x0F;
+        private const int DecodeTableSize = 1024;
 
         /// <summary>
-        /// Bit mask for EMB extraction after right-shifting by 4 (bits 7:4).
+        /// Number of entries in the UVLC table.
         /// </summary>
-        private const int EmbMask = 0x0F;
+        private const int UvlcTableSize = 75;
+
+        private static readonly Lazy<ushort[]> _encodeTable0 = new Lazy<ushort[]>(() => BuildEncodeTable(Table0SourceData!));
+        private static readonly Lazy<ushort[]> _encodeTable1 = new Lazy<ushort[]>(() => BuildEncodeTable(Table1SourceData!));
+        private static readonly Lazy<ushort[]> _decodeTable0 = new Lazy<ushort[]>(() => BuildDecodeTable(_encodeTable0.Value));
+        private static readonly Lazy<ushort[]> _decodeTable1 = new Lazy<ushort[]>(() => BuildDecodeTable(_encodeTable1.Value));
+        private static readonly Lazy<ushort[]> _ojphDecTable0 = new Lazy<ushort[]>(() => BuildOjphDecodeTable(Table0SourceData!));
+        private static readonly Lazy<ushort[]> _ojphDecTable1 = new Lazy<ushort[]>(() => BuildOjphDecodeTable(Table1SourceData!));
+        private static readonly Lazy<UvlcEntry[]> _uvlcTable = new Lazy<UvlcEntry[]>(BuildUvlcTable);
 
         /// <summary>
-        /// Bit mask for codeword length extraction after right-shifting by 8 (bits 11:8).
+        /// Gets VLC encode Table 0 (2048 entries).
+        /// Indexed by <c>(c_q &lt;&lt; 8) | (rho &lt;&lt; 4) | emb</c>.
+        /// Each entry: <c>(cwd &lt;&lt; 8) | (cwd_len &lt;&lt; 4) | e_k</c>.
         /// </summary>
-        private const int LengthMask = 0x0F;
-
-        private static readonly Lazy<ushort[]> _table0 = new Lazy<ushort[]>(BuildTable0);
-        private static readonly Lazy<ushort[]> _table1 = new Lazy<ushort[]>(BuildTable1);
-
-        /// <summary>
-        /// Gets VLC lookup Table 0 (used for quads where the first neighbour context is 0).
-        /// </summary>
-        internal static ushort[] Table0 => _table0.Value;
+        internal static ushort[] EncodeTable0 => _encodeTable0.Value;
 
         /// <summary>
-        /// Gets VLC lookup Table 1 (used for quads where the first neighbour context is non-zero).
+        /// Gets VLC encode Table 1 (2048 entries).
+        /// Indexed by <c>(c_q &lt;&lt; 8) | (rho &lt;&lt; 4) | emb</c>.
+        /// Each entry: <c>(cwd &lt;&lt; 8) | (cwd_len &lt;&lt; 4) | e_k</c>.
         /// </summary>
-        internal static ushort[] Table1 => _table1.Value;
+        internal static ushort[] EncodeTable1 => _encodeTable1.Value;
+
+        /// <summary>
+        /// Gets VLC decode Table 0 (1024 entries, for backward compatibility also exposed as Table0).
+        /// Indexed by <c>(context &lt;&lt; 7) | vlcBits</c>.
+        /// Each entry: <c>(rho &lt;&lt; 8) | (emb &lt;&lt; 4) | cwd_len</c>.
+        /// </summary>
+        internal static ushort[] Table0 => _decodeTable0.Value;
+
+        /// <summary>
+        /// Gets VLC decode Table 1 (1024 entries, for backward compatibility also exposed as Table1).
+        /// Indexed by <c>(context &lt;&lt; 7) | vlcBits</c>.
+        /// Each entry: <c>(rho &lt;&lt; 8) | (emb &lt;&lt; 4) | cwd_len</c>.
+        /// </summary>
+        internal static ushort[] Table1 => _decodeTable1.Value;
+
+        /// <summary>
+        /// Gets the UVLC table (75 entries) for encoding u_off quad pair values.
+        /// </summary>
+        internal static UvlcEntry[] UvlcTable => _uvlcTable.Value;
+
+        /// <summary>
+        /// Gets OpenJPH-format decode Table 0 (1024 entries).
+        /// Indexed by <c>(context &lt;&lt; 7) | vlcBits</c>.
+        /// Entry format: <c>(e_k &lt;&lt; 12) | (e_1 &lt;&lt; 8) | (rho &lt;&lt; 4) | (u_off &lt;&lt; 3) | cwd_len</c>.
+        /// </summary>
+        internal static ushort[] OjphDecodeTable0 => _ojphDecTable0.Value;
+
+        /// <summary>
+        /// Gets OpenJPH-format decode Table 1 (1024 entries).
+        /// Indexed by <c>(context &lt;&lt; 7) | vlcBits</c>.
+        /// Entry format: <c>(e_k &lt;&lt; 12) | (e_1 &lt;&lt; 8) | (rho &lt;&lt; 4) | (u_off &lt;&lt; 3) | cwd_len</c>.
+        /// </summary>
+        internal static ushort[] OjphDecodeTable1 => _ojphDecTable1.Value;
 
         /// <summary>
         /// Decodes one quad's significance and embedded magnitude information using VLC Table 0.
@@ -67,7 +114,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         {
             int index = (context << 7) | (vlcBits & 0x7F);
             ushort entry = Table0[index];
-            return ExtractEntry(entry);
+            return ExtractDecodeEntry(entry);
         }
 
         /// <summary>
@@ -82,330 +129,242 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         {
             int index = (context << 7) | (vlcBits & 0x7F);
             ushort entry = Table1[index];
-            return ExtractEntry(entry);
+            return ExtractDecodeEntry(entry);
         }
 
         /// <summary>
-        /// Extracts fields from a packed VLC table entry.
+        /// Extracts fields from a packed decode table entry.
+        /// Decode entry format: <c>(rho &lt;&lt; 8) | (emb &lt;&lt; 4) | cwd_len</c>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static (byte SigPattern, byte EmbBits, int CodewordLength) ExtractEntry(ushort entry)
+        private static (byte SigPattern, byte EmbBits, int CodewordLength) ExtractDecodeEntry(ushort entry)
         {
-            byte sigPattern = (byte)(entry & SigPatternMask);
-            byte embBits = (byte)((entry >> 4) & EmbMask);
-            int codewordLength = (entry >> 8) & LengthMask;
+            byte sigPattern = (byte)((entry >> 8) & 0x0F);
+            byte embBits = (byte)((entry >> 4) & 0x0F);
+            int codewordLength = entry & 0x0F;
             return (sigPattern, embBits, codewordLength);
         }
 
         /// <summary>
-        /// Packs significance pattern, EMB bits, and codeword length into a single ushort.
+        /// Looks up the encode table entry for a given context, rho, and emb pattern.
+        /// </summary>
+        /// <param name="encodeTable">The encode table (EncodeTable0 or EncodeTable1).</param>
+        /// <param name="cq">3-bit context value (0-7).</param>
+        /// <param name="rho">4-bit significance pattern.</param>
+        /// <param name="emb">4-bit EMB pattern.</param>
+        /// <returns>
+        /// Tuple of (codeword, codeword length, e_k pattern).
+        /// Codeword is the raw VLC codeword value (up to 8 bits).
+        /// </returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static (int Cwd, int CwdLen, int Ek) LookupEncode(ushort[] encodeTable, int cq, int rho, int emb)
+        {
+            int index = (cq << 8) | (rho << 4) | emb;
+            ushort entry = encodeTable[index];
+            int cwd = (entry >> 8) & 0xFF;
+            int cwdLen = (entry >> 4) & 0x0F;
+            int ek = entry & 0x0F;
+            return (cwd, cwdLen, ek);
+        }
+
+        #region PopCount polyfill
+
+        /// <summary>
+        /// Returns the population count (number of set bits) of a 32-bit unsigned integer.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ushort PackEntry(int sigPattern, int embBits, int codewordLength)
+        private static int PopCount(uint value)
         {
-            return (ushort)((sigPattern & 0x0F) | ((embBits & 0x0F) << 4) | ((codewordLength & 0x0F) << 8));
+#if !NETSTANDARD2_0
+            return BitOperations.PopCount(value);
+#else
+            // Kernighan's bit counting
+            int count = 0;
+            while (value != 0)
+            {
+                value &= value - 1;
+                count++;
+            }
+            return count;
+#endif
         }
 
-        /// <summary>
-        /// Builds VLC Table 0.
-        /// </summary>
-        /// <remarks>
-        /// Table 0 is used for the first quad pair in a stripe column. It encodes significance
-        /// patterns for quads where the left-neighbour context is typically zero. The table values
-        /// are derived from ITU-T T.814. The codewords are prefix-free VLC codes of length 1-7 bits.
-        ///
-        /// For each of the 8 contexts (3-bit), there is a set of VLC codewords mapping to
-        /// significance patterns. Since the table is indexed by 7 bits, shorter codewords
-        /// have their entries replicated across all values of the unused bits.
-        ///
-        /// Context formation: context = (sigmaNeighbourLeft &lt;&lt; 1) | sigmaNeighbourAbove
-        /// where sigma values encode whether adjacent quads have any significant samples.
-        /// </remarks>
-        private static ushort[] BuildTable0()
-        {
-            // VLC Table 0 raw data: indexed by 10-bit (context:3 | codeword:7)
-            // Format per entry: significance pattern (4b), EMB (4b), codeword length (4b)
-            // These values are derived from the ITU-T T.814 specification.
-            //
-            // The table is constructed from the prefix-free VLC codewords defined in the
-            // standard. For context 0 (no significant neighbours), the most likely pattern
-            // is all-zero (significance = 0x0), which has a 1-bit codeword (just '0').
-            //
-            // Codeword assignments per context:
-            // Context 0: '0' -> sig=0x0,emb=0x0,len=1
-            //            '1x' -> various patterns with len=2-7
-            // Context 1-7: Different distributions reflecting neighbourhood significance
-            var table = new ushort[TableSize];
+        #endregion
 
-            // Build from the specification VLC codeword tables.
-            // Each context has a different set of prefix-free codewords.
-            //
-            // The raw table data follows the ITU-T T.814 Table HT.1 structure.
-            // Reference: OpenJPH table0.h (BSD-2-Clause), verified against conformance tests.
-
-            // Context 0: No significant neighbours
-            // Most quads are all-zero, so '0' maps to all-insignificant
-            FillVlcEntries(table, context: 0, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x0, 0x0),        // sig=0000 emb=0000
-                new(0b10, 2, 0x1, 0x1),       // sig=0001 emb=0001
-                new(0b110, 3, 0x2, 0x2),      // sig=0010 emb=0010
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x3, 0x3),   // sig=0011 emb=0011
-                new(0b1111110, 7, 0x5, 0x5),  // sig=0101 emb=0101
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 1: Bottom-right neighbour significant
-            FillVlcEntries(table, context: 1, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x1, 0x1),        // sig=0001 emb=0001
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x2, 0x2),      // sig=0010 emb=0010
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x3, 0x3),   // sig=0011 emb=0011
-                new(0b1111110, 7, 0x5, 0x5),  // sig=0101 emb=0101
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 2: Bottom-left neighbour significant
-            FillVlcEntries(table, context: 2, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x2, 0x2),        // sig=0010 emb=0010
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x3, 0x3),   // sig=0011 emb=0011
-                new(0b1111110, 7, 0x6, 0x6),  // sig=0110 emb=0110
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 3: Both bottom neighbours significant
-            FillVlcEntries(table, context: 3, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x3, 0x3),        // sig=0011 emb=0011
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x2, 0x2),     // sig=0010 emb=0010
-                new(0b11110, 5, 0x4, 0x4),    // sig=0100 emb=0100
-                new(0b111110, 6, 0x8, 0x8),   // sig=1000 emb=1000
-                new(0b1111110, 7, 0x7, 0x7),  // sig=0111 emb=0111
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 4: Right neighbour significant
-            FillVlcEntries(table, context: 4, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x4, 0x4),        // sig=0100 emb=0100
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x2, 0x2),     // sig=0010 emb=0010
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x5, 0x5),   // sig=0101 emb=0101
-                new(0b1111110, 7, 0xC, 0xC),  // sig=1100 emb=1100
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 5: Right + bottom-right significant
-            FillVlcEntries(table, context: 5, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x5, 0x5),        // sig=0101 emb=0101
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x3, 0x3),   // sig=0011 emb=0011
-                new(0b1111110, 7, 0xD, 0xD),  // sig=1101 emb=1101
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 6: Right + bottom-left significant
-            FillVlcEntries(table, context: 6, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x6, 0x6),        // sig=0110 emb=0110
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x2, 0x2),      // sig=0010 emb=0010
-                new(0b1110, 4, 0x1, 0x1),     // sig=0001 emb=0001
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x7, 0x7),   // sig=0111 emb=0111
-                new(0b1111110, 7, 0xE, 0xE),  // sig=1110 emb=1110
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 7: Right + both bottom significant
-            FillVlcEntries(table, context: 7, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x7, 0x7),        // sig=0111 emb=0111
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x2, 0x2),     // sig=0010 emb=0010
-                new(0b11110, 5, 0x4, 0x4),    // sig=0100 emb=0100
-                new(0b111110, 6, 0x3, 0x3),   // sig=0011 emb=0011
-                new(0b1111110, 7, 0xB, 0xB),  // sig=1011 emb=1011
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            return table;
-        }
+        #region Encode table construction
 
         /// <summary>
-        /// Builds VLC Table 1.
+        /// Builds a 2048-entry encode table from raw source data using the OpenJPH
+        /// <c>vlc_init_tables()</c> algorithm.
         /// </summary>
         /// <remarks>
-        /// Table 1 is used for the second quad pair in a stripe column. The context formation
-        /// accounts for significance information from the first quad pair above.
+        /// <para>
+        /// For each index i from 0 to 2047:
+        /// <list type="bullet">
+        ///   <item>c_q = i >> 8 (context, 3 bits)</item>
+        ///   <item>rho = (i >> 4) &amp; 0xF (significance pattern)</item>
+        ///   <item>emb = i &amp; 0xF (embedded magnitude bits)</item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// Invalid entries (where (emb &amp; rho) != emb, or rho==0 &amp;&amp; c_q==0) are set to 0.
+        /// For valid entries, the algorithm finds the best matching source entry that maximizes
+        /// popcount(e_k) subject to the constraint (emb &amp; e_k) == e_1.
+        /// </para>
         /// </remarks>
-        private static ushort[] BuildTable1()
+        private static ushort[] BuildEncodeTable(VlcSourceEntry[] sourceData)
         {
-            var table = new ushort[TableSize];
+            var table = new ushort[EncodeTableSize];
 
-            // Context 0: No significant neighbours from first pair
-            FillVlcEntries(table, context: 0, new VlcCodeword[]
+            for (int i = 0; i < EncodeTableSize; i++)
             {
-                new(0b0, 1, 0x0, 0x0),        // sig=0000 emb=0000
-                new(0b10, 2, 0x1, 0x1),       // sig=0001 emb=0001
-                new(0b110, 3, 0x4, 0x4),      // sig=0100 emb=0100
-                new(0b1110, 4, 0x2, 0x2),     // sig=0010 emb=0010
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0x5, 0x5),   // sig=0101 emb=0101
-                new(0b1111110, 7, 0xA, 0xA),  // sig=1010 emb=1010
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
+                int cq = i >> 8;
+                int rho = (i >> 4) & 0x0F;
+                int emb = i & 0x0F;
 
-            // Context 1: Top-right sample of first pair significant
-            FillVlcEntries(table, context: 1, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x4, 0x4),        // sig=0100 emb=0100
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x8, 0x8),     // sig=1000 emb=1000
-                new(0b11110, 5, 0x2, 0x2),    // sig=0010 emb=0010
-                new(0b111110, 6, 0x5, 0x5),   // sig=0101 emb=0101
-                new(0b1111110, 7, 0xC, 0xC),  // sig=1100 emb=1100
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 2: Top-left sample of first pair significant
-            FillVlcEntries(table, context: 2, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x8, 0x8),        // sig=1000 emb=1000
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x2, 0x2),    // sig=0010 emb=0010
-                new(0b111110, 6, 0x9, 0x9),   // sig=1001 emb=1001
-                new(0b1111110, 7, 0xA, 0xA),  // sig=1010 emb=1010
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 3: Both top samples significant
-            FillVlcEntries(table, context: 3, new VlcCodeword[]
-            {
-                new(0b0, 1, 0xC, 0xC),        // sig=1100 emb=1100
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0xD, 0xD),   // sig=1101 emb=1101
-                new(0b1111110, 7, 0xE, 0xE),  // sig=1110 emb=1110
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 4: Left neighbour significant (from adjacent column)
-            FillVlcEntries(table, context: 4, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x2, 0x2),        // sig=0010 emb=0010
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0xA, 0xA),   // sig=1010 emb=1010
-                new(0b1111110, 7, 0x3, 0x3),  // sig=0011 emb=0011
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 5: Left + top-right significant
-            FillVlcEntries(table, context: 5, new VlcCodeword[]
-            {
-                new(0b0, 1, 0x6, 0x6),        // sig=0110 emb=0110
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x2, 0x2),    // sig=0010 emb=0010
-                new(0b111110, 6, 0x7, 0x7),   // sig=0111 emb=0111
-                new(0b1111110, 7, 0xE, 0xE),  // sig=1110 emb=1110
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 6: Left + top-left significant
-            FillVlcEntries(table, context: 6, new VlcCodeword[]
-            {
-                new(0b0, 1, 0xA, 0xA),        // sig=1010 emb=1010
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x4, 0x4),     // sig=0100 emb=0100
-                new(0b11110, 5, 0x8, 0x8),    // sig=1000 emb=1000
-                new(0b111110, 6, 0xB, 0xB),   // sig=1011 emb=1011
-                new(0b1111110, 7, 0xE, 0xE),  // sig=1110 emb=1110
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            // Context 7: Left + both top significant
-            FillVlcEntries(table, context: 7, new VlcCodeword[]
-            {
-                new(0b0, 1, 0xE, 0xE),        // sig=1110 emb=1110
-                new(0b10, 2, 0x0, 0x0),       // sig=0000 emb=0000
-                new(0b110, 3, 0x1, 0x1),      // sig=0001 emb=0001
-                new(0b1110, 4, 0x2, 0x2),     // sig=0010 emb=0010
-                new(0b11110, 5, 0x4, 0x4),    // sig=0100 emb=0100
-                new(0b111110, 6, 0x8, 0x8),   // sig=1000 emb=1000
-                new(0b1111110, 7, 0xA, 0xA),  // sig=1010 emb=1010
-                new(0b1111111, 7, 0xF, 0xF),  // sig=1111 emb=1111
-            });
-
-            return table;
-        }
-
-        /// <summary>
-        /// Fills VLC table entries for a given context from a set of prefix-free codewords.
-        /// </summary>
-        /// <remarks>
-        /// For codewords shorter than 7 bits, entries are replicated across all values of the
-        /// unused suffix bits. For example, a 1-bit codeword '0' fills entries 0b0000000 through
-        /// 0b0111111 (64 entries).
-        /// </remarks>
-        private static void FillVlcEntries(ushort[] table, int context, VlcCodeword[] codewords)
-        {
-            int contextOffset = context << 7;
-
-            foreach (var cw in codewords)
-            {
-                ushort entry = PackEntry(cw.SigPattern, cw.EmbBits, cw.Length);
-
-                // Number of suffix bits that are "don't care"
-                int suffixBits = 7 - cw.Length;
-                int numEntries = 1 << suffixBits;
-
-                // The codeword is defined MSB-first (left-to-right reading order).
-                // The table is indexed by raw stream bits where bit 0 corresponds to
-                // the first bit read. So we reverse the codeword bits to get the
-                // correct base index for the lookup table.
-                int reversedCode = ReverseBits(cw.Code, cw.Length);
-
-                for (int i = 0; i < numEntries; i++)
+                // Skip invalid combinations
+                if ((emb & rho) != emb)
                 {
-                    int index = contextOffset | (i << cw.Length) | reversedCode;
-                    table[index] = entry;
+                    table[i] = 0;
+                    continue;
+                }
+                if (rho == 0 && cq == 0)
+                {
+                    table[i] = 0;
+                    continue;
+                }
+
+                if (emb != 0) // u_off = 1
+                {
+                    // Find best source entry: matching c_q, rho, u_off=1,
+                    // (emb & src.e_k) == src.e_1, maximize popcount(src.e_k)
+                    int bestIdx = -1;
+                    int bestPop = -1;
+
+                    for (int s = 0; s < sourceData.Length; s++)
+                    {
+                        ref readonly VlcSourceEntry src = ref sourceData[s];
+                        if (src.CQ != cq || src.Rho != rho || src.UOff != 1)
+                        {
+                            continue;
+                        }
+                        if ((emb & src.EK) != src.E1)
+                        {
+                            continue;
+                        }
+
+                        int pop = PopCount((uint)src.EK);
+                        if (pop > bestPop)
+                        {
+                            bestPop = pop;
+                            bestIdx = s;
+                        }
+                    }
+
+                    if (bestIdx >= 0)
+                    {
+                        ref readonly VlcSourceEntry best = ref sourceData[bestIdx];
+                        table[i] = (ushort)((best.Cwd << 8) | (best.CwdLen << 4) | best.EK);
+                    }
+                    // else: no matching entry, leave as 0
+                }
+                else // emb == 0, u_off = 0
+                {
+                    // Find source entry with matching c_q, rho, u_off=0
+                    for (int s = 0; s < sourceData.Length; s++)
+                    {
+                        ref readonly VlcSourceEntry src = ref sourceData[s];
+                        if (src.CQ == cq && src.Rho == rho && src.UOff == 0)
+                        {
+                            table[i] = (ushort)((src.Cwd << 8) | (src.CwdLen << 4) | src.EK);
+                            break;
+                        }
+                    }
                 }
             }
+
+            return table;
+        }
+
+        #endregion
+
+        #region Decode table construction
+
+        /// <summary>
+        /// Builds a 1024-entry decode table from a 2048-entry encode table.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The decode table is indexed by <c>(context &lt;&lt; 7) | vlcBits[6:0]</c>.
+        /// For each encode table entry with a valid codeword (cwd_len > 0), the codeword
+        /// is bit-reversed (since VLC stream is read LSB-first) and replicated across all
+        /// values of the unused upper bits within the 7-bit lookup index.
+        /// </para>
+        /// <para>
+        /// When multiple encode entries map to the same decode index (shorter codewords
+        /// replicated across suffix bits), the first valid entry wins. The entry with
+        /// the longest codeword length that matches takes priority.
+        /// </para>
+        /// </remarks>
+        private static ushort[] BuildDecodeTable(ushort[] encodeTable)
+        {
+            var table = new ushort[DecodeTableSize];
+
+            for (int i = 0; i < EncodeTableSize; i++)
+            {
+                ushort encEntry = encodeTable[i];
+                if (encEntry == 0)
+                {
+                    continue;
+                }
+
+                int cq = i >> 8;
+                int rho = (i >> 4) & 0x0F;
+                int emb = i & 0x0F;
+                int cwd = (encEntry >> 8) & 0xFF;
+                int cwdLen = (encEntry >> 4) & 0x0F;
+                int ek = encEntry & 0x0F;
+
+                if (cwdLen == 0 || cwdLen > 7)
+                {
+                    continue;
+                }
+
+                // Decode entry: (rho << 8) | (emb << 4) | cwdLen
+                // But emb in the decode table represents the actual emb pattern for this
+                // particular codeword. For codewords with u_off=1, emb is ek (the e_k mask).
+                // For u_off=0, emb is 0.
+                ushort decEntry = (ushort)((rho << 8) | (emb << 4) | cwdLen);
+
+                // Reverse the codeword bits for LSB-first lookup
+                int reversedCwd = ReverseBits(cwd, cwdLen);
+
+                // Fill all suffix combinations (unused upper bits)
+                int suffixBits = 7 - cwdLen;
+                int numEntries = 1 << suffixBits;
+                int contextOffset = cq << 7;
+
+                for (int s = 0; s < numEntries; s++)
+                {
+                    int decIndex = contextOffset | (s << cwdLen) | reversedCwd;
+                    // Only overwrite if this entry has a longer codeword (more specific match)
+                    // or the slot is empty
+                    ushort existing = table[decIndex];
+                    int existingLen = existing & 0x0F;
+                    if (existingLen == 0 || cwdLen >= existingLen)
+                    {
+                        table[decIndex] = decEntry;
+                    }
+                }
+            }
+
+            return table;
         }
 
         /// <summary>
         /// Reverses the lower N bits of a value.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int ReverseBits(int value, int numBits)
         {
             int result = 0;
@@ -418,29 +377,1010 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         }
 
         /// <summary>
-        /// Represents a VLC codeword entry for table construction.
+        /// Builds a 1024-entry decode table in OpenJPH format from source data.
         /// </summary>
-        private readonly struct VlcCodeword
+        /// <remarks>
+        /// Each entry packs: <c>(e_k &lt;&lt; 12) | (e_1 &lt;&lt; 8) | (rho &lt;&lt; 4) | (u_off &lt;&lt; 3) | cwd_len</c>.
+        /// Codewords from source data are in LSB-first form (matching VLC stream bit order).
+        /// For entries where multiple source rows map to the same codeword (same cq, rho, uOff
+        /// but different ek/e1), the entry with the highest popcount(ek) wins, matching OpenJPH.
+        /// </remarks>
+        private static ushort[] BuildOjphDecodeTable(VlcSourceEntry[] sourceData)
         {
-            /// <summary>The VLC codeword (MSB-first, right-aligned). Reversed to LSB-first during table construction.</summary>
-            public readonly int Code;
+            var table = new ushort[DecodeTableSize];
+            // Track the best popcount(ek) per decode slot to pick the best entry
+            var bestPop = new int[DecodeTableSize];
 
-            /// <summary>Length of the codeword in bits (1-7).</summary>
-            public readonly int Length;
-
-            /// <summary>4-bit significance pattern (which samples in the quad are significant).</summary>
-            public readonly int SigPattern;
-
-            /// <summary>4-bit embedded magnitude bits.</summary>
-            public readonly int EmbBits;
-
-            public VlcCodeword(int code, int length, int sigPattern, int embBits)
+            foreach (ref readonly VlcSourceEntry src in sourceData.AsSpan())
             {
-                Code = code;
-                Length = length;
-                SigPattern = sigPattern;
-                EmbBits = embBits;
+                if (src.CwdLen == 0 || src.CwdLen > 7)
+                    continue;
+
+                ushort decEntry = (ushort)(
+                    (src.EK << 12) |
+                    (src.E1 << 8) |
+                    (src.Rho << 4) |
+                    (src.UOff << 3) |
+                    src.CwdLen);
+
+                int pop = PopCount((uint)src.EK);
+
+                // Codewords are already in LSB-first form — use directly
+                int suffixBits = 7 - src.CwdLen;
+                int numEntries = 1 << suffixBits;
+                int contextOffset = src.CQ << 7;
+
+                for (int s = 0; s < numEntries; s++)
+                {
+                    int decIndex = contextOffset | (s << src.CwdLen) | src.Cwd;
+                    ushort existing = table[decIndex];
+                    int existingLen = existing & 0x07;
+
+                    if (existingLen == 0)
+                    {
+                        // Empty slot
+                        table[decIndex] = decEntry;
+                        bestPop[decIndex] = pop;
+                    }
+                    else if (src.CwdLen < existingLen)
+                    {
+                        // Shorter codeword always wins (prefix-free)
+                        table[decIndex] = decEntry;
+                        bestPop[decIndex] = pop;
+                    }
+                    else if (src.CwdLen == existingLen && pop > bestPop[decIndex])
+                    {
+                        // Same codeword length: prefer higher popcount(ek) per OpenJPH
+                        table[decIndex] = decEntry;
+                        bestPop[decIndex] = pop;
+                    }
+                }
+            }
+
+            return table;
+        }
+
+        #endregion
+
+        #region UVLC table construction
+
+        /// <summary>
+        /// Builds the 75-entry UVLC table per ITU-T T.814.
+        /// </summary>
+        private static UvlcEntry[] BuildUvlcTable()
+        {
+            var table = new UvlcEntry[UvlcTableSize];
+
+            table[0] = new UvlcEntry(0, 0, 0, 0, 0, 0);
+            table[1] = new UvlcEntry(1, 1, 0, 0, 0, 0);
+            table[2] = new UvlcEntry(2, 2, 0, 0, 0, 0);
+            table[3] = new UvlcEntry(4, 3, 0, 1, 0, 0);
+            table[4] = new UvlcEntry(4, 3, 1, 1, 0, 0);
+
+            for (int i = 5; i < 33 && i < UvlcTableSize; i++)
+            {
+                table[i] = new UvlcEntry(0, 3, i - 5, 5, 0, 0);
+            }
+
+            for (int i = 33; i < UvlcTableSize; i++)
+            {
+                int rel = i - 33;
+                int suf = 28 + (rel % 4);
+                int ext = rel / 4;
+                table[i] = new UvlcEntry(0, 3, suf, 5, ext, 4);
+            }
+
+            return table;
+        }
+
+        #endregion
+
+        #region UVLC entry struct
+
+        /// <summary>
+        /// A single entry in the UVLC table, encoding prefix, suffix, and extension codes.
+        /// </summary>
+        internal readonly struct UvlcEntry
+        {
+            /// <summary>UVLC prefix codeword.</summary>
+            public readonly int Pre;
+            /// <summary>Prefix length in bits.</summary>
+            public readonly int PreLen;
+            /// <summary>UVLC suffix codeword.</summary>
+            public readonly int Suf;
+            /// <summary>Suffix length in bits.</summary>
+            public readonly int SufLen;
+            /// <summary>UVLC extension codeword.</summary>
+            public readonly int Ext;
+            /// <summary>Extension length in bits.</summary>
+            public readonly int ExtLen;
+
+            /// <summary>
+            /// Initializes a new UVLC entry.
+            /// </summary>
+            public UvlcEntry(int pre, int preLen, int suf, int sufLen, int ext, int extLen)
+            {
+                Pre = pre;
+                PreLen = preLen;
+                Suf = suf;
+                SufLen = sufLen;
+                Ext = ext;
+                ExtLen = extLen;
             }
         }
+
+        #endregion
+
+        #region VLC source entry struct
+
+        /// <summary>
+        /// Raw VLC source entry from the specification tables (table0.h / table1.h).
+        /// Format: {c_q, rho, u_off, e_k, e_1, cwd, cwd_len}.
+        /// </summary>
+        private readonly struct VlcSourceEntry
+        {
+            public readonly byte CQ;
+            public readonly byte Rho;
+            public readonly byte UOff;
+            public readonly byte EK;
+            public readonly byte E1;
+            public readonly byte Cwd;
+            public readonly byte CwdLen;
+
+            public VlcSourceEntry(byte cq, byte rho, byte uOff, byte ek, byte e1, byte cwd, byte cwdLen)
+            {
+                CQ = cq;
+                Rho = rho;
+                UOff = uOff;
+                EK = ek;
+                E1 = e1;
+                Cwd = cwd;
+                CwdLen = cwdLen;
+            }
+        }
+
+        #endregion
+
+        #region Table 0 source data (from OpenJPH table0.h)
+
+        /// <summary>
+        /// Raw source data for VLC Table 0, from ITU-T T.814 / OpenJPH table0.h.
+        /// Format per entry: {c_q, rho, u_off, e_k, e_1, cwd, cwd_len}.
+        /// </summary>
+        private static readonly VlcSourceEntry[] Table0SourceData = new VlcSourceEntry[]
+        {
+            // c_q=0
+            new VlcSourceEntry(0, 0x1, 0x0, 0x0, 0x0, 0x06, 4),
+            new VlcSourceEntry(0, 0x1, 0x1, 0x1, 0x1, 0x3F, 7),
+            new VlcSourceEntry(0, 0x2, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(0, 0x2, 0x1, 0x2, 0x2, 0x7F, 7),
+            new VlcSourceEntry(0, 0x3, 0x0, 0x0, 0x0, 0x11, 5),
+            new VlcSourceEntry(0, 0x3, 0x1, 0x2, 0x2, 0x5F, 7),
+            new VlcSourceEntry(0, 0x3, 0x1, 0x3, 0x1, 0x1F, 7),
+            new VlcSourceEntry(0, 0x4, 0x0, 0x0, 0x0, 0x02, 3),
+            new VlcSourceEntry(0, 0x4, 0x1, 0x4, 0x4, 0x13, 6),
+            new VlcSourceEntry(0, 0x5, 0x0, 0x0, 0x0, 0x0E, 5),
+            new VlcSourceEntry(0, 0x5, 0x1, 0x4, 0x4, 0x23, 6),
+            new VlcSourceEntry(0, 0x5, 0x1, 0x5, 0x1, 0x0F, 7),
+            new VlcSourceEntry(0, 0x6, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(0, 0x6, 0x1, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(0, 0x7, 0x0, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(0, 0x7, 0x1, 0x2, 0x2, 0x4F, 7),
+            new VlcSourceEntry(0, 0x7, 0x1, 0x2, 0x0, 0x0D, 6),
+            new VlcSourceEntry(0, 0x8, 0x0, 0x0, 0x0, 0x04, 3),
+            new VlcSourceEntry(0, 0x8, 0x1, 0x8, 0x8, 0x3D, 6),
+            new VlcSourceEntry(0, 0x9, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(0, 0x9, 0x1, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(0, 0xA, 0x0, 0x0, 0x0, 0x01, 5),
+            new VlcSourceEntry(0, 0xA, 0x1, 0x8, 0x8, 0x35, 6),
+            new VlcSourceEntry(0, 0xA, 0x1, 0xA, 0x2, 0x77, 7),
+            new VlcSourceEntry(0, 0xB, 0x0, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(0, 0xB, 0x1, 0x1, 0x1, 0x57, 7),
+            new VlcSourceEntry(0, 0xB, 0x1, 0x1, 0x0, 0x09, 6),
+            new VlcSourceEntry(0, 0xC, 0x0, 0x0, 0x0, 0x1E, 5),
+            new VlcSourceEntry(0, 0xC, 0x1, 0xC, 0xC, 0x17, 7),
+            new VlcSourceEntry(0, 0xC, 0x1, 0xC, 0x4, 0x15, 6),
+            new VlcSourceEntry(0, 0xC, 0x1, 0xC, 0x8, 0x25, 6),
+            new VlcSourceEntry(0, 0xD, 0x0, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(0, 0xD, 0x1, 0x1, 0x1, 0x27, 7),
+            new VlcSourceEntry(0, 0xD, 0x1, 0x5, 0x4, 0x47, 7),
+            new VlcSourceEntry(0, 0xD, 0x1, 0xD, 0x8, 0x07, 7),
+            new VlcSourceEntry(0, 0xE, 0x0, 0x0, 0x0, 0x7B, 7),
+            new VlcSourceEntry(0, 0xE, 0x1, 0x2, 0x2, 0x4B, 7),
+            new VlcSourceEntry(0, 0xE, 0x1, 0xA, 0x8, 0x05, 6),
+            new VlcSourceEntry(0, 0xE, 0x1, 0xE, 0x4, 0x3B, 7),
+            new VlcSourceEntry(0, 0xF, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0x9, 0x9, 0x1B, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xB, 0xA, 0x6B, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xF, 0xC, 0x2B, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xF, 0x8, 0x39, 6),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xE, 0x6, 0x73, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xE, 0x2, 0x19, 6),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xF, 0x5, 0x0B, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xF, 0x4, 0x29, 6),
+            new VlcSourceEntry(0, 0xF, 0x1, 0xF, 0x1, 0x33, 7),
+            // c_q=1
+            new VlcSourceEntry(1, 0x0, 0x0, 0x0, 0x0, 0x00, 2),
+            new VlcSourceEntry(1, 0x1, 0x0, 0x0, 0x0, 0x0E, 4),
+            new VlcSourceEntry(1, 0x1, 0x1, 0x1, 0x1, 0x1F, 7),
+            new VlcSourceEntry(1, 0x2, 0x0, 0x0, 0x0, 0x06, 4),
+            new VlcSourceEntry(1, 0x2, 0x1, 0x2, 0x2, 0x3B, 6),
+            new VlcSourceEntry(1, 0x3, 0x0, 0x0, 0x0, 0x1B, 6),
+            new VlcSourceEntry(1, 0x3, 0x1, 0x0, 0x0, 0x3D, 6),
+            new VlcSourceEntry(1, 0x4, 0x0, 0x0, 0x0, 0x0A, 4),
+            new VlcSourceEntry(1, 0x4, 0x1, 0x4, 0x4, 0x2B, 6),
+            new VlcSourceEntry(1, 0x5, 0x0, 0x0, 0x0, 0x0B, 6),
+            new VlcSourceEntry(1, 0x5, 0x1, 0x4, 0x4, 0x33, 6),
+            new VlcSourceEntry(1, 0x5, 0x1, 0x5, 0x1, 0x7F, 7),
+            new VlcSourceEntry(1, 0x6, 0x0, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(1, 0x6, 0x1, 0x0, 0x0, 0x23, 6),
+            new VlcSourceEntry(1, 0x7, 0x0, 0x0, 0x0, 0x3F, 7),
+            new VlcSourceEntry(1, 0x7, 0x1, 0x2, 0x2, 0x5F, 7),
+            new VlcSourceEntry(1, 0x7, 0x1, 0x2, 0x0, 0x03, 6),
+            new VlcSourceEntry(1, 0x8, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(1, 0x8, 0x1, 0x8, 0x8, 0x1D, 6),
+            new VlcSourceEntry(1, 0x9, 0x0, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(1, 0x9, 0x1, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(1, 0xA, 0x0, 0x0, 0x0, 0x35, 6),
+            new VlcSourceEntry(1, 0xA, 0x1, 0x8, 0x8, 0x15, 6),
+            new VlcSourceEntry(1, 0xA, 0x1, 0xA, 0x2, 0x6F, 7),
+            new VlcSourceEntry(1, 0xB, 0x0, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(1, 0xB, 0x1, 0x1, 0x1, 0x4F, 7),
+            new VlcSourceEntry(1, 0xB, 0x1, 0x1, 0x0, 0x11, 6),
+            new VlcSourceEntry(1, 0xC, 0x0, 0x0, 0x0, 0x01, 5),
+            new VlcSourceEntry(1, 0xC, 0x1, 0x8, 0x8, 0x25, 6),
+            new VlcSourceEntry(1, 0xC, 0x1, 0xC, 0x4, 0x05, 6),
+            new VlcSourceEntry(1, 0xD, 0x0, 0x0, 0x0, 0x0F, 7),
+            new VlcSourceEntry(1, 0xD, 0x1, 0x1, 0x1, 0x17, 7),
+            new VlcSourceEntry(1, 0xD, 0x1, 0x5, 0x4, 0x39, 6),
+            new VlcSourceEntry(1, 0xD, 0x1, 0xD, 0x8, 0x77, 7),
+            new VlcSourceEntry(1, 0xE, 0x0, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(1, 0xE, 0x1, 0x2, 0x2, 0x57, 7),
+            new VlcSourceEntry(1, 0xE, 0x1, 0xA, 0x8, 0x19, 6),
+            new VlcSourceEntry(1, 0xE, 0x1, 0xE, 0x4, 0x67, 7),
+            new VlcSourceEntry(1, 0xF, 0x0, 0x0, 0x0, 0x07, 7),
+            new VlcSourceEntry(1, 0xF, 0x1, 0xB, 0x8, 0x29, 6),
+            new VlcSourceEntry(1, 0xF, 0x1, 0x8, 0x8, 0x27, 7),
+            new VlcSourceEntry(1, 0xF, 0x1, 0xA, 0x2, 0x09, 6),
+            new VlcSourceEntry(1, 0xF, 0x1, 0xE, 0x4, 0x31, 6),
+            new VlcSourceEntry(1, 0xF, 0x1, 0xF, 0x1, 0x47, 7),
+            // c_q=2
+            new VlcSourceEntry(2, 0x0, 0x0, 0x0, 0x0, 0x00, 2),
+            new VlcSourceEntry(2, 0x1, 0x0, 0x0, 0x0, 0x0E, 4),
+            new VlcSourceEntry(2, 0x1, 0x1, 0x1, 0x1, 0x1B, 6),
+            new VlcSourceEntry(2, 0x2, 0x0, 0x0, 0x0, 0x06, 4),
+            new VlcSourceEntry(2, 0x2, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(2, 0x3, 0x0, 0x0, 0x0, 0x2B, 6),
+            new VlcSourceEntry(2, 0x3, 0x1, 0x1, 0x1, 0x33, 6),
+            new VlcSourceEntry(2, 0x3, 0x1, 0x3, 0x2, 0x7F, 7),
+            new VlcSourceEntry(2, 0x4, 0x0, 0x0, 0x0, 0x0A, 4),
+            new VlcSourceEntry(2, 0x4, 0x1, 0x4, 0x4, 0x0B, 6),
+            new VlcSourceEntry(2, 0x5, 0x0, 0x0, 0x0, 0x01, 5),
+            new VlcSourceEntry(2, 0x5, 0x1, 0x5, 0x5, 0x2F, 7),
+            new VlcSourceEntry(2, 0x5, 0x1, 0x5, 0x1, 0x13, 6),
+            new VlcSourceEntry(2, 0x5, 0x1, 0x5, 0x4, 0x23, 6),
+            new VlcSourceEntry(2, 0x6, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(2, 0x6, 0x1, 0x0, 0x0, 0x5F, 7),
+            new VlcSourceEntry(2, 0x7, 0x0, 0x0, 0x0, 0x1F, 7),
+            new VlcSourceEntry(2, 0x7, 0x1, 0x2, 0x2, 0x6F, 7),
+            new VlcSourceEntry(2, 0x7, 0x1, 0x3, 0x1, 0x11, 6),
+            new VlcSourceEntry(2, 0x7, 0x1, 0x7, 0x4, 0x37, 7),
+            new VlcSourceEntry(2, 0x8, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(2, 0x8, 0x1, 0x8, 0x8, 0x4F, 7),
+            new VlcSourceEntry(2, 0x9, 0x0, 0x0, 0x0, 0x3D, 6),
+            new VlcSourceEntry(2, 0x9, 0x1, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(2, 0xA, 0x0, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(2, 0xA, 0x1, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(2, 0xB, 0x0, 0x0, 0x0, 0x0F, 7),
+            new VlcSourceEntry(2, 0xB, 0x1, 0x2, 0x2, 0x77, 7),
+            new VlcSourceEntry(2, 0xB, 0x1, 0x2, 0x0, 0x35, 6),
+            new VlcSourceEntry(2, 0xC, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(2, 0xC, 0x1, 0x4, 0x4, 0x25, 6),
+            new VlcSourceEntry(2, 0xC, 0x1, 0xC, 0x8, 0x57, 7),
+            new VlcSourceEntry(2, 0xD, 0x0, 0x0, 0x0, 0x17, 7),
+            new VlcSourceEntry(2, 0xD, 0x1, 0x8, 0x8, 0x05, 6),
+            new VlcSourceEntry(2, 0xD, 0x1, 0xC, 0x4, 0x39, 6),
+            new VlcSourceEntry(2, 0xD, 0x1, 0xD, 0x1, 0x67, 7),
+            new VlcSourceEntry(2, 0xE, 0x0, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(2, 0xE, 0x1, 0x2, 0x2, 0x7B, 7),
+            new VlcSourceEntry(2, 0xE, 0x1, 0x2, 0x0, 0x19, 6),
+            new VlcSourceEntry(2, 0xF, 0x0, 0x0, 0x0, 0x47, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0xF, 0x1, 0x29, 6),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x1, 0x1, 0x09, 6),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x3, 0x2, 0x07, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x7, 0x4, 0x31, 6),
+            new VlcSourceEntry(2, 0xF, 0x1, 0xF, 0x8, 0x3B, 7),
+            // c_q=3
+            new VlcSourceEntry(3, 0x0, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(3, 0x1, 0x0, 0x0, 0x0, 0x04, 4),
+            new VlcSourceEntry(3, 0x1, 0x1, 0x1, 0x1, 0x3D, 6),
+            new VlcSourceEntry(3, 0x2, 0x0, 0x0, 0x0, 0x0C, 5),
+            new VlcSourceEntry(3, 0x2, 0x1, 0x2, 0x2, 0x4F, 7),
+            new VlcSourceEntry(3, 0x3, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(3, 0x3, 0x1, 0x1, 0x1, 0x05, 6),
+            new VlcSourceEntry(3, 0x3, 0x1, 0x3, 0x2, 0x7F, 7),
+            new VlcSourceEntry(3, 0x4, 0x0, 0x0, 0x0, 0x16, 5),
+            new VlcSourceEntry(3, 0x4, 0x1, 0x4, 0x4, 0x2D, 6),
+            new VlcSourceEntry(3, 0x5, 0x0, 0x0, 0x0, 0x06, 5),
+            new VlcSourceEntry(3, 0x5, 0x1, 0x5, 0x5, 0x1A, 5),
+            new VlcSourceEntry(3, 0x5, 0x1, 0x5, 0x1, 0x0D, 6),
+            new VlcSourceEntry(3, 0x5, 0x1, 0x5, 0x4, 0x35, 6),
+            new VlcSourceEntry(3, 0x6, 0x0, 0x0, 0x0, 0x3F, 7),
+            new VlcSourceEntry(3, 0x6, 0x1, 0x4, 0x4, 0x5F, 7),
+            new VlcSourceEntry(3, 0x6, 0x1, 0x6, 0x2, 0x1F, 7),
+            new VlcSourceEntry(3, 0x7, 0x0, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x6, 0x6, 0x2F, 7),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x6, 0x4, 0x15, 6),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x7, 0x3, 0x77, 7),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x7, 0x1, 0x25, 6),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x7, 0x2, 0x0F, 7),
+            new VlcSourceEntry(3, 0x8, 0x0, 0x0, 0x0, 0x0A, 5),
+            new VlcSourceEntry(3, 0x8, 0x1, 0x8, 0x8, 0x07, 7),
+            new VlcSourceEntry(3, 0x9, 0x0, 0x0, 0x0, 0x39, 6),
+            new VlcSourceEntry(3, 0x9, 0x1, 0x1, 0x1, 0x37, 7),
+            new VlcSourceEntry(3, 0x9, 0x1, 0x9, 0x8, 0x57, 7),
+            new VlcSourceEntry(3, 0xA, 0x0, 0x0, 0x0, 0x19, 6),
+            new VlcSourceEntry(3, 0xA, 0x1, 0x8, 0x8, 0x29, 6),
+            new VlcSourceEntry(3, 0xA, 0x1, 0xA, 0x2, 0x17, 7),
+            new VlcSourceEntry(3, 0xB, 0x0, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(3, 0xB, 0x1, 0xB, 0x1, 0x27, 7),
+            new VlcSourceEntry(3, 0xB, 0x1, 0x1, 0x1, 0x47, 7),
+            new VlcSourceEntry(3, 0xB, 0x1, 0x3, 0x2, 0x09, 6),
+            new VlcSourceEntry(3, 0xB, 0x1, 0xB, 0x8, 0x7B, 7),
+            new VlcSourceEntry(3, 0xC, 0x0, 0x0, 0x0, 0x31, 6),
+            new VlcSourceEntry(3, 0xC, 0x1, 0x4, 0x4, 0x11, 6),
+            new VlcSourceEntry(3, 0xC, 0x1, 0xC, 0x8, 0x3B, 7),
+            new VlcSourceEntry(3, 0xD, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0x9, 0x9, 0x1B, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0xD, 0x5, 0x2B, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0xD, 0x1, 0x21, 6),
+            new VlcSourceEntry(3, 0xD, 0x1, 0xD, 0xC, 0x6B, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0xD, 0x4, 0x01, 6),
+            new VlcSourceEntry(3, 0xD, 0x1, 0xD, 0x8, 0x4B, 7),
+            new VlcSourceEntry(3, 0xE, 0x0, 0x0, 0x0, 0x0B, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0xE, 0x4, 0x73, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0x4, 0x4, 0x13, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0xC, 0x8, 0x3E, 6),
+            new VlcSourceEntry(3, 0xE, 0x1, 0xE, 0x2, 0x33, 7),
+            new VlcSourceEntry(3, 0xF, 0x0, 0x0, 0x0, 0x53, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xA, 0xA, 0x0E, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xB, 0x9, 0x63, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0xC, 0x03, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x8, 0x12, 5),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xE, 0x6, 0x23, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x5, 0x1E, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x4, 0x02, 5),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x3, 0x43, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x1, 0x1C, 5),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x2, 0x2E, 6),
+            // c_q=4
+            new VlcSourceEntry(4, 0x0, 0x0, 0x0, 0x0, 0x00, 2),
+            new VlcSourceEntry(4, 0x1, 0x0, 0x0, 0x0, 0x0E, 4),
+            new VlcSourceEntry(4, 0x1, 0x1, 0x1, 0x1, 0x3F, 7),
+            new VlcSourceEntry(4, 0x2, 0x0, 0x0, 0x0, 0x06, 4),
+            new VlcSourceEntry(4, 0x2, 0x1, 0x2, 0x2, 0x1B, 6),
+            new VlcSourceEntry(4, 0x3, 0x0, 0x0, 0x0, 0x2B, 6),
+            new VlcSourceEntry(4, 0x3, 0x1, 0x2, 0x2, 0x3D, 6),
+            new VlcSourceEntry(4, 0x3, 0x1, 0x3, 0x1, 0x7F, 7),
+            new VlcSourceEntry(4, 0x4, 0x0, 0x0, 0x0, 0x0A, 4),
+            new VlcSourceEntry(4, 0x4, 0x1, 0x4, 0x4, 0x5F, 7),
+            new VlcSourceEntry(4, 0x5, 0x0, 0x0, 0x0, 0x0B, 6),
+            new VlcSourceEntry(4, 0x5, 0x1, 0x0, 0x0, 0x33, 6),
+            new VlcSourceEntry(4, 0x6, 0x0, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(4, 0x6, 0x1, 0x0, 0x0, 0x23, 6),
+            new VlcSourceEntry(4, 0x7, 0x0, 0x0, 0x0, 0x1F, 7),
+            new VlcSourceEntry(4, 0x7, 0x1, 0x4, 0x4, 0x6F, 7),
+            new VlcSourceEntry(4, 0x7, 0x1, 0x4, 0x0, 0x03, 6),
+            new VlcSourceEntry(4, 0x8, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(4, 0x8, 0x1, 0x8, 0x8, 0x1D, 6),
+            new VlcSourceEntry(4, 0x9, 0x0, 0x0, 0x0, 0x11, 6),
+            new VlcSourceEntry(4, 0x9, 0x1, 0x0, 0x0, 0x77, 7),
+            new VlcSourceEntry(4, 0xA, 0x0, 0x0, 0x0, 0x01, 5),
+            new VlcSourceEntry(4, 0xA, 0x1, 0xA, 0xA, 0x2F, 7),
+            new VlcSourceEntry(4, 0xA, 0x1, 0xA, 0x2, 0x2D, 6),
+            new VlcSourceEntry(4, 0xA, 0x1, 0xA, 0x8, 0x0D, 6),
+            new VlcSourceEntry(4, 0xB, 0x0, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(4, 0xB, 0x1, 0xB, 0x2, 0x0F, 7),
+            new VlcSourceEntry(4, 0xB, 0x1, 0x0, 0x0, 0x35, 6),
+            new VlcSourceEntry(4, 0xC, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(4, 0xC, 0x1, 0x8, 0x8, 0x25, 6),
+            new VlcSourceEntry(4, 0xC, 0x1, 0xC, 0x4, 0x37, 7),
+            new VlcSourceEntry(4, 0xD, 0x0, 0x0, 0x0, 0x57, 7),
+            new VlcSourceEntry(4, 0xD, 0x1, 0x1, 0x1, 0x07, 7),
+            new VlcSourceEntry(4, 0xD, 0x1, 0x1, 0x0, 0x05, 6),
+            new VlcSourceEntry(4, 0xE, 0x0, 0x0, 0x0, 0x17, 7),
+            new VlcSourceEntry(4, 0xE, 0x1, 0x4, 0x4, 0x39, 6),
+            new VlcSourceEntry(4, 0xE, 0x1, 0xC, 0x8, 0x19, 6),
+            new VlcSourceEntry(4, 0xE, 0x1, 0xE, 0x2, 0x67, 7),
+            new VlcSourceEntry(4, 0xF, 0x0, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x9, 0x9, 0x47, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x9, 0x1, 0x29, 6),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x7, 0x6, 0x7B, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x7, 0x2, 0x09, 6),
+            new VlcSourceEntry(4, 0xF, 0x1, 0xB, 0x8, 0x31, 6),
+            new VlcSourceEntry(4, 0xF, 0x1, 0xF, 0x4, 0x3B, 7),
+            // c_q=5
+            new VlcSourceEntry(5, 0x0, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(5, 0x1, 0x0, 0x0, 0x0, 0x1A, 5),
+            new VlcSourceEntry(5, 0x1, 0x1, 0x1, 0x1, 0x7F, 7),
+            new VlcSourceEntry(5, 0x2, 0x0, 0x0, 0x0, 0x0A, 5),
+            new VlcSourceEntry(5, 0x2, 0x1, 0x2, 0x2, 0x1D, 6),
+            new VlcSourceEntry(5, 0x3, 0x0, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(5, 0x3, 0x1, 0x3, 0x3, 0x5F, 7),
+            new VlcSourceEntry(5, 0x3, 0x1, 0x3, 0x2, 0x39, 6),
+            new VlcSourceEntry(5, 0x3, 0x1, 0x3, 0x1, 0x3F, 7),
+            new VlcSourceEntry(5, 0x4, 0x0, 0x0, 0x0, 0x12, 5),
+            new VlcSourceEntry(5, 0x4, 0x1, 0x4, 0x4, 0x1F, 7),
+            new VlcSourceEntry(5, 0x5, 0x0, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(5, 0x5, 0x1, 0x4, 0x4, 0x35, 6),
+            new VlcSourceEntry(5, 0x5, 0x1, 0x5, 0x1, 0x6F, 7),
+            new VlcSourceEntry(5, 0x6, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(5, 0x6, 0x1, 0x2, 0x2, 0x25, 6),
+            new VlcSourceEntry(5, 0x6, 0x1, 0x6, 0x4, 0x2F, 7),
+            new VlcSourceEntry(5, 0x7, 0x0, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x6, 0x6, 0x57, 7),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x6, 0x4, 0x05, 6),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x7, 0x3, 0x0F, 7),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x7, 0x2, 0x77, 7),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x7, 0x1, 0x37, 7),
+            new VlcSourceEntry(5, 0x8, 0x0, 0x0, 0x0, 0x02, 5),
+            new VlcSourceEntry(5, 0x8, 0x1, 0x8, 0x8, 0x19, 6),
+            new VlcSourceEntry(5, 0x9, 0x0, 0x0, 0x0, 0x26, 6),
+            new VlcSourceEntry(5, 0x9, 0x1, 0x8, 0x8, 0x17, 7),
+            new VlcSourceEntry(5, 0x9, 0x1, 0x9, 0x1, 0x67, 7),
+            new VlcSourceEntry(5, 0xA, 0x0, 0x0, 0x0, 0x1C, 5),
+            new VlcSourceEntry(5, 0xA, 0x1, 0xA, 0xA, 0x29, 6),
+            new VlcSourceEntry(5, 0xA, 0x1, 0xA, 0x2, 0x09, 6),
+            new VlcSourceEntry(5, 0xA, 0x1, 0xA, 0x8, 0x31, 6),
+            new VlcSourceEntry(5, 0xB, 0x0, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(5, 0xB, 0x1, 0x9, 0x9, 0x07, 7),
+            new VlcSourceEntry(5, 0xB, 0x1, 0x9, 0x8, 0x11, 6),
+            new VlcSourceEntry(5, 0xB, 0x1, 0xB, 0x3, 0x47, 7),
+            new VlcSourceEntry(5, 0xB, 0x1, 0xB, 0x2, 0x21, 6),
+            new VlcSourceEntry(5, 0xB, 0x1, 0xB, 0x1, 0x7B, 7),
+            new VlcSourceEntry(5, 0xC, 0x0, 0x0, 0x0, 0x01, 6),
+            new VlcSourceEntry(5, 0xC, 0x1, 0x8, 0x8, 0x3E, 6),
+            new VlcSourceEntry(5, 0xC, 0x1, 0xC, 0x4, 0x3B, 7),
+            new VlcSourceEntry(5, 0xD, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(5, 0xD, 0x1, 0x9, 0x9, 0x6B, 7),
+            new VlcSourceEntry(5, 0xD, 0x1, 0x9, 0x8, 0x1E, 6),
+            new VlcSourceEntry(5, 0xD, 0x1, 0xD, 0x5, 0x1B, 7),
+            new VlcSourceEntry(5, 0xD, 0x1, 0xD, 0x4, 0x2E, 6),
+            new VlcSourceEntry(5, 0xD, 0x1, 0xD, 0x1, 0x2B, 7),
+            new VlcSourceEntry(5, 0xE, 0x0, 0x0, 0x0, 0x4B, 7),
+            new VlcSourceEntry(5, 0xE, 0x1, 0x6, 0x6, 0x0B, 7),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0xA, 0x33, 7),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0x2, 0x0E, 6),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0xC, 0x73, 7),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0x8, 0x36, 6),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0x4, 0x53, 7),
+            new VlcSourceEntry(5, 0xF, 0x0, 0x0, 0x0, 0x13, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0x7, 0x7, 0x43, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0x7, 0x6, 0x16, 6),
+            new VlcSourceEntry(5, 0xF, 0x1, 0x7, 0x5, 0x63, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0xC, 0x23, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x4, 0x0C, 5),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xD, 0x9, 0x03, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0xA, 0x3D, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x8, 0x14, 5),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x3, 0x7D, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x2, 0x04, 5),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x1, 0x06, 6),
+            // c_q=6
+            new VlcSourceEntry(6, 0x0, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(6, 0x1, 0x0, 0x0, 0x0, 0x04, 4),
+            new VlcSourceEntry(6, 0x1, 0x1, 0x1, 0x1, 0x03, 6),
+            new VlcSourceEntry(6, 0x2, 0x0, 0x0, 0x0, 0x0C, 5),
+            new VlcSourceEntry(6, 0x2, 0x1, 0x2, 0x2, 0x0D, 6),
+            new VlcSourceEntry(6, 0x3, 0x0, 0x0, 0x0, 0x1A, 5),
+            new VlcSourceEntry(6, 0x3, 0x1, 0x3, 0x3, 0x3D, 6),
+            new VlcSourceEntry(6, 0x3, 0x1, 0x3, 0x1, 0x1D, 6),
+            new VlcSourceEntry(6, 0x3, 0x1, 0x3, 0x2, 0x2D, 6),
+            new VlcSourceEntry(6, 0x4, 0x0, 0x0, 0x0, 0x0A, 5),
+            new VlcSourceEntry(6, 0x4, 0x1, 0x4, 0x4, 0x3F, 7),
+            new VlcSourceEntry(6, 0x5, 0x0, 0x0, 0x0, 0x35, 6),
+            new VlcSourceEntry(6, 0x5, 0x1, 0x1, 0x1, 0x15, 6),
+            new VlcSourceEntry(6, 0x5, 0x1, 0x5, 0x4, 0x7F, 7),
+            new VlcSourceEntry(6, 0x6, 0x0, 0x0, 0x0, 0x25, 6),
+            new VlcSourceEntry(6, 0x6, 0x1, 0x2, 0x2, 0x5F, 7),
+            new VlcSourceEntry(6, 0x6, 0x1, 0x6, 0x4, 0x1F, 7),
+            new VlcSourceEntry(6, 0x7, 0x0, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x6, 0x6, 0x4F, 7),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x6, 0x4, 0x05, 6),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x7, 0x3, 0x2F, 7),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x7, 0x1, 0x36, 6),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x7, 0x2, 0x77, 7),
+            new VlcSourceEntry(6, 0x8, 0x0, 0x0, 0x0, 0x12, 5),
+            new VlcSourceEntry(6, 0x8, 0x1, 0x8, 0x8, 0x0F, 7),
+            new VlcSourceEntry(6, 0x9, 0x0, 0x0, 0x0, 0x39, 6),
+            new VlcSourceEntry(6, 0x9, 0x1, 0x1, 0x1, 0x37, 7),
+            new VlcSourceEntry(6, 0x9, 0x1, 0x9, 0x8, 0x57, 7),
+            new VlcSourceEntry(6, 0xA, 0x0, 0x0, 0x0, 0x19, 6),
+            new VlcSourceEntry(6, 0xA, 0x1, 0x2, 0x2, 0x29, 6),
+            new VlcSourceEntry(6, 0xA, 0x1, 0xA, 0x8, 0x17, 7),
+            new VlcSourceEntry(6, 0xB, 0x0, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0x9, 0x9, 0x47, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0x9, 0x1, 0x09, 6),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xB, 0xA, 0x27, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xB, 0x2, 0x31, 6),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xB, 0x8, 0x7B, 7),
+            new VlcSourceEntry(6, 0xC, 0x0, 0x0, 0x0, 0x11, 6),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0xC, 0x07, 7),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0x8, 0x21, 6),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0x4, 0x3B, 7),
+            new VlcSourceEntry(6, 0xD, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0x5, 0x5, 0x33, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0x5, 0x4, 0x01, 6),
+            new VlcSourceEntry(6, 0xD, 0x1, 0xC, 0x8, 0x1B, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0xD, 0x1, 0x6B, 7),
+            new VlcSourceEntry(6, 0xE, 0x0, 0x0, 0x0, 0x2B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x2, 0x4B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0x2, 0x2, 0x0B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0xC, 0x73, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x8, 0x3E, 6),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x4, 0x53, 7),
+            new VlcSourceEntry(6, 0xF, 0x0, 0x0, 0x0, 0x13, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0x6, 0x6, 0x1E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xE, 0xA, 0x2E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x3, 0x0E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x2, 0x02, 5),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xB, 0x9, 0x63, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0xC, 0x16, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x8, 0x06, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x5, 0x23, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x1, 0x1C, 5),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x4, 0x26, 6),
+            // c_q=7
+            new VlcSourceEntry(7, 0x0, 0x0, 0x0, 0x0, 0x12, 5),
+            new VlcSourceEntry(7, 0x1, 0x0, 0x0, 0x0, 0x05, 6),
+            new VlcSourceEntry(7, 0x1, 0x1, 0x1, 0x1, 0x7F, 7),
+            new VlcSourceEntry(7, 0x2, 0x0, 0x0, 0x0, 0x39, 6),
+            new VlcSourceEntry(7, 0x2, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(7, 0x3, 0x0, 0x0, 0x0, 0x5F, 7),
+            new VlcSourceEntry(7, 0x3, 0x1, 0x3, 0x3, 0x1F, 7),
+            new VlcSourceEntry(7, 0x3, 0x1, 0x3, 0x2, 0x6F, 7),
+            new VlcSourceEntry(7, 0x3, 0x1, 0x3, 0x1, 0x2F, 7),
+            new VlcSourceEntry(7, 0x4, 0x0, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(7, 0x4, 0x1, 0x4, 0x4, 0x0F, 7),
+            new VlcSourceEntry(7, 0x5, 0x0, 0x0, 0x0, 0x57, 7),
+            new VlcSourceEntry(7, 0x5, 0x1, 0x1, 0x1, 0x19, 6),
+            new VlcSourceEntry(7, 0x5, 0x1, 0x5, 0x4, 0x77, 7),
+            new VlcSourceEntry(7, 0x6, 0x0, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(7, 0x6, 0x1, 0x0, 0x0, 0x29, 6),
+            new VlcSourceEntry(7, 0x7, 0x0, 0x0, 0x0, 0x17, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x6, 0x6, 0x67, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x3, 0x27, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x2, 0x47, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x5, 0x1B, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x1, 0x09, 6),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x4, 0x07, 7),
+            new VlcSourceEntry(7, 0x8, 0x0, 0x0, 0x0, 0x7B, 7),
+            new VlcSourceEntry(7, 0x8, 0x1, 0x8, 0x8, 0x3B, 7),
+            new VlcSourceEntry(7, 0x9, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(7, 0x9, 0x1, 0x0, 0x0, 0x31, 6),
+            new VlcSourceEntry(7, 0xA, 0x0, 0x0, 0x0, 0x53, 7),
+            new VlcSourceEntry(7, 0xA, 0x1, 0x2, 0x2, 0x11, 6),
+            new VlcSourceEntry(7, 0xA, 0x1, 0xA, 0x8, 0x6B, 7),
+            new VlcSourceEntry(7, 0xB, 0x0, 0x0, 0x0, 0x2B, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0x9, 0x9, 0x4B, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x3, 0x0B, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x1, 0x73, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0xA, 0x33, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x2, 0x21, 6),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x8, 0x13, 7),
+            new VlcSourceEntry(7, 0xC, 0x0, 0x0, 0x0, 0x63, 7),
+            new VlcSourceEntry(7, 0xC, 0x1, 0x8, 0x8, 0x23, 7),
+            new VlcSourceEntry(7, 0xC, 0x1, 0xC, 0x4, 0x43, 7),
+            new VlcSourceEntry(7, 0xD, 0x0, 0x0, 0x0, 0x03, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0x9, 0x9, 0x7D, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x5, 0x5D, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x1, 0x01, 6),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0xC, 0x3D, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x4, 0x3E, 6),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x8, 0x1D, 7),
+            new VlcSourceEntry(7, 0xE, 0x0, 0x0, 0x0, 0x6D, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0x6, 0x6, 0x2D, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0xA, 0x0D, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0x2, 0x1E, 6),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0xC, 0x4D, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0x8, 0x0E, 6),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0x4, 0x75, 7),
+            new VlcSourceEntry(7, 0xF, 0x0, 0x0, 0x0, 0x15, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xF, 0x06, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xD, 0x35, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x7, 0x55, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x5, 0x1A, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xB, 0x25, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x3, 0x0A, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x9, 0x2E, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x1, 0x00, 4),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xE, 0x65, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x6, 0x36, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xA, 0x02, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x2, 0x0C, 4),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xC, 0x16, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x8, 0x04, 4),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x4, 0x08, 4),
+        };
+
+        #endregion
+
+        #region Table 1 source data (from OpenJPH table1.h)
+
+        /// <summary>
+        /// Raw source data for VLC Table 1, from ITU-T T.814 / OpenJPH table1.h.
+        /// Format per entry: {c_q, rho, u_off, e_k, e_1, cwd, cwd_len}.
+        /// </summary>
+        private static readonly VlcSourceEntry[] Table1SourceData = new VlcSourceEntry[]
+        {
+            // c_q=0
+            new VlcSourceEntry(0, 0x1, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(0, 0x1, 0x1, 0x1, 0x1, 0x27, 6),
+            new VlcSourceEntry(0, 0x2, 0x0, 0x0, 0x0, 0x06, 3),
+            new VlcSourceEntry(0, 0x2, 0x1, 0x2, 0x2, 0x17, 6),
+            new VlcSourceEntry(0, 0x3, 0x0, 0x0, 0x0, 0x0D, 5),
+            new VlcSourceEntry(0, 0x3, 0x1, 0x0, 0x0, 0x3B, 6),
+            new VlcSourceEntry(0, 0x4, 0x0, 0x0, 0x0, 0x02, 3),
+            new VlcSourceEntry(0, 0x4, 0x1, 0x4, 0x4, 0x07, 6),
+            new VlcSourceEntry(0, 0x5, 0x0, 0x0, 0x0, 0x15, 5),
+            new VlcSourceEntry(0, 0x5, 0x1, 0x0, 0x0, 0x2B, 6),
+            new VlcSourceEntry(0, 0x6, 0x0, 0x0, 0x0, 0x01, 5),
+            new VlcSourceEntry(0, 0x6, 0x1, 0x0, 0x0, 0x7F, 7),
+            new VlcSourceEntry(0, 0x7, 0x0, 0x0, 0x0, 0x1F, 7),
+            new VlcSourceEntry(0, 0x7, 0x1, 0x0, 0x0, 0x1B, 6),
+            new VlcSourceEntry(0, 0x8, 0x0, 0x0, 0x0, 0x04, 3),
+            new VlcSourceEntry(0, 0x8, 0x1, 0x8, 0x8, 0x05, 5),
+            new VlcSourceEntry(0, 0x9, 0x0, 0x0, 0x0, 0x19, 5),
+            new VlcSourceEntry(0, 0x9, 0x1, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(0, 0xA, 0x0, 0x0, 0x0, 0x09, 5),
+            new VlcSourceEntry(0, 0xA, 0x1, 0x8, 0x8, 0x0B, 6),
+            new VlcSourceEntry(0, 0xA, 0x1, 0xA, 0x2, 0x3F, 7),
+            new VlcSourceEntry(0, 0xB, 0x0, 0x0, 0x0, 0x5F, 7),
+            new VlcSourceEntry(0, 0xB, 0x1, 0x0, 0x0, 0x33, 6),
+            new VlcSourceEntry(0, 0xC, 0x0, 0x0, 0x0, 0x11, 5),
+            new VlcSourceEntry(0, 0xC, 0x1, 0x8, 0x8, 0x23, 6),
+            new VlcSourceEntry(0, 0xC, 0x1, 0xC, 0x4, 0x6F, 7),
+            new VlcSourceEntry(0, 0xD, 0x0, 0x0, 0x0, 0x0F, 7),
+            new VlcSourceEntry(0, 0xD, 0x1, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(0, 0xE, 0x0, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(0, 0xE, 0x1, 0x4, 0x4, 0x4F, 7),
+            new VlcSourceEntry(0, 0xE, 0x1, 0x4, 0x0, 0x3D, 6),
+            new VlcSourceEntry(0, 0xF, 0x0, 0x0, 0x0, 0x77, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0x1, 0x1, 0x37, 7),
+            new VlcSourceEntry(0, 0xF, 0x1, 0x1, 0x0, 0x1D, 6),
+            // c_q=1
+            new VlcSourceEntry(1, 0x0, 0x0, 0x0, 0x0, 0x00, 1),
+            new VlcSourceEntry(1, 0x1, 0x0, 0x0, 0x0, 0x05, 4),
+            new VlcSourceEntry(1, 0x1, 0x1, 0x1, 0x1, 0x7F, 7),
+            new VlcSourceEntry(1, 0x2, 0x0, 0x0, 0x0, 0x09, 4),
+            new VlcSourceEntry(1, 0x2, 0x1, 0x2, 0x2, 0x1F, 7),
+            new VlcSourceEntry(1, 0x3, 0x0, 0x0, 0x0, 0x1D, 5),
+            new VlcSourceEntry(1, 0x3, 0x1, 0x1, 0x1, 0x3F, 7),
+            new VlcSourceEntry(1, 0x3, 0x1, 0x3, 0x2, 0x5F, 7),
+            new VlcSourceEntry(1, 0x4, 0x0, 0x0, 0x0, 0x0D, 5),
+            new VlcSourceEntry(1, 0x4, 0x1, 0x4, 0x4, 0x37, 7),
+            new VlcSourceEntry(1, 0x5, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(1, 0x5, 0x1, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(1, 0x6, 0x0, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(1, 0x6, 0x1, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(1, 0x7, 0x0, 0x0, 0x0, 0x0F, 7),
+            new VlcSourceEntry(1, 0x7, 0x1, 0x0, 0x0, 0x77, 7),
+            new VlcSourceEntry(1, 0x8, 0x0, 0x0, 0x0, 0x01, 4),
+            new VlcSourceEntry(1, 0x8, 0x1, 0x8, 0x8, 0x17, 7),
+            new VlcSourceEntry(1, 0x9, 0x0, 0x0, 0x0, 0x0B, 6),
+            new VlcSourceEntry(1, 0x9, 0x1, 0x0, 0x0, 0x57, 7),
+            new VlcSourceEntry(1, 0xA, 0x0, 0x0, 0x0, 0x33, 6),
+            new VlcSourceEntry(1, 0xA, 0x1, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(1, 0xB, 0x0, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(1, 0xB, 0x1, 0x0, 0x0, 0x2B, 7),
+            new VlcSourceEntry(1, 0xC, 0x0, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(1, 0xC, 0x1, 0x0, 0x0, 0x47, 7),
+            new VlcSourceEntry(1, 0xD, 0x0, 0x0, 0x0, 0x07, 7),
+            new VlcSourceEntry(1, 0xD, 0x1, 0x0, 0x0, 0x7B, 7),
+            new VlcSourceEntry(1, 0xE, 0x0, 0x0, 0x0, 0x3B, 7),
+            new VlcSourceEntry(1, 0xE, 0x1, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(1, 0xF, 0x0, 0x0, 0x0, 0x1B, 7),
+            new VlcSourceEntry(1, 0xF, 0x1, 0x4, 0x4, 0x6B, 7),
+            new VlcSourceEntry(1, 0xF, 0x1, 0x4, 0x0, 0x23, 6),
+            // c_q=2
+            new VlcSourceEntry(2, 0x0, 0x0, 0x0, 0x0, 0x00, 1),
+            new VlcSourceEntry(2, 0x1, 0x0, 0x0, 0x0, 0x09, 4),
+            new VlcSourceEntry(2, 0x1, 0x1, 0x1, 0x1, 0x7F, 7),
+            new VlcSourceEntry(2, 0x2, 0x0, 0x0, 0x0, 0x01, 4),
+            new VlcSourceEntry(2, 0x2, 0x1, 0x2, 0x2, 0x23, 6),
+            new VlcSourceEntry(2, 0x3, 0x0, 0x0, 0x0, 0x3D, 6),
+            new VlcSourceEntry(2, 0x3, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(2, 0x3, 0x1, 0x3, 0x1, 0x1F, 7),
+            new VlcSourceEntry(2, 0x4, 0x0, 0x0, 0x0, 0x15, 5),
+            new VlcSourceEntry(2, 0x4, 0x1, 0x4, 0x4, 0x5F, 7),
+            new VlcSourceEntry(2, 0x5, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(2, 0x5, 0x1, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(2, 0x6, 0x0, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(2, 0x6, 0x1, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(2, 0x7, 0x0, 0x0, 0x0, 0x0F, 7),
+            new VlcSourceEntry(2, 0x7, 0x1, 0x0, 0x0, 0x17, 7),
+            new VlcSourceEntry(2, 0x8, 0x0, 0x0, 0x0, 0x05, 5),
+            new VlcSourceEntry(2, 0x8, 0x1, 0x8, 0x8, 0x77, 7),
+            new VlcSourceEntry(2, 0x9, 0x0, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(2, 0x9, 0x1, 0x0, 0x0, 0x57, 7),
+            new VlcSourceEntry(2, 0xA, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(2, 0xA, 0x1, 0xA, 0xA, 0x7B, 7),
+            new VlcSourceEntry(2, 0xA, 0x1, 0xA, 0x2, 0x2D, 6),
+            new VlcSourceEntry(2, 0xA, 0x1, 0xA, 0x8, 0x67, 7),
+            new VlcSourceEntry(2, 0xB, 0x0, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(2, 0xB, 0x1, 0xB, 0x2, 0x47, 7),
+            new VlcSourceEntry(2, 0xB, 0x1, 0x0, 0x0, 0x07, 7),
+            new VlcSourceEntry(2, 0xC, 0x0, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(2, 0xC, 0x1, 0x0, 0x0, 0x3B, 7),
+            new VlcSourceEntry(2, 0xD, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(2, 0xD, 0x1, 0x0, 0x0, 0x1B, 7),
+            new VlcSourceEntry(2, 0xE, 0x0, 0x0, 0x0, 0x6B, 7),
+            new VlcSourceEntry(2, 0xE, 0x1, 0x4, 0x4, 0x2B, 7),
+            new VlcSourceEntry(2, 0xE, 0x1, 0x4, 0x0, 0x4B, 7),
+            new VlcSourceEntry(2, 0xF, 0x0, 0x0, 0x0, 0x0B, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x4, 0x4, 0x73, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x5, 0x1, 0x33, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0x7, 0x2, 0x53, 7),
+            new VlcSourceEntry(2, 0xF, 0x1, 0xF, 0x8, 0x13, 7),
+            // c_q=3
+            new VlcSourceEntry(3, 0x0, 0x0, 0x0, 0x0, 0x00, 2),
+            new VlcSourceEntry(3, 0x1, 0x0, 0x0, 0x0, 0x0A, 4),
+            new VlcSourceEntry(3, 0x1, 0x1, 0x1, 0x1, 0x0B, 6),
+            new VlcSourceEntry(3, 0x2, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(3, 0x2, 0x1, 0x2, 0x2, 0x23, 6),
+            new VlcSourceEntry(3, 0x3, 0x0, 0x0, 0x0, 0x0E, 5),
+            new VlcSourceEntry(3, 0x3, 0x1, 0x3, 0x3, 0x7F, 7),
+            new VlcSourceEntry(3, 0x3, 0x1, 0x3, 0x2, 0x33, 6),
+            new VlcSourceEntry(3, 0x3, 0x1, 0x3, 0x1, 0x13, 6),
+            new VlcSourceEntry(3, 0x4, 0x0, 0x0, 0x0, 0x16, 5),
+            new VlcSourceEntry(3, 0x4, 0x1, 0x4, 0x4, 0x3F, 7),
+            new VlcSourceEntry(3, 0x5, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(3, 0x5, 0x1, 0x1, 0x1, 0x3D, 6),
+            new VlcSourceEntry(3, 0x5, 0x1, 0x5, 0x4, 0x1F, 7),
+            new VlcSourceEntry(3, 0x6, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(3, 0x6, 0x1, 0x0, 0x0, 0x5F, 7),
+            new VlcSourceEntry(3, 0x7, 0x0, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x4, 0x4, 0x2F, 7),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x5, 0x1, 0x1E, 6),
+            new VlcSourceEntry(3, 0x7, 0x1, 0x7, 0x2, 0x6F, 7),
+            new VlcSourceEntry(3, 0x8, 0x0, 0x0, 0x0, 0x06, 5),
+            new VlcSourceEntry(3, 0x8, 0x1, 0x8, 0x8, 0x4F, 7),
+            new VlcSourceEntry(3, 0x9, 0x0, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(3, 0x9, 0x1, 0x0, 0x0, 0x35, 6),
+            new VlcSourceEntry(3, 0xA, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(3, 0xA, 0x1, 0x2, 0x2, 0x25, 6),
+            new VlcSourceEntry(3, 0xA, 0x1, 0xA, 0x8, 0x0F, 7),
+            new VlcSourceEntry(3, 0xB, 0x0, 0x0, 0x0, 0x05, 6),
+            new VlcSourceEntry(3, 0xB, 0x1, 0x8, 0x8, 0x39, 6),
+            new VlcSourceEntry(3, 0xB, 0x1, 0xB, 0x3, 0x17, 7),
+            new VlcSourceEntry(3, 0xB, 0x1, 0xB, 0x2, 0x19, 6),
+            new VlcSourceEntry(3, 0xB, 0x1, 0xB, 0x1, 0x77, 7),
+            new VlcSourceEntry(3, 0xC, 0x0, 0x0, 0x0, 0x29, 6),
+            new VlcSourceEntry(3, 0xC, 0x1, 0x0, 0x0, 0x09, 6),
+            new VlcSourceEntry(3, 0xD, 0x0, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0x4, 0x4, 0x57, 7),
+            new VlcSourceEntry(3, 0xD, 0x1, 0x4, 0x0, 0x31, 6),
+            new VlcSourceEntry(3, 0xE, 0x0, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0x4, 0x4, 0x27, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0xC, 0x8, 0x47, 7),
+            new VlcSourceEntry(3, 0xE, 0x1, 0xE, 0x2, 0x6B, 7),
+            new VlcSourceEntry(3, 0xF, 0x0, 0x0, 0x0, 0x11, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0x6, 0x6, 0x07, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0x7, 0x3, 0x7B, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0xA, 0x3B, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x2, 0x21, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x8, 0x01, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xA, 0x8, 0x5B, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x5, 0x1B, 7),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x1, 0x3E, 6),
+            new VlcSourceEntry(3, 0xF, 0x1, 0xF, 0x4, 0x2B, 7),
+            // c_q=4
+            new VlcSourceEntry(4, 0x0, 0x0, 0x0, 0x0, 0x00, 1),
+            new VlcSourceEntry(4, 0x1, 0x0, 0x0, 0x0, 0x0D, 5),
+            new VlcSourceEntry(4, 0x1, 0x1, 0x1, 0x1, 0x7F, 7),
+            new VlcSourceEntry(4, 0x2, 0x0, 0x0, 0x0, 0x15, 5),
+            new VlcSourceEntry(4, 0x2, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(4, 0x3, 0x0, 0x0, 0x0, 0x5F, 7),
+            new VlcSourceEntry(4, 0x3, 0x1, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(4, 0x4, 0x0, 0x0, 0x0, 0x09, 4),
+            new VlcSourceEntry(4, 0x4, 0x1, 0x4, 0x4, 0x23, 6),
+            new VlcSourceEntry(4, 0x5, 0x0, 0x0, 0x0, 0x33, 6),
+            new VlcSourceEntry(4, 0x5, 0x1, 0x0, 0x0, 0x1F, 7),
+            new VlcSourceEntry(4, 0x6, 0x0, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(4, 0x6, 0x1, 0x0, 0x0, 0x2F, 7),
+            new VlcSourceEntry(4, 0x7, 0x0, 0x0, 0x0, 0x4F, 7),
+            new VlcSourceEntry(4, 0x7, 0x1, 0x0, 0x0, 0x57, 7),
+            new VlcSourceEntry(4, 0x8, 0x0, 0x0, 0x0, 0x01, 4),
+            new VlcSourceEntry(4, 0x8, 0x1, 0x8, 0x8, 0x0F, 7),
+            new VlcSourceEntry(4, 0x9, 0x0, 0x0, 0x0, 0x77, 7),
+            new VlcSourceEntry(4, 0x9, 0x1, 0x0, 0x0, 0x37, 7),
+            new VlcSourceEntry(4, 0xA, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(4, 0xA, 0x1, 0x0, 0x0, 0x17, 7),
+            new VlcSourceEntry(4, 0xB, 0x0, 0x0, 0x0, 0x67, 7),
+            new VlcSourceEntry(4, 0xB, 0x1, 0x0, 0x0, 0x6B, 7),
+            new VlcSourceEntry(4, 0xC, 0x0, 0x0, 0x0, 0x05, 5),
+            new VlcSourceEntry(4, 0xC, 0x1, 0xC, 0xC, 0x27, 7),
+            new VlcSourceEntry(4, 0xC, 0x1, 0xC, 0x8, 0x47, 7),
+            new VlcSourceEntry(4, 0xC, 0x1, 0xC, 0x4, 0x07, 7),
+            new VlcSourceEntry(4, 0xD, 0x0, 0x0, 0x0, 0x7B, 7),
+            new VlcSourceEntry(4, 0xD, 0x1, 0x0, 0x0, 0x3B, 7),
+            new VlcSourceEntry(4, 0xE, 0x0, 0x0, 0x0, 0x5B, 7),
+            new VlcSourceEntry(4, 0xE, 0x1, 0x2, 0x2, 0x1B, 7),
+            new VlcSourceEntry(4, 0xE, 0x1, 0x2, 0x0, 0x03, 6),
+            new VlcSourceEntry(4, 0xF, 0x0, 0x0, 0x0, 0x2B, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x1, 0x1, 0x4B, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x3, 0x2, 0x0B, 7),
+            new VlcSourceEntry(4, 0xF, 0x1, 0x3, 0x0, 0x3D, 6),
+            // c_q=5
+            new VlcSourceEntry(5, 0x0, 0x0, 0x0, 0x0, 0x00, 2),
+            new VlcSourceEntry(5, 0x1, 0x0, 0x0, 0x0, 0x1E, 5),
+            new VlcSourceEntry(5, 0x1, 0x1, 0x1, 0x1, 0x3B, 6),
+            new VlcSourceEntry(5, 0x2, 0x0, 0x0, 0x0, 0x0A, 5),
+            new VlcSourceEntry(5, 0x2, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(5, 0x3, 0x0, 0x0, 0x0, 0x1B, 6),
+            new VlcSourceEntry(5, 0x3, 0x1, 0x0, 0x0, 0x0B, 6),
+            new VlcSourceEntry(5, 0x4, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(5, 0x4, 0x1, 0x4, 0x4, 0x2B, 6),
+            new VlcSourceEntry(5, 0x5, 0x0, 0x0, 0x0, 0x0E, 5),
+            new VlcSourceEntry(5, 0x5, 0x1, 0x4, 0x4, 0x33, 6),
+            new VlcSourceEntry(5, 0x5, 0x1, 0x5, 0x1, 0x7F, 7),
+            new VlcSourceEntry(5, 0x6, 0x0, 0x0, 0x0, 0x13, 6),
+            new VlcSourceEntry(5, 0x6, 0x1, 0x0, 0x0, 0x6F, 7),
+            new VlcSourceEntry(5, 0x7, 0x0, 0x0, 0x0, 0x23, 6),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x2, 0x2, 0x5F, 7),
+            new VlcSourceEntry(5, 0x7, 0x1, 0x2, 0x0, 0x15, 6),
+            new VlcSourceEntry(5, 0x8, 0x0, 0x0, 0x0, 0x16, 5),
+            new VlcSourceEntry(5, 0x8, 0x1, 0x8, 0x8, 0x03, 6),
+            new VlcSourceEntry(5, 0x9, 0x0, 0x0, 0x0, 0x3D, 6),
+            new VlcSourceEntry(5, 0x9, 0x1, 0x0, 0x0, 0x1F, 7),
+            new VlcSourceEntry(5, 0xA, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(5, 0xA, 0x1, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(5, 0xB, 0x0, 0x0, 0x0, 0x0D, 6),
+            new VlcSourceEntry(5, 0xB, 0x1, 0x1, 0x1, 0x4F, 7),
+            new VlcSourceEntry(5, 0xB, 0x1, 0x1, 0x0, 0x35, 6),
+            new VlcSourceEntry(5, 0xC, 0x0, 0x0, 0x0, 0x06, 5),
+            new VlcSourceEntry(5, 0xC, 0x1, 0x4, 0x4, 0x25, 6),
+            new VlcSourceEntry(5, 0xC, 0x1, 0xC, 0x8, 0x2F, 7),
+            new VlcSourceEntry(5, 0xD, 0x0, 0x0, 0x0, 0x05, 6),
+            new VlcSourceEntry(5, 0xD, 0x1, 0x1, 0x1, 0x77, 7),
+            new VlcSourceEntry(5, 0xD, 0x1, 0x5, 0x4, 0x39, 6),
+            new VlcSourceEntry(5, 0xD, 0x1, 0xD, 0x8, 0x0F, 7),
+            new VlcSourceEntry(5, 0xE, 0x0, 0x0, 0x0, 0x19, 6),
+            new VlcSourceEntry(5, 0xE, 0x1, 0x2, 0x2, 0x57, 7),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xA, 0x8, 0x01, 6),
+            new VlcSourceEntry(5, 0xE, 0x1, 0xE, 0x4, 0x37, 7),
+            new VlcSourceEntry(5, 0xF, 0x0, 0x0, 0x0, 0x1A, 5),
+            new VlcSourceEntry(5, 0xF, 0x1, 0x9, 0x9, 0x17, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xD, 0x5, 0x67, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x3, 0x07, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x1, 0x29, 6),
+            new VlcSourceEntry(5, 0xF, 0x1, 0x7, 0x6, 0x27, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0xC, 0x09, 6),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x4, 0x31, 6),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0xA, 0x47, 7),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x8, 0x11, 6),
+            new VlcSourceEntry(5, 0xF, 0x1, 0xF, 0x2, 0x21, 6),
+            // c_q=6
+            new VlcSourceEntry(6, 0x0, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(6, 0x1, 0x0, 0x0, 0x0, 0x02, 4),
+            new VlcSourceEntry(6, 0x1, 0x1, 0x1, 0x1, 0x03, 6),
+            new VlcSourceEntry(6, 0x2, 0x0, 0x0, 0x0, 0x0C, 4),
+            new VlcSourceEntry(6, 0x2, 0x1, 0x2, 0x2, 0x3D, 6),
+            new VlcSourceEntry(6, 0x3, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(6, 0x3, 0x1, 0x2, 0x2, 0x0D, 6),
+            new VlcSourceEntry(6, 0x3, 0x1, 0x3, 0x1, 0x7F, 7),
+            new VlcSourceEntry(6, 0x4, 0x0, 0x0, 0x0, 0x04, 4),
+            new VlcSourceEntry(6, 0x4, 0x1, 0x4, 0x4, 0x2D, 6),
+            new VlcSourceEntry(6, 0x5, 0x0, 0x0, 0x0, 0x0A, 5),
+            new VlcSourceEntry(6, 0x5, 0x1, 0x4, 0x4, 0x35, 6),
+            new VlcSourceEntry(6, 0x5, 0x1, 0x5, 0x1, 0x2F, 7),
+            new VlcSourceEntry(6, 0x6, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(6, 0x6, 0x1, 0x2, 0x2, 0x3F, 7),
+            new VlcSourceEntry(6, 0x6, 0x1, 0x6, 0x4, 0x5F, 7),
+            new VlcSourceEntry(6, 0x7, 0x0, 0x0, 0x0, 0x25, 6),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x2, 0x2, 0x29, 6),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x3, 0x1, 0x1F, 7),
+            new VlcSourceEntry(6, 0x7, 0x1, 0x7, 0x4, 0x6F, 7),
+            new VlcSourceEntry(6, 0x8, 0x0, 0x0, 0x0, 0x16, 5),
+            new VlcSourceEntry(6, 0x8, 0x1, 0x8, 0x8, 0x05, 6),
+            new VlcSourceEntry(6, 0x9, 0x0, 0x0, 0x0, 0x39, 6),
+            new VlcSourceEntry(6, 0x9, 0x1, 0x0, 0x0, 0x19, 6),
+            new VlcSourceEntry(6, 0xA, 0x0, 0x0, 0x0, 0x06, 5),
+            new VlcSourceEntry(6, 0xA, 0x1, 0xA, 0xA, 0x0F, 7),
+            new VlcSourceEntry(6, 0xA, 0x1, 0xA, 0x2, 0x09, 6),
+            new VlcSourceEntry(6, 0xA, 0x1, 0xA, 0x8, 0x4F, 7),
+            new VlcSourceEntry(6, 0xB, 0x0, 0x0, 0x0, 0x0E, 6),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xB, 0x2, 0x77, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0x2, 0x2, 0x37, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xA, 0x8, 0x57, 7),
+            new VlcSourceEntry(6, 0xB, 0x1, 0xB, 0x1, 0x47, 7),
+            new VlcSourceEntry(6, 0xC, 0x0, 0x0, 0x0, 0x1A, 5),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0xC, 0x17, 7),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0x8, 0x67, 7),
+            new VlcSourceEntry(6, 0xC, 0x1, 0xC, 0x4, 0x27, 7),
+            new VlcSourceEntry(6, 0xD, 0x0, 0x0, 0x0, 0x31, 6),
+            new VlcSourceEntry(6, 0xD, 0x1, 0xD, 0x4, 0x07, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0x4, 0x4, 0x7B, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0xC, 0x8, 0x3B, 7),
+            new VlcSourceEntry(6, 0xD, 0x1, 0xD, 0x1, 0x2B, 7),
+            new VlcSourceEntry(6, 0xE, 0x0, 0x0, 0x0, 0x11, 6),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x4, 0x5B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0x4, 0x4, 0x1B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0xA, 0x6B, 7),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x8, 0x21, 6),
+            new VlcSourceEntry(6, 0xE, 0x1, 0xE, 0x2, 0x33, 7),
+            new VlcSourceEntry(6, 0xF, 0x0, 0x0, 0x0, 0x01, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0x3, 0x3, 0x4B, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0x7, 0x6, 0x0B, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0xA, 0x73, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x2, 0x3E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xB, 0x9, 0x53, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0xC, 0x63, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x8, 0x1E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x5, 0x13, 7),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x4, 0x2E, 6),
+            new VlcSourceEntry(6, 0xF, 0x1, 0xF, 0x1, 0x23, 7),
+            // c_q=7
+            new VlcSourceEntry(7, 0x0, 0x0, 0x0, 0x0, 0x04, 4),
+            new VlcSourceEntry(7, 0x1, 0x0, 0x0, 0x0, 0x33, 6),
+            new VlcSourceEntry(7, 0x1, 0x1, 0x1, 0x1, 0x13, 6),
+            new VlcSourceEntry(7, 0x2, 0x0, 0x0, 0x0, 0x23, 6),
+            new VlcSourceEntry(7, 0x2, 0x1, 0x2, 0x2, 0x7F, 7),
+            new VlcSourceEntry(7, 0x3, 0x0, 0x0, 0x0, 0x03, 6),
+            new VlcSourceEntry(7, 0x3, 0x1, 0x1, 0x1, 0x3F, 7),
+            new VlcSourceEntry(7, 0x3, 0x1, 0x3, 0x2, 0x6F, 7),
+            new VlcSourceEntry(7, 0x4, 0x0, 0x0, 0x0, 0x2D, 6),
+            new VlcSourceEntry(7, 0x4, 0x1, 0x4, 0x4, 0x5F, 7),
+            new VlcSourceEntry(7, 0x5, 0x0, 0x0, 0x0, 0x16, 5),
+            new VlcSourceEntry(7, 0x5, 0x1, 0x1, 0x1, 0x3D, 6),
+            new VlcSourceEntry(7, 0x5, 0x1, 0x5, 0x4, 0x1F, 7),
+            new VlcSourceEntry(7, 0x6, 0x0, 0x0, 0x0, 0x1D, 6),
+            new VlcSourceEntry(7, 0x6, 0x1, 0x0, 0x0, 0x77, 7),
+            new VlcSourceEntry(7, 0x7, 0x0, 0x0, 0x0, 0x06, 5),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x4, 0x2F, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x4, 0x4, 0x4F, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x3, 0x0F, 7),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x1, 0x0D, 6),
+            new VlcSourceEntry(7, 0x7, 0x1, 0x7, 0x2, 0x57, 7),
+            new VlcSourceEntry(7, 0x8, 0x0, 0x0, 0x0, 0x35, 6),
+            new VlcSourceEntry(7, 0x8, 0x1, 0x8, 0x8, 0x37, 7),
+            new VlcSourceEntry(7, 0x9, 0x0, 0x0, 0x0, 0x15, 6),
+            new VlcSourceEntry(7, 0x9, 0x1, 0x0, 0x0, 0x27, 7),
+            new VlcSourceEntry(7, 0xA, 0x0, 0x0, 0x0, 0x25, 6),
+            new VlcSourceEntry(7, 0xA, 0x1, 0x0, 0x0, 0x29, 6),
+            new VlcSourceEntry(7, 0xB, 0x0, 0x0, 0x0, 0x1A, 5),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x1, 0x17, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0x1, 0x1, 0x67, 7),
+            new VlcSourceEntry(7, 0xB, 0x1, 0x3, 0x2, 0x05, 6),
+            new VlcSourceEntry(7, 0xB, 0x1, 0xB, 0x8, 0x7B, 7),
+            new VlcSourceEntry(7, 0xC, 0x0, 0x0, 0x0, 0x39, 6),
+            new VlcSourceEntry(7, 0xC, 0x1, 0x0, 0x0, 0x19, 6),
+            new VlcSourceEntry(7, 0xD, 0x0, 0x0, 0x0, 0x0C, 5),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x1, 0x47, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0x1, 0x1, 0x07, 7),
+            new VlcSourceEntry(7, 0xD, 0x1, 0x5, 0x4, 0x09, 6),
+            new VlcSourceEntry(7, 0xD, 0x1, 0xD, 0x8, 0x1B, 7),
+            new VlcSourceEntry(7, 0xE, 0x0, 0x0, 0x0, 0x31, 6),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0x2, 0x3B, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0x2, 0x2, 0x5B, 7),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xA, 0x8, 0x3E, 6),
+            new VlcSourceEntry(7, 0xE, 0x1, 0xE, 0x4, 0x0B, 7),
+            new VlcSourceEntry(7, 0xF, 0x0, 0x0, 0x0, 0x00, 3),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xF, 0x6B, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x7, 0x2B, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xB, 0x4B, 7),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x3, 0x11, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0x7, 0x6, 0x21, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xA, 0x01, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x2, 0x0A, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xB, 0x9, 0x1E, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0xC, 0x0E, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x8, 0x12, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x5, 0x2E, 6),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x1, 0x02, 5),
+            new VlcSourceEntry(7, 0xF, 0x1, 0xF, 0x4, 0x1C, 5),
+        };
+
+        #endregion
     }
 }
