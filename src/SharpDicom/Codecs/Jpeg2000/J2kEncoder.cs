@@ -480,7 +480,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3, isHtj2k);
 
             // Write QCD marker
-            WriteQcdMarker(buffer, options, lossless);
+            WriteQcdMarker(buffer, options, lossless, info.BitsStored);
 
             // Write each tile
             for (int tileIdx = 0; tileIdx < tiles.Length; tileIdx++)
@@ -925,12 +925,14 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(segmentLength);
         }
 
-        private static void WriteQcdMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless)
+        private static void WriteQcdMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, int bitDepth)
         {
-            // For lossless, we use no quantization
-            // For lossy, we would specify quantization parameters
+            // For lossless, we use no quantization but must encode step sizes that indicate
+            // the subband bit depths based on BIBO gains of the wavelet transform
             int numSubbands = 1 + 3 * options.DecompositionLevels; // LL + 3 subbands per level
-            int segmentLength = 4 + numSubbands; // Header + 1 byte per subband
+            int segmentLength = 2 + 1 + numSubbands; // Length field (2) + Sqcd (1) + SPqcd (numSubbands)
+
+            System.Diagnostics.Debug.WriteLine($"QCD: numSubbands={numSubbands}, segmentLength={segmentLength}, bitDepth={bitDepth}");
 
             WriteMarker(buffer, J2kMarkers.QCD);
 
@@ -941,19 +943,104 @@ namespace SharpDicom.Codecs.Jpeg2000
             BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), (ushort)segmentLength);
             offset += 2;
 
-            // Sqcd: quantization style
-            // For lossless: no quantization (style 0)
-            // For lossy: scalar derived (style 1) or scalar expounded (style 2)
-            span[offset++] = lossless ? (byte)0x00 : (byte)0x00;
+            // Sqcd: quantization style per ITU-T T.800 Table A.28
+            // Bits 7-5: guard bits (calculated from BIBO gains)
+            // Bits 4-0: quantization style (0x00 for no quantization/reversible)
 
-            // SPqcd: step sizes
-            // For lossless, just write 8 (exponent = 8, mantissa = 0)
+            // Calculate step sizes with BIBO gains (matches OpenJPH algorithm)
+            Span<byte> exponents = stackalloc byte[numSubbands];
+            CalculateReversibleStepSizes(exponents, options.DecompositionLevels, bitDepth);
+
+            // Find max exponent to calculate guard bits
+            int maxExp = exponents[0];
+            for (int i = 1; i < exponents.Length; i++)
+            {
+                if (exponents[i] > maxExp) maxExp = exponents[i];
+            }
+
+            // Guard bits: ensure coefficients don't overflow 31-bit signed integer
+            int guardBits = Math.Max(1, maxExp - 31);
+
+            // Sqcd = (guard_bits << 5) | 0x00 (no quantization for reversible)
+            span[offset++] = (byte)(guardBits << 5);
+
+            // SPqcd: step size exponents (subtract guard bits and encode)
             for (int i = 0; i < numSubbands; i++)
             {
-                span[offset++] = 8;
+                int exp = exponents[i] - guardBits;
+                // For reversible, mantissa is always 0, so just encode exponent in bits 7-3
+                span[offset++] = (byte)(exp << 3);
             }
 
             buffer.Advance(segmentLength);
+        }
+
+        /// <summary>
+        /// Calculate step size exponents for reversible (lossless) quantization.
+        /// Based on BIBO (Bounded Input Bounded Output) gains of the 5/3 wavelet transform.
+        /// Algorithm matches OpenJPH implementation.
+        /// </summary>
+        private static void CalculateReversibleStepSizes(Span<byte> exponents, int numDecomps, int bitDepth)
+        {
+            // BIBO gains for 5/3 reversible wavelet (lowpass and highpass)
+            // These converge asymptotically but we only need values up to 32 levels
+            double[] biboGainL = GetBiboGainsLowpass();
+            double[] biboGainH = GetBiboGainsHighpass();
+
+            int idx = 0;
+
+            // LL subband (coarsest approximation)
+            double gainL = biboGainL[numDecomps];
+            int x = (int)Math.Ceiling(Math.Log(gainL * gainL, 2.0));
+            exponents[idx++] = (byte)(bitDepth + x);
+
+            // For each decomposition level from coarsest to finest
+            for (int d = numDecomps; d > 0; d--)
+            {
+                gainL = biboGainL[d];
+                double gainH = biboGainH[d - 1];
+
+                // HL and LH subbands (horizontal/vertical details)
+                x = (int)Math.Ceiling(Math.Log(gainH * gainL, 2.0));
+                exponents[idx++] = (byte)(bitDepth + x);
+                exponents[idx++] = (byte)(bitDepth + x);
+
+                // HH subband (diagonal details)
+                x = (int)Math.Ceiling(Math.Log(gainH * gainH, 2.0));
+                exponents[idx++] = (byte)(bitDepth + x);
+            }
+        }
+
+        /// <summary>
+        /// BIBO gains for 5/3 reversible wavelet lowpass filter.
+        /// Values computed from theoretical analysis of the 5/3 filter bank.
+        /// </summary>
+        private static double[] GetBiboGainsLowpass()
+        {
+            return new double[]
+            {
+                1.0000, 1.5000, 1.6250, 1.6875, 1.6963, 1.7067, 1.7116, 1.7129,
+                1.7141, 1.7145, 1.7148, 1.7151, 1.7152, 1.7153, 1.7154, 1.7154,
+                1.7155, 1.7155, 1.7155, 1.7155, 1.7156, 1.7156, 1.7156, 1.7156,
+                1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156,
+                1.7156 // Asymptotic value ~1.7156
+            };
+        }
+
+        /// <summary>
+        /// BIBO gains for 5/3 reversible wavelet highpass filter.
+        /// Values computed from theoretical analysis of the 5/3 filter bank.
+        /// </summary>
+        private static double[] GetBiboGainsHighpass()
+        {
+            return new double[]
+            {
+                2.0000, 2.5000, 2.7500, 2.8047, 2.8198, 2.8410, 2.8558, 2.8601,
+                2.8628, 2.8656, 2.8663, 2.8666, 2.8668, 2.8669, 2.8669, 2.8670,
+                2.8670, 2.8670, 2.8670, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671,
+                2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671,
+                2.8671 // Asymptotic value ~2.8671
+            };
         }
 
         private static int GetExponent(int value)

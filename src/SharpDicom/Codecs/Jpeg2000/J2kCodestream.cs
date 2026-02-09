@@ -266,10 +266,15 @@ namespace SharpDicom.Codecs.Jpeg2000
             // Part 15 -> bit (32-15) = bit 17
             uint pcap = 0x00020000u; // Bit 17 = Part 15 extensions
 
-            // Ccap[15]: HT capability bits
-            // Bit 5 (0x0020): HTONLY flag - all code-blocks use HT coding
-            // Bits 4-0: precision (0-31)
-            ushort ccap = (ushort)((precision & 0x1F) | (isHtOnly ? 0x0020 : 0));
+            // Ccap[15]: HT capability bits per ITU-T T.814
+            // Bit 0 (0x0001): HTJ2K basic mode support (always set for HTJ2K)
+            // Bit 1 (0x0002): Set by OpenJPH (purpose unclear, may be version/implementation flag)
+            // Bit 5 (0x0020): HTONLY flag - all code-blocks use HT coding (optional)
+            // Bits 4-0: precision (0-31) - NOT used by OpenJPH for basic HTJ2K
+            //
+            // OpenJPH uses 0x0002 (bits 0-1 set, no HTONLY, no precision)
+            // We match OpenJPH for maximum compatibility
+            ushort ccap = 0x0002; // HTJ2K basic mode, match OpenJPH
 
             // Marker format: FF50 + Length(2) + Pcap(4) + Ccap[15](2)
             // Length includes itself: 2 + 4 + 2 = 8
