@@ -6,7 +6,7 @@
   <Import Project="build-standards/Directory.Packages.props.shared" />
   <ItemGroup>
     <!-- Test Framework -->
-    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="FsCheck" Version="2.16.6" />
     <PackageVersion Include="FsCheck.NUnit" Version="3.0.0-rc3" />
     <PackageVersion Include="NUnit" Version="4.4.0" />
