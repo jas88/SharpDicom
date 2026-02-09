@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace SharpDicom.Codecs.Jpeg2000.Tier2
@@ -40,14 +39,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
 
     /// <summary>
     /// JPEG 2000 packet decoder for extracting code-block data from packets.
+    /// Conforms to ITU-T T.800 Annex B (Tier-2 coding).
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Tier-2 decoding parses packet headers to extract code-block inclusion
-    /// information and data lengths, then extracts the code-block data segments.
-    /// </para>
-    /// <para>
-    /// Reference: ITU-T T.800 Annex B (Tier-2 coding).
+    /// Uses tag trees for inclusion and zero bitplane decoding (B.10.2-B.10.4),
+    /// Lblock-based data length decoding (B.10.5), and bit-unstuffing after 0xFF bytes.
     /// </para>
     /// </remarks>
     public sealed class PacketDecoder
@@ -56,7 +53,15 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private int _bytePosition;
         private int _bitBuffer;
         private int _bitsAvailable;
+        private bool _lastByteWasFF;
         private int _totalBytesConsumed;
+
+        // Per-code-block Lblock values (ITU-T T.800 B.10.5)
+        private int[]? _lblock;
+
+        // Tag trees - retained across packets for the same precinct
+        private TagTree? _inclusionTree;
+        private TagTree? _zeroBitPlaneTree;
 
         /// <summary>
         /// Initializes a new packet decoder.
@@ -66,10 +71,28 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Gets the total bytes consumed by the last <see cref="DecodePacket"/> call
-        /// (header + all code-block data).
+        /// Gets the total bytes consumed by the last DecodePacket call.
         /// </summary>
         public int BytesConsumed => _totalBytesConsumed;
+
+        /// <summary>
+        /// Initializes tag trees and Lblock state for a precinct.
+        /// Must be called before the first DecodePacket call for a new precinct.
+        /// </summary>
+        /// <param name="codeBlocksWide">Number of code-blocks horizontally.</param>
+        /// <param name="codeBlocksHigh">Number of code-blocks vertically.</param>
+        public void InitPrecinct(int codeBlocksWide, int codeBlocksHigh)
+        {
+            int numCodeBlocks = codeBlocksWide * codeBlocksHigh;
+            _lblock = new int[numCodeBlocks];
+            for (int i = 0; i < numCodeBlocks; i++)
+            {
+                _lblock[i] = 3;
+            }
+
+            _inclusionTree = new TagTree(codeBlocksWide, codeBlocksHigh);
+            _zeroBitPlaneTree = new TagTree(codeBlocksWide, codeBlocksHigh);
+        }
 
         /// <summary>
         /// Decodes a packet and extracts code-block segments.
@@ -83,10 +106,37 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             int numCodeBlocks,
             bool[] firstInclusion)
         {
+            return DecodePacket(packetData, numCodeBlocks, firstInclusion, numCodeBlocks, 1, 0);
+        }
+
+        /// <summary>
+        /// Decodes a packet with tag tree support.
+        /// </summary>
+        /// <param name="packetData">The packet data to decode.</param>
+        /// <param name="numCodeBlocks">Number of code-blocks in the precinct.</param>
+        /// <param name="firstInclusion">Array tracking whether each code-block has been included before.</param>
+        /// <param name="codeBlocksWide">Number of code-blocks horizontally.</param>
+        /// <param name="codeBlocksHigh">Number of code-blocks vertically.</param>
+        /// <param name="layer">Current quality layer index.</param>
+        /// <returns>Code-block segments for this layer.</returns>
+        public CodeBlockSegment[] DecodePacket(
+            ReadOnlySpan<byte> packetData,
+            int numCodeBlocks,
+            bool[] firstInclusion,
+            int codeBlocksWide,
+            int codeBlocksHigh,
+            int layer)
+        {
             if (packetData.IsEmpty)
             {
                 _totalBytesConsumed = 0;
                 return CreateEmptySegments(numCodeBlocks);
+            }
+
+            // Auto-init tag trees if needed
+            if (_inclusionTree == null || _zeroBitPlaneTree == null || _lblock == null)
+            {
+                InitPrecinct(codeBlocksWide, codeBlocksHigh);
             }
 
             // Initialize bit reader
@@ -94,74 +144,71 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             _bytePosition = 0;
             _bitBuffer = 0;
             _bitsAvailable = 0;
+            _lastByteWasFF = false;
 
             // Read packet empty flag
             int nonEmpty = ReadBit();
             if (nonEmpty == 0)
             {
-                // Empty packet - all code-blocks have no contribution
                 _totalBytesConsumed = _bytePosition;
                 return CreateEmptySegments(numCodeBlocks);
             }
 
             // Parse code-block information
             List<CodeBlockSegment> segments = new List<CodeBlockSegment>(numCodeBlocks);
-            List<(int NumPasses, int DataLength, int ZeroBitPlanes, bool IsFirst)> cbInfo =
-                new List<(int, int, int, bool)>(numCodeBlocks);
+            var cbInfo = new (int NumPasses, int DataLength, int ZeroBitPlanes, bool IsFirst)[numCodeBlocks];
 
             for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
             {
+                int x = cbIdx % codeBlocksWide;
+                int y = cbIdx / codeBlocksWide;
+
                 if (firstInclusion[cbIdx])
                 {
-                    // First potential inclusion
-                    int included = ReadBit();
-                    if (included == 0)
+                    // Use inclusion tag tree to determine if included at this layer
+                    int inclusionValue = _inclusionTree!.Decode(x, y, layer + 1, ReadBitFunc);
+
+                    if (inclusionValue > layer)
                     {
-                        // Not included yet
-                        cbInfo.Add((0, 0, 0, false));
+                        // Not included at this layer
+                        cbInfo[cbIdx] = (0, 0, 0, false);
                         continue;
                     }
 
-                    // Read zero bitplanes
-                    int zeroBitPlanes = ReadZeroBitPlanes();
+                    // First inclusion - decode zero bitplanes
+                    int zeroBitPlanes = _zeroBitPlaneTree!.Decode(x, y, int.MaxValue - 1, ReadBitFunc);
 
                     // Read number of passes
                     int numPasses = ReadNumPasses();
 
-                    // Read data length
-                    int dataLength = ReadLength();
+                    // Read data length using Lblock
+                    int dataLength = ReadLblock(cbIdx, numPasses);
 
-                    cbInfo.Add((numPasses, dataLength, zeroBitPlanes, true));
+                    cbInfo[cbIdx] = (numPasses, dataLength, zeroBitPlanes, true);
                     firstInclusion[cbIdx] = false;
                 }
                 else
                 {
-                    // Already included before
+                    // Already included before - simple 1-bit flag
                     int included = ReadBit();
                     if (included == 0)
                     {
-                        // No contribution this layer
-                        cbInfo.Add((0, 0, 0, false));
+                        cbInfo[cbIdx] = (0, 0, 0, false);
                         continue;
                     }
 
                     // Read number of passes
                     int numPasses = ReadNumPasses();
 
-                    // Read data length
-                    int dataLength = ReadLength();
+                    // Read data length using Lblock
+                    int dataLength = ReadLblock(cbIdx, numPasses);
 
-                    cbInfo.Add((numPasses, dataLength, 0, false));
+                    cbInfo[cbIdx] = (numPasses, dataLength, 0, false);
                 }
             }
 
             // Calculate header end position
             int headerEnd = _bytePosition;
-            if (_bitsAvailable > 0 && _bitsAvailable < 8)
-            {
-                // Partial byte was consumed
-                headerEnd = _bytePosition;
-            }
 
             // Extract data segments
             int dataOffset = headerEnd;
@@ -176,7 +223,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     continue;
                 }
 
-                // Extract data
                 int safeOffset = Math.Min(dataOffset, packetSpan.Length);
                 int safeLength = Math.Min(info.DataLength, packetSpan.Length - safeOffset);
 
@@ -205,12 +251,21 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <summary>
         /// Decodes multiple packets and accumulates code-block data.
         /// </summary>
-        /// <param name="packets">Array of packets in layer order.</param>
-        /// <param name="numCodeBlocks">Number of code-blocks.</param>
-        /// <returns>Accumulated data for each code-block.</returns>
         public (ReadOnlyMemory<byte> Data, int TotalPasses, int ZeroBitPlanes)[] DecodeAllPackets(
             PacketData[] packets,
             int numCodeBlocks)
+        {
+            return DecodeAllPackets(packets, numCodeBlocks, numCodeBlocks, 1);
+        }
+
+        /// <summary>
+        /// Decodes multiple packets and accumulates code-block data with tag tree support.
+        /// </summary>
+        public (ReadOnlyMemory<byte> Data, int TotalPasses, int ZeroBitPlanes)[] DecodeAllPackets(
+            PacketData[] packets,
+            int numCodeBlocks,
+            int codeBlocksWide,
+            int codeBlocksHigh)
         {
             var results = new (ReadOnlyMemory<byte>, int, int)[numCodeBlocks];
             bool[] firstInclusion = new bool[numCodeBlocks];
@@ -223,22 +278,29 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 results[i] = (ReadOnlyMemory<byte>.Empty, 0, 0);
             }
 
-            foreach (var packet in packets)
+            // Initialize tag trees for the precinct
+            InitPrecinct(codeBlocksWide, codeBlocksHigh);
+
+            for (int layerIdx = 0; layerIdx < packets.Length; layerIdx++)
             {
-                var segments = DecodePacket(packet.Data.Span, numCodeBlocks, firstInclusion);
+                var segments = DecodePacket(
+                    packets[layerIdx].Data.Span,
+                    numCodeBlocks,
+                    firstInclusion,
+                    codeBlocksWide,
+                    codeBlocksHigh,
+                    layerIdx);
 
                 for (int i = 0; i < numCodeBlocks; i++)
                 {
                     var seg = segments[i];
                     if (seg.NumNewPasses > 0)
                     {
-                        // Accumulate data
                         if (!seg.Data.IsEmpty)
                         {
                             accumulatedData[i].AddRange(seg.Data.ToArray());
                         }
 
-                        // Update totals
                         var (_, totalPasses, zeroBitPlanes) = results[i];
                         if (seg.IsFirstInclusion)
                         {
@@ -262,6 +324,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             return segments;
         }
 
+        // Func delegate for tag tree decoding
+        private int ReadBitFunc() => ReadBit();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int ReadBit()
         {
@@ -269,11 +334,15 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             {
                 if (_bytePosition >= _data.Length)
                 {
-                    return 0; // EOF - return 0
+                    return 0;
                 }
 
                 _bitBuffer = _data.Span[_bytePosition++];
-                _bitsAvailable = 8;
+                _bitsAvailable = _lastByteWasFF ? 7 : 8;
+                _lastByteWasFF = (_bitBuffer == 0xFF);
+
+                // For 7-bit mode (after 0xFF), the MSB is stuffing and we only use bits 6..0
+                // but our ReadBit reads from MSB down so we just reduce available count
             }
 
             _bitsAvailable--;
@@ -291,38 +360,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Reads zero bitplane count.
-        /// </summary>
-        private int ReadZeroBitPlanes()
-        {
-            // Read 3 bits
-            int value = ReadBits(3);
-
-            if (value < 7)
-            {
-                return value;
-            }
-
-            // Extended: read 5 more bits
-            return ReadBits(5);
-        }
-
-        /// <summary>
         /// Reads number of coding passes using ITU-T T.800 Table B.4.
         /// </summary>
-        /// <remarks>
-        /// Both EBCOT and HTJ2K use the same variable-length encoding:
-        /// | Passes | Coding                        |
-        /// |--------|-------------------------------|
-        /// | 1      | 0                             |
-        /// | 2      | 10                            |
-        /// | 3-5    | 11xx (00=3, 01=4, 10=5)       |
-        /// | 6-36   | 1111 + 5-bit (0-30)           |
-        /// | 37-164 | 1111 1111 + 7-bit (0-127)     |
-        /// </remarks>
         private int ReadNumPasses()
         {
-            // ITU-T T.800 Table B.4
             if (ReadBit() == 0)
             {
                 return 1;
@@ -333,54 +374,55 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 return 2;
             }
 
-            // At this point we've read "11"
-            // Read 2 more bits to determine which case
             int next2 = ReadBits(2);
             if (next2 < 3)
             {
-                // 11xx where xx = 00, 01, 10 -> passes 3, 4, 5
                 return 3 + next2;
             }
 
-            // next2 == 3 means we read "1111"
-            // Now distinguish between:
-            //   1111 + 5-bit suffix (passes 6-36, suffix 0-30)
-            //   1111 1111 + 7-bit suffix (passes 37-164, suffix 0-127)
-            // Read the 5-bit suffix. If it's 31 (all ones), we've actually
-            // read 1111 11111 and the 9th bit is the start of the long form.
             int suffix5 = ReadBits(5);
             if (suffix5 <= 30)
             {
                 return 6 + suffix5;
             }
 
-            // suffix5 == 31 means we read "1111 11111" (9 ones total).
-            // The encoder format for 37-164 is 0xff80 | (n-37) in 16 bits:
-            //   bits[15:12] = 1111, bits[11:7] = 11111, bits[6:0] = suffix
-            // We consumed bits[15:7]. Now read the remaining 7 bits.
             return 37 + ReadBits(7);
         }
 
         /// <summary>
-        /// Reads code-block data length.
+        /// Reads code-block data length using Lblock (ITU-T T.800 B.10.5).
         /// </summary>
-        private int ReadLength()
+        private int ReadLblock(int cbIdx, int numPasses)
         {
-            // Match encoder's scheme
-            if (ReadBit() == 0)
+            int lblock = _lblock![cbIdx];
+
+            // Read Lblock increment bits: count leading 1-bits until a 0-bit
+            while (ReadBit() == 1)
             {
-                // Short: 4 bits
-                return ReadBits(4);
+                lblock++;
             }
 
-            if (ReadBit() == 0)
-            {
-                // Medium: 8 bits
-                return ReadBits(8);
-            }
+            _lblock[cbIdx] = lblock;
 
-            // Long: 16 bits
-            return ReadBits(16);
+            // Number of bits for length = lblock + floor(log2(numPasses))
+            int passContrib = FloorLog2(numPasses);
+            int lengthBits = lblock + passContrib;
+
+            return ReadBits(lengthBits);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FloorLog2(int value)
+        {
+            if (value <= 1) return 0;
+            int log = 0;
+            int v = value;
+            while (v > 1)
+            {
+                v >>= 1;
+                log++;
+            }
+            return log;
         }
     }
 }
