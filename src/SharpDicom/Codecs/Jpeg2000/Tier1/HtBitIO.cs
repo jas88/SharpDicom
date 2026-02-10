@@ -80,24 +80,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return;
             }
 
-            if (segment.Length == 1)
+            if (segment.Length < 2)
             {
-                // Single-byte segment: treat as degenerate case with no streams
-                _segment = segment;
-                _lcup = 1;
-                _scup = 0;
-                _msPos = 0;
-                _msSize = 0;
-                _msTmp = 0;
-                _msBits = 0;
-                _msUnstuff = false;
-                _vlcPos = 0;
-                _vlcSize = 0;
-                _vlcTmp = 0;
-                _vlcBits = 0;
-                _vlcUnstuff = false;
-                _melDecoder = default;
-                return;
+                throw new ArgumentException(
+                    $"Cleanup segment must be at least 2 bytes (ILW), but was {segment.Length}.",
+                    nameof(segment));
             }
 
             _segment = segment;
@@ -648,7 +635,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
             if ((melMask | vlcMask) == 0)
             {
-                // No remaining bits to write
+                // No remaining bits, but still need minimum 2 bytes for ILW.
+                while (_melPos + _vlcPos < 2)
+                {
+                    EnsureMelCapacity();
+                    _melVlcBuffer[_melPos++] = 0x00;
+                }
                 return;
             }
 

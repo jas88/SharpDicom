@@ -162,9 +162,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return true; // significant
             }
 
-            // Zero run with no terminating event (numZeros == 0, not terminating)
-            // This shouldn't normally happen, but handle gracefully
-            return false;
+            // A non-terminating run fully consumed (numZeros == 0, not terminating).
+            // This happens after the last zero of a full MEL run is consumed.
+            // Get the next run to determine significance of this quad.
+            return DecodeQuadSignificance();
         }
 
         /// <summary>
@@ -290,7 +291,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 if ((_tmp & (1UL << 63)) != 0)
                 {
                     // 1-bit: full run of 2^eval zeros, not terminating
-                    run = (1 << eval) - 1;
+                    run = 1 << eval;
                     _k = Math.Min(12, _k + 1);
                     _tmp <<= 1;
                     _bits -= 1;

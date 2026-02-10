@@ -254,7 +254,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                         }
 
                         int pop = PopCount((uint)src.EK);
-                        if (pop > bestPop)
+                        if (pop >= bestPop)
                         {
                             bestPop = pop;
                             bestIdx = s;
@@ -296,14 +296,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <remarks>
         /// <para>
         /// The decode table is indexed by <c>(context &lt;&lt; 7) | vlcBits[6:0]</c>.
-        /// For each encode table entry with a valid codeword (cwd_len > 0), the codeword
-        /// is bit-reversed (since VLC stream is read LSB-first) and replicated across all
-        /// values of the unused upper bits within the 7-bit lookup index.
+        /// Codewords in the encode table are already in LSB-first form (matching VLC stream
+        /// bit order) and are replicated across all suffix bit combinations within the 7-bit
+        /// lookup index.
         /// </para>
         /// <para>
         /// When multiple encode entries map to the same decode index (shorter codewords
-        /// replicated across suffix bits), the first valid entry wins. The entry with
-        /// the longest codeword length that matches takes priority.
+        /// replicated across suffix bits), the shorter codeword wins (prefix-free decoding).
         /// </para>
         /// </remarks>
         private static ushort[] BuildDecodeTable(ushort[] encodeTable)
@@ -336,9 +335,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 // For u_off=0, emb is 0.
                 ushort decEntry = (ushort)((rho << 8) | (emb << 4) | cwdLen);
 
-                // Reverse the codeword bits for LSB-first lookup
-                int reversedCwd = ReverseBits(cwd, cwdLen);
-
+                // Codewords are already in LSB-first form (matching VLC stream bit order)
                 // Fill all suffix combinations (unused upper bits)
                 int suffixBits = 7 - cwdLen;
                 int numEntries = 1 << suffixBits;
@@ -346,12 +343,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 
                 for (int s = 0; s < numEntries; s++)
                 {
-                    int decIndex = contextOffset | (s << cwdLen) | reversedCwd;
-                    // Only overwrite if this entry has a longer codeword (more specific match)
-                    // or the slot is empty
+                    int decIndex = contextOffset | (s << cwdLen) | cwd;
+                    // Shorter codeword wins (prefix-free), or fill empty slot
                     ushort existing = table[decIndex];
                     int existingLen = existing & 0x0F;
-                    if (existingLen == 0 || cwdLen >= existingLen)
+                    if (existingLen == 0 || cwdLen < existingLen)
                     {
                         table[decIndex] = decEntry;
                     }
@@ -359,21 +355,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             }
 
             return table;
-        }
-
-        /// <summary>
-        /// Reverses the lower N bits of a value.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int ReverseBits(int value, int numBits)
-        {
-            int result = 0;
-            for (int i = 0; i < numBits; i++)
-            {
-                result = (result << 1) | (value & 1);
-                value >>= 1;
-            }
-            return result;
         }
 
         /// <summary>
@@ -388,8 +369,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         private static ushort[] BuildOjphDecodeTable(VlcSourceEntry[] sourceData)
         {
             var table = new ushort[DecodeTableSize];
-            // Track the best popcount(ek) per decode slot to pick the best entry
-            var bestPop = new int[DecodeTableSize];
 
             foreach (ref readonly VlcSourceEntry src in sourceData.AsSpan())
             {
@@ -402,8 +381,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     (src.Rho << 4) |
                     (src.UOff << 3) |
                     src.CwdLen);
-
-                int pop = PopCount((uint)src.EK);
 
                 // Codewords are already in LSB-first form — use directly
                 int suffixBits = 7 - src.CwdLen;
@@ -420,19 +397,11 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                     {
                         // Empty slot
                         table[decIndex] = decEntry;
-                        bestPop[decIndex] = pop;
                     }
-                    else if (src.CwdLen < existingLen)
+                    else if (src.CwdLen <= existingLen)
                     {
-                        // Shorter codeword always wins (prefix-free)
+                        // Shorter or same-length codeword: overwrite (last-entry-wins per OpenJPH)
                         table[decIndex] = decEntry;
-                        bestPop[decIndex] = pop;
-                    }
-                    else if (src.CwdLen == existingLen && pop > bestPop[decIndex])
-                    {
-                        // Same codeword length: prefer higher popcount(ek) per OpenJPH
-                        table[decIndex] = decEntry;
-                        bestPop[decIndex] = pop;
                     }
                 }
             }

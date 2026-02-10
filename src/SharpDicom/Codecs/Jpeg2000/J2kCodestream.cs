@@ -244,7 +244,9 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// </summary>
         /// <param name="isHtOnly">True if all code-blocks use HT coding.</param>
         /// <param name="isLossless">True if using lossless (reversible) compression.</param>
-        /// <param name="precision">Bit precision for the HT block coder (typically matches image bit depth, 0-31).</param>
+        /// <param name="precision">Bit precision (image bit depth).</param>
+        /// <param name="magb">MAGB (maximum magnitude bit-planes) from the QCD marker.
+        /// If -1, computed automatically from precision assuming 5 decomposition levels.</param>
         /// <returns>The complete CAP marker segment including the marker prefix.</returns>
         /// <remarks>
         /// <para>
@@ -254,30 +256,37 @@ namespace SharpDicom.Codecs.Jpeg2000
         ///   <item>Pcap (4 bytes): Bit mask indicating which parts have extensions.
         ///     Bit 15 set = Part 15 extensions present.</item>
         ///   <item>Ccap[15] (2 bytes): HT capability descriptor.
-        ///     Bit 5 = HTONLY (all code-blocks use HT), bits 4-0 = precision.</item>
+        ///     Bit 5 = HTIRV (irreversible wavelet), bits 4-0 = Bp (from MAGB).</item>
         /// </list>
         /// </para>
         /// </remarks>
-        public static byte[] BuildCapMarker(bool isHtOnly, bool isLossless, int precision)
+        public static byte[] BuildCapMarker(bool isHtOnly, bool isLossless, int precision, int magb = -1)
         {
-            // Pcap: bit 15 set means Part 15 extensions present
-            // Bit numbering: bit 31 is Part 1, bit 30 is Part 2, ... bit 16 is Part 15+1
-            // Actually per spec, Pcap bit (32-i) indicates Part i present
-            // Part 15 -> bit (32-15) = bit 17
             uint pcap = 0x00020000u; // Bit 17 = Part 15 extensions
 
-            // Ccap[15]: HT capability bits per ITU-T T.814
-            // Bit 0 (0x0001): HTJ2K basic mode support (always set for HTJ2K)
-            // Bit 1 (0x0002): Set by OpenJPH (purpose unclear, may be version/implementation flag)
-            // Bit 5 (0x0020): HTONLY flag - all code-blocks use HT coding (optional)
-            // Bits 4-0: precision (0-31) - NOT used by OpenJPH for basic HTJ2K
-            //
-            // OpenJPH uses 0x0002 (bits 0-1 set, no HTONLY, no precision)
-            // We match OpenJPH for maximum compatibility
-            ushort ccap = 0x0002; // HTJ2K basic mode, match OpenJPH
+            // Ccap[15] per OpenJPH's param_cap::check_validity:
+            //   Bit 5: set for irreversible (9/7) wavelet, cleared for reversible (5/3)
+            //   Bits 4-0: Bp derived from MAGB (B):
+            //     Bp = 0 when B <= 8
+            //     Bp = B - 8 when 8 < B < 28
+            //     Bp = 13 + (B >> 2) when B >= 28
+            ushort ccap = 0;
+            if (!isLossless)
+                ccap |= 0x0020;
 
-            // Marker format: FF50 + Length(2) + Pcap(4) + Ccap[15](2)
-            // Length includes itself: 2 + 4 + 2 = 8
+            // Compute MAGB if not provided: max QCD exponent minus guard bits
+            if (magb < 0)
+                magb = ComputeDefaultMagb(precision);
+
+            int bp;
+            if (magb <= 8)
+                bp = 0;
+            else if (magb < 28)
+                bp = magb - 8;
+            else
+                bp = 13 + (magb >> 2);
+            ccap |= (ushort)(bp & 0x1F);
+
             return new byte[]
             {
                 0xFF, 0x50,                                      // CAP marker
@@ -286,6 +295,25 @@ namespace SharpDicom.Codecs.Jpeg2000
                 (byte)(pcap >> 8), (byte)pcap,                   // Pcap
                 (byte)(ccap >> 8), (byte)ccap                    // Ccap[15]
             };
+        }
+
+        /// <summary>
+        /// Computes the default MAGB value for a given bit depth with 5 decomposition levels
+        /// and Rev5/3 wavelet, matching the QCD marker's exponent computation.
+        /// </summary>
+        private static int ComputeDefaultMagb(int bitDepth)
+        {
+            // BIBO gains for 5/3 reversible wavelet at level 5
+            const double biboL5 = 1.7067; // biboGainL[5]
+            const double biboH4 = 2.8198; // biboGainH[4]
+
+            // Max exponent comes from HL/LH subbands at coarsest level:
+            // x = ceil(log2(biboH * biboL)) => ceil(log2(2.8198 * 1.7067)) = ceil(log2(4.812)) = 3
+            // maxExp = bitDepth + 3
+            int x = (int)Math.Ceiling(Math.Log(biboH4 * biboL5, 2.0));
+            int maxExp = bitDepth + x;
+            int guardBits = Math.Max(1, maxExp - 31);
+            return maxExp - guardBits;
         }
 
         /// <summary>
@@ -819,18 +847,17 @@ namespace SharpDicom.Codecs.Jpeg2000
                 ccap15 = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(ccapOffset));
 
                 // Extract fields from Ccap[15]
-                htPrecision = ccap15 & 0x1F;         // Bits 4-0: precision
-                bool htOnly = (ccap15 & 0x0020) != 0;  // Bit 5: HTONLY
+                htPrecision = ccap15 & 0x1F;         // Bits 4-0: MAGB precision
+                // Bits 15-14: coding mode (00=HTONLY, 01=HTDECLARED, 11=MIXED)
+                int codingMode = (ccap15 >> 14) & 0x03;
 
-                if (htOnly)
+                htCodingMode = codingMode switch
                 {
-                    htCodingMode = HtMode.HtOnly;
-                }
-                else
-                {
-                    // Part 15 declared but not HTONLY -> could be mixed or declared
-                    htCodingMode = HtMode.HtDeclared;
-                }
+                    0 => HtMode.HtOnly,
+                    1 => HtMode.HtDeclared,
+                    3 => HtMode.Mixed,
+                    _ => HtMode.HtDeclared
+                };
             }
         }
     }

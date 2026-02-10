@@ -176,9 +176,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 while (state < threshold)
                 {
                     int bit = readBit();
-                    if (bit == 0)
+                    if (bit == 1)
                     {
-                        // Value equals current state
+                        // Value equals current state (ITU-T T.800 B.10.2: 1 = value matches)
                         _values[nodeIdx] = state;
                         _states[nodeIdx] = state;
                         // For parent levels, the value at this node IS the threshold
@@ -188,7 +188,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     }
                     else
                     {
-                        // Value is greater than current state
+                        // Value is greater than current state (ITU-T T.800 B.10.2: 0 = exceeds)
                         state++;
                     }
                 }
@@ -247,12 +247,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 {
                     if (value > state)
                     {
-                        writeBit(1);
+                        writeBit(0); // ITU-T T.800 B.10.2: 0 = value exceeds current threshold
                         state++;
                     }
                     else
                     {
-                        writeBit(0);
+                        writeBit(1); // ITU-T T.800 B.10.2: 1 = value matches current threshold
                         _states[nodeIdx] = state;
                         minValue = state;
                         goto nextLevel;

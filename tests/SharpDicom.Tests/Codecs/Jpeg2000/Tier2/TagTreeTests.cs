@@ -146,32 +146,32 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier2
         public void OneByOne_Encode_ProducesCorrectBits()
         {
             // For a 1x1 tree with value=3, encoding with threshold=1 should emit:
-            // 1 (value 3 > 0)
-            // With threshold=2: 1 (value 3 > 1)
-            // With threshold=3: 1 (value 3 > 2)
-            // With threshold=4: 0 (value 3 == 3, done)
+            // 0 (value 3 > 0, ITU-T T.800 B.10.2: 0 = exceeds)
+            // With threshold=2: 0 (value 3 > 1)
+            // With threshold=3: 0 (value 3 > 2)
+            // With threshold=4: 1 (value 3 == 3, ITU-T T.800 B.10.2: 1 = matches)
             var tree = new TagTree(1, 1);
             tree.SetValue(0, 0, 3);
 
             var bits = new List<int>();
             tree.Encode(0, 0, 1, bit => bits.Add(bit));
-            // threshold=1: state starts at 0, value=3 > 0 -> write 1
-            Assert.That(bits, Is.EqualTo(SingleOne));
+            // threshold=1: state starts at 0, value=3 > 0 -> write 0
+            Assert.That(bits, Is.EqualTo(SingleZero));
 
             bits.Clear();
             tree.Encode(0, 0, 2, bit => bits.Add(bit));
-            // threshold=2: state=1, value=3 > 1 -> write 1
-            Assert.That(bits, Is.EqualTo(SingleOne));
+            // threshold=2: state=1, value=3 > 1 -> write 0
+            Assert.That(bits, Is.EqualTo(SingleZero));
 
             bits.Clear();
             tree.Encode(0, 0, 3, bit => bits.Add(bit));
-            // threshold=3: state=2, value=3 > 2 -> write 1
-            Assert.That(bits, Is.EqualTo(SingleOne));
+            // threshold=3: state=2, value=3 > 2 -> write 0
+            Assert.That(bits, Is.EqualTo(SingleZero));
 
             bits.Clear();
             tree.Encode(0, 0, 4, bit => bits.Add(bit));
-            // threshold=4: state=3, value=3 == 3 -> write 0
-            Assert.That(bits, Is.EqualTo(SingleZero));
+            // threshold=4: state=3, value=3 == 3 -> write 1
+            Assert.That(bits, Is.EqualTo(SingleOne));
         }
 
         #endregion
@@ -805,13 +805,13 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier2
                 for (int x = 0; x < 2; x++)
                     tree.Encode(x, y, 1, bit => bits.Add(bit));
 
-            // Each leaf should just be a 0-bit at the root level and 0-bit at leaf level
-            // because root=0 < threshold=1 => write 0 (value matches), then leaf also 0.
-            // The exact count depends on whether the root 0-bit is shared across leaves
-            // via the state mechanism. After the first leaf encodes the root as 0, subsequent
+            // Each leaf should just be a 1-bit at the root level and 1-bit at leaf level
+            // because root=0 < threshold=1 => write 1 (value matches, ITU-T T.800 B.10.2).
+            // The exact count depends on whether the root 1-bit is shared across leaves
+            // via the state mechanism. After the first leaf encodes the root as 1, subsequent
             // leaves should see the root state already advanced.
-            Assert.That(bits, Has.All.EqualTo(0),
-                "All bits should be 0 for an all-zero tree");
+            Assert.That(bits, Has.All.EqualTo(1),
+                "All bits should be 1 for an all-zero tree (ITU-T T.800 B.10.2: 1 = value matches)");
         }
 
         [Test]

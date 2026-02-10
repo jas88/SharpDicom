@@ -277,19 +277,14 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         public void DecodeTable0_VerifySpecificTable0Entries()
         {
             // Verify some specific entries from Table 0 source data.
+            // Codewords are in LSB-first form and used directly as decode indices.
             // cq=0, rho=2, u_off=0: cwd=0x00, cwd_len=3
-            // This means context 0, pattern with only bit 1 set (rho=2), no emb.
-            // reversed cwd: reverse(0x00, 3) = 0b000
-            // Decode index: (0 << 7) | 0b000XXXX -> rho=2, emb=0, len=3
-            var (sig, emb, len) = VlcTable.DecodeTable0(0b0000000, 0);
-            // With cwd=0x00 (3 bits), reversed = 0b000
-            // Any vlcBits starting with 000 in context 0 should decode to rho=2
-            Assert.That(len, Is.GreaterThan(0), "Should have a valid entry");
+            var (sig, emb, len) = VlcTable.DecodeTable0(0x00, 0);
+            Assert.That(sig, Is.EqualTo(0x2), "cq=0, cwd=0x00: rho should be 2");
+            Assert.That(len, Is.EqualTo(3), "cq=0, cwd=0x00: cwd_len should be 3");
 
             // cq=0, rho=4, u_off=0: cwd=0x02, cwd_len=3
-            // reversed cwd: reverse(0x02, 3) = reverse(010, 3) = 010 = 2
-            // Decode with vlcBits = 0b010XXXX in context 0 -> rho=4
-            var (sig2, _, len2) = VlcTable.DecodeTable0(0b0000010, 0);
+            var (sig2, _, len2) = VlcTable.DecodeTable0(0x02, 0);
             Assert.That(sig2, Is.EqualTo(0x4), "cq=0, cwd=0x02: rho should be 4");
             Assert.That(len2, Is.EqualTo(3), "cq=0, cwd=0x02: cwd_len should be 3");
         }
@@ -297,15 +292,13 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         [Test]
         public void DecodeTable0_Context3_VerifyShortCwd()
         {
-            // cq=3, rho=0: cwd=0x00, cwd_len=3
-            // reversed cwd: reverse(0x00, 3) = 0b000
-            var (sig, _, len) = VlcTable.DecodeTable0(0b0000000, 3);
+            // cq=3, rho=0: cwd=0x00, cwd_len=3 (LSB-first, used directly)
+            var (sig, _, len) = VlcTable.DecodeTable0(0x00, 3);
             Assert.That(sig, Is.EqualTo(0x0), "cq=3, cwd=0x00: rho should be 0");
             Assert.That(len, Is.EqualTo(3), "cq=3, cwd=0x00: cwd_len should be 3");
 
-            // cq=3, rho=1: cwd=0x04, cwd_len=4
-            // 0x04 = 0b0100, reversed 4 bits = 0b0010 = 2
-            var (sig2, _, len2) = VlcTable.DecodeTable0(0b0000010, 3);
+            // cq=3, rho=1: cwd=0x04, cwd_len=4 (LSB-first, used directly)
+            var (sig2, _, len2) = VlcTable.DecodeTable0(0x04, 3);
             Assert.That(sig2, Is.EqualTo(0x1), "cq=3, cwd=0x04: rho should be 1");
             Assert.That(len2, Is.EqualTo(4), "cq=3, cwd=0x04: cwd_len should be 4");
         }
@@ -313,9 +306,8 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         [Test]
         public void DecodeTable0_Context7_VerifyShortCwd()
         {
-            // cq=7, rho=0: cwd=0x12, cwd_len=5
-            // 0x12 = 0b10010, reversed 5 bits = 0b01001 = 9
-            var (sig, _, len) = VlcTable.DecodeTable0(0b0001001, 7);
+            // cq=7, rho=0: cwd=0x12, cwd_len=5 (LSB-first, used directly)
+            var (sig, _, len) = VlcTable.DecodeTable0(0x12, 7);
             Assert.That(sig, Is.EqualTo(0x0), "cq=7, cwd=0x12: rho should be 0");
             Assert.That(len, Is.EqualTo(5), "cq=7, cwd=0x12: cwd_len should be 5");
         }
@@ -344,9 +336,8 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
                     int cwd = (encEntry >> 8) & 0xFF;
                     int cwdLen = (encEntry >> 4) & 0x0F;
 
-                    // Reverse cwd for decode lookup
-                    int reversedCwd = ReverseBits(cwd, cwdLen);
-                    int decIdx = (cq << 7) | reversedCwd;
+                    // Cwd is already in LSB-first form, use directly for decode lookup
+                    int decIdx = (cq << 7) | cwd;
                     ushort decEntry = decTable[decIdx];
 
                     int decRho = (decEntry >> 8) & 0x0F;
@@ -504,18 +495,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         #endregion
 
         #region Helper methods
-
-        private static int ReverseBits(int value, int numBits)
-        {
-            int result = 0;
-            for (int i = 0; i < numBits; i++)
-            {
-                result = (result << 1) | (value & 1);
-                value >>= 1;
-            }
-            return result;
-        }
-
         #endregion
     }
 }

@@ -672,26 +672,29 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <summary>
         /// Computes E (exponent) for a coefficient magnitude, matching OpenJPH.
         /// E = floor_log2(2*|v| - 1) + 1 = 32 - clz(2*|v| - 1).
+        /// Uses unsigned arithmetic to handle shifted coefficients up to 31 bits.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int ComputeE(int value)
         {
             if (value == 0) return 0;
-            int abs = Math.Abs(value);
-            return FloorLog2(2 * abs - 1) + 1;
+            uint abs = (uint)(value >= 0 ? value : -value);
+            uint twoAbsMinusOne = (abs << 1) - 1;
+            return FloorLog2U(twoAbsMinusOne) + 1;
         }
 
         /// <summary>
         /// Computes the MagSgn value: s = 2*(|v|-1) + sign_bit.
         /// The decoder reconstructs: |v| = (s >> 1) + 1, sign = s &amp; 1.
+        /// Uses unsigned arithmetic to handle shifted coefficients up to 31 bits.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static uint ComputeS(int value)
         {
             if (value == 0) return 0;
-            int abs = Math.Abs(value);
+            uint abs = (uint)(value >= 0 ? value : -value);
             uint sign = value < 0 ? 1u : 0u;
-            return (uint)(2 * (abs - 1)) + sign;
+            return ((abs - 1) << 1) + sign;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -726,7 +729,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             uint sign = sn & 1;
             int absVal = (int)(sn >> 1) + 1;
 
-            eqOut = FloorLog2(2 * absVal - 1) + 1;
+            uint twoAbsMinusOne = ((uint)absVal << 1) - 1;
+            eqOut = FloorLog2U(twoAbsMinusOne) + 1;
 
             if (r < height && c < width)
                 output[r * width + c] = sign != 0 ? -absVal : absVal;
@@ -1065,6 +1069,23 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
 #else
             int result = 0;
             uint v = (uint)n;
+            if (v >= 0x10000) { result += 16; v >>= 16; }
+            if (v >= 0x100) { result += 8; v >>= 8; }
+            if (v >= 0x10) { result += 4; v >>= 4; }
+            if (v >= 0x4) { result += 2; v >>= 2; }
+            if (v >= 0x2) { result += 1; }
+            return result;
+#endif
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FloorLog2U(uint n)
+        {
+#if !NETSTANDARD2_0
+            return 31 - BitOperations.LeadingZeroCount(n);
+#else
+            int result = 0;
+            uint v = n;
             if (v >= 0x10000) { result += 16; v >>= 16; }
             if (v >= 0x100) { result += 8; v >>= 8; }
             if (v >= 0x10) { result += 4; v >>= 4; }

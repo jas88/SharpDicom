@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
 
 namespace SharpDicom.Codecs.Jpeg2000.Tier2
@@ -196,6 +197,295 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
 
             return packets.ToArray();
+        }
+
+        /// <summary>
+        /// Creates per-resolution packets from encoded code-blocks using subband descriptors.
+        /// Each resolution level gets its own packet. Within each packet, subbands are iterated
+        /// individually with per-subband tag trees (ITU-T T.800 B.9/B.10).
+        /// </summary>
+        public PacketData[] EncodePacketsPerResolution(
+            CodeBlockData[] codeBlocks,
+            SubbandDescriptor[] subbands,
+            int numLayers,
+            int numResolutions)
+        {
+            if (codeBlocks == null || codeBlocks.Length == 0)
+            {
+                return Array.Empty<PacketData>();
+            }
+
+            // Build per-subband info: global codeblock start index for each subband
+            int[] subbandStartCbIdx = new int[subbands.Length];
+            int cbOffset = 0;
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                subbandStartCbIdx[s] = cbOffset;
+                cbOffset += subbands[s].TotalCodeBlocks;
+            }
+
+            // Per-subband persistent state (tag trees, Lblock, inclusion tracking)
+            var sbInclusionTrees = new TagTree[subbands.Length];
+            var sbZeroBpTrees = new TagTree[subbands.Length];
+            var sbLblock = new int[subbands.Length][];
+            var sbPassesIncluded = new int[subbands.Length][];
+            var sbFirstInclusion = new bool[subbands.Length][];
+
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                int cbW = subbands[s].CodeBlockGridWidth;
+                int cbH = subbands[s].CodeBlockGridHeight;
+                int numCbs = subbands[s].TotalCodeBlocks;
+
+                if (numCbs == 0)
+                    continue;
+
+                sbInclusionTrees[s] = new TagTree(cbW, cbH);
+                sbZeroBpTrees[s] = new TagTree(cbW, cbH);
+                sbLblock[s] = new int[numCbs];
+                sbPassesIncluded[s] = new int[numCbs];
+                sbFirstInclusion[s] = new bool[numCbs];
+
+                for (int i = 0; i < numCbs; i++)
+                {
+                    sbLblock[s][i] = 3;
+                    sbFirstInclusion[s][i] = true;
+                }
+
+                // Set tag tree values
+                for (int cbIdx = 0; cbIdx < numCbs; cbIdx++)
+                {
+                    int x = cbIdx % cbW;
+                    int y = cbIdx / cbW;
+                    int globalIdx = subbandStartCbIdx[s] + cbIdx;
+
+                    if (codeBlocks[globalIdx].NumPasses == 0 || codeBlocks[globalIdx].Data.IsEmpty)
+                    {
+                        sbInclusionTrees[s].SetValue(x, y, numLayers);
+                    }
+                    else
+                    {
+                        sbInclusionTrees[s].SetValue(x, y, 0);
+                    }
+
+                    int zeroBitPlanes = codeBlocks[globalIdx].MsbPosition >= 0
+                        ? (31 - codeBlocks[globalIdx].MsbPosition)
+                        : 0;
+                    sbZeroBpTrees[s].SetValue(x, y, zeroBitPlanes);
+                }
+            }
+
+            var allPackets = new PacketData[numLayers * numResolutions];
+
+            for (int layer = 0; layer < numLayers; layer++)
+            {
+                for (int r = 0; r < numResolutions; r++)
+                {
+                    allPackets[layer * numResolutions + r] = EncodeResolutionPacket(
+                        codeBlocks, subbands, subbandStartCbIdx,
+                        sbInclusionTrees, sbZeroBpTrees, sbLblock,
+                        sbPassesIncluded, sbFirstInclusion,
+                        layer, r, numLayers);
+                }
+            }
+
+            return allPackets;
+        }
+
+        /// <summary>
+        /// Encodes a single packet for one resolution level, iterating subbands
+        /// with per-subband tag trees per ITU-T T.800 B.10.
+        /// </summary>
+        private PacketData EncodeResolutionPacket(
+            CodeBlockData[] allCodeBlocks,
+            SubbandDescriptor[] subbands,
+            int[] subbandStartCbIdx,
+            TagTree[] sbInclusionTrees,
+            TagTree[] sbZeroBpTrees,
+            int[][] sbLblock,
+            int[][] sbPassesIncluded,
+            bool[][] sbFirstInclusion,
+            int layer,
+            int resolution,
+            int numLayers)
+        {
+            // Reset bit writer
+            _headerBuffer.Clear();
+            _bitBuffer = 0;
+            _bitsInBuffer = 0;
+            _lastByteWasFF = false;
+
+            // Collect contributions per subband
+            var subbandContribs = new List<(int SubbandIdx, int CbIdx, CodeBlockContribution Contrib)>();
+
+            // Check if any subband at this resolution has contributions
+            bool hasAnyContribution = false;
+
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                if (subbands[s].ResolutionLevel != resolution)
+                    continue;
+                if (subbands[s].TotalCodeBlocks == 0)
+                    continue;
+
+                int numCbs = subbands[s].TotalCodeBlocks;
+                int startIdx = subbandStartCbIdx[s];
+
+                for (int cbIdx = 0; cbIdx < numCbs; cbIdx++)
+                {
+                    int globalIdx = startIdx + cbIdx;
+                    var cb = allCodeBlocks[globalIdx];
+
+                    int alreadyIncluded = sbPassesIncluded[s][cbIdx];
+                    int totalPasses = cb.NumPasses;
+                    int remaining = totalPasses - alreadyIncluded;
+
+                    int newPasses = 0;
+                    if (remaining > 0)
+                    {
+                        newPasses = remaining; // single-layer: all remaining passes
+                    }
+
+                    ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
+                    int dataLength = 0;
+
+                    if (newPasses > 0)
+                    {
+                        int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
+                            ? cb.PassLengths[Math.Min(alreadyIncluded - 1, cb.PassLengths.Length - 1)]
+                            : 0;
+                        int endLength = alreadyIncluded + newPasses >= totalPasses
+                            ? cb.Data.Length
+                            : (alreadyIncluded + newPasses > 0 && cb.PassLengths.Length > 0
+                                ? cb.PassLengths[Math.Min(alreadyIncluded + newPasses - 1, cb.PassLengths.Length - 1)]
+                                : 0);
+                        dataLength = endLength - startLength;
+
+                        if (dataLength > 0 && !cb.Data.IsEmpty)
+                        {
+                            int safeStart = Math.Min(startLength, cb.Data.Length);
+                            int safeLength = Math.Min(dataLength, cb.Data.Length - safeStart);
+                            if (safeLength > 0)
+                            {
+                                data = cb.Data.Slice(safeStart, safeLength);
+                                dataLength = safeLength;
+                            }
+                        }
+                    }
+
+                    int zeroBitPlanes = cb.MsbPosition >= 0 ? (31 - cb.MsbPosition) : 0;
+
+                    var contrib = new CodeBlockContribution
+                    {
+                        CodeBlockIndex = cbIdx,
+                        IsFirstInclusion = sbFirstInclusion[s][cbIdx] && newPasses > 0,
+                        ZeroBitPlanes = zeroBitPlanes,
+                        NumNewPasses = newPasses,
+                        DataLength = data.Length,
+                        Data = data
+                    };
+
+                    subbandContribs.Add((s, cbIdx, contrib));
+
+                    if (newPasses > 0)
+                        hasAnyContribution = true;
+                }
+            }
+
+            if (!hasAnyContribution)
+            {
+                WriteBit(0);
+                FlushBits();
+                return new PacketData
+                {
+                    Layer = layer,
+                    Resolution = resolution,
+                    Component = 0,
+                    Position = 0,
+                    Data = _headerBuffer.ToArray()
+                };
+            }
+
+            // Non-empty packet
+            WriteBit(1);
+
+            // Encode per-subband headers
+            int prevSubband = -1;
+            foreach (var (sbIdx, cbIdx, contrib) in subbandContribs)
+            {
+                if (sbIdx != prevSubband)
+                {
+                    // New subband - use its own tag trees and Lblock
+                    _lblock = sbLblock[sbIdx];
+                    prevSubband = sbIdx;
+                }
+
+                int cbW = subbands[sbIdx].CodeBlockGridWidth;
+                int x = cbIdx % cbW;
+                int y = cbIdx / cbW;
+
+                bool neverIncluded = contrib.IsFirstInclusion || sbFirstInclusion[sbIdx][cbIdx];
+
+                if (neverIncluded)
+                {
+                    sbInclusionTrees[sbIdx].Encode(x, y, layer + 1, WriteBitAction);
+
+                    if (contrib.NumNewPasses == 0)
+                        continue;
+
+                    sbZeroBpTrees[sbIdx].Encode(x, y, contrib.ZeroBitPlanes + 1, WriteBitAction);
+                }
+                else if (contrib.NumNewPasses > 0)
+                {
+                    WriteBit(1);
+                }
+                else
+                {
+                    WriteBit(0);
+                    continue;
+                }
+
+                WriteNumPasses(contrib.NumNewPasses);
+                WriteLblock(cbIdx, contrib.NumNewPasses, contrib.DataLength);
+
+                if (contrib.NumNewPasses > 0)
+                {
+                    sbPassesIncluded[sbIdx][cbIdx] += contrib.NumNewPasses;
+                    sbFirstInclusion[sbIdx][cbIdx] = false;
+                }
+            }
+
+            FlushBits();
+
+            // Append code-block data in same subband order
+            int totalDataSize = _headerBuffer.Count;
+            foreach (var (_, _, contrib) in subbandContribs)
+            {
+                if (contrib.NumNewPasses > 0)
+                    totalDataSize += contrib.Data.Length;
+            }
+
+            byte[] packetData = new byte[totalDataSize];
+            _headerBuffer.CopyTo(packetData, 0);
+            int offset = _headerBuffer.Count;
+
+            foreach (var (_, _, contrib) in subbandContribs)
+            {
+                if (contrib.NumNewPasses > 0 && !contrib.Data.IsEmpty)
+                {
+                    contrib.Data.Span.CopyTo(packetData.AsSpan(offset));
+                    offset += contrib.Data.Length;
+                }
+            }
+
+            return new PacketData
+            {
+                Layer = layer,
+                Resolution = resolution,
+                Component = 0,
+                Position = 0,
+                Data = packetData
+            };
         }
 
         private PacketData EncodePacket(

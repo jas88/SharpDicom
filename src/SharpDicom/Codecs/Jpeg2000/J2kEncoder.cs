@@ -186,6 +186,20 @@ namespace SharpDicom.Codecs.Jpeg2000
             // Extract full image component data
             int[][] componentData = ExtractComponents(pixelData, info);
 
+            // DC level shift for unsigned data (ITU-T T.800 D.3.1):
+            // subtract 2^(B-1) to center values around zero before DWT
+            if (!info.IsSigned)
+            {
+                int dcShift = 1 << (info.BitsStored - 1);
+                for (int c = 0; c < components; c++)
+                {
+                    for (int i = 0; i < componentData[c].Length; i++)
+                    {
+                        componentData[c][i] -= dcShift;
+                    }
+                }
+            }
+
             // Apply forward color transform on the full image if multi-component
             if (components >= 3 && !info.IsPlanar)
             {
@@ -193,6 +207,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             bool isHtMode = blockCoder is HtBlockEncoder;
+            bool usesMct = components >= 3 && !info.IsPlanar;
 
             // Encode each tile
             var tileResults = new TileEncodeResult[numTiles];
@@ -202,7 +217,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 // Single tile: use existing fast path (no pixel extraction overhead)
                 tileResults[0] = EncodeSingleTile(
                     componentData, width, height, components,
-                    options, lossless, blockCoder, isHtMode);
+                    options, lossless, blockCoder, isHtMode,
+                    info.BitsStored, usesMct);
             }
             else
             {
@@ -232,7 +248,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                         {
                             tileResults[tileIdx] = EncodeSingleTile(
                                 tileComponentData, actualTileW, actualTileH, components,
-                                options, lossless, localCoder, isHtMode);
+                                options, lossless, localCoder, isHtMode,
+                                info.BitsStored, usesMct);
                         }
                         finally
                         {
@@ -257,7 +274,8 @@ namespace SharpDicom.Codecs.Jpeg2000
 
                         tileResults[tileIdx] = EncodeSingleTile(
                             tileComponentData, actualTileW, actualTileH, components,
-                            options, lossless, blockCoder, isHtMode);
+                            options, lossless, blockCoder, isHtMode,
+                            info.BitsStored, usesMct);
                     }
                 }
             }
@@ -295,7 +313,8 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// </summary>
         private static TileEncodeResult EncodeSingleTile(
             int[][] componentData, int tileWidth, int tileHeight, int components,
-            J2kEncoderOptions options, bool lossless, IBlockCoder blockCoder, bool isHtMode)
+            J2kEncoderOptions options, bool lossless, IBlockCoder blockCoder, bool isHtMode,
+            int bitDepth, bool usesMct)
         {
             // Apply forward DWT to each component (operates in-place on tile data)
             for (int c = 0; c < components; c++)
@@ -304,54 +323,60 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             // Tier-1 encoding via IBlockCoder (per-subband using TileComponent)
-            var packetEncoder = new PacketEncoder();
             int cbWidth = options.CodeBlockWidth;
             int cbHeight = options.CodeBlockHeight;
+            int numResolutions = options.DecompositionLevels + 1;
 
-            var allCodeBlocks = new List<CodeBlockData[]>(components);
-            int totalCodeBlocksPerComponent = 0;
-            for (int c = 0; c < components; c++)
+            // Compute per-subband K_max for HTJ2K coefficient shifting
+            int[]? subbandKmax = null;
+            if (isHtMode && lossless)
             {
-                var (codeBlocks, total) = EncodeComponentCodeBlocks(
-                    componentData[c], tileWidth, tileHeight,
-                    cbWidth, cbHeight,
-                    blockCoder, options.DecompositionLevels);
-                allCodeBlocks.Add(codeBlocks);
-                totalCodeBlocksPerComponent = total;
+                subbandKmax = ComputeSubbandKmax(options.DecompositionLevels, bitDepth, usesMct);
             }
 
-            // Tier-2: Create packets
-            // Pass (total, 1) since PacketEncoder only uses wide*high to compute count
+            var allCodeBlocks = new List<CodeBlockData[]>(components);
+            SubbandDescriptor[]? subbands = null;
+            for (int c = 0; c < components; c++)
+            {
+                var (codeBlocks, _, sbs) = EncodeComponentCodeBlocks(
+                    componentData[c], tileWidth, tileHeight,
+                    cbWidth, cbHeight,
+                    blockCoder, options.DecompositionLevels,
+                    subbandKmax);
+                allCodeBlocks.Add(codeBlocks);
+                subbands = sbs;
+            }
+
+            // Tier-2: Create per-resolution packets for each component
+            // Each component produces numLayers * numResolutions packets
             var allPackets = new List<PacketData[]>(components);
             for (int c = 0; c < components; c++)
             {
-                var packets = packetEncoder.EncodePackets(
+                var packetEncoder = new PacketEncoder();
+                var packets = packetEncoder.EncodePacketsPerResolution(
                     allCodeBlocks[c],
-                    totalCodeBlocksPerComponent, 1,
+                    subbands!,
                     options.NumberOfLayers,
-                    options.Progression,
-                    options.DecompositionLevels + 1);
+                    numResolutions);
                 allPackets.Add(packets);
             }
 
-            // Collect tile data bytes
-            byte[] tileData = CollectTileData(allPackets, options);
+            // Collect tile data bytes in LRCP order
+            byte[] tileData = CollectTileData(allPackets, options, numResolutions);
 
             return new TileEncodeResult { PacketData = tileData };
         }
 
         /// <summary>
         /// Collects all packet data for a tile into a byte array.
+        /// Each component's packet array is indexed as [layer * numResolutions + resolution].
         /// </summary>
-        private static byte[] CollectTileData(List<PacketData[]> componentPackets, J2kEncoderOptions options)
+        private static byte[] CollectTileData(List<PacketData[]> componentPackets, J2kEncoderOptions options, int numResolutions)
         {
             var tileData = new List<byte>();
             int numLayers = options.NumberOfLayers;
             int numComponents = componentPackets.Count;
 
-            // Write packets in the specified progression order
-            // For single-tile, single-resolution the ordering differences are minimal
-            // but we follow the correct ordering for conformance.
             switch (options.Progression)
             {
                 case ProgressionOrder.LRCP:
@@ -359,97 +384,110 @@ namespace SharpDicom.Codecs.Jpeg2000
                     // Layer, Resolution, Component, Position
                     for (int layer = 0; layer < numLayers; layer++)
                     {
-                        for (int c = 0; c < numComponents; c++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int c = 0; c < numComponents; c++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.RLCP:
                     // Resolution, Layer, Component, Position
-                    // With our simplified single-resolution model, this is equivalent to LRCP
-                    // but we iterate in the correct order for conformance
-                    for (int layer = 0; layer < numLayers; layer++)
+                    for (int r = 0; r < numResolutions; r++)
                     {
-                        for (int c = 0; c < numComponents; c++)
+                        for (int layer = 0; layer < numLayers; layer++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int c = 0; c < numComponents; c++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.RPCL:
                     // Resolution, Position, Component, Layer
-                    for (int c = 0; c < numComponents; c++)
+                    for (int r = 0; r < numResolutions; r++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int c = 0; c < numComponents; c++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.PCRL:
                     // Position, Component, Resolution, Layer
                     for (int c = 0; c < numComponents; c++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.CPRL:
                     // Component, Position, Resolution, Layer
                     for (int c = 0; c < numComponents; c++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
             }
 
@@ -754,10 +792,11 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// A tuple of (CodeBlocks, TotalCodeBlocks) where code blocks are ordered
         /// by subband (LL first, then HL/LH/HH per level) and raster within each subband.
         /// </returns>
-        private static (CodeBlockData[] CodeBlocks, int TotalCodeBlocks) EncodeComponentCodeBlocks(
+        private static (CodeBlockData[] CodeBlocks, int TotalCodeBlocks, SubbandDescriptor[] Subbands) EncodeComponentCodeBlocks(
             int[] data, int width, int height,
             int cbWidth, int cbHeight,
-            IBlockCoder blockCoder, int decompositionLevels)
+            IBlockCoder blockCoder, int decompositionLevels,
+            int[]? subbandKmax = null)
         {
             using var tileComp = new TileComponent(0, 0, width, height, decompositionLevels, cbWidth, cbHeight);
 
@@ -780,6 +819,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             {
                 var sb = tileComp.Subbands[s];
                 int subbandType = (int)sb.Type;
+                int kmax = subbandKmax != null ? subbandKmax[s] : -1;
 
                 for (int cbY = 0; cbY < sb.CodeBlockGridHeight; cbY++)
                 {
@@ -799,15 +839,31 @@ namespace SharpDicom.Codecs.Jpeg2000
                             }
                         }
 
-                        // Encode with actual dimensions and correct subband type
-                        codeBlocks[cbIdx] = blockCoder.EncodeBlock(
+                        // Encode with auto-detected MSB position
+                        var cb = blockCoder.EncodeBlock(
                             packed, actualW, actualH, subbandType, msbPosition: -1);
+
+                        // For HTJ2K: override MsbPosition so that
+                        // zeroBitPlanes = 31 - MsbPosition = K_max - 1
+                        // matching OpenJPH's missing_msbs convention.
+                        if (kmax > 0 && cb.NumPasses > 0)
+                        {
+                            cb = new CodeBlockData
+                            {
+                                Data = cb.Data,
+                                NumPasses = cb.NumPasses,
+                                PassLengths = cb.PassLengths,
+                                MsbPosition = 32 - kmax
+                            };
+                        }
+
+                        codeBlocks[cbIdx] = cb;
                         cbIdx++;
                     }
                 }
             }
 
-            return (codeBlocks, totalCodeBlocks);
+            return (codeBlocks, totalCodeBlocks, tileComp.Subbands);
         }
 
         private static void WriteMarker(BufferWriter buffer, ushort marker)
@@ -971,6 +1027,37 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             buffer.Advance(segmentLength);
+        }
+
+        /// <summary>
+        /// Computes K_max per subband for HTJ2K coefficient shifting.
+        /// K_max = (SPqcd_exponent - 1) + guard_bits = raw_exponent - 1
+        /// per OpenJPH's param_qcd::get_Kmax.
+        /// </summary>
+        internal static int[] ComputeSubbandKmax(int numDecomps, int bitDepth, bool usesMct)
+        {
+            int B = bitDepth + (usesMct ? 1 : 0);
+            int numSubbands = 1 + 3 * numDecomps;
+            Span<byte> exponents = stackalloc byte[numSubbands];
+            CalculateReversibleStepSizes(exponents, numDecomps, B);
+
+            // Find max exponent and compute guard bits (same as WriteQcdMarker)
+            int maxExp = exponents[0];
+            for (int i = 1; i < numSubbands; i++)
+            {
+                if (exponents[i] > maxExp) maxExp = exponents[i];
+            }
+            int guardBits = Math.Max(1, maxExp - 31);
+
+            // K_max = (epsilon_b - 1) + guard_bits where epsilon_b = exponents[i] - guardBits
+            int[] kmax = new int[numSubbands];
+            for (int i = 0; i < numSubbands; i++)
+            {
+                kmax[i] = (exponents[i] - guardBits - 1) + guardBits;
+                // Simplifies to: kmax[i] = exponents[i] - 1
+            }
+
+            return kmax;
         }
 
         /// <summary>
