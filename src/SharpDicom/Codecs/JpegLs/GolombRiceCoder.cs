@@ -19,15 +19,18 @@ namespace SharpDicom.Codecs.JpegLs
     /// - Binary remainder: value &amp; ((1 &lt;&lt; k) - 1) (k bits)
     /// </para>
     /// <para>
-    /// JPEG-LS uses bit-stuffing: after writing 0xFF byte, insert 0x00 byte to
-    /// distinguish from JPEG markers (which start with 0xFF).
+    /// JPEG-LS bit-stuffing per ITU-T T.87 Section A.1: after writing a 0xFF byte,
+    /// the next byte carries only 7 data bits with its MSB forced to 0 (the "stuff bit").
+    /// No literal 0x00 byte is inserted — the reduced bit count naturally prevents
+    /// ambiguity with JPEG markers.
     /// </para>
     /// </remarks>
     internal ref struct GolombRiceEncoder
     {
         private List<byte> _output;
-        private uint _buffer;
-        private int _bitCount;
+        private uint _bitBuffer;   // Bits accumulated MSB-first at the top of the word
+        private int _freeBitCount; // Free bits remaining in _bitBuffer (starts at 32)
+        private bool _isFFWritten; // Whether last output byte was 0xFF
 
         /// <summary>
         /// Initializes a new Golomb-Rice encoder.
@@ -36,8 +39,9 @@ namespace SharpDicom.Codecs.JpegLs
         public GolombRiceEncoder(List<byte> output)
         {
             _output = output;
-            _buffer = 0;
-            _bitCount = 0;
+            _bitBuffer = 0;
+            _freeBitCount = 32;
+            _isFFWritten = false;
         }
 
         /// <summary>
@@ -111,54 +115,98 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
-        /// Writes a single bit to the output stream.
+        /// Appends bits to the MSB-first bit buffer, flushing when full.
+        /// Matches CharLS append_to_bit_stream() semantics.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void AppendBits(uint bits, int bitCount)
+        {
+            _freeBitCount -= bitCount;
+            if (_freeBitCount >= 0)
+            {
+                _bitBuffer |= bits << _freeBitCount;
+            }
+            else
+            {
+                // Buffer overflow: add what fits, flush, then add the rest
+                _bitBuffer |= bits >> (-_freeBitCount);
+                DrainBuffer();
+
+                if (_freeBitCount < 0)
+                {
+                    _bitBuffer |= bits >> (-_freeBitCount);
+                    DrainBuffer();
+                }
+
+                _bitBuffer |= bits << _freeBitCount;
+            }
+        }
+
+        /// <summary>
+        /// Writes a single bit to the output stream with JPEG-LS bit-stuffing.
         /// </summary>
         /// <param name="bit">The bit value (0 or 1).</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteBit(int bit)
         {
-            // Accumulate bit into buffer
-            _buffer = (_buffer << 1) | (uint)(bit & 1);
-            _bitCount++;
+            AppendBits((uint)(bit & 1), 1);
+        }
 
-            // Flush when buffer full
-            if (_bitCount == 8)
+        /// <summary>
+        /// Drains complete bytes from the MSB end of the 32-bit buffer,
+        /// applying JPEG-LS bit-stuffing (ITU-T T.87 A.1).
+        /// After a 0xFF byte, the next byte extracts only 7 bits (MSB forced to 0).
+        /// Matches CharLS flush() semantics.
+        /// </summary>
+        private void DrainBuffer()
+        {
+            for (int i = 0; i < 4; i++)
             {
-                byte b = (byte)_buffer;
-                _output.Add(b);
-
-                // JPEG bit-stuffing: insert 0x00 after 0xFF
-                if (b == 0xFF)
+                if (_freeBitCount >= 32)
                 {
-                    _output.Add(0x00);
+                    _freeBitCount = 32;
+                    break;
                 }
 
-                _buffer = 0;
-                _bitCount = 0;
+                if (_isFFWritten)
+                {
+                    // After 0xFF: extract 7 bits from MSB, forcing output MSB to 0
+                    byte b = (byte)(_bitBuffer >> 25);
+                    _bitBuffer <<= 7;
+                    _freeBitCount += 7;
+                    _output.Add(b);
+                    _isFFWritten = (b == 0xFF);
+                }
+                else
+                {
+                    // Normal: extract 8 bits from MSB
+                    byte b = (byte)(_bitBuffer >> 24);
+                    _bitBuffer <<= 8;
+                    _freeBitCount += 8;
+                    _output.Add(b);
+                    _isFFWritten = (b == 0xFF);
+                }
             }
         }
 
         /// <summary>
-        /// Flushes any remaining bits to the output stream.
+        /// Flushes remaining bits at end of scan.
+        /// Matches CharLS end_scan(): flush, if last byte was 0xFF pad to fill
+        /// the 7-bit post-FF byte, then flush again.
         /// </summary>
         public void Flush()
         {
-            if (_bitCount > 0)
+            DrainBuffer();
+
+            // If the last byte written was 0xFF, we must emit a properly stuffed byte.
+            // Per CharLS end_scan(): append zero-fill bits so the 7-bit post-FF byte
+            // gets fully emitted.
+            if (_isFFWritten)
             {
-                // Pad with zeros to complete the byte
-                _buffer <<= (8 - _bitCount);
-                byte b = (byte)_buffer;
-                _output.Add(b);
-
-                // Apply bit-stuffing to final byte
-                if (b == 0xFF)
-                {
-                    _output.Add(0x00);
-                }
-
-                _buffer = 0;
-                _bitCount = 0;
+                AppendBits(0, (_freeBitCount - 1) % 8);
             }
+
+            DrainBuffer();
         }
     }
 
@@ -166,15 +214,16 @@ namespace SharpDicom.Codecs.JpegLs
     /// Golomb-Rice decoder for JPEG-LS entropy decoding per ITU-T T.87 Section 4.5.
     /// </summary>
     /// <remarks>
-    /// Decodes Golomb-Rice coded values from the bitstream, handling JPEG bit-stuffing
-    /// (0x00 bytes after 0xFF are skipped).
+    /// Decodes Golomb-Rice coded values from the bitstream, handling JPEG-LS bit-stuffing
+    /// per ITU-T T.87 Section A.1: after a 0xFF byte, the next byte has only 7 valid data
+    /// bits (MSB is a stuff bit forced to 0, which is discarded).
     /// </remarks>
     internal ref struct GolombRiceDecoder
     {
         private ReadOnlySpan<byte> _data;
         private int _pos;
-        private int _bitPos;
-        private uint _buffer;
+        private int _validBits;
+        private ulong _cache;
 
         /// <summary>
         /// Initializes a new Golomb-Rice decoder.
@@ -184,8 +233,8 @@ namespace SharpDicom.Codecs.JpegLs
         {
             _data = data;
             _pos = 0;
-            _bitPos = 0;
-            _buffer = 0;
+            _validBits = 0;
+            _cache = 0;
         }
 
         /// <summary>
@@ -251,35 +300,73 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
-        /// Reads a single bit from the input stream.
+        /// Maximum number of readable bits before needing to refill (64 - 8 = 56).
+        /// </summary>
+        private const int MaxReadableCacheBits = 56;
+
+        /// <summary>
+        /// Reads a single bit from the input stream with JPEG-LS bit-unstuffing.
         /// </summary>
         /// <returns>The bit value (0 or 1).</returns>
         /// <exception cref="InvalidDataException">Thrown when the input stream is exhausted prematurely.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadBit()
         {
-            // Refill buffer when empty
-            if (_bitPos == 0)
+            if (_validBits <= 0)
+            {
+                FillReadCache();
+            }
+
+            int bit = (int)((_cache >> 63) & 1);
+            _cache <<= 1;
+            _validBits--;
+            return bit;
+        }
+
+        /// <summary>
+        /// Fills the read cache from the input stream, handling JPEG-LS bit-unstuffing.
+        /// After a 0xFF byte, valid_bits is decremented by 1 to discard the stuff bit
+        /// (MSB of the following byte), per ITU-T T.87 Section A.1.
+        /// </summary>
+        private void FillReadCache()
+        {
+            while (_validBits < MaxReadableCacheBits)
             {
                 if (_pos >= _data.Length)
                 {
-                    throw new InvalidDataException("Truncated JPEG-LS stream");
+                    if (_validBits == 0)
+                    {
+                        throw new InvalidDataException("Truncated JPEG-LS stream");
+                    }
+                    return;
                 }
 
-                _buffer = _data[_pos++];
+                uint newByte = _data[_pos];
 
-                // JPEG bit-unstuffing: skip 0x00 after 0xFF
-                if (_buffer == 0xFF && _pos < _data.Length && _data[_pos] == 0x00)
+                // Marker detection: 0xFF followed by byte with MSB set = JPEG marker
+                if (newByte == 0xFF &&
+                    (_pos == _data.Length - 1 ||
+                     (_data[_pos + 1] & 0x80) != 0))
                 {
-                    _pos++;
+                    if (_validBits <= 0)
+                    {
+                        throw new InvalidDataException("Truncated JPEG-LS stream");
+                    }
+                    return;
                 }
 
-                _bitPos = 8;
-            }
+                // Place byte into MSB end of cache
+                _cache |= (ulong)newByte << (MaxReadableCacheBits - _validBits);
+                _validBits += 8;
+                _pos++;
 
-            // Extract bit from buffer
-            _bitPos--;
-            return (int)((_buffer >> _bitPos) & 1);
+                // JPEG-LS bit-unstuffing: after a 0xFF byte, the stuff bit (MSB of next byte)
+                // is discarded by counting only 7 valid bits instead of 8
+                if (newByte == 0xFF)
+                {
+                    _validBits--;
+                }
+            }
         }
 
         /// <summary>

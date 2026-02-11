@@ -87,7 +87,6 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Explicit("Encoder produces trailing data that CharLS rejects - JPEG-LS bit-stuffing conformance issue")]
         public void JpegLs_OurEncode_CharlsDecode_Grayscale8_Matches()
         {
             var codec = new JpegLsLosslessCodec();
@@ -205,7 +204,6 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Explicit("Encoder produces trailing data that CharLS rejects - JPEG-LS bit-stuffing conformance issue")]
         public void JpegLs_OurEncode_CharlsDecode_Grayscale16_Matches()
         {
             var codec = new JpegLsLosslessCodec();
@@ -323,7 +321,6 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         [Test]
-        [Explicit("Encoder produces trailing data that CharLS rejects - JPEG-LS bit-stuffing conformance issue")]
         public void JpegLs_NearLossless_CharLS_BoundedError()
         {
             var codec = new JpegLsNearLosslessCodec();
