@@ -465,39 +465,69 @@ namespace SharpDicom.Codecs.Native
 
             // Get base directory - handle single-file deployment
             string assemblyDir = assembly.Location;
+            bool usedBaseDir = false;
             if (string.IsNullOrEmpty(assemblyDir))
             {
                 // Single-file deployment - use AppContext.BaseDirectory
                 assemblyDir = AppContext.BaseDirectory;
+                usedBaseDir = true;
             }
             else
             {
                 assemblyDir = System.IO.Path.GetDirectoryName(assemblyDir) ?? string.Empty;
             }
 
+            // Diagnostic output for CI debugging
+            Console.Error.WriteLine($"[DllResolver] Looking for {libraryName}");
+            Console.Error.WriteLine($"[DllResolver] Assembly location: {assembly.Location}");
+            Console.Error.WriteLine($"[DllResolver] Assembly dir (usedBaseDir={usedBaseDir}): {assemblyDir}");
+
             if (string.IsNullOrEmpty(assemblyDir))
             {
+                Console.Error.WriteLine("[DllResolver] Empty assemblyDir, returning Zero");
                 return IntPtr.Zero;
             }
 
             // Try RID-specific paths
             string rid = RuntimeInformation.RuntimeIdentifier;
+            Console.Error.WriteLine($"[DllResolver] RID: {rid}");
 
             // Try runtimes/{rid}/native/{library}
             string ridPath = System.IO.Path.Combine(assemblyDir, "runtimes", rid, "native", GetLibraryFileName());
+            Console.Error.WriteLine($"[DllResolver] Trying RID path: {ridPath}");
+            Console.Error.WriteLine($"[DllResolver] Exists: {System.IO.File.Exists(ridPath)}");
             if (NativeLibrary.TryLoad(ridPath, out IntPtr ridHandle))
             {
+                Console.Error.WriteLine("[DllResolver] Loaded from RID path");
                 return ridHandle;
             }
 
             // Try native directory next to assembly
             string nativePath = System.IO.Path.Combine(assemblyDir, GetLibraryFileName());
+            Console.Error.WriteLine($"[DllResolver] Trying native path: {nativePath}");
+            Console.Error.WriteLine($"[DllResolver] Exists: {System.IO.File.Exists(nativePath)}");
             if (NativeLibrary.TryLoad(nativePath, out IntPtr nativeHandle))
             {
+                Console.Error.WriteLine("[DllResolver] Loaded from native path");
                 return nativeHandle;
             }
 
+            // List files in assembly directory for debugging
+            try
+            {
+                Console.Error.WriteLine($"[DllResolver] Files in {assemblyDir}:");
+                foreach (var file in System.IO.Directory.GetFiles(assemblyDir, "*sharpdicom*"))
+                {
+                    Console.Error.WriteLine($"[DllResolver]   {System.IO.Path.GetFileName(file)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[DllResolver] Could not list files: {ex.Message}");
+            }
+
             // Let default resolution take over
+            Console.Error.WriteLine("[DllResolver] Returning Zero for default resolution");
             return IntPtr.Zero;
         }
 

@@ -61,19 +61,29 @@ namespace SharpDicom.Codecs.Tests
                 });
             }
 
-            // Log the initialization error for debugging
+            // Log the initialization error for debugging - use Console.Error for visibility in CI
             if (initError != null)
             {
+                Console.Error.WriteLine($"[NativeCodecsTest] Native codec initialization error: {initError.GetType().Name}");
+                Console.Error.WriteLine($"[NativeCodecsTest] Message: {initError.Message}");
+                var ex = initError;
+                while (ex.InnerException != null)
+                {
+                    ex = ex.InnerException;
+                    Console.Error.WriteLine($"[NativeCodecsTest] Inner ({ex.GetType().Name}): {ex.Message}");
+                }
+                Console.Error.WriteLine($"[NativeCodecsTest] Stack trace: {initError.StackTrace}");
                 TestContext.WriteLine($"Native codec initialization error: {initError.GetType().Name}");
                 TestContext.WriteLine($"Message: {initError.Message}");
-                if (initError.InnerException != null)
-                {
-                    TestContext.WriteLine($"Inner: {initError.InnerException.Message}");
-                }
             }
             else if (NativeCodecs.IsAvailable)
             {
+                Console.Error.WriteLine($"[NativeCodecsTest] Native codecs loaded successfully, version={NativeCodecs.NativeVersion}");
                 TestContext.WriteLine($"Native codecs loaded successfully, version={NativeCodecs.NativeVersion}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"[NativeCodecsTest] No error thrown but IsAvailable=false");
             }
 
             // Assert IsAvailable reflects whether native library was found
