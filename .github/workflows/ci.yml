@@ -178,7 +178,7 @@ jobs:
 
       # Integration Tests: DCMTK
       - name: Integration tests with DCMTK
-        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK"
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK" --project tests/SharpDicom.Tests/SharpDicom.Tests.csproj
         env:
           DCMTK_ROOT: /usr
           LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
