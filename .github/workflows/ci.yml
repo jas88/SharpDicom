@@ -142,12 +142,18 @@ jobs:
 
           # CharLS 2.4.2 - JPEG-LS codec
           echo "Downloading CharLS..."
-          curl -sL https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz | tar xz
+          CHARLS_SHA256="d1c2c35664976f1e43fec7764d72755e6a50a80f38eca70fcc7553cad4fe19d9"
+          curl -sL https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz -o charls.tar.gz
+          echo "${CHARLS_SHA256}  charls.tar.gz" | sha256sum -c -
+          tar xzf charls.tar.gz && rm charls.tar.gz
           mv charls-2.4.2 charls/src
 
           # OpenJPEG 2.5.3 - JPEG 2000 codec
           echo "Downloading OpenJPEG..."
-          curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
+          OPENJPEG_SHA256="368fe0468228e767433c9ebdea82ad9d801a3ad1e4234421f352c8b06e7aa707"
+          curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          echo "${OPENJPEG_SHA256}  openjpeg.tar.gz" | sha256sum -c -
+          tar xzf openjpeg.tar.gz && rm openjpeg.tar.gz
           mv openjpeg-2.5.3 openjpeg/src
 
           # Generate OpenJPEG config headers (normally done by CMake)
@@ -173,10 +179,14 @@ jobs:
           #endif
           EOF
 
-          # stb headers - single-header libraries
+          # stb headers - single-header libraries (pinned to commit for reproducibility)
+          # Using commit f75e8d1 from stb master
           echo "Downloading stb..."
           mkdir -p stb
-          curl -sL https://raw.githubusercontent.com/nothings/stb/master/stb_image.h -o stb/stb_image.h
+          STB_COMMIT="f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31"
+          STB_IMAGE_SHA256="172dbbf468f2d83896081a22c4d65964cd0fa3dfda7926bfbd6da8b7d4d91d75"
+          curl -sL "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}/stb_image.h" -o stb/stb_image.h
+          echo "${STB_IMAGE_SHA256}  stb/stb_image.h" | sha256sum -c -
 
           # Verify downloads
           ls -la charls/src/ openjpeg/src/ stb/
@@ -222,6 +232,7 @@ jobs:
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
+          SHARPDICOM_NATIVE_DEBUG: "1"
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc

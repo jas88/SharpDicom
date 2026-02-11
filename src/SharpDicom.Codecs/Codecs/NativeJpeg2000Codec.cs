@@ -207,8 +207,19 @@ namespace SharpDicom.Codecs.Native
             int frameSize = info.FrameSize;
 
             // Allocate output buffer - estimate 4x raw size for worst case (lossless) per frame
+            // Use long arithmetic to prevent integer overflow for large images
             int bytesPerSample = (info.BitsStored + 7) / 8;
-            int rawFrameSize = info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
+            long rawFrameSizeLong = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
+
+            // Validate the frame size fits in int (required for buffer allocation and native API)
+            if (rawFrameSizeLong > int.MaxValue / 4)
+            {
+                throw new ArgumentException(
+                    $"Frame size ({rawFrameSizeLong} bytes) is too large for JPEG 2000 encoding",
+                    nameof(info));
+            }
+
+            int rawFrameSize = (int)rawFrameSizeLong;
             int outputBufferSize = Math.Max(rawFrameSize * 4, 4096);
             var outputBuffer = new byte[outputBufferSize];
 
