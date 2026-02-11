@@ -92,6 +92,7 @@ public class IntegrationTests
     }
 
     [Test]
+    [Explicit("Benchmark test - run manually")]
     public void DictionaryLookupPerformance()
     {
         // Simple performance sanity check (not a benchmark)

@@ -13,31 +13,30 @@ namespace SharpDicom.Tests.Codecs.JpegLs
     /// Conformance tests that verify JPEG-LS output against CharLS reference implementation.
     /// </summary>
     /// <remarks>
-    /// These tests require the CharLS command-line tool to be installed:
-    /// - macOS: brew install charls
-    /// - Linux: apt-get install charls or compile from source
-    /// - Windows: Download from https://github.com/team-charls/charls
+    /// These tests require the charls-tools command-line utilities (cjpls and djpls):
+    /// - Build from source: https://github.com/malaterre/charls-tools
+    /// - Some Linux distributions package them alongside libcharls-dev
     ///
-    /// Tests are skipped automatically when CharLS is not available.
+    /// Tests are skipped automatically when the tools are not available.
     /// Run with: dotnet test --filter "Category=Conformance"
     /// </remarks>
     [TestFixture]
     [Category("Conformance")]
     public class JpegLsConformanceTests
     {
-        private static readonly string? CharlsPath = FindCharls();
+        private static readonly string? DjplsPath = FindTool("djpls");
+        private static readonly string? CjplsPath = FindTool("cjpls");
 
-        private static string? FindCharls()
+        private static string? FindTool(string toolName)
         {
-            // Try to find charls executable
             var candidates = new[]
             {
-                "charls",                                    // In PATH
-                "/usr/local/bin/charls",                     // Homebrew
-                "/opt/homebrew/bin/charls",                  // Homebrew ARM
-                "/usr/bin/charls",                           // Linux system
-                "C:\\Program Files\\CharLS\\charls.exe",     // Windows
-                "C:\\Program Files (x86)\\CharLS\\charls.exe"
+                toolName,                                                    // In PATH
+                $"/usr/local/bin/{toolName}",                                // Homebrew / local install
+                $"/opt/homebrew/bin/{toolName}",                             // Homebrew ARM
+                $"/usr/bin/{toolName}",                                      // Linux system
+                $"C:\\Program Files\\CharLS\\{toolName}.exe",                // Windows
+                $"C:\\Program Files (x86)\\CharLS\\{toolName}.exe"
             };
 
             foreach (var path in candidates)
@@ -76,9 +75,14 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         [SetUp]
         public void Setup()
         {
-            if (CharlsPath == null)
+            if (DjplsPath == null || CjplsPath == null)
             {
-                Assert.Ignore("CharLS not installed - skipping conformance tests. Install with: brew install charls");
+                // In CI, charls-tools should be installed — fail to catch misconfiguration.
+                // Locally, skip gracefully since the tools are optional.
+                if (Environment.GetEnvironmentVariable("CI") != null)
+                    Assert.Fail("charls-tools not installed in CI - check workflow setup");
+                else
+                    Assert.Ignore("charls-tools not installed - build cjpls/djpls from: https://github.com/malaterre/charls-tools");
             }
         }
 
@@ -93,7 +97,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
             var fragments = codec.Encode(original, info);
             var encoded = fragments.Fragments[0].ToArray();
 
-            // Write to temp file, decode with CharLS
+            // Write to temp file, decode with djpls
             var tempJls = Path.GetTempFileName() + ".jls";
             var tempRaw = Path.GetTempFileName() + ".raw";
 
@@ -103,8 +107,8 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 var process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = CharlsPath!,
-                    Arguments = $"--decode \"{tempJls}\" \"{tempRaw}\"",
+                    FileName = DjplsPath!,
+                    Arguments = $"-i \"{tempJls}\" -o \"{tempRaw}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -113,7 +117,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 if (process == null)
                 {
-                    Assert.Fail("Failed to start CharLS process");
+                    Assert.Fail("Failed to start djpls process");
                     return;
                 }
 
@@ -122,7 +126,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 if (process.ExitCode != 0)
                 {
                     var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"CharLS decode failed with exit code {process.ExitCode}: {error}");
+                    Assert.Fail($"djpls decode failed with exit code {process.ExitCode}: {error}");
                 }
 
                 // Compare decoded output
@@ -149,11 +153,11 @@ namespace SharpDicom.Tests.Codecs.JpegLs
             {
                 File.WriteAllBytes(tempRaw, original);
 
-                // Encode with CharLS
+                // Encode with cjpls
                 var process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = CharlsPath!,
-                    Arguments = $"--encode \"{tempRaw}\" \"{tempJls}\" --width 64 --height 64 --bits-per-sample 8 --component-count 1",
+                    FileName = CjplsPath!,
+                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64x64 -b 8 -c 1 -m none",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -162,7 +166,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 if (process == null)
                 {
-                    Assert.Fail("Failed to start CharLS process");
+                    Assert.Fail("Failed to start cjpls process");
                     return;
                 }
 
@@ -171,7 +175,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 if (process.ExitCode != 0)
                 {
                     var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"CharLS encode failed with exit code {process.ExitCode}: {error}");
+                    Assert.Fail($"cjpls encode failed with exit code {process.ExitCode}: {error}");
                 }
 
                 // Read encoded data
@@ -210,7 +214,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
             var fragments = codec.Encode(original, info);
             var encoded = fragments.Fragments[0].ToArray();
 
-            // Write to temp file, decode with CharLS
+            // Write to temp file, decode with djpls
             var tempJls = Path.GetTempFileName() + ".jls";
             var tempRaw = Path.GetTempFileName() + ".raw";
 
@@ -220,8 +224,8 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 var process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = CharlsPath!,
-                    Arguments = $"--decode \"{tempJls}\" \"{tempRaw}\"",
+                    FileName = DjplsPath!,
+                    Arguments = $"-i \"{tempJls}\" -o \"{tempRaw}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -230,7 +234,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 if (process == null)
                 {
-                    Assert.Fail("Failed to start CharLS process");
+                    Assert.Fail("Failed to start djpls process");
                     return;
                 }
 
@@ -239,11 +243,14 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 if (process.ExitCode != 0)
                 {
                     var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"CharLS decode failed with exit code {process.ExitCode}: {error}");
+                    Assert.Fail($"djpls decode failed with exit code {process.ExitCode}: {error}");
                 }
 
                 // Compare decoded output
+                // djpls outputs 16-bit samples in big-endian byte order,
+                // so we must byte-swap before comparing with our LE original.
                 var decoded = File.ReadAllBytes(tempRaw);
+                ByteSwap16(decoded);
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
             }
             finally
@@ -266,11 +273,11 @@ namespace SharpDicom.Tests.Codecs.JpegLs
             {
                 File.WriteAllBytes(tempRaw, original);
 
-                // Encode with CharLS
+                // Encode with cjpls
                 var process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = CharlsPath!,
-                    Arguments = $"--encode \"{tempRaw}\" \"{tempJls}\" --width 64 --height 64 --bits-per-sample 16 --component-count 1",
+                    FileName = CjplsPath!,
+                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64x64 -b 16 -c 1 -m none",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -279,7 +286,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 if (process == null)
                 {
-                    Assert.Fail("Failed to start CharLS process");
+                    Assert.Fail("Failed to start cjpls process");
                     return;
                 }
 
@@ -288,7 +295,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 if (process.ExitCode != 0)
                 {
                     var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"CharLS encode failed with exit code {process.ExitCode}: {error}");
+                    Assert.Fail($"cjpls encode failed with exit code {process.ExitCode}: {error}");
                 }
 
                 // Read encoded data
@@ -328,7 +335,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
             var fragments = codec.Encode(original, info, options);
             var encoded = fragments.Fragments[0].ToArray();
 
-            // Write to temp file, decode with CharLS
+            // Write to temp file, decode with djpls
             var tempJls = Path.GetTempFileName() + ".jls";
             var tempRaw = Path.GetTempFileName() + ".raw";
 
@@ -338,8 +345,8 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 var process = Process.Start(new ProcessStartInfo
                 {
-                    FileName = CharlsPath!,
-                    Arguments = $"--decode \"{tempJls}\" \"{tempRaw}\"",
+                    FileName = DjplsPath!,
+                    Arguments = $"-i \"{tempJls}\" -o \"{tempRaw}\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -348,7 +355,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
 
                 if (process == null)
                 {
-                    Assert.Fail("Failed to start CharLS process");
+                    Assert.Fail("Failed to start djpls process");
                     return;
                 }
 
@@ -357,7 +364,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 if (process.ExitCode != 0)
                 {
                     var error = process.StandardError.ReadToEnd();
-                    Assert.Fail($"CharLS decode failed with exit code {process.ExitCode}: {error}");
+                    Assert.Fail($"djpls decode failed with exit code {process.ExitCode}: {error}");
                 }
 
                 // Compare decoded output - should have bounded error
@@ -379,6 +386,18 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         // Helper methods
+
+        /// <summary>
+        /// Byte-swaps 16-bit samples in place (converts between LE and BE).
+        /// djpls outputs 16-bit raw data in big-endian byte order.
+        /// </summary>
+        private static void ByteSwap16(byte[] data)
+        {
+            for (int i = 0; i + 1 < data.Length; i += 2)
+            {
+                (data[i], data[i + 1]) = (data[i + 1], data[i]);
+            }
+        }
 
         private static byte[] CreateGradientImage8(int width, int height)
         {

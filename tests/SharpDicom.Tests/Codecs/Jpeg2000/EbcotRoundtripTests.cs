@@ -308,7 +308,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         // significance propagation interaction in complex patterns.
 
         [Test]
-        [Ignore("Known limitation: Complex multi-stripe patterns may have bitstream sync issues")]
         public void SimpleGradient_RoundtripsCorrectly()
         {
             using var encoder = new EbcotEncoder();
@@ -332,7 +331,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         }
 
         [Test]
-        [Ignore("Known limitation: Complex multi-stripe patterns may have bitstream sync issues")]
         public void SmallMagnitudes_RoundtripsCorrectly()
         {
             using var encoder = new EbcotEncoder();
@@ -356,7 +354,6 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000
         }
 
         [Test]
-        [Ignore("Known limitation: Complex multi-stripe patterns may have bitstream sync issues")]
         public void LargerCodeBlock_RoundtripsCorrectly()
         {
             using var encoder = new EbcotEncoder();

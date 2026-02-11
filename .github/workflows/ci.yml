@@ -49,9 +49,42 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm
-          version: 1.4
+          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev libboost-program-options-dev
+          version: 1.7
           execute_install_scripts: true
+
+      # ccache for native C/C++ builds
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 500M
+          key: native-builds
+
+      # Build OpenJPH from source (openjph-tools not available in Noble 24.04)
+      - name: Build and install OpenJPH
+        run: |
+          git clone --depth 1 --branch 0.26.0 https://github.com/aous72/OpenJPH.git /tmp/openjph
+          cmake -S /tmp/openjph -B /tmp/openjph/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build /tmp/openjph/build --parallel $(nproc)
+          sudo cmake --install /tmp/openjph/build
+          sudo ldconfig
+
+      # Build charls-tools from source (cjpls/djpls CLI)
+      - name: Build and install charls-tools
+        run: |
+          git clone --depth 1 https://github.com/malaterre/charls-tools.git /tmp/charls-tools
+          cmake -S /tmp/charls-tools -B /tmp/charls-tools/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build /tmp/charls-tools/build --target cjpls djpls --parallel $(nproc)
+          sudo install /tmp/charls-tools/build/cjpls /usr/local/bin/
+          sudo install /tmp/charls-tools/build/djpls /usr/local/bin/
 
       # xwin for Linux-to-Windows AOT cross-compilation
       - name: Setup xwin
@@ -62,12 +95,17 @@ jobs:
 
       - name: Verify package installations
         run: |
-          # DCMTK
-          dcmsend --version || true
-          dcmrecv --version || true
+          # DCMTK - required for interop tests
+          dcmsend --version
+          dcmrecv --version
 
-          # CharLS
-          pkg-config --modversion charls || true
+          # CharLS tools - required for JPEG-LS conformance tests
+          which cjpls
+          which djpls
+
+          # OpenJPH - required for HTJ2K conformance tests
+          which ojph_compress
+          which ojph_expand
 
           echo "DCMTK_ROOT=/usr" >> $GITHUB_ENV
 
@@ -114,6 +152,8 @@ jobs:
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc
@@ -138,10 +178,10 @@ jobs:
 
       # Integration Tests: DCMTK
       - name: Integration tests with DCMTK
-        continue-on-error: true  # DCMTK tests are optional for now
-        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK"
+        run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK" --project tests/SharpDicom.Tests/SharpDicom.Tests.csproj
         env:
           DCMTK_ROOT: /usr
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
 
       # Upload coverage
       - name: Collect coverage files

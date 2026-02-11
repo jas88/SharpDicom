@@ -399,11 +399,13 @@ namespace SharpDicom.Tests.Network
         #region End-to-End Network Tests (Explicit)
 
         [Test]
-        [Explicit("Requires full P-DATA PDV interleaving - pending networking fixes")]
+        [Explicit("End-to-end network test - requires working DICOM protocol stack")]
         [Category("Integration")]
+        [CancelAfter(10000)]
         public async Task CFindScp_Network_ReturnsMatchingResults()
         {
             var port = GetFreePort();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var serverOptions = new DicomServerOptions
             {
                 Port = port,
@@ -429,7 +431,7 @@ namespace SharpDicom.Tests.Network
                 new PresentationContext(3, DicomUID.StudyRootQueryRetrieveFind, TransferSyntax.ImplicitVRLittleEndian)
             };
 
-            await client.ConnectAsync(contexts);
+            await client.ConnectAsync(contexts, cts.Token);
 
             var findScu = new CFindScu(client, new CFindOptions { UsePatientRoot = false });
             var queryDs = new DicomDataset();
@@ -437,7 +439,7 @@ namespace SharpDicom.Tests.Network
             queryDs.Add(new DicomStringElement(DicomTag.PatientName, DicomVR.PN, Array.Empty<byte>()));
 
             var results = new List<DicomDataset>();
-            await foreach (var result in findScu.QueryAsync(QueryRetrieveLevel.Study, queryDs))
+            await foreach (var result in findScu.QueryAsync(QueryRetrieveLevel.Study, queryDs, cts.Token))
             {
                 results.Add(result);
             }
@@ -446,11 +448,13 @@ namespace SharpDicom.Tests.Network
         }
 
         [Test]
-        [Explicit("Requires full P-DATA PDV interleaving - pending networking fixes")]
+        [Explicit("End-to-end network test - requires working DICOM protocol stack")]
         [Category("Integration")]
+        [CancelAfter(10000)]
         public async Task CStoreThenCFind_Network_Roundtrip()
         {
             var port = GetFreePort();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var storedDatasets = new List<DicomDataset>();
 
             var serverOptions = new DicomServerOptions
@@ -483,14 +487,14 @@ namespace SharpDicom.Tests.Network
                     new PresentationContext(1, DicomUID.Verification, TransferSyntax.ImplicitVRLittleEndian),
                     new PresentationContext(3, DicomUID.CTImageStorage, TransferSyntax.ImplicitVRLittleEndian)
                 };
-                await storeClient.ConnectAsync(storeContexts);
+                await storeClient.ConnectAsync(storeContexts, cts.Token);
 
                 var dataset = CreateTestDataset("Smith^John", "PAT001", "1.2.3.4.5", "CT");
                 var file = new DicomFile(dataset, TransferSyntax.ImplicitVRLittleEndian);
                 var storeScu = new CStoreScu(storeClient);
-                var storeResponse = await storeScu.SendAsync(file);
+                var storeResponse = await storeScu.SendAsync(file, null, cts.Token);
                 Assert.That(storeResponse.Status.IsSuccess, Is.True);
-                await storeClient.ReleaseAsync();
+                await storeClient.ReleaseAsync(cts.Token);
             }
 
             // Find
@@ -508,7 +512,7 @@ namespace SharpDicom.Tests.Network
                     new PresentationContext(1, DicomUID.Verification, TransferSyntax.ImplicitVRLittleEndian),
                     new PresentationContext(3, DicomUID.StudyRootQueryRetrieveFind, TransferSyntax.ImplicitVRLittleEndian)
                 };
-                await findClient.ConnectAsync(findContexts);
+                await findClient.ConnectAsync(findContexts, cts.Token);
 
                 var findScu = new CFindScu(findClient, new CFindOptions { UsePatientRoot = false });
                 var queryDs = new DicomDataset();
@@ -517,13 +521,13 @@ namespace SharpDicom.Tests.Network
                 queryDs.Add(new DicomStringElement(DicomTag.PatientName, DicomVR.PN, Array.Empty<byte>()));
 
                 var results = new List<DicomDataset>();
-                await foreach (var result in findScu.QueryAsync(QueryRetrieveLevel.Study, queryDs))
+                await foreach (var result in findScu.QueryAsync(QueryRetrieveLevel.Study, queryDs, cts.Token))
                 {
                     results.Add(result);
                 }
 
                 Assert.That(results.Count, Is.EqualTo(1));
-                await findClient.ReleaseAsync();
+                await findClient.ReleaseAsync(cts.Token);
             }
         }
 

@@ -133,7 +133,6 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_Level0_ProducesSmallOutput()
         {
             var fragments = BuildTestFragments(64, 64);
@@ -150,7 +149,6 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_MaxLevel_IdenticalToFullDecode()
         {
             var fragments = BuildTestFragments(64, 64);
@@ -174,7 +172,6 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        [Ignore("J2K encoder/decoder lack multi-resolution subband support (21-09: architectural issue, deferred to Phase 30)")]
         public void DecodeAtResolution_IntermediateLevel_ProducesValidPixels()
         {
             var fragments = BuildTestFragments(64, 64);

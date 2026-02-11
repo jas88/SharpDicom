@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using SharpDicom.Codecs.Jpeg2000.Subband;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
 
 namespace SharpDicom.Codecs.Jpeg2000.Tier2
@@ -68,19 +69,12 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
 
     /// <summary>
     /// JPEG 2000 packet encoder for organizing code-blocks into quality layers.
+    /// Conforms to ITU-T T.800 Annex B (Tier-2 coding).
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Tier-2 coding organizes code-block contributions by resolution, component,
-    /// layer, and position according to the progression order.
-    /// </para>
-    /// <para>
-    /// Each packet contains:
-    /// 1. Packet header with inclusion and zero-bit-plane information
-    /// 2. Code-block data contributions for the specified layer
-    /// </para>
-    /// <para>
-    /// Reference: ITU-T T.800 Annex B (Tier-2 coding).
+    /// Uses tag trees for inclusion and zero bitplane coding (B.10.2-B.10.4),
+    /// Lblock-based data length coding (B.10.5), and bit-stuffing after 0xFF bytes.
     /// </para>
     /// </remarks>
     public sealed class PacketEncoder
@@ -88,7 +82,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         private readonly List<byte> _headerBuffer;
         private int _bitBuffer;
         private int _bitsInBuffer;
-        private bool _htMode;
+        private bool _lastByteWasFF;
+
+        // Per-code-block Lblock values (ITU-T T.800 B.10.5)
+        private int[]? _lblock;
 
         /// <summary>
         /// Initializes a new packet encoder.
@@ -101,25 +98,13 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// <summary>
         /// Creates packets from encoded code-blocks for a single-tile, single-component image.
         /// </summary>
-        /// <param name="codeBlocks">Array of encoded code-blocks (row-major order).</param>
-        /// <param name="codeBlocksWide">Number of code-blocks horizontally.</param>
-        /// <param name="codeBlocksHigh">Number of code-blocks vertically.</param>
-        /// <param name="numLayers">Number of quality layers.</param>
-        /// <param name="progression">Progression order.</param>
-        /// <param name="numResolutions">Number of resolution levels.</param>
-        /// <param name="isHtMode">
-        /// When true, uses HT pass count encoding (range 1-6) instead of EBCOT
-        /// variable-length encoding (range 1-164). Per ITU-T T.814 section 7.3.
-        /// </param>
-        /// <returns>Packets organized by layer.</returns>
         public PacketData[] EncodePackets(
             CodeBlockData[] codeBlocks,
             int codeBlocksWide,
             int codeBlocksHigh,
             int numLayers,
             ProgressionOrder progression,
-            int numResolutions = 1,
-            bool isHtMode = false)
+            int numResolutions = 1)
         {
             if (codeBlocks == null || codeBlocks.Length == 0)
             {
@@ -132,7 +117,16 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 throw new ArgumentException("Code block array is too small for the specified dimensions.");
             }
 
-            _htMode = isHtMode;
+            // Initialize per-code-block Lblock values (starts at 3 per ITU-T T.800 B.10.5)
+            _lblock = new int[numCodeBlocks];
+            for (int i = 0; i < numCodeBlocks; i++)
+            {
+                _lblock[i] = 3;
+            }
+
+            // Tag trees for inclusion and zero bitplanes
+            var inclusionTree = new TagTree(codeBlocksWide, codeBlocksHigh);
+            var zeroBitPlaneTree = new TagTree(codeBlocksWide, codeBlocksHigh);
 
             // Track which passes have been included for each code-block
             int[] passesIncluded = new int[numCodeBlocks];
@@ -142,12 +136,47 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 firstInclusion[i] = true;
             }
 
-            // For single-resolution, single-component case (most common in medical imaging)
-            // We have one precinct containing all code-blocks
-            List<PacketData> packets = new List<PacketData>(numLayers);
-
-            // Simple layer assignment: distribute passes evenly across layers
+            // Set inclusion layer values in tag tree.
+            // For single-layer: all code-blocks with data are included in layer 0.
+            // For multi-layer: code-blocks first appear in their assigned layer.
             int[] passesPerLayer = CalculatePassesPerLayer(codeBlocks, numCodeBlocks, numLayers);
+
+            // Determine first inclusion layer for each code-block
+            for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
+            {
+                int x = cbIdx % codeBlocksWide;
+                int y = cbIdx / codeBlocksWide;
+
+                if (codeBlocks[cbIdx].NumPasses == 0 || codeBlocks[cbIdx].Data.IsEmpty)
+                {
+                    // Never included - set to a very high layer value
+                    inclusionTree.SetValue(x, y, numLayers);
+                }
+                else
+                {
+                    // Determine which layer this code-block first appears in
+                    int firstLayer = 0;
+                    for (int layer = 0; layer < numLayers; layer++)
+                    {
+                        // A code-block is included in a layer if it has passes to contribute
+                        int targetPasses = passesPerLayer[layer];
+                        if (targetPasses > 0)
+                        {
+                            firstLayer = layer;
+                            break;
+                        }
+                    }
+                    inclusionTree.SetValue(x, y, firstLayer);
+                }
+
+                // Set zero bitplane values
+                int zeroBitPlanes = codeBlocks[cbIdx].MsbPosition >= 0
+                    ? (31 - codeBlocks[cbIdx].MsbPosition)
+                    : 0;
+                zeroBitPlaneTree.SetValue(x, y, zeroBitPlanes);
+            }
+
+            List<PacketData> packets = new List<PacketData>(numLayers);
 
             for (int layer = 0; layer < numLayers; layer++)
             {
@@ -160,7 +189,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     component: 0,
                     passesIncluded,
                     firstInclusion,
-                    passesPerLayer[layer]);
+                    passesPerLayer[layer],
+                    inclusionTree,
+                    zeroBitPlaneTree);
 
                 packets.Add(packet);
             }
@@ -169,8 +200,294 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Encodes a single packet for one layer/resolution/component/position.
+        /// Creates per-resolution packets from encoded code-blocks using subband descriptors.
+        /// Each resolution level gets its own packet. Within each packet, subbands are iterated
+        /// individually with per-subband tag trees (ITU-T T.800 B.9/B.10).
         /// </summary>
+        public PacketData[] EncodePacketsPerResolution(
+            CodeBlockData[] codeBlocks,
+            SubbandDescriptor[] subbands,
+            int numLayers,
+            int numResolutions)
+        {
+            if (codeBlocks == null || codeBlocks.Length == 0)
+            {
+                return Array.Empty<PacketData>();
+            }
+
+            // Build per-subband info: global codeblock start index for each subband
+            int[] subbandStartCbIdx = new int[subbands.Length];
+            int cbOffset = 0;
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                subbandStartCbIdx[s] = cbOffset;
+                cbOffset += subbands[s].TotalCodeBlocks;
+            }
+
+            // Per-subband persistent state (tag trees, Lblock, inclusion tracking)
+            var sbInclusionTrees = new TagTree[subbands.Length];
+            var sbZeroBpTrees = new TagTree[subbands.Length];
+            var sbLblock = new int[subbands.Length][];
+            var sbPassesIncluded = new int[subbands.Length][];
+            var sbFirstInclusion = new bool[subbands.Length][];
+
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                int cbW = subbands[s].CodeBlockGridWidth;
+                int cbH = subbands[s].CodeBlockGridHeight;
+                int numCbs = subbands[s].TotalCodeBlocks;
+
+                if (numCbs == 0)
+                    continue;
+
+                sbInclusionTrees[s] = new TagTree(cbW, cbH);
+                sbZeroBpTrees[s] = new TagTree(cbW, cbH);
+                sbLblock[s] = new int[numCbs];
+                sbPassesIncluded[s] = new int[numCbs];
+                sbFirstInclusion[s] = new bool[numCbs];
+
+                for (int i = 0; i < numCbs; i++)
+                {
+                    sbLblock[s][i] = 3;
+                    sbFirstInclusion[s][i] = true;
+                }
+
+                // Set tag tree values
+                for (int cbIdx = 0; cbIdx < numCbs; cbIdx++)
+                {
+                    int x = cbIdx % cbW;
+                    int y = cbIdx / cbW;
+                    int globalIdx = subbandStartCbIdx[s] + cbIdx;
+
+                    if (codeBlocks[globalIdx].NumPasses == 0 || codeBlocks[globalIdx].Data.IsEmpty)
+                    {
+                        sbInclusionTrees[s].SetValue(x, y, numLayers);
+                    }
+                    else
+                    {
+                        sbInclusionTrees[s].SetValue(x, y, 0);
+                    }
+
+                    int zeroBitPlanes = codeBlocks[globalIdx].MsbPosition >= 0
+                        ? (31 - codeBlocks[globalIdx].MsbPosition)
+                        : 0;
+                    sbZeroBpTrees[s].SetValue(x, y, zeroBitPlanes);
+                }
+            }
+
+            var allPackets = new PacketData[numLayers * numResolutions];
+
+            for (int layer = 0; layer < numLayers; layer++)
+            {
+                for (int r = 0; r < numResolutions; r++)
+                {
+                    allPackets[layer * numResolutions + r] = EncodeResolutionPacket(
+                        codeBlocks, subbands, subbandStartCbIdx,
+                        sbInclusionTrees, sbZeroBpTrees, sbLblock,
+                        sbPassesIncluded, sbFirstInclusion,
+                        layer, r, numLayers);
+                }
+            }
+
+            return allPackets;
+        }
+
+        /// <summary>
+        /// Encodes a single packet for one resolution level, iterating subbands
+        /// with per-subband tag trees per ITU-T T.800 B.10.
+        /// </summary>
+        private PacketData EncodeResolutionPacket(
+            CodeBlockData[] allCodeBlocks,
+            SubbandDescriptor[] subbands,
+            int[] subbandStartCbIdx,
+            TagTree[] sbInclusionTrees,
+            TagTree[] sbZeroBpTrees,
+            int[][] sbLblock,
+            int[][] sbPassesIncluded,
+            bool[][] sbFirstInclusion,
+            int layer,
+            int resolution,
+            int numLayers)
+        {
+            // Reset bit writer
+            _headerBuffer.Clear();
+            _bitBuffer = 0;
+            _bitsInBuffer = 0;
+            _lastByteWasFF = false;
+
+            // Collect contributions per subband
+            var subbandContribs = new List<(int SubbandIdx, int CbIdx, CodeBlockContribution Contrib)>();
+
+            // Check if any subband at this resolution has contributions
+            bool hasAnyContribution = false;
+
+            for (int s = 0; s < subbands.Length; s++)
+            {
+                if (subbands[s].ResolutionLevel != resolution)
+                    continue;
+                if (subbands[s].TotalCodeBlocks == 0)
+                    continue;
+
+                int numCbs = subbands[s].TotalCodeBlocks;
+                int startIdx = subbandStartCbIdx[s];
+
+                for (int cbIdx = 0; cbIdx < numCbs; cbIdx++)
+                {
+                    int globalIdx = startIdx + cbIdx;
+                    var cb = allCodeBlocks[globalIdx];
+
+                    int alreadyIncluded = sbPassesIncluded[s][cbIdx];
+                    int totalPasses = cb.NumPasses;
+                    int remaining = totalPasses - alreadyIncluded;
+
+                    int newPasses = 0;
+                    if (remaining > 0)
+                    {
+                        newPasses = remaining; // single-layer: all remaining passes
+                    }
+
+                    ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
+                    int dataLength = 0;
+
+                    if (newPasses > 0)
+                    {
+                        int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
+                            ? cb.PassLengths[Math.Min(alreadyIncluded - 1, cb.PassLengths.Length - 1)]
+                            : 0;
+                        int endLength = alreadyIncluded + newPasses >= totalPasses
+                            ? cb.Data.Length
+                            : (alreadyIncluded + newPasses > 0 && cb.PassLengths.Length > 0
+                                ? cb.PassLengths[Math.Min(alreadyIncluded + newPasses - 1, cb.PassLengths.Length - 1)]
+                                : 0);
+                        dataLength = endLength - startLength;
+
+                        if (dataLength > 0 && !cb.Data.IsEmpty)
+                        {
+                            int safeStart = Math.Min(startLength, cb.Data.Length);
+                            int safeLength = Math.Min(dataLength, cb.Data.Length - safeStart);
+                            if (safeLength > 0)
+                            {
+                                data = cb.Data.Slice(safeStart, safeLength);
+                                dataLength = safeLength;
+                            }
+                        }
+                    }
+
+                    int zeroBitPlanes = cb.MsbPosition >= 0 ? (31 - cb.MsbPosition) : 0;
+
+                    var contrib = new CodeBlockContribution
+                    {
+                        CodeBlockIndex = cbIdx,
+                        IsFirstInclusion = sbFirstInclusion[s][cbIdx] && newPasses > 0,
+                        ZeroBitPlanes = zeroBitPlanes,
+                        NumNewPasses = newPasses,
+                        DataLength = data.Length,
+                        Data = data
+                    };
+
+                    subbandContribs.Add((s, cbIdx, contrib));
+
+                    if (newPasses > 0)
+                        hasAnyContribution = true;
+                }
+            }
+
+            if (!hasAnyContribution)
+            {
+                WriteBit(0);
+                FlushBits();
+                return new PacketData
+                {
+                    Layer = layer,
+                    Resolution = resolution,
+                    Component = 0,
+                    Position = 0,
+                    Data = _headerBuffer.ToArray()
+                };
+            }
+
+            // Non-empty packet
+            WriteBit(1);
+
+            // Encode per-subband headers
+            int prevSubband = -1;
+            foreach (var (sbIdx, cbIdx, contrib) in subbandContribs)
+            {
+                if (sbIdx != prevSubband)
+                {
+                    // New subband - use its own tag trees and Lblock
+                    _lblock = sbLblock[sbIdx];
+                    prevSubband = sbIdx;
+                }
+
+                int cbW = subbands[sbIdx].CodeBlockGridWidth;
+                int x = cbIdx % cbW;
+                int y = cbIdx / cbW;
+
+                bool neverIncluded = contrib.IsFirstInclusion || sbFirstInclusion[sbIdx][cbIdx];
+
+                if (neverIncluded)
+                {
+                    sbInclusionTrees[sbIdx].Encode(x, y, layer + 1, WriteBitAction);
+
+                    if (contrib.NumNewPasses == 0)
+                        continue;
+
+                    sbZeroBpTrees[sbIdx].Encode(x, y, contrib.ZeroBitPlanes + 1, WriteBitAction);
+                }
+                else if (contrib.NumNewPasses > 0)
+                {
+                    WriteBit(1);
+                }
+                else
+                {
+                    WriteBit(0);
+                    continue;
+                }
+
+                WriteNumPasses(contrib.NumNewPasses);
+                WriteLblock(cbIdx, contrib.NumNewPasses, contrib.DataLength);
+
+                if (contrib.NumNewPasses > 0)
+                {
+                    sbPassesIncluded[sbIdx][cbIdx] += contrib.NumNewPasses;
+                    sbFirstInclusion[sbIdx][cbIdx] = false;
+                }
+            }
+
+            FlushBits();
+
+            // Append code-block data in same subband order
+            int totalDataSize = _headerBuffer.Count;
+            foreach (var (_, _, contrib) in subbandContribs)
+            {
+                if (contrib.NumNewPasses > 0)
+                    totalDataSize += contrib.Data.Length;
+            }
+
+            byte[] packetData = new byte[totalDataSize];
+            _headerBuffer.CopyTo(packetData, 0);
+            int offset = _headerBuffer.Count;
+
+            foreach (var (_, _, contrib) in subbandContribs)
+            {
+                if (contrib.NumNewPasses > 0 && !contrib.Data.IsEmpty)
+                {
+                    contrib.Data.Span.CopyTo(packetData.AsSpan(offset));
+                    offset += contrib.Data.Length;
+                }
+            }
+
+            return new PacketData
+            {
+                Layer = layer,
+                Resolution = resolution,
+                Component = 0,
+                Position = 0,
+                Data = packetData
+            };
+        }
+
         private PacketData EncodePacket(
             CodeBlockData[] codeBlocks,
             int codeBlocksWide,
@@ -180,31 +497,32 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             int component,
             int[] passesIncluded,
             bool[] firstInclusion,
-            int targetPassesThisLayer)
+            int targetPassesThisLayer,
+            TagTree inclusionTree,
+            TagTree zeroBitPlaneTree)
         {
             int numCodeBlocks = codeBlocksWide * codeBlocksHigh;
 
-            // Reset buffers
+            // Reset bit writer
             _headerBuffer.Clear();
             _bitBuffer = 0;
             _bitsInBuffer = 0;
+            _lastByteWasFF = false;
 
             // Collect contributions
-            List<CodeBlockContribution> contributions = new List<CodeBlockContribution>();
+            var contributions = new CodeBlockContribution[numCodeBlocks];
 
             for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
             {
                 var cb = codeBlocks[cbIdx];
 
-                // Determine how many new passes to include
                 int alreadyIncluded = passesIncluded[cbIdx];
                 int totalPasses = cb.NumPasses;
                 int remaining = totalPasses - alreadyIncluded;
 
                 if (remaining <= 0)
                 {
-                    // No more passes to include
-                    contributions.Add(new CodeBlockContribution
+                    contributions[cbIdx] = new CodeBlockContribution
                     {
                         CodeBlockIndex = cbIdx,
                         IsFirstInclusion = false,
@@ -212,28 +530,23 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                         NumNewPasses = 0,
                         DataLength = 0,
                         Data = ReadOnlyMemory<byte>.Empty
-                    });
+                    };
                     continue;
                 }
 
-                // Calculate new passes for this layer
                 int newPasses = Math.Min(remaining, Math.Max(1, targetPassesThisLayer - alreadyIncluded));
                 if (newPasses <= 0)
                 {
                     newPasses = 0;
                 }
 
-                // Calculate data length from cumulative PassLengths array.
-                // PassLengths[i] = cumulative bytes after pass i (0-indexed).
-                // If all passes are included (alreadyIncluded + newPasses == totalPasses),
-                // use cb.Data.Length as the total to account for Flush() bytes.
+                // Calculate data length from cumulative PassLengths array
                 int startLength = alreadyIncluded > 0 && cb.PassLengths.Length > 0
                     ? cb.PassLengths[Math.Min(alreadyIncluded - 1, cb.PassLengths.Length - 1)]
                     : 0;
                 int endLength;
                 if (alreadyIncluded + newPasses >= totalPasses)
                 {
-                    // Include all remaining data (accounts for Flush bytes beyond passLengths)
                     endLength = cb.Data.Length;
                 }
                 else if (alreadyIncluded + newPasses > 0 && cb.PassLengths.Length > 0)
@@ -246,7 +559,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 }
                 int dataLength = endLength - startLength;
 
-                // Extract data slice
                 ReadOnlyMemory<byte> data = ReadOnlyMemory<byte>.Empty;
                 if (dataLength > 0 && !cb.Data.IsEmpty)
                 {
@@ -258,17 +570,18 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     }
                 }
 
-                contributions.Add(new CodeBlockContribution
+                int zeroBitPlanes = cb.MsbPosition >= 0 ? (31 - cb.MsbPosition) : 0;
+
+                contributions[cbIdx] = new CodeBlockContribution
                 {
                     CodeBlockIndex = cbIdx,
                     IsFirstInclusion = firstInclusion[cbIdx] && newPasses > 0,
-                    ZeroBitPlanes = cb.MsbPosition >= 0 ? (31 - cb.MsbPosition) : 0, // Leading zeros
+                    ZeroBitPlanes = zeroBitPlanes,
                     NumNewPasses = newPasses,
                     DataLength = data.Length,
                     Data = data
-                });
+                };
 
-                // Update state
                 if (newPasses > 0)
                 {
                     passesIncluded[cbIdx] += newPasses;
@@ -278,9 +591,9 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
 
             // Check if packet is empty
             bool hasContributions = false;
-            foreach (var contrib in contributions)
+            for (int i = 0; i < numCodeBlocks; i++)
             {
-                if (contrib.NumNewPasses > 0)
+                if (contributions[i].NumNewPasses > 0)
                 {
                     hasContributions = true;
                     break;
@@ -289,7 +602,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
 
             if (!hasContributions)
             {
-                // Empty packet - write single zero bit
                 WriteBit(0);
                 FlushBits();
 
@@ -303,49 +615,76 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 };
             }
 
-            // Write packet header
             // Packet non-empty flag
             WriteBit(1);
 
-            // Write code-block inclusion and data length info
-            foreach (var contrib in contributions)
+            // Encode code-block headers per ITU-T T.800 B.10
+            for (int cbIdx = 0; cbIdx < numCodeBlocks; cbIdx++)
             {
-                if (contrib.IsFirstInclusion && contrib.NumNewPasses > 0)
-                {
-                    // First inclusion - write inclusion bit and zero bitplanes
-                    WriteBit(1); // Included
+                var contrib = contributions[cbIdx];
+                int x = cbIdx % codeBlocksWide;
+                int y = cbIdx / codeBlocksWide;
 
-                    // Write zero bitplanes using tag tree (simplified: unary coding)
-                    WriteZeroBitPlanes(contrib.ZeroBitPlanes);
+                // Determine if this code-block has never been included before this layer.
+                // contrib.IsFirstInclusion is true only for code-blocks being included
+                // for the first time in THIS layer. firstInclusion[cbIdx] is true for
+                // code-blocks that are still not included (was true before, and since
+                // newPasses==0 it wasn't set to false).
+                bool neverIncluded = contrib.IsFirstInclusion || firstInclusion[cbIdx];
+
+                if (neverIncluded)
+                {
+                    // Use tag tree to signal inclusion/non-inclusion (B.10.3)
+                    inclusionTree.Encode(x, y, layer + 1, WriteBitAction);
+
+                    if (contrib.NumNewPasses == 0)
+                    {
+                        // Tag tree signals "not included at this layer" - done for this CB
+                        continue;
+                    }
+
+                    // First inclusion at this layer: encode zero bitplanes (B.10.4)
+                    zeroBitPlaneTree.Encode(x, y, contrib.ZeroBitPlanes + 1, WriteBitAction);
                 }
                 else if (contrib.NumNewPasses > 0)
                 {
-                    // Subsequent inclusion
-                    WriteBit(1); // Included in this layer
+                    // Already included in a previous layer, contributing again: 1-bit
+                    WriteBit(1);
                 }
                 else
                 {
-                    // Not included
+                    // Already included in a previous layer, no contribution: 0-bit
                     WriteBit(0);
                     continue;
                 }
 
-                // Write number of passes
+                // Number of coding passes (B.10.5, Table B.4)
                 WriteNumPasses(contrib.NumNewPasses);
 
-                // Write data length
-                WriteLength(contrib.DataLength);
+                // Data length with Lblock (B.10.5)
+                WriteLblock(cbIdx, contrib.NumNewPasses, contrib.DataLength);
             }
 
             FlushBits();
 
             // Append code-block data
-            List<byte> packetData = new List<byte>(_headerBuffer);
-            foreach (var contrib in contributions)
+            int totalDataSize = _headerBuffer.Count;
+            for (int i = 0; i < numCodeBlocks; i++)
             {
-                if (contrib.NumNewPasses > 0 && !contrib.Data.IsEmpty)
+                if (contributions[i].NumNewPasses > 0)
+                    totalDataSize += contributions[i].Data.Length;
+            }
+
+            byte[] packetData = new byte[totalDataSize];
+            _headerBuffer.CopyTo(packetData, 0);
+            int offset = _headerBuffer.Count;
+
+            for (int i = 0; i < numCodeBlocks; i++)
+            {
+                if (contributions[i].NumNewPasses > 0 && !contributions[i].Data.IsEmpty)
                 {
-                    packetData.AddRange(contrib.Data.ToArray());
+                    contributions[i].Data.Span.CopyTo(packetData.AsSpan(offset));
+                    offset += contributions[i].Data.Length;
                 }
             }
 
@@ -355,7 +694,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 Resolution = resolution,
                 Component = component,
                 Position = 0,
-                Data = packetData.ToArray()
+                Data = packetData
             };
         }
 
@@ -364,7 +703,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         /// </summary>
         private static int[] CalculatePassesPerLayer(CodeBlockData[] codeBlocks, int numCodeBlocks, int numLayers)
         {
-            // Find max passes across all code-blocks
             int maxPasses = 0;
             for (int i = 0; i < numCodeBlocks; i++)
             {
@@ -374,7 +712,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                 }
             }
 
-            // Distribute passes evenly
             int[] passesPerLayer = new int[numLayers];
             int passesPerLayerBase = maxPasses / numLayers;
             int remainder = maxPasses % numLayers;
@@ -390,13 +727,17 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             return passesPerLayer;
         }
 
+        // Action delegate for tag tree encoding
+        private void WriteBitAction(int bit) => WriteBit(bit);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void WriteBit(int bit)
         {
             _bitBuffer = (_bitBuffer << 1) | (bit & 1);
             _bitsInBuffer++;
 
-            if (_bitsInBuffer == 8)
+            int maxBits = _lastByteWasFF ? 7 : 8;
+            if (_bitsInBuffer == maxBits)
             {
                 OutputByte();
             }
@@ -406,71 +747,27 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         {
             byte b = (byte)_bitBuffer;
             _headerBuffer.Add(b);
+            _lastByteWasFF = (b == 0xFF);
             _bitBuffer = 0;
             _bitsInBuffer = 0;
-
-            // Bit stuffing: if we output 0xFF, next byte must have MSB=0
-            // This is handled by the structure of our data
         }
 
         private void FlushBits()
         {
             if (_bitsInBuffer > 0)
             {
-                // Pad with zeros to complete the byte
-                _bitBuffer <<= (8 - _bitsInBuffer);
+                int maxBits = _lastByteWasFF ? 7 : 8;
+                _bitBuffer <<= (maxBits - _bitsInBuffer);
                 OutputByte();
             }
+            // If last byte was 0xFF, we already limited to 7 bits which ensures MSB=0
         }
 
         /// <summary>
-        /// Writes zero bitplane count using simplified coding.
+        /// Writes number of coding passes using ITU-T T.800 Table B.4.
         /// </summary>
-        /// <remarks>
-        /// Format: 3-bit value for 0-6, extended (111 + 5 bits) for 7+.
-        /// Must match ReadZeroBitPlanes in PacketDecoder.
-        /// </remarks>
-        private void WriteZeroBitPlanes(int count)
-        {
-            // Use simple binary coding for small values
-            // In a full implementation, this would use tag trees
-            if (count < 7)
-            {
-                // 3-bit value for 0-6
-                WriteBit((count >> 2) & 1);
-                WriteBit((count >> 1) & 1);
-                WriteBit(count & 1);
-            }
-            else
-            {
-                // Extended: 111 prefix + 5-bit value for 7+
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit(1);
-                WriteBit((count >> 4) & 1);
-                WriteBit((count >> 3) & 1);
-                WriteBit((count >> 2) & 1);
-                WriteBit((count >> 1) & 1);
-                WriteBit(count & 1);
-            }
-        }
-
-        /// <summary>
-        /// Writes number of coding passes.
-        /// </summary>
-        /// <remarks>
-        /// In EBCOT mode, uses ITU-T T.800 Table B.4 variable-length coding (1-164 passes).
-        /// In HT mode, uses a simpler 3-bit encoding for pass counts 1-6 per ITU-T T.814.
-        /// </remarks>
         private void WriteNumPasses(int passes)
         {
-            if (_htMode)
-            {
-                WriteNumPassesHt(passes);
-                return;
-            }
-
-            // ITU-T T.800 Table B.4: Variable-length coding for number of passes
             if (passes == 1)
             {
                 WriteBit(0);
@@ -482,7 +779,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else if (passes <= 5)
             {
-                // 11 + 2-bit suffix
                 WriteBit(1);
                 WriteBit(1);
                 int suffix = passes - 3;
@@ -491,7 +787,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else if (passes <= 36)
             {
-                // 1111 + 5-bit suffix
                 WriteBit(1);
                 WriteBit(1);
                 WriteBit(1);
@@ -505,9 +800,6 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
             }
             else
             {
-                // ITU-T T.800 Table B.4: 9 ones + 7-bit suffix (16 bits total)
-                // OpenJPEG: opj_bio_write(bio, 0xff80 | (n-37), 16)
-                // 0xff80 = 1111111110000000 = 9 ones followed by 7 zeros
                 for (int i = 0; i < 9; i++)
                 {
                     WriteBit(1);
@@ -524,68 +816,55 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
         }
 
         /// <summary>
-        /// Writes number of coding passes for HT mode (range 1-6).
+        /// Writes code-block data length using Lblock (ITU-T T.800 B.10.5).
         /// </summary>
         /// <remarks>
-        /// HT blocks have at most 6 coding passes (2 HT Sets x 3 passes per set).
-        /// Encoded as a simple 3-bit value (0-5 representing 1-6 passes).
+        /// The number of bits for the length field is Lblock + floor(log2(numPasses)).
+        /// If the length doesn't fit, Lblock is incremented (signaled by writing 1-bits).
         /// </remarks>
-        private void WriteNumPassesHt(int passes)
+        private void WriteLblock(int cbIdx, int numPasses, int dataLength)
         {
-            if (passes < 1 || passes > 6)
+            int lblock = _lblock![cbIdx];
+
+            // Number of bits contributed by numPasses: floor(log2(numPasses))
+            int passContrib = FloorLog2(numPasses);
+
+            // Total bits available for length = lblock + passContrib
+            int lengthBits = lblock + passContrib;
+
+            // Check if length fits; if not, increment Lblock
+            while (dataLength >= (1 << lengthBits))
             {
-                throw new ArgumentOutOfRangeException(
-                    nameof(passes),
-                    passes,
-                    "HT pass count must be in the range 1-6.");
+                // Signal Lblock increment with a 1-bit
+                WriteBit(1);
+                lblock++;
+                lengthBits = lblock + passContrib;
             }
 
-            int value = passes - 1; // 0-5 range
-            WriteBit((value >> 2) & 1);
-            WriteBit((value >> 1) & 1);
-            WriteBit(value & 1);
+            // Signal end of Lblock increment with a 0-bit
+            WriteBit(0);
+
+            _lblock[cbIdx] = lblock;
+
+            // Write the length in 'lengthBits' bits, MSB first
+            for (int i = lengthBits - 1; i >= 0; i--)
+            {
+                WriteBit((dataLength >> i) & 1);
+            }
         }
 
-        /// <summary>
-        /// Writes code-block data length.
-        /// </summary>
-        private void WriteLength(int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FloorLog2(int value)
         {
-            // Prefix-free coding for code-block data length.
-            // Must exactly match ReadLength in PacketDecoder.
-            //   0-15:    prefix 0 + 4 bits (5 bits total)
-            //   16-255:  prefix 10 + 8 bits (10 bits total)
-            //   256+:    prefix 11 + 16 bits (18 bits total)
-
-            if (length <= 15)
+            if (value <= 1) return 0;
+            int log = 0;
+            int v = value;
+            while (v > 1)
             {
-                // Short length: 0 + 4 bits
-                WriteBit(0);
-                WriteBit((length >> 3) & 1);
-                WriteBit((length >> 2) & 1);
-                WriteBit((length >> 1) & 1);
-                WriteBit(length & 1);
+                v >>= 1;
+                log++;
             }
-            else if (length <= 255)
-            {
-                // Medium: 10 + 8 bits
-                WriteBit(1);
-                WriteBit(0);
-                for (int i = 7; i >= 0; i--)
-                {
-                    WriteBit((length >> i) & 1);
-                }
-            }
-            else
-            {
-                // Long: 11 + 16 bits
-                WriteBit(1);
-                WriteBit(1);
-                for (int i = 15; i >= 0; i--)
-                {
-                    WriteBit((length >> i) & 1);
-                }
-            }
+            return log;
         }
     }
 }

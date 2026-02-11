@@ -250,11 +250,8 @@ public class ImplicitVRSequenceTests
 
         var nestedItem = sequence.Items[0];
 
-        // TODO: Future enhancement - Set top-level sequence item parents to containing dataset
-        // Currently, top-level sequence items have null parent because the dataset
-        // isn't available during initial sequence parsing. This requires a post-processing
-        // step after dataset assembly.
-        // For now, verify nested items (level 2+) correctly inherit when parent chain is set.
+        // Post-processing in ReadDatasetAsync now sets top-level sequence item parents
+        Assert.That(nestedItem.Parent, Is.SameAs(file.Dataset), "Top-level sequence item should have the root dataset as parent");
 
         // Verify that sequence item was parsed
         Assert.That(nestedItem, Is.Not.Null);

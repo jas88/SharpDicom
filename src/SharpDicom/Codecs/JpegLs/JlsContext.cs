@@ -56,18 +56,16 @@ namespace SharpDicom.Codecs.JpegLs
         /// Computes the Golomb-Rice parameter k for entropy coding.
         /// </summary>
         /// <remarks>
-        /// Per ITU-T T.87 Section 4.5, k is chosen such that 2^k ≈ A/N.
-        /// This gives optimal Golomb-Rice coding efficiency for the current context.
+        /// Per ITU-T T.87 Section A.5.1, k is the smallest value such that
+        /// N * 2^k >= A, i.e. 2^k >= A/N.
         /// </remarks>
-        /// <param name="limit">Maximum k value (typically 32).</param>
         /// <returns>The Golomb-Rice parameter k.</returns>
-        public int ComputeK(int limit)
+        public int ComputeK()
         {
             int k = 0;
-            int nTimesA = N * A;
 
-            // Find smallest k such that N * 2^k >= N * A
-            while ((N << k) < nTimesA && k < limit)
+            // Find smallest k such that N * 2^k >= A
+            while ((N << k) < A && k < 16)
             {
                 k++;
             }
@@ -79,60 +77,64 @@ namespace SharpDicom.Codecs.JpegLs
         /// Updates the context state with a new prediction error.
         /// </summary>
         /// <remarks>
-        /// Per ITU-T T.87 Section 4.3, the context state is updated after each sample:
-        /// - A accumulates absolute error
-        /// - B accumulates signed error
-        /// - N increments
-        /// - Periodic reset when N reaches threshold
-        /// - Bias correction adjusts C based on accumulated bias
+        /// Per ITU-T T.87 code segments A.12 and A.13.
+        /// Order: accumulate A and B, check reset, increment N, then bias correction.
         /// </remarks>
         /// <param name="error">The prediction error.</param>
+        /// <param name="near">The NEAR parameter (0 for lossless).</param>
         /// <param name="reset">The reset threshold (typically 64).</param>
-        /// <param name="range">The sample value range.</param>
-        public void Update(int error, int reset, int range)
+        public void Update(int error, int near, int reset)
         {
-            // Accumulate error statistics
+            // Accumulate error statistics (ITU-T T.87, A.12)
             int absError = error < 0 ? -error : error;
             A += absError;
-            B += error;
-            N++;
+            B += error * (2 * near + 1);
 
-            // Periodic reset to prevent overflow
+            // Periodic reset to prevent overflow (check BEFORE increment per CharLS/T.87)
             if (N == reset)
             {
-                // Halve all counters
-                A = (A + 1) >> 1;
-                B = (B + 1) >> 1;
-                N = (N + 1) >> 1;
+                A >>= 1;
+                B >>= 1;
+                N >>= 1;
             }
 
-            // Bias correction per ITU-T T.87 Section 4.3
-            // Adjusts C to correct for systematic bias in prediction errors
-            if (B <= -N)
+            N++;
+
+            // Bias correction per ITU-T T.87 code segment A.13
+            if (B + N <= 0)
             {
-                // Negative bias detected
-                B = System.Math.Max(B + N, 1 - N);
+                B += N;
+                if (B <= -N)
+                {
+                    B = -N + 1;
+                }
                 if (C > -128) C--;
             }
             else if (B > 0)
             {
-                // Positive bias detected
-                B = System.Math.Min(B - N, 0);
+                B -= N;
+                if (B > 0)
+                {
+                    B = 0;
+                }
                 if (C < 127) C++;
             }
         }
 
         /// <summary>
-        /// Gets the bias-corrected prediction value.
+        /// Gets the error correction value for error mapping per ITU-T T.87, A.5.2.
         /// </summary>
         /// <remarks>
-        /// The bias correction (C + N/2) / N is added to the raw prediction
-        /// to compensate for systematic errors.
+        /// When k=0, returns bit_wise_sign(2*B + N - 1), which is 0 or -1.
+        /// This is XORed with the error value before mapping to improve coding efficiency.
         /// </remarks>
-        /// <returns>The bias correction value.</returns>
-        public int GetBiasCorrection()
+        /// <param name="k">The Golomb-Rice parameter.</param>
+        /// <returns>0 when k != 0; 0 or -1 when k == 0.</returns>
+        public int GetErrorCorrection(int k)
         {
-            return (C + (N >> 1)) / N;
+            if (k != 0)
+                return 0;
+            return (2 * B + N - 1) >> 31; // arithmetic right shift gives 0 or -1
         }
     }
 }

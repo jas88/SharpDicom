@@ -297,7 +297,7 @@ public class NccidCompatTests
 
     [Test]
     [Category("Integration")]
-    [Explicit("Requires full P-DATA PDV interleaving - known SharpDicom networking issue, not compat layer")]
+    [Explicit("Network integration test - requires full DICOM stack, times out in CI")]
     public async Task NccidSearch_EndToEnd_CFindViaCompatClient()
     {
         // Set up a SharpDicom DicomServer with a C-FIND SCP handler

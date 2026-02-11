@@ -83,10 +83,10 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
 
         #endregion
 
-        #region Full Quality Roundtrip (3 Passes, 1 HT Set)
+        #region Lossless Roundtrip (1 Cleanup Pass)
 
         [Test]
-        public void ThreePasses_SmallValues_Roundtrip()
+        public void SmallValues_Roundtrip()
         {
             int width = 4, height = 4;
             int[] input = new int[width * height];
@@ -97,8 +97,8 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             var encoded = HtBlockEncoder.Instance.EncodeBlock(
                 input, width, height, subbandType: 0, msbPosition: -1);
 
-            Assert.That(encoded.NumPasses, Is.EqualTo(3),
-                "MSB=1 should produce 3 passes (1 HT Set)");
+            Assert.That(encoded.NumPasses, Is.EqualTo(1),
+                "Lossless HTJ2K always produces 1 cleanup pass");
 
             int[] decoded = new int[width * height];
             HtBlockEncoder.Instance.DecodeBlock(
@@ -109,14 +109,13 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         }
 
         [Test]
-        public void ThreePasses_8x8_Roundtrip()
+        public void SmallValues_8x8_Roundtrip()
         {
             int width = 8, height = 8;
             int[] input = new int[width * height];
             var rng = new Random(42);
             for (int i = 0; i < input.Length; i++)
             {
-                // Values in range [-3, 3] ensure MSB = 1 (3 passes)
                 input[i] = rng.Next(-3, 4);
             }
 
@@ -131,12 +130,8 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             Assert.That(decoded, Is.EqualTo(input));
         }
 
-        #endregion
-
-        #region 2 HT Sets Roundtrip (6 Passes)
-
         [Test]
-        public void SixPasses_LargerValues_Roundtrip()
+        public void LargerValues_Roundtrip()
         {
             int width = 4, height = 4;
             int[] input = new int[width * height];
@@ -148,8 +143,8 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             var encoded = HtBlockEncoder.Instance.EncodeBlock(
                 input, width, height, subbandType: 0, msbPosition: -1);
 
-            Assert.That(encoded.NumPasses, Is.EqualTo(6),
-                "MSB>=2 should produce 6 passes (2 HT Sets)");
+            Assert.That(encoded.NumPasses, Is.EqualTo(1),
+                "Lossless HTJ2K always produces 1 cleanup pass");
 
             int[] decoded = new int[width * height];
             HtBlockEncoder.Instance.DecodeBlock(
@@ -160,7 +155,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         }
 
         [Test]
-        public void SixPasses_16x16_Roundtrip()
+        public void LargerValues_16x16_Roundtrip()
         {
             int width = 16, height = 16;
             int[] input = new int[width * height];
@@ -173,7 +168,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             var encoded = HtBlockEncoder.Instance.EncodeBlock(
                 input, width, height, subbandType: 0, msbPosition: -1);
 
-            Assert.That(encoded.NumPasses, Is.EqualTo(6));
+            Assert.That(encoded.NumPasses, Is.EqualTo(1));
 
             int[] decoded = new int[width * height];
             HtBlockEncoder.Instance.DecodeBlock(
@@ -397,28 +392,30 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         }
 
         [Test]
-        public void PassCount_MsbOne_ProducesThreePasses()
+        public void PassCount_MsbOne_ProducesOnePass()
         {
             // MSB = 1 means max magnitude is 2 or 3
+            // Lossless HTJ2K always produces 1 cleanup pass
             int[] input = { 2, 0, 0, 0, -3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             var encoded = HtBlockEncoder.Instance.EncodeBlock(
                 input, 4, 4, subbandType: 0, msbPosition: -1);
 
-            Assert.That(encoded.NumPasses, Is.EqualTo(3));
+            Assert.That(encoded.NumPasses, Is.EqualTo(1));
             Assert.That(encoded.MsbPosition, Is.EqualTo(1));
         }
 
         [Test]
-        public void PassCount_MsbTwo_ProducesSixPasses()
+        public void PassCount_MsbTwo_ProducesOnePass()
         {
             // MSB = 2 means max magnitude is 4-7
+            // Lossless HTJ2K always produces 1 cleanup pass
             int[] input = { 4, 0, 0, 0, -7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             var encoded = HtBlockEncoder.Instance.EncodeBlock(
                 input, 4, 4, subbandType: 0, msbPosition: -1);
 
-            Assert.That(encoded.NumPasses, Is.EqualTo(6));
+            Assert.That(encoded.NumPasses, Is.EqualTo(1));
             Assert.That(encoded.MsbPosition, Is.EqualTo(2));
         }
 

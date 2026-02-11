@@ -45,7 +45,7 @@ namespace SharpDicom.Codecs.Tests
         {
             if (!NativeJpegAvailable)
             {
-                Assert.Ignore("Native JPEG codec not available - skipping test");
+                Assert.Ignore("Native JPEG codec not available - vendor libraries not built (build.zig Phase 13b)");
             }
         }
 

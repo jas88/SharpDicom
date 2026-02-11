@@ -1,5 +1,7 @@
 using System;
 using System.Buffers.Binary;
+using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace SharpDicom.Codecs.JpegLs
 {
@@ -8,34 +10,17 @@ namespace SharpDicom.Codecs.JpegLs
     /// </summary>
     public readonly struct JpegLsHeader
     {
-        /// <summary>
-        /// Image width in pixels.
-        /// </summary>
+        /// <summary>Image width in pixels.</summary>
         public int Width { get; init; }
-
-        /// <summary>
-        /// Image height in pixels.
-        /// </summary>
+        /// <summary>Image height in pixels.</summary>
         public int Height { get; init; }
-
-        /// <summary>
-        /// Number of components (1=grayscale, 3=color).
-        /// </summary>
+        /// <summary>Number of components.</summary>
         public int Components { get; init; }
-
-        /// <summary>
-        /// Bits per sample.
-        /// </summary>
+        /// <summary>Bits per sample.</summary>
         public int BitsPerSample { get; init; }
-
-        /// <summary>
-        /// NEAR parameter (0=lossless).
-        /// </summary>
+        /// <summary>NEAR parameter (0=lossless).</summary>
         public int Near { get; init; }
-
-        /// <summary>
-        /// Interleave mode.
-        /// </summary>
+        /// <summary>Interleave mode.</summary>
         public JlsInterleaveMode InterleaveMode { get; init; }
     }
 
@@ -43,17 +28,21 @@ namespace SharpDicom.Codecs.JpegLs
     /// JPEG-LS decoder for ITU-T T.87 / ISO/IEC 14495-1 bitstreams.
     /// </summary>
     /// <remarks>
-    /// Complete managed implementation of JPEG-LS lossless and near-lossless decoding.
-    /// Supports all interleave modes, 8-bit and 16-bit samples, and context-based prediction.
+    /// Complete managed implementation matching CharLS reference behavior including
+    /// run mode decoding, modulo range reduction, and correct edge pixel initialization.
     /// </remarks>
     internal static class JpegLsDecoder
     {
-        // JPEG markers
-        private const ushort SOI = 0xFFD8;   // Start Of Image
-        private const ushort EOI = 0xFFD9;   // End Of Image
-        private const ushort SOF55 = 0xFFF7; // Start Of Frame (JPEG-LS)
-        private const ushort LSE = 0xFFF8;   // JPEG-LS Extension
-        private const ushort SOS = 0xFFDA;   // Start Of Scan
+        private const ushort SOI = 0xFFD8;
+        private const ushort EOI = 0xFFD9;
+        private const ushort SOF55 = 0xFFF7;
+        private const ushort SOS = 0xFFDA;
+
+        // Run length J table per ITU-T T.87, A.2.1
+        private static readonly int[] J = {
+            0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+            4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        };
 
         /// <summary>
         /// Attempts to parse only the header from a JPEG-LS stream.
@@ -69,7 +58,6 @@ namespace SharpDicom.Codecs.JpegLs
                 return false;
             }
 
-            // Check SOI marker
             if (BinaryPrimitives.ReadUInt16BigEndian(data) != SOI)
             {
                 error = "Missing SOI marker";
@@ -79,10 +67,7 @@ namespace SharpDicom.Codecs.JpegLs
             int pos = 2;
             int near = 0;
             int interleave = 0;
-            int width = 0;
-            int height = 0;
-            int components = 0;
-            int precision = 0;
+            int width = 0, height = 0, components = 0, precision = 0;
             bool foundSof55 = false;
 
             while (pos + 4 <= data.Length)
@@ -90,14 +75,10 @@ namespace SharpDicom.Codecs.JpegLs
                 ushort marker = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
                 pos += 2;
 
-                if (marker == EOI)
-                {
-                    break;
-                }
+                if (marker == EOI) break;
 
                 if (marker == SOS)
                 {
-                    // Parse SOS to get NEAR and interleave mode
                     int sosLen = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
                     if (pos + sosLen <= data.Length && sosLen >= 6)
                     {
@@ -112,7 +93,6 @@ namespace SharpDicom.Codecs.JpegLs
                             }
                         }
                     }
-                    // After SOS comes entropy data, stop parsing markers
                     break;
                 }
 
@@ -122,19 +102,12 @@ namespace SharpDicom.Codecs.JpegLs
                     return false;
                 }
 
-                // Read segment length
                 int segLen = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
                 pos += 2;
 
                 if (marker == SOF55)
                 {
-                    // Parse SOF55 (Frame header)
-                    if (segLen < 8)
-                    {
-                        error = "SOF55 segment too short";
-                        return false;
-                    }
-
+                    if (segLen < 8) { error = "SOF55 segment too short"; return false; }
                     precision = data[pos];
                     height = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 1));
                     width = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos + 3));
@@ -145,23 +118,14 @@ namespace SharpDicom.Codecs.JpegLs
                 pos += segLen - 2;
             }
 
-            if (!foundSof55)
-            {
-                error = "SOF55 marker not found";
-                return false;
-            }
+            if (!foundSof55) { error = "SOF55 marker not found"; return false; }
 
-            // Build header after parsing both SOF55 and SOS markers
             header = new JpegLsHeader
             {
-                Width = width,
-                Height = height,
-                Components = components,
-                BitsPerSample = precision,
-                Near = near,
+                Width = width, Height = height, Components = components,
+                BitsPerSample = precision, Near = near,
                 InterleaveMode = (JlsInterleaveMode)interleave
             };
-
             return true;
         }
 
@@ -175,486 +139,498 @@ namespace SharpDicom.Codecs.JpegLs
             int frameIndex)
         {
             if (!TryParseHeader(data, out var header, out var error))
-            {
                 return DecodeResult.Fail(frameIndex, 0, error ?? "Failed to parse JPEG-LS header");
-            }
 
-            // Validate dimensions match
             if (header.Width != info.Columns || header.Height != info.Rows)
-            {
                 return DecodeResult.Fail(frameIndex, 0,
                     $"Dimension mismatch: header={header.Width}x{header.Height}, expected={info.Columns}x{info.Rows}");
-            }
-
-            // Find the start of scan data (after SOS marker and its parameters)
-            int scanDataStart = FindScanDataStart(data);
-            if (scanDataStart < 0)
-            {
-                return DecodeResult.Fail(frameIndex, 0, "Could not find scan data start");
-            }
 
             int bytesPerSample = (header.BitsPerSample + 7) / 8;
             int stride = header.Width * header.Components * bytesPerSample;
 
             if (destination.Length < header.Height * stride)
-            {
                 return DecodeResult.Fail(frameIndex, 0,
                     $"Destination buffer too small: {destination.Length} < {header.Height * stride}");
-            }
 
             try
             {
-                // Decode scan data using context-based prediction
-                int bytesWritten = DecodeScanData(
-                    data.Slice(scanDataStart),
-                    destination,
-                    header.Width,
-                    header.Height,
-                    header.Components,
-                    header.BitsPerSample,
-                    header.Near,
-                    header.InterleaveMode);
+                if (header.Components == 1 || header.InterleaveMode != JlsInterleaveMode.None)
+                {
+                    int scanDataStart = FindScanDataStart(data, 0);
+                    if (scanDataStart < 0)
+                        return DecodeResult.Fail(frameIndex, 0, "Could not find scan data start");
 
-                return DecodeResult.Ok(bytesWritten);
+                    DecodeScanComponent(data.Slice(scanDataStart), destination,
+                        header.Width, header.Height, header.Components, 0,
+                        header.BitsPerSample, header.Near);
+                    return DecodeResult.Ok(header.Height * stride);
+                }
+                else
+                {
+                    int searchFrom = 0;
+                    for (int c = 0; c < header.Components; c++)
+                    {
+                        int scanDataStart = FindScanDataStart(data, searchFrom);
+                        if (scanDataStart < 0)
+                            return DecodeResult.Fail(frameIndex, 0, $"Could not find scan data start for component {c}");
+
+                        DecodeScanComponent(data.Slice(scanDataStart), destination,
+                            header.Width, header.Height, header.Components, c,
+                            header.BitsPerSample, header.Near);
+
+                        searchFrom = scanDataStart;
+                        for (int j = searchFrom; j < data.Length - 1; j++)
+                        {
+                            if (data[j] == 0xFF && (data[j + 1] & 0x80) != 0)
+                            {
+                                searchFrom = j;
+                                break;
+                            }
+                        }
+                    }
+                    return DecodeResult.Ok(header.Height * stride);
+                }
             }
             catch (Exception ex)
             {
-                return DecodeResult.Fail(frameIndex, scanDataStart, $"Decode error: {ex.Message}");
+                return DecodeResult.Fail(frameIndex, 0, $"Decode error: {ex.Message}");
             }
         }
 
-        private static int FindScanDataStart(ReadOnlySpan<byte> data)
+        private static int FindScanDataStart(ReadOnlySpan<byte> data, int searchFrom)
         {
-            int pos = 2; // Skip SOI
-
+            int pos = searchFrom == 0 ? 2 : searchFrom;
             while (pos + 4 <= data.Length)
             {
                 ushort marker = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
                 pos += 2;
-
                 if (marker == SOS)
                 {
                     int segLen = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
-                    return pos + segLen; // Start of entropy-coded data
+                    return pos + segLen;
                 }
-
+                if (marker == EOI) return -1;
                 if ((marker & 0xFF00) == 0xFF00 && marker != 0xFF00)
                 {
                     int segLen = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(pos));
                     pos += segLen;
                 }
             }
-
             return -1;
         }
 
-        private static int DecodeScanData(
+        /// <summary>
+        /// Decodes a single component scan using CharLS-compatible line buffer approach.
+        /// </summary>
+        private static void DecodeScanComponent(
             ReadOnlySpan<byte> scanData,
             Span<byte> output,
             int width,
             int height,
             int components,
+            int componentIndex,
             int bitsPerSample,
-            int near,
-            JlsInterleaveMode interleaveMode)
+            int near)
         {
-            int bytesPerSample = (bitsPerSample + 7) / 8;
-            int stride = width * components * bytesPerSample;
             int maxVal = (1 << bitsPerSample) - 1;
-            int range = maxVal + 1;
+            int range = ComputeRange(maxVal, near);
+            int qbpp = near == 0 ? bitsPerSample : Log2Ceiling(range);
+            int bytesPerSample = (bitsPerSample + 7) / 8;
 
-            // Initialize 365 contexts per ITU-T T.87
             var contexts = new JlsContext[365];
             for (int i = 0; i < contexts.Length; i++)
-            {
                 contexts[i].Initialize(range);
-            }
+
+            var runContexts = new JlsRunModeContext[2];
+            runContexts[0].Initialize(0, range);
+            runContexts[1].Initialize(1, range);
 
             var decoder = new GolombRiceDecoder(scanData);
-            decoder.SetBitsPerPixel(bitsPerSample);
+            decoder.SetBitsPerPixel(bitsPerSample, qbpp);
 
-            // Decode based on interleave mode
-            switch (interleaveMode)
-            {
-                case JlsInterleaveMode.None:
-                    return DecodeNonInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
-                case JlsInterleaveMode.Line:
-                    return DecodeLineInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
-                case JlsInterleaveMode.Sample:
-                    return DecodeSampleInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
-                default:
-                    return DecodeNonInterleaved(output, width, height, components, bytesPerSample, near, maxVal, range, contexts, ref decoder);
-            }
-        }
+            JpegLsPredictor.ComputeDefaultThresholds(maxVal, near, out int t1, out int t2, out int t3);
 
-        private static int DecodeNonInterleaved(
-            Span<byte> output,
-            int width,
-            int height,
-            int components,
-            int bytesPerSample,
-            int near,
-            int maxVal,
-            int range,
-            JlsContext[] contexts,
-            ref GolombRiceDecoder decoder)
-        {
-            // Decode each component separately into a temp buffer, then interleave
             int stride = width * components * bytesPerSample;
-            int componentSize = width * height * bytesPerSample;
 
-            // Use a temporary buffer for each component
-            byte[] componentBuffer = new byte[componentSize];
-            int componentStride = width * bytesPerSample;
+            // Line buffers: width + 2 elements
+            int lineWidth = width + 2;
+            int[] previousLine = new int[lineWidth];
+            int[] currentLine = new int[lineWidth];
 
-            for (int c = 0; c < components; c++)
-            {
-                int componentPos = 0;
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        int sample = DecodeSampleSingleComponent(componentBuffer, componentPos, x, y, width, bytesPerSample, componentStride, near, maxVal, range, contexts, ref decoder);
-                        WriteSampleAt(componentBuffer, componentPos, sample, bytesPerSample);
-                        componentPos += bytesPerSample;
-                    }
-                }
-
-                // Copy component data to output at correct interleaved positions
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        int srcPos = y * componentStride + x * bytesPerSample;
-                        int dstPos = y * stride + (x * components + c) * bytesPerSample;
-                        for (int b = 0; b < bytesPerSample; b++)
-                        {
-                            output[dstPos + b] = componentBuffer[srcPos + b];
-                        }
-                    }
-                }
-            }
-
-            return height * stride;
-        }
-
-        private static int DecodeSampleSingleComponent(
-            byte[] componentBuffer,
-            int currentPos,
-            int x,
-            int y,
-            int width,
-            int bytesPerSample,
-            int stride,
-            int near,
-            int maxVal,
-            int range,
-            JlsContext[] contexts,
-            ref GolombRiceDecoder decoder)
-        {
-            // Get neighboring samples for prediction (single component, no interleaving)
-            int a = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, -1, 0);  // left
-            int b = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, 0, -1);  // above
-            int c_diag = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, -1, -1); // above-left
-            int d = GetSampleSingleComponent(componentBuffer, currentPos, x, y, width, bytesPerSample, stride, 1, -1);  // above-right
-
-            // Compute gradients for context selection
-            int g1 = d - b;
-            int g2 = b - c_diag;
-            int g3 = c_diag - a;
-
-            // Quantize gradients
-            int q1 = JpegLsPredictor.QuantizeGradient(g1, near);
-            int q2 = JpegLsPredictor.QuantizeGradient(g2, near);
-            int q3 = JpegLsPredictor.QuantizeGradient(g3, near);
-
-            // Normalize gradients and track sign
-            bool sign = JpegLsPredictor.NormalizeGradients(ref q1, ref q2, ref q3);
-
-            // Compute context index
-            int contextIndex = JpegLsPredictor.ComputeContextIndex(q1, q2, q3);
-
-            // Median edge detection prediction
-            int predicted = JpegLsPredictor.MedianEdgeDetection(a, b, c_diag);
-
-            // Clamp prediction to valid range
-            predicted = Clamp(predicted, 0, maxVal);
-
-            // Read error from bitstream
-            ref var ctx = ref contexts[contextIndex];
-            int k = ctx.ComputeK(32);
-            int mappedError = decoder.ReadGolombRice(k);
-
-            // Unmap error value
-            int correctedError = ErrorMapping.UnmapError(mappedError);
-
-            // Apply sign from gradient normalization
-            if (sign)
-            {
-                correctedError = -correctedError;
-            }
-
-            // Apply bias correction
-            int biasCorrection = ctx.GetBiasCorrection();
-            int rawError = correctedError + biasCorrection;
-
-            // Reconstruct sample
-            int sample = predicted + rawError;
-            sample = Clamp(sample, 0, maxVal);
-
-            // Update context
-            ctx.Update(rawError, 64, range);
-
-            return sample;
-        }
-
-        private static int GetSampleSingleComponent(
-            byte[] buffer,
-            int currentPos,
-            int x,
-            int y,
-            int width,
-            int bytesPerSample,
-            int stride,
-            int dx,
-            int dy)
-        {
-            int nx = x + dx;
-            int ny = y + dy;
-
-            // Out of bounds - return 0
-            if (nx < 0 || ny < 0 || nx >= width)
-                return 0;
-
-            // Calculate position in component buffer
-            int samplePos = ny * stride + nx * bytesPerSample;
-
-            // Sample not yet decoded
-            if (samplePos < 0 || samplePos >= currentPos)
-                return 0;
-
-            // Read sample value
-            if (bytesPerSample == 1)
-            {
-                return buffer[samplePos];
-            }
-            else
-            {
-                // 16-bit sample (little-endian)
-                if (samplePos + 1 >= currentPos)
-                    return 0;
-                return buffer[samplePos] | (buffer[samplePos + 1] << 8);
-            }
-        }
-
-        private static void WriteSampleAt(byte[] buffer, int pos, int sample, int bytesPerSample)
-        {
-            if (bytesPerSample == 1)
-            {
-                buffer[pos] = (byte)sample;
-            }
-            else
-            {
-                // 16-bit sample (little-endian)
-                buffer[pos] = (byte)(sample & 0xFF);
-                buffer[pos + 1] = (byte)(sample >> 8);
-            }
-        }
-
-        private static int DecodeLineInterleaved(
-            Span<byte> output,
-            int width,
-            int height,
-            int components,
-            int bytesPerSample,
-            int near,
-            int maxVal,
-            int range,
-            JlsContext[] contexts,
-            ref GolombRiceDecoder decoder)
-        {
-            // Decode line by line, all components per line
-            int stride = width * components * bytesPerSample;
-            int outputPos = 0;
+            int runIndex = 0;
 
             for (int y = 0; y < height; y++)
             {
-                for (int c = 0; c < components; c++)
+                // Edge pixel initialization per CharLS
+                previousLine[width + 1] = previousLine[width];
+                currentLine[0] = previousLine[1];
+
+                // Decode the line (matching CharLS decode_sample_line)
+                int index = 1;
+                int rb = previousLine[0];
+                int rd = previousLine[1];
+
+                while (index <= width)
                 {
-                    for (int x = 0; x < width; x++)
+                    int ra = currentLine[index - 1];
+                    int rc = rb;
+                    rb = rd;
+                    rd = previousLine[index + 1];
+
+                    int q1 = QuantizeGradient(rd - rb, near, t1, t2, t3);
+                    int q2 = QuantizeGradient(rb - rc, near, t1, t2, t3);
+                    int q3 = QuantizeGradient(rc - ra, near, t1, t2, t3);
+                    int qs = (q1 * 9 + q2) * 9 + q3;
+
+                    if (qs != 0)
                     {
-                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
-                        WriteSample(output, ref outputPos, sample, bytesPerSample);
+                        currentLine[index] = DecodeRegular(qs,
+                            JpegLsPredictor.MedianEdgeDetection(ra, rb, rc),
+                            maxVal, near, range, bitsPerSample, qbpp, contexts, ref decoder);
+                        index++;
+                    }
+                    else
+                    {
+                        int consumed = DecodeRunMode(currentLine, previousLine, index, width, ra,
+                            maxVal, near, range, bitsPerSample, qbpp, runContexts, ref runIndex, ref decoder);
+                        index += consumed;
+                        rb = previousLine[index - 1];
+                        rd = previousLine[index];
                     }
                 }
-            }
 
-            return outputPos;
-        }
-
-        private static int DecodeSampleInterleaved(
-            Span<byte> output,
-            int width,
-            int height,
-            int components,
-            int bytesPerSample,
-            int near,
-            int maxVal,
-            int range,
-            JlsContext[] contexts,
-            ref GolombRiceDecoder decoder)
-        {
-            // Decode sample by sample (pixel by pixel, all components per pixel)
-            int stride = width * components * bytesPerSample;
-            int outputPos = 0;
-
-            for (int y = 0; y < height; y++)
-            {
+                // Write decoded line to output
                 for (int x = 0; x < width; x++)
                 {
-                    for (int c = 0; c < components; c++)
+                    int dstPos = y * stride + (x * components + componentIndex) * bytesPerSample;
+                    int sample = currentLine[x + 1];
+                    if (bytesPerSample == 1)
                     {
-                        int sample = DecodeSample(output, outputPos, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref decoder);
-                        WriteSample(output, ref outputPos, sample, bytesPerSample);
+                        output[dstPos] = (byte)sample;
+                    }
+                    else
+                    {
+                        output[dstPos] = (byte)(sample & 0xFF);
+                        output[dstPos + 1] = (byte)(sample >> 8);
                     }
                 }
-            }
 
-            return outputPos;
+                // Swap line buffers
+                var temp = previousLine;
+                previousLine = currentLine;
+                currentLine = temp;
+            }
         }
 
-        private static int DecodeSample(
-            Span<byte> output,
-            int currentPos,
-            int x,
-            int y,
-            int c,
-            int width,
-            int components,
-            int bytesPerSample,
-            int stride,
-            int near,
+        /// <summary>
+        /// Decodes a sample in regular mode, matching CharLS decode_regular exactly.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int DecodeRegular(
+            int qs,
+            int predicted,
             int maxVal,
+            int near,
             int range,
+            int bitsPerSample,
+            int qbpp,
             JlsContext[] contexts,
             ref GolombRiceDecoder decoder)
         {
-            // Get neighboring samples for prediction
-            int a = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, -1, 0);  // left
-            int b = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, 0, -1);  // above
-            int c_diag = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, -1, -1); // above-left
-            int d = GetSample(output, currentPos, x, y, c, width, components, bytesPerSample, stride, 1, -1);  // above-right
-
-            // Compute gradients for context selection
-            int g1 = d - b;
-            int g2 = b - c_diag;
-            int g3 = c_diag - a;
-
-            // Quantize gradients
-            int q1 = JpegLsPredictor.QuantizeGradient(g1, near);
-            int q2 = JpegLsPredictor.QuantizeGradient(g2, near);
-            int q3 = JpegLsPredictor.QuantizeGradient(g3, near);
-
-            // Normalize gradients and track sign
-            bool sign = JpegLsPredictor.NormalizeGradients(ref q1, ref q2, ref q3);
-
-            // Compute context index
-            int contextIndex = JpegLsPredictor.ComputeContextIndex(q1, q2, q3);
-
-            // Median edge detection prediction
-            int predicted = JpegLsPredictor.MedianEdgeDetection(a, b, c_diag);
-
-            // Clamp prediction to valid range
-            predicted = Clamp(predicted, 0, maxVal);
-
-            // Read error from bitstream
+            int sign = qs >> 31; // 0 or -1
+            int contextIndex = (sign ^ qs) - sign; // abs(qs)
             ref var ctx = ref contexts[contextIndex];
-            int k = ctx.ComputeK(32);
+
+            // Apply bias correction to prediction
+            int correctedPrediction = predicted + ((ctx.C ^ sign) - sign);
+            correctedPrediction = CorrectPrediction(correctedPrediction, maxVal);
+
+            int k = ctx.ComputeK();
+
+            // Read and unmap error value
             int mappedError = decoder.ReadGolombRice(k);
+            int errorValue = UnmapErrorValue(mappedError);
 
-            // Unmap error value
-            int correctedError = ErrorMapping.UnmapError(mappedError);
-
-            // Apply sign from gradient normalization
-            if (sign)
+            // Apply error correction XOR (only when k == 0)
+            if (k == 0)
             {
-                correctedError = -correctedError;
+                errorValue = errorValue ^ ctx.GetErrorCorrection(near);
             }
 
-            // Apply bias correction
-            int biasCorrection = ctx.GetBiasCorrection();
-            int rawError = correctedError + biasCorrection;
+            // For near-lossless: apply modulo range to get the quantized error
+            if (near > 0)
+            {
+                errorValue = ModuloRangeNearLossless(errorValue, range);
+            }
+
+            // Update context BEFORE applying sign (CharLS ordering)
+            ctx.Update(errorValue, near, 64);
+
+            // Apply sign to error value
+            errorValue = (errorValue ^ sign) - sign;
 
             // Reconstruct sample
-            int sample = predicted + rawError;
-            sample = Clamp(sample, 0, maxVal);
-
-            // Update context
-            ctx.Update(rawError, 64, range);
-
-            return sample;
+            if (near == 0)
+            {
+                return ComputeReconstructedSample(correctedPrediction, errorValue, maxVal);
+            }
+            else
+            {
+                return FixReconstructedValue(
+                    correctedPrediction + Dequantize(errorValue, near),
+                    near, maxVal, range);
+            }
         }
 
-        private static int GetSample(
-            Span<byte> output,
-            int currentPos,
-            int x,
-            int y,
-            int c,
+        /// <summary>
+        /// Decodes a run of pixels per ITU-T T.87, A.7.
+        /// Returns the number of pixels consumed.
+        /// </summary>
+        private static int DecodeRunMode(
+            int[] currentLine,
+            int[] previousLine,
+            int startIndex,
             int width,
-            int components,
-            int bytesPerSample,
-            int stride,
-            int dx,
-            int dy)
+            int ra,
+            int maxVal,
+            int near,
+            int range,
+            int bitsPerSample,
+            int qbpp,
+            JlsRunModeContext[] runContexts,
+            ref int runIndex,
+            ref GolombRiceDecoder decoder)
         {
-            int nx = x + dx;
-            int ny = y + dy;
+            int countRemain = width - (startIndex - 1);
+            int runLength = DecodeRunPixels(countRemain, ref runIndex, ref decoder);
 
-            // Out of bounds - return 0
-            if (nx < 0 || ny < 0 || nx >= width)
-                return 0;
-
-            // Calculate position
-            int samplePos = ny * stride + (nx * components + c) * bytesPerSample;
-
-            // Sample not yet decoded
-            if (samplePos < 0 || samplePos >= currentPos)
-                return 0;
-
-            // Read sample value
-            if (bytesPerSample == 1)
+            // Fill the run
+            for (int i = 0; i < runLength; i++)
             {
-                return output[samplePos];
+                currentLine[startIndex + i] = ra;
+            }
+
+            if (runLength == countRemain)
+                return runLength;
+
+            // Run interruption: decode the interruption pixel
+            int ix = startIndex + runLength;
+            int rbVal = previousLine[ix];
+
+            currentLine[ix] = DecodeRunInterruptionPixel(ra, rbVal,
+                maxVal, near, range, bitsPerSample, qbpp, runContexts, ref runIndex, ref decoder);
+
+            if (runIndex > 0) runIndex--;
+
+            return runLength + 1;
+        }
+
+        /// <summary>
+        /// Decodes run length from the bitstream per ITU-T T.87, A.7.1.
+        /// </summary>
+        private static int DecodeRunPixels(int countRemain, ref int runIndex, ref GolombRiceDecoder decoder)
+        {
+            int runLength = 0;
+
+            while (runLength < countRemain)
+            {
+                // Read one bit
+                if (decoder.ReadBit() == 1)
+                {
+                    // Run continues for 2^J[runIndex] pixels
+                    runLength += (1 << J[runIndex]);
+                    if (runIndex < 31) runIndex++;
+                }
+                else
+                {
+                    // Run ends: read J[runIndex] bits for the remaining run length
+                    int remaining = 0;
+                    for (int i = 0; i < J[runIndex]; i++)
+                    {
+                        remaining = (remaining << 1) | decoder.ReadBit();
+                    }
+                    runLength += remaining;
+                    break;
+                }
+
+                if (runLength >= countRemain)
+                {
+                    runLength = countRemain;
+                    break;
+                }
+            }
+
+            return Math.Min(runLength, countRemain);
+        }
+
+        /// <summary>
+        /// Decodes a run interruption pixel per ITU-T T.87, A.7.2.
+        /// </summary>
+        private static int DecodeRunInterruptionPixel(
+            int ra, int rb,
+            int maxVal, int near, int range, int bitsPerSample, int qbpp,
+            JlsRunModeContext[] runContexts,
+            ref int runIndex,
+            ref GolombRiceDecoder decoder)
+        {
+            int limit = ComputeLimit(bitsPerSample);
+
+            if (Math.Abs(ra - rb) <= near)
+            {
+                ref var ctx = ref runContexts[1];
+                int k = ctx.ComputeK();
+                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, qbpp);
+                int errorValue = ctx.ComputeErrorValue(eMapped + ctx.RunInterruptionType, k);
+                ctx.UpdateVariables(errorValue, eMapped, 64);
+                if (near == 0)
+                {
+                    return ComputeReconstructedSample(ra, errorValue, maxVal);
+                }
+                else
+                {
+                    return FixReconstructedValue(ra + Dequantize(errorValue, near), near, maxVal, range);
+                }
             }
             else
             {
-                // 16-bit sample (little-endian)
-                if (samplePos + 1 >= currentPos)
-                    return 0;
-                return output[samplePos] | (output[samplePos + 1] << 8);
+                ref var ctx = ref runContexts[0];
+                int k = ctx.ComputeK();
+                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, qbpp);
+                int errorValue = ctx.ComputeErrorValue(eMapped + ctx.RunInterruptionType, k);
+                ctx.UpdateVariables(errorValue, eMapped, 64);
+                int signVal = Sign(rb - ra);
+                if (near == 0)
+                {
+                    return ComputeReconstructedSample(rb, errorValue * signVal, maxVal);
+                }
+                else
+                {
+                    return FixReconstructedValue(rb + Dequantize(errorValue, near) * signVal, near, maxVal, range);
+                }
             }
         }
 
-        private static void WriteSample(Span<byte> output, ref int pos, int sample, int bytesPerSample)
+        /// <summary>
+        /// Unmaps a non-negative mapped error to a signed error.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int UnmapErrorValue(int mappedError)
         {
-            if (bytesPerSample == 1)
-            {
-                output[pos++] = (byte)sample;
-            }
-            else
-            {
-                // 16-bit sample (little-endian)
-                output[pos++] = (byte)(sample & 0xFF);
-                output[pos++] = (byte)(sample >> 8);
-            }
+            if ((mappedError & 1) == 0)
+                return mappedError >> 1;
+            return -((mappedError + 1) >> 1);
         }
 
-        private static int Clamp(int value, int min, int max)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int CorrectPrediction(int predicted, int maxVal)
         {
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
+            if ((predicted & maxVal) == predicted)
+                return predicted;
+            return (~(predicted >> 31)) & maxVal;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ComputeReconstructedSample(int predicted, int errorValue, int maxVal)
+        {
+            return maxVal & (predicted + errorValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int QuantizeGradient(int gradient, int near, int t1, int t2, int t3)
+        {
+            if (gradient <= -t3) return -4;
+            if (gradient <= -t2) return -3;
+            if (gradient <= -t1) return -2;
+            if (gradient < -near) return -1;
+            if (gradient <= near) return 0;
+            if (gradient < t1) return 1;
+            if (gradient < t2) return 2;
+            if (gradient < t3) return 3;
+            return 4;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Sign(int value)
+        {
+            if (value > 0) return 1;
+            if (value < 0) return -1;
+            return 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ComputeRange(int maxVal, int near)
+        {
+            if (near == 0)
+                return maxVal + 1;
+            return (maxVal + 2 * near) / (2 * near + 1) + 1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ComputeLimit(int bitsPerSample)
+        {
+            return 2 * (bitsPerSample + Math.Max(8, bitsPerSample));
+        }
+
+        /// <summary>
+        /// Computes ceil(log2(n)) matching CharLS log2_ceiling exactly.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Log2Ceiling(int n)
+        {
+            int k = 0;
+            int v = 1;
+            while (v < n)
+            {
+                k++;
+                v *= 2;
+            }
+            return k;
+        }
+
+        /// <summary>
+        /// Quantizes a prediction error for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Quantize(int errorValue, int near)
+        {
+            if (errorValue > 0)
+                return (errorValue + near) / (2 * near + 1);
+            return -(near - errorValue) / (2 * near + 1);
+        }
+
+        /// <summary>
+        /// Dequantizes an error value for near-lossless reconstruction.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Dequantize(int errorValue, int near)
+        {
+            return errorValue * (2 * near + 1);
+        }
+
+        /// <summary>
+        /// Range-based modulo reduction for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ModuloRangeNearLossless(int errorValue, int range)
+        {
+            if (errorValue < 0)
+                errorValue += range;
+            if (errorValue >= (range + 1) / 2)
+                errorValue -= range;
+            return errorValue;
+        }
+
+        /// <summary>
+        /// Fixes a reconstructed sample for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FixReconstructedValue(int value, int near, int maxVal, int range)
+        {
+            if (value < -near)
+                value += range * (2 * near + 1);
+            else if (value > maxVal + near)
+                value -= range * (2 * near + 1);
+            return CorrectPrediction(value, maxVal);
         }
     }
 }

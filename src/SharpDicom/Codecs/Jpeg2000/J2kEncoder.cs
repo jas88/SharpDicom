@@ -186,6 +186,20 @@ namespace SharpDicom.Codecs.Jpeg2000
             // Extract full image component data
             int[][] componentData = ExtractComponents(pixelData, info);
 
+            // DC level shift for unsigned data (ITU-T T.800 D.3.1):
+            // subtract 2^(B-1) to center values around zero before DWT
+            if (!info.IsSigned)
+            {
+                int dcShift = 1 << (info.BitsStored - 1);
+                for (int c = 0; c < components; c++)
+                {
+                    for (int i = 0; i < componentData[c].Length; i++)
+                    {
+                        componentData[c][i] -= dcShift;
+                    }
+                }
+            }
+
             // Apply forward color transform on the full image if multi-component
             if (components >= 3 && !info.IsPlanar)
             {
@@ -193,6 +207,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             bool isHtMode = blockCoder is HtBlockEncoder;
+            bool usesMct = components >= 3 && !info.IsPlanar;
 
             // Encode each tile
             var tileResults = new TileEncodeResult[numTiles];
@@ -202,7 +217,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                 // Single tile: use existing fast path (no pixel extraction overhead)
                 tileResults[0] = EncodeSingleTile(
                     componentData, width, height, components,
-                    options, lossless, blockCoder, isHtMode);
+                    options, lossless, blockCoder, isHtMode,
+                    info.BitsStored, usesMct);
             }
             else
             {
@@ -232,7 +248,8 @@ namespace SharpDicom.Codecs.Jpeg2000
                         {
                             tileResults[tileIdx] = EncodeSingleTile(
                                 tileComponentData, actualTileW, actualTileH, components,
-                                options, lossless, localCoder, isHtMode);
+                                options, lossless, localCoder, isHtMode,
+                                info.BitsStored, usesMct);
                         }
                         finally
                         {
@@ -257,13 +274,14 @@ namespace SharpDicom.Codecs.Jpeg2000
 
                         tileResults[tileIdx] = EncodeSingleTile(
                             tileComponentData, actualTileW, actualTileH, components,
-                            options, lossless, blockCoder, isHtMode);
+                            options, lossless, blockCoder, isHtMode,
+                            info.BitsStored, usesMct);
                     }
                 }
             }
 
             // Build codestream with all tiles
-            return BuildMultiTileCodestream(info, options, lossless, tileResults, tileW, tileH, tileCols, tileRows);
+            return BuildMultiTileCodestream(info, options, lossless, isHtMode, tileResults, tileW, tileH, tileCols, tileRows);
         }
 
         /// <summary>
@@ -295,7 +313,8 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// </summary>
         private static TileEncodeResult EncodeSingleTile(
             int[][] componentData, int tileWidth, int tileHeight, int components,
-            J2kEncoderOptions options, bool lossless, IBlockCoder blockCoder, bool isHtMode)
+            J2kEncoderOptions options, bool lossless, IBlockCoder blockCoder, bool isHtMode,
+            int bitDepth, bool usesMct)
         {
             // Apply forward DWT to each component (operates in-place on tile data)
             for (int c = 0; c < components; c++)
@@ -304,55 +323,60 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             // Tier-1 encoding via IBlockCoder (per-subband using TileComponent)
-            var packetEncoder = new PacketEncoder();
             int cbWidth = options.CodeBlockWidth;
             int cbHeight = options.CodeBlockHeight;
+            int numResolutions = options.DecompositionLevels + 1;
 
-            var allCodeBlocks = new List<CodeBlockData[]>(components);
-            int totalCodeBlocksPerComponent = 0;
-            for (int c = 0; c < components; c++)
+            // Compute per-subband K_max for HTJ2K coefficient shifting
+            int[]? subbandKmax = null;
+            if (isHtMode && lossless)
             {
-                var (codeBlocks, total) = EncodeComponentCodeBlocks(
-                    componentData[c], tileWidth, tileHeight,
-                    cbWidth, cbHeight,
-                    blockCoder, options.DecompositionLevels);
-                allCodeBlocks.Add(codeBlocks);
-                totalCodeBlocksPerComponent = total;
+                subbandKmax = ComputeSubbandKmax(options.DecompositionLevels, bitDepth, usesMct);
             }
 
-            // Tier-2: Create packets
-            // Pass (total, 1) since PacketEncoder only uses wide*high to compute count
+            var allCodeBlocks = new List<CodeBlockData[]>(components);
+            SubbandDescriptor[]? subbands = null;
+            for (int c = 0; c < components; c++)
+            {
+                var (codeBlocks, _, sbs) = EncodeComponentCodeBlocks(
+                    componentData[c], tileWidth, tileHeight,
+                    cbWidth, cbHeight,
+                    blockCoder, options.DecompositionLevels,
+                    subbandKmax);
+                allCodeBlocks.Add(codeBlocks);
+                subbands = sbs;
+            }
+
+            // Tier-2: Create per-resolution packets for each component
+            // Each component produces numLayers * numResolutions packets
             var allPackets = new List<PacketData[]>(components);
             for (int c = 0; c < components; c++)
             {
-                var packets = packetEncoder.EncodePackets(
+                var packetEncoder = new PacketEncoder();
+                var packets = packetEncoder.EncodePacketsPerResolution(
                     allCodeBlocks[c],
-                    totalCodeBlocksPerComponent, 1,
+                    subbands!,
                     options.NumberOfLayers,
-                    options.Progression,
-                    options.DecompositionLevels + 1,
-                    isHtMode);
+                    numResolutions);
                 allPackets.Add(packets);
             }
 
-            // Collect tile data bytes
-            byte[] tileData = CollectTileData(allPackets, options);
+            // Collect tile data bytes in LRCP order
+            byte[] tileData = CollectTileData(allPackets, options, numResolutions);
 
             return new TileEncodeResult { PacketData = tileData };
         }
 
         /// <summary>
         /// Collects all packet data for a tile into a byte array.
+        /// Each component's packet array is indexed as [layer * numResolutions + resolution].
         /// </summary>
-        private static byte[] CollectTileData(List<PacketData[]> componentPackets, J2kEncoderOptions options)
+        private static byte[] CollectTileData(List<PacketData[]> componentPackets, J2kEncoderOptions options, int numResolutions)
         {
             var tileData = new List<byte>();
             int numLayers = options.NumberOfLayers;
             int numComponents = componentPackets.Count;
 
-            // Write packets in the specified progression order
-            // For single-tile, single-resolution the ordering differences are minimal
-            // but we follow the correct ordering for conformance.
             switch (options.Progression)
             {
                 case ProgressionOrder.LRCP:
@@ -360,97 +384,110 @@ namespace SharpDicom.Codecs.Jpeg2000
                     // Layer, Resolution, Component, Position
                     for (int layer = 0; layer < numLayers; layer++)
                     {
-                        for (int c = 0; c < numComponents; c++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int c = 0; c < numComponents; c++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.RLCP:
                     // Resolution, Layer, Component, Position
-                    // With our simplified single-resolution model, this is equivalent to LRCP
-                    // but we iterate in the correct order for conformance
-                    for (int layer = 0; layer < numLayers; layer++)
+                    for (int r = 0; r < numResolutions; r++)
                     {
-                        for (int c = 0; c < numComponents; c++)
+                        for (int layer = 0; layer < numLayers; layer++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int c = 0; c < numComponents; c++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.RPCL:
                     // Resolution, Position, Component, Layer
-                    for (int c = 0; c < numComponents; c++)
+                    for (int r = 0; r < numResolutions; r++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int c = 0; c < numComponents; c++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.PCRL:
                     // Position, Component, Resolution, Layer
                     for (int c = 0; c < numComponents; c++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
 
                 case ProgressionOrder.CPRL:
                     // Component, Position, Resolution, Layer
                     for (int c = 0; c < numComponents; c++)
                     {
-                        for (int layer = 0; layer < numLayers; layer++)
+                        for (int r = 0; r < numResolutions; r++)
                         {
-                            if (layer < componentPackets[c].Length)
+                            for (int layer = 0; layer < numLayers; layer++)
                             {
-                                var packet = componentPackets[c][layer];
-                                if (!packet.IsEmpty)
+                                int idx = layer * numResolutions + r;
+                                if (idx < componentPackets[c].Length)
                                 {
-                                    tileData.AddRange(packet.Data.ToArray());
+                                    var packet = componentPackets[c][idx];
+                                    if (!packet.IsEmpty)
+                                    {
+                                        tileData.AddRange(packet.Data.ToArray());
+                                    }
                                 }
                             }
                         }
                     }
-
                     break;
             }
 
@@ -464,6 +501,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             PixelDataInfo info,
             J2kEncoderOptions options,
             bool lossless,
+            bool isHtj2k,
             TileEncodeResult[] tiles,
             int tileW, int tileH,
             int tileCols, int tileRows)
@@ -474,13 +512,15 @@ namespace SharpDicom.Codecs.Jpeg2000
             WriteMarker(buffer, J2kMarkers.SOC);
 
             // Write SIZ marker with tile dimensions
-            WriteSizMarker(buffer, info, tileW, tileH);
+            WriteSizMarker(buffer, info, tileW, tileH, isHtj2k);
 
             // Write COD marker
-            WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3);
+            bool usesMct = info.SamplesPerPixel >= 3;
+            WriteCodMarker(buffer, options, lossless, usesMct, isHtj2k);
 
-            // Write QCD marker
-            WriteQcdMarker(buffer, options, lossless);
+            // Write QCD marker (MCT adds 1 bit to dynamic range for RGB images)
+            int qcdBitDepth = info.BitsStored + (usesMct ? 1 : 0);
+            WriteQcdMarker(buffer, options, lossless, qcdBitDepth);
 
             // Write each tile
             for (int tileIdx = 0; tileIdx < tiles.Length; tileIdx++)
@@ -754,10 +794,11 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// A tuple of (CodeBlocks, TotalCodeBlocks) where code blocks are ordered
         /// by subband (LL first, then HL/LH/HH per level) and raster within each subband.
         /// </returns>
-        private static (CodeBlockData[] CodeBlocks, int TotalCodeBlocks) EncodeComponentCodeBlocks(
+        private static (CodeBlockData[] CodeBlocks, int TotalCodeBlocks, SubbandDescriptor[] Subbands) EncodeComponentCodeBlocks(
             int[] data, int width, int height,
             int cbWidth, int cbHeight,
-            IBlockCoder blockCoder, int decompositionLevels)
+            IBlockCoder blockCoder, int decompositionLevels,
+            int[]? subbandKmax = null)
         {
             using var tileComp = new TileComponent(0, 0, width, height, decompositionLevels, cbWidth, cbHeight);
 
@@ -780,6 +821,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             {
                 var sb = tileComp.Subbands[s];
                 int subbandType = (int)sb.Type;
+                int kmax = subbandKmax != null ? subbandKmax[s] : -1;
 
                 for (int cbY = 0; cbY < sb.CodeBlockGridHeight; cbY++)
                 {
@@ -799,15 +841,31 @@ namespace SharpDicom.Codecs.Jpeg2000
                             }
                         }
 
-                        // Encode with actual dimensions and correct subband type
-                        codeBlocks[cbIdx] = blockCoder.EncodeBlock(
+                        // Encode with auto-detected MSB position
+                        var cb = blockCoder.EncodeBlock(
                             packed, actualW, actualH, subbandType, msbPosition: -1);
+
+                        // For HTJ2K: override MsbPosition so that
+                        // zeroBitPlanes = 31 - MsbPosition = K_max - 1
+                        // matching OpenJPH's missing_msbs convention.
+                        if (kmax > 0 && cb.NumPasses > 0)
+                        {
+                            cb = new CodeBlockData
+                            {
+                                Data = cb.Data,
+                                NumPasses = cb.NumPasses,
+                                PassLengths = cb.PassLengths,
+                                MsbPosition = 32 - kmax
+                            };
+                        }
+
+                        codeBlocks[cbIdx] = cb;
                         cbIdx++;
                     }
                 }
             }
 
-            return (codeBlocks, totalCodeBlocks);
+            return (codeBlocks, totalCodeBlocks, tileComp.Subbands);
         }
 
         private static void WriteMarker(BufferWriter buffer, ushort marker)
@@ -817,10 +875,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(2);
         }
 
-        private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info, int tileWidth, int tileHeight)
+        private static void WriteSizMarker(BufferWriter buffer, PixelDataInfo info, int tileWidth, int tileHeight, bool isHtj2k)
         {
             int components = info.SamplesPerPixel;
-            int segmentLength = 38 + components * 3 + 2; // +2 for length itself
+            int segmentLength = 38 + components * 3; // Lsiz per ITU-T T.800 Table A.9
 
             WriteMarker(buffer, J2kMarkers.SIZ);
 
@@ -831,8 +889,9 @@ namespace SharpDicom.Codecs.Jpeg2000
             BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), (ushort)segmentLength);
             offset += 2;
 
-            // Rsiz (capabilities) - Profile 0 (no extensions)
-            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), 0);
+            // Rsiz (capabilities) - HTJ2K requires bit 14 set per ITU-T T.814
+            ushort rsiz = isHtj2k ? (ushort)0x4000 : (ushort)0;
+            BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), rsiz);
             offset += 2;
 
             // Xsiz (reference grid width)
@@ -880,7 +939,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(segmentLength);
         }
 
-        private static void WriteCodMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, bool usesMct)
+        private static void WriteCodMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, bool usesMct, bool isHtj2k)
         {
             int segmentLength = 12; // Fixed segment length
 
@@ -915,8 +974,8 @@ namespace SharpDicom.Codecs.Jpeg2000
             // Code-block height exponent
             span[offset++] = (byte)(GetExponent(options.CodeBlockHeight) - 2);
 
-            // Code-block style
-            span[offset++] = 0x00;
+            // Code-block style: bit 6 = HT mode flag per ITU-T T.814
+            span[offset++] = isHtj2k ? (byte)0x40 : (byte)0x00;
 
             // Wavelet transform: 0 = 9/7, 1 = 5/3
             span[offset++] = lossless ? (byte)1 : (byte)0;
@@ -924,12 +983,12 @@ namespace SharpDicom.Codecs.Jpeg2000
             buffer.Advance(segmentLength);
         }
 
-        private static void WriteQcdMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless)
+        private static void WriteQcdMarker(BufferWriter buffer, J2kEncoderOptions options, bool lossless, int bitDepth)
         {
-            // For lossless, we use no quantization
-            // For lossy, we would specify quantization parameters
+            // For lossless, we use no quantization but must encode step sizes that indicate
+            // the subband bit depths based on BIBO gains of the wavelet transform
             int numSubbands = 1 + 3 * options.DecompositionLevels; // LL + 3 subbands per level
-            int segmentLength = 4 + numSubbands; // Header + 1 byte per subband
+            int segmentLength = 2 + 1 + numSubbands; // Length field (2) + Sqcd (1) + SPqcd (numSubbands)
 
             WriteMarker(buffer, J2kMarkers.QCD);
 
@@ -940,19 +999,135 @@ namespace SharpDicom.Codecs.Jpeg2000
             BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), (ushort)segmentLength);
             offset += 2;
 
-            // Sqcd: quantization style
-            // For lossless: no quantization (style 0)
-            // For lossy: scalar derived (style 1) or scalar expounded (style 2)
-            span[offset++] = lossless ? (byte)0x00 : (byte)0x00;
+            // Sqcd: quantization style per ITU-T T.800 Table A.28
+            // Bits 7-5: guard bits (calculated from BIBO gains)
+            // Bits 4-0: quantization style (0x00 for no quantization/reversible)
 
-            // SPqcd: step sizes
-            // For lossless, just write 8 (exponent = 8, mantissa = 0)
+            // Calculate step sizes with BIBO gains (matches OpenJPH algorithm)
+            Span<byte> exponents = stackalloc byte[numSubbands];
+            CalculateReversibleStepSizes(exponents, options.DecompositionLevels, bitDepth);
+
+            // Find max exponent to calculate guard bits
+            int maxExp = exponents[0];
+            for (int i = 1; i < exponents.Length; i++)
+            {
+                if (exponents[i] > maxExp) maxExp = exponents[i];
+            }
+
+            // Guard bits: ensure coefficients don't overflow 31-bit signed integer
+            int guardBits = Math.Max(1, maxExp - 31);
+
+            // Sqcd = (guard_bits << 5) | 0x00 (no quantization for reversible)
+            span[offset++] = (byte)(guardBits << 5);
+
+            // SPqcd: step size exponents (subtract guard bits and encode)
             for (int i = 0; i < numSubbands; i++)
             {
-                span[offset++] = 8;
+                int exp = exponents[i] - guardBits;
+                // For reversible, mantissa is always 0, so just encode exponent in bits 7-3
+                span[offset++] = (byte)(exp << 3);
             }
 
             buffer.Advance(segmentLength);
+        }
+
+        /// <summary>
+        /// Computes K_max per subband for HTJ2K coefficient shifting.
+        /// K_max = (SPqcd_exponent - 1) + guard_bits = raw_exponent - 1
+        /// per OpenJPH's param_qcd::get_Kmax.
+        /// </summary>
+        internal static int[] ComputeSubbandKmax(int numDecomps, int bitDepth, bool usesMct)
+        {
+            int B = bitDepth + (usesMct ? 1 : 0);
+            int numSubbands = 1 + 3 * numDecomps;
+            Span<byte> exponents = stackalloc byte[numSubbands];
+            CalculateReversibleStepSizes(exponents, numDecomps, B);
+
+            // Find max exponent and compute guard bits (same as WriteQcdMarker)
+            int maxExp = exponents[0];
+            for (int i = 1; i < numSubbands; i++)
+            {
+                if (exponents[i] > maxExp) maxExp = exponents[i];
+            }
+            int guardBits = Math.Max(1, maxExp - 31);
+
+            // K_max = (epsilon_b - 1) + guard_bits where epsilon_b = exponents[i] - guardBits
+            int[] kmax = new int[numSubbands];
+            for (int i = 0; i < numSubbands; i++)
+            {
+                kmax[i] = (exponents[i] - guardBits - 1) + guardBits;
+                // Simplifies to: kmax[i] = exponents[i] - 1
+            }
+
+            return kmax;
+        }
+
+        /// <summary>
+        /// Calculate step size exponents for reversible (lossless) quantization.
+        /// Based on BIBO (Bounded Input Bounded Output) gains of the 5/3 wavelet transform.
+        /// Algorithm matches OpenJPH implementation.
+        /// </summary>
+        private static void CalculateReversibleStepSizes(Span<byte> exponents, int numDecomps, int bitDepth)
+        {
+            // BIBO gains for 5/3 reversible wavelet (lowpass and highpass)
+            // These converge asymptotically but we only need values up to 32 levels
+            double[] biboGainL = GetBiboGainsLowpass();
+            double[] biboGainH = GetBiboGainsHighpass();
+
+            int idx = 0;
+
+            // LL subband (coarsest approximation)
+            double gainL = biboGainL[numDecomps];
+            int x = (int)Math.Ceiling(Math.Log(gainL * gainL, 2.0));
+            exponents[idx++] = (byte)(bitDepth + x);
+
+            // For each decomposition level from coarsest to finest
+            for (int d = numDecomps; d > 0; d--)
+            {
+                gainL = biboGainL[d];
+                double gainH = biboGainH[d - 1];
+
+                // HL and LH subbands (horizontal/vertical details)
+                x = (int)Math.Ceiling(Math.Log(gainH * gainL, 2.0));
+                exponents[idx++] = (byte)(bitDepth + x);
+                exponents[idx++] = (byte)(bitDepth + x);
+
+                // HH subband (diagonal details)
+                x = (int)Math.Ceiling(Math.Log(gainH * gainH, 2.0));
+                exponents[idx++] = (byte)(bitDepth + x);
+            }
+        }
+
+        /// <summary>
+        /// BIBO gains for 5/3 reversible wavelet lowpass filter.
+        /// Values computed from theoretical analysis of the 5/3 filter bank.
+        /// </summary>
+        private static double[] GetBiboGainsLowpass()
+        {
+            return new double[]
+            {
+                1.0000, 1.5000, 1.6250, 1.6875, 1.6963, 1.7067, 1.7116, 1.7129,
+                1.7141, 1.7145, 1.7148, 1.7151, 1.7152, 1.7153, 1.7154, 1.7154,
+                1.7155, 1.7155, 1.7155, 1.7155, 1.7156, 1.7156, 1.7156, 1.7156,
+                1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156, 1.7156,
+                1.7156 // Asymptotic value ~1.7156
+            };
+        }
+
+        /// <summary>
+        /// BIBO gains for 5/3 reversible wavelet highpass filter.
+        /// Values computed from theoretical analysis of the 5/3 filter bank.
+        /// </summary>
+        private static double[] GetBiboGainsHighpass()
+        {
+            return new double[]
+            {
+                2.0000, 2.5000, 2.7500, 2.8047, 2.8198, 2.8410, 2.8558, 2.8601,
+                2.8628, 2.8656, 2.8663, 2.8666, 2.8668, 2.8669, 2.8669, 2.8670,
+                2.8670, 2.8670, 2.8670, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671,
+                2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671, 2.8671,
+                2.8671 // Asymptotic value ~2.8671
+            };
         }
 
         private static int GetExponent(int value)

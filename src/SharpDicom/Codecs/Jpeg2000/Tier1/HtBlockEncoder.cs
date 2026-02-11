@@ -59,7 +59,8 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         public static HtBlockEncoder Instance { get; } = new HtBlockEncoder();
 
         /// <summary>
-        /// Maximum number of coding passes supported (2 HT Sets = 6 passes).
+        /// Maximum number of coding passes supported by the HT decoder.
+        /// HT mode uses 1, 3, or 6 passes (1 or 2 HT Sets).
         /// </summary>
         internal const int MaxPasses = 6;
 
@@ -107,85 +108,20 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 return CodeBlockData.Empty;
             }
 
-            // Always start with Cleanup pass on full coefficients
+            // HT cleanup pass encodes full-precision coefficients.
+            // For lossless HTJ2K, a single cleanup pass is always sufficient
+            // because HtCleanup encodes the complete magnitude and sign of every
+            // non-zero coefficient. This matches OpenJPH's behavior which always
+            // produces exactly 1 coding pass for lossless HT blocks.
             byte[] cleanupData = HtCleanup.Encode(coefficients, width, height, subbandType);
 
-            // For cleanup-only mode (msb = 0 means values are all +/-1, no refinement needed)
-            if (msb == 0)
+            return new CodeBlockData
             {
-                return new CodeBlockData
-                {
-                    Data = cleanupData,
-                    NumPasses = 1,
-                    PassLengths = new[] { cleanupData.Length },
-                    MsbPosition = msb
-                };
-            }
-
-            // Build significance state from cleanup pass output
-            int[] cleanupCoeffs = new int[size];
-            HtCleanup.Decode(cleanupData, cleanupCoeffs, width, height, subbandType);
-
-            byte[]? rentedSig = null;
-            Span<byte> sigState = size <= 1024
-                ? stackalloc byte[size]
-                : (rentedSig = ArrayPool<byte>.Shared.Rent(size)).AsSpan(0, size);
-
-            try
-            {
-                for (int i = 0; i < size; i++)
-                {
-                    sigState[i] = cleanupCoeffs[i] != 0 ? (byte)1 : (byte)0;
-                }
-
-                // HT Set 1: Cleanup (done) + SigProp + MagRef at bitplane 0
-                byte[] sigPropData = HtSigProp.Encode(
-                    coefficients, sigState, width, height, subbandType, 0);
-
-                UpdateSigStateFromSigProp(coefficients, sigState, width, height, 0);
-
-                byte[] magRefData = HtMagRef.Encode(
-                    coefficients, sigState, width, height, 0);
-
-                if (msb < 2)
-                {
-                    // 1 HT Set (3 passes) with embedded header
-                    return BuildMultiPassResult(
-                        cleanupData, sigPropData, magRefData,
-                        null, null,
-                        msb, 3);
-                }
-
-                // HT Set 2 at bitplane 1
-                // Update sigState from all significant samples so far
-                for (int i = 0; i < size; i++)
-                {
-                    if (sigState[i] == 0 && coefficients[i] != 0)
-                    {
-                        sigState[i] = 1;
-                    }
-                }
-
-                byte[] sigPropData2 = HtSigProp.Encode(
-                    coefficients, sigState, width, height, subbandType, 1);
-
-                UpdateSigStateFromSigProp(coefficients, sigState, width, height, 1);
-
-                byte[] magRefData2 = HtMagRef.Encode(
-                    coefficients, sigState, width, height, 1);
-
-                return BuildMultiPassResult(
-                    cleanupData, sigPropData, magRefData,
-                    sigPropData2, magRefData2,
-                    msb, 6);
-            }
-            finally
-            {
-                if (rentedSig != null)
-                {
-                    ArrayPool<byte>.Shared.Return(rentedSig);
-                }
-            }
+                Data = cleanupData,
+                NumPasses = 1,
+                PassLengths = new[] { cleanupData.Length },
+                MsbPosition = msb
+            };
         }
 
         /// <inheritdoc />

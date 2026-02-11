@@ -570,15 +570,14 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
             // Segment must have at least 2 bytes for ILW
             Assert.That(segment.Length, Is.GreaterThanOrEqualTo(2));
 
-            // Parse ILW
-            int ilwByte0 = segment[segment.Length - 2];
-            int ilwByte1 = segment[segment.Length - 1];
-            int vlcOffset = (ilwByte0 << 4) | (ilwByte1 >> 4);
+            // Parse ILW: scup = (last_byte << 4) + (second_to_last_byte & 0xF)
+            int scup = (segment[segment.Length - 1] << 4) + (segment[segment.Length - 2] & 0x0F);
 
-            // VLC offset should be non-negative and within segment bounds
-            Assert.That(vlcOffset, Is.GreaterThanOrEqualTo(0));
-            Assert.That(vlcOffset, Is.LessThanOrEqualTo(segment.Length - 2),
-                "VLC offset must be within segment data area");
+            // scup (MEL+VLC combined length) should be >= 2 and <= segment length
+            Assert.That(scup, Is.GreaterThanOrEqualTo(2),
+                "scup must be at least 2 (ILW itself)");
+            Assert.That(scup, Is.LessThanOrEqualTo(segment.Length),
+                "scup must be within segment bounds");
         }
 
         [Test]
@@ -591,11 +590,10 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
 
             Assert.That(segment.Length, Is.GreaterThanOrEqualTo(2));
 
-            int ilwByte0 = segment[segment.Length - 2];
-            int ilwByte1 = segment[segment.Length - 1];
-            int vlcOffset = (ilwByte0 << 4) | (ilwByte1 >> 4);
+            // Parse ILW: scup = (last_byte << 4) + (second_to_last_byte & 0xF)
+            int scup = (segment[segment.Length - 1] << 4) + (segment[segment.Length - 2] & 0x0F);
 
-            Assert.That(vlcOffset, Is.GreaterThanOrEqualTo(0));
+            Assert.That(scup, Is.GreaterThanOrEqualTo(2));
         }
 
         [Test]
@@ -615,14 +613,14 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
 
             byte[] segment = HtCleanup.Encode(coefficients, width, height, 0);
 
-            // Parse ILW
-            int vlcOffset = (segment[segment.Length - 2] << 4) | (segment[segment.Length - 1] >> 4);
+            // Parse ILW: scup = (last_byte << 4) + (second_to_last_byte & 0xF)
+            int scup = (segment[segment.Length - 1] << 4) + (segment[segment.Length - 2] & 0x0F);
 
-            // MagSgn region: [0, vlcOffset)
-            // VLC+MEL region: [vlcOffset, segment.Length - 2)
-            // ILW: [segment.Length - 2, segment.Length)
-            Assert.That(vlcOffset, Is.GreaterThanOrEqualTo(0));
-            Assert.That(vlcOffset, Is.LessThanOrEqualTo(segment.Length - 2));
+            // Segment layout: [MagSgn][MEL][VLC] where scup = MEL+VLC length
+            // MagSgn region: [0, lcup - scup)
+            // MEL+VLC region: [lcup - scup, lcup)
+            Assert.That(scup, Is.GreaterThanOrEqualTo(2));
+            Assert.That(scup, Is.LessThanOrEqualTo(segment.Length));
         }
 
         #endregion

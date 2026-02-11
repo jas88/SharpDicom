@@ -197,7 +197,32 @@ namespace SharpDicom.IO
                 dataset.Add(element);
             }
 
+            SetSequenceItemParents(dataset);
             return dataset;
+        }
+
+        /// <summary>
+        /// Sets parent references for all sequence items in the dataset.
+        /// </summary>
+        /// <remarks>
+        /// During parsing, top-level sequence items have null parents because the containing
+        /// dataset is not yet available. This post-processing step walks all sequences
+        /// and sets item parents to their containing dataset.
+        /// </remarks>
+        private static void SetSequenceItemParents(DicomDataset dataset)
+        {
+            foreach (var element in dataset)
+            {
+                if (element is DicomSequence sequence)
+                {
+                    foreach (var item in sequence.Items)
+                    {
+                        item.Parent = dataset;
+                        // Recursively set parents for nested sequences
+                        SetSequenceItemParents(item);
+                    }
+                }
+            }
         }
 
         /// <summary>

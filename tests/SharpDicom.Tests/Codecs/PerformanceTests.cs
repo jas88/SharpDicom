@@ -17,6 +17,7 @@ namespace SharpDicom.Tests.Codecs
     /// </remarks>
     [TestFixture]
     [Category("Performance")]
+    [Explicit("Benchmark test - run manually with --filter Category=Performance")]
     public class PerformanceTests
     {
         /// <summary>
