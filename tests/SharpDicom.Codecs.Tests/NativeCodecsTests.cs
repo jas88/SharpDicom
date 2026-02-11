@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using NUnit.Framework;
 using SharpDicom.Codecs;
@@ -82,35 +83,35 @@ namespace SharpDicom.Codecs.Tests
                     {
                         TestContext.WriteLine($"SUCCESS: Loaded library, handle={handle}");
                         NativeLibrary.Free(handle);
+                        Assert.Pass($"Native library loaded successfully from {directPath}");
                     }
                     else
                     {
-                        TestContext.WriteLine("FAILED: TryLoad returned false");
                         // Try with explicit Load to get exception details
                         try
                         {
                             var h = NativeLibrary.Load(directPath);
-                            TestContext.WriteLine($"Load succeeded: {h}");
                             NativeLibrary.Free(h);
+                            Assert.Fail($"TryLoad returned false but Load succeeded - unexpected");
                         }
-                        catch (Exception ex)
+                        catch (Exception loadEx)
                         {
-                            TestContext.WriteLine($"Load threw: {ex.GetType().Name}: {ex.Message}");
+                            // This is the key diagnostic info - fail with it so it shows in logs
+                            Assert.Fail($"Native library at {directPath} ({new FileInfo(directPath).Length} bytes) failed to load: {loadEx.GetType().Name}: {loadEx.Message}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    TestContext.WriteLine($"Exception: {ex.GetType().Name}: {ex.Message}");
+                    Assert.Fail($"Exception loading {directPath}: {ex.GetType().Name}: {ex.Message}");
                 }
             }
             else
             {
-                TestContext.WriteLine("Library file not found at direct path");
+                // List what files ARE there
+                var files = string.Join(", ", Directory.GetFiles(assemblyDir).Select(Path.GetFileName));
+                Assert.Fail($"Library file not found at {directPath}. BaseDir={assemblyDir}, Files={files}");
             }
-
-            // Just pass - this is a diagnostic test
-            Assert.Pass("Diagnostic test completed - check output above");
         }
 #endif
 
