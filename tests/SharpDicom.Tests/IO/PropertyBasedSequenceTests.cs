@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using FsCheck;
+using FsCheck.Fluent;
 using NUnit.Framework;
 using SharpDicom.Data;
 using SharpDicom.IO;
@@ -26,7 +27,7 @@ public sealed class PropertyBasedSequenceTests
     [Test]
     public void Roundtrip_DefinedLength_PreservesAllElements()
     {
-        var config = new Configuration { MaxNbOfTest = QuickTestCount, QuietOnSuccess = true };
+        var config = Config.Quick.WithMaxTest(QuickTestCount);
 
         Prop.ForAll(
             NestedSequenceArbitrary.Generate(),
@@ -53,7 +54,7 @@ public sealed class PropertyBasedSequenceTests
     [Test]
     public void Roundtrip_UndefinedLength_PreservesAllElements()
     {
-        var config = new Configuration { MaxNbOfTest = QuickTestCount, QuietOnSuccess = true };
+        var config = Config.Quick.WithMaxTest(QuickTestCount);
 
         Prop.ForAll(
             NestedSequenceArbitrary.Generate(),
@@ -80,7 +81,7 @@ public sealed class PropertyBasedSequenceTests
     [Test]
     public void FindSequenceDelimiter_RandomNesting_NeverFails()
     {
-        var config = new Configuration { MaxNbOfTest = DefaultTestCount, QuietOnSuccess = true };
+        var config = Config.Quick.WithMaxTest(DefaultTestCount);
 
         Prop.ForAll(
             NestedSequenceArbitrary.GenerateBytes(maxDepth: 10),
@@ -108,7 +109,7 @@ public sealed class PropertyBasedSequenceTests
     [Test]
     public void ParseDataset_RandomValidStructure_NoDepthErrors()
     {
-        var config = new Configuration { MaxNbOfTest = QuickTestCount, QuietOnSuccess = true };
+        var config = Config.Quick.WithMaxTest(QuickTestCount);
 
         Prop.ForAll(
             NestedSequenceArbitrary.Generate(),
@@ -154,7 +155,7 @@ public sealed class PropertyBasedSequenceTests
                 return Gen.Constant(new NestedSequenceData());
 
             return from itemCount in Gen.Choose(0, Math.Min(2, size))
-                   from items in Gen.ListOf(itemCount, GenItem(size / 2, maxDepth, depth + 1))
+                   from items in GenItem(size / 2, maxDepth, depth + 1).ListOf(itemCount)
                    select new NestedSequenceData { Items = items.ToList() };
         }
 
