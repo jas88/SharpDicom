@@ -182,7 +182,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 }
             }
 
-            uint result = (uint)_msTmp & ((1u << count) - 1);
+            uint result = (uint)(_msTmp & (uint)((1UL << count) - 1));
             _msTmp >>= count;
             _msBits -= count;
             return result;

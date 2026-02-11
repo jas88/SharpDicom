@@ -59,11 +59,10 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         public static HtBlockEncoder Instance { get; } = new HtBlockEncoder();
 
         /// <summary>
-        /// Maximum number of coding passes per ITU-T T.800 Table B.4.
-        /// While HT mode typically uses 1, 3, or 6 passes, the packet header
-        /// format supports up to 164 passes for compatibility with baseline JPEG 2000.
+        /// Maximum number of coding passes supported by the HT decoder.
+        /// HT mode uses 1, 3, or 6 passes (1 or 2 HT Sets).
         /// </summary>
-        internal const int MaxPasses = 164;
+        internal const int MaxPasses = 6;
 
         /// <summary>
         /// Number of coding passes per HT Set.

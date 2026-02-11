@@ -176,7 +176,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier2
                     }
 
                     // First inclusion - decode zero bitplanes
-                    int zeroBitPlanes = _zeroBitPlaneTree!.Decode(x, y, int.MaxValue - 1, ReadBitFunc);
+                    int zeroBitPlanes = _zeroBitPlaneTree!.Decode(x, y, 256, ReadBitFunc);
 
                     // Read number of passes
                     int numPasses = ReadNumPasses();

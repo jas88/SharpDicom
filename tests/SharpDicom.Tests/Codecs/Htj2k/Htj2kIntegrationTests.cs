@@ -95,14 +95,24 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         }
 
         [Test]
-        public void BuildCapMarker_NotHtOnly_NoHtOnlyFlag()
+        public void BuildCapMarker_NotHtOnly_HasDeclaredFlag()
         {
             byte[] cap = J2kCodestream.BuildCapMarker(isHtOnly: false, isLossless: true, precision: 12);
 
             ushort ccap = BinaryPrimitives.ReadUInt16BigEndian(cap.AsSpan(8));
+            Assert.That(ccap & 0xC000, Is.EqualTo(0x4000), "Bits 15-14 should be 01 (HTDECLARED) for non-HTONLY");
             Assert.That(ccap & 0x0020, Is.EqualTo(0), "HTIRV flag should NOT be set for lossless");
             // For 12-bit with 5 decomps: MAGB=14, Bp=14-8=6
             Assert.That(ccap & 0x1F, Is.EqualTo(6), "Bp should be 6 for 12-bit lossless");
+        }
+
+        [Test]
+        public void BuildCapMarker_HtOnly_HasHtOnlyMode()
+        {
+            byte[] cap = J2kCodestream.BuildCapMarker(isHtOnly: true, isLossless: true, precision: 8);
+
+            ushort ccap = BinaryPrimitives.ReadUInt16BigEndian(cap.AsSpan(8));
+            Assert.That(ccap & 0xC000, Is.EqualTo(0), "Bits 15-14 should be 00 (HTONLY) for HT-only");
         }
 
         // ---- HtEncoderOptions tests ----

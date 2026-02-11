@@ -270,7 +270,10 @@ namespace SharpDicom.Codecs.Jpeg2000
             //     Bp = 0 when B <= 8
             //     Bp = B - 8 when 8 < B < 28
             //     Bp = 13 + (B >> 2) when B >= 28
-            ushort ccap = 0;
+            // Ccap[15] bits 15-14: coding mode per ITU-T T.814 Table A.2
+            //   00 = HTONLY (all code-blocks use HT)
+            //   01 = HTDECLARED (mix of HT and Part-1 blocks)
+            ushort ccap = isHtOnly ? (ushort)0 : (ushort)0x4000;
             if (!isLossless)
                 ccap |= 0x0020;
 

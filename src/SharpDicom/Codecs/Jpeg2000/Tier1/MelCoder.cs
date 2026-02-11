@@ -308,7 +308,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
                 }
 
                 int shift = _numRuns * 7;
-                _runs &= ~((ulong)0x3F << shift);
+                _runs &= ~((ulong)0x7F << shift);
                 _runs |= (ulong)run << shift;
                 _numRuns++;
             }

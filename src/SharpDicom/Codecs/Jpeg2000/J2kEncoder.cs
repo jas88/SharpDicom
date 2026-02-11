@@ -515,10 +515,12 @@ namespace SharpDicom.Codecs.Jpeg2000
             WriteSizMarker(buffer, info, tileW, tileH, isHtj2k);
 
             // Write COD marker
-            WriteCodMarker(buffer, options, lossless, info.SamplesPerPixel >= 3, isHtj2k);
+            bool usesMct = info.SamplesPerPixel >= 3;
+            WriteCodMarker(buffer, options, lossless, usesMct, isHtj2k);
 
-            // Write QCD marker
-            WriteQcdMarker(buffer, options, lossless, info.BitsStored);
+            // Write QCD marker (MCT adds 1 bit to dynamic range for RGB images)
+            int qcdBitDepth = info.BitsStored + (usesMct ? 1 : 0);
+            WriteQcdMarker(buffer, options, lossless, qcdBitDepth);
 
             // Write each tile
             for (int tileIdx = 0; tileIdx < tiles.Length; tileIdx++)

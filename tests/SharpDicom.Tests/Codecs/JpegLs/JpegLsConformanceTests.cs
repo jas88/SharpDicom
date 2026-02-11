@@ -152,7 +152,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 var process = Process.Start(new ProcessStartInfo
                 {
                     FileName = CjplsPath!,
-                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64 64 -b 8 -c 1",
+                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64x64 -b 8 -c 1",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -269,7 +269,7 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 var process = Process.Start(new ProcessStartInfo
                 {
                     FileName = CjplsPath!,
-                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64 64 -b 16 -c 1",
+                    Arguments = $"-i \"{tempRaw}\" -o \"{tempJls}\" -s 64x64 -b 16 -c 1",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
