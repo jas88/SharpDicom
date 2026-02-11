@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native;
@@ -36,6 +38,81 @@ namespace SharpDicom.Codecs.Tests
             // Before initialization, IsAvailable should be false
             Assert.That(NativeCodecs.IsAvailable, Is.False);
         }
+
+#if NET5_0_OR_GREATER
+        [Test]
+        [Category("NativeCodecs")]
+        public void DiagnoseNativeLibraryLoading()
+        {
+            // This test diagnoses native library loading issues
+            var assemblyDir = AppContext.BaseDirectory;
+            TestContext.WriteLine($"AppContext.BaseDirectory: {assemblyDir}");
+            TestContext.WriteLine($"RuntimeInformation.RuntimeIdentifier: {RuntimeInformation.RuntimeIdentifier}");
+
+            // Check for library in various locations
+            string libName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "sharpdicom_codecs.dll"
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? "libsharpdicom_codecs.dylib"
+                    : "libsharpdicom_codecs.so";
+
+            string directPath = Path.Combine(assemblyDir, libName);
+            TestContext.WriteLine($"Direct path: {directPath}");
+            TestContext.WriteLine($"Direct exists: {File.Exists(directPath)}");
+
+            string ridPath = Path.Combine(assemblyDir, "runtimes", RuntimeInformation.RuntimeIdentifier, "native", libName);
+            TestContext.WriteLine($"RID path: {ridPath}");
+            TestContext.WriteLine($"RID exists: {File.Exists(ridPath)}");
+
+            // List all .so/.dll files in base directory
+            TestContext.WriteLine("Files in base directory:");
+            foreach (var file in Directory.GetFiles(assemblyDir, "*sharpdicom*"))
+            {
+                var info = new FileInfo(file);
+                TestContext.WriteLine($"  {info.Name} ({info.Length} bytes)");
+            }
+
+            // Try to load the library directly
+            if (File.Exists(directPath))
+            {
+                TestContext.WriteLine("Attempting to load library directly...");
+                try
+                {
+                    if (NativeLibrary.TryLoad(directPath, out IntPtr handle))
+                    {
+                        TestContext.WriteLine($"SUCCESS: Loaded library, handle={handle}");
+                        NativeLibrary.Free(handle);
+                    }
+                    else
+                    {
+                        TestContext.WriteLine("FAILED: TryLoad returned false");
+                        // Try with explicit Load to get exception details
+                        try
+                        {
+                            var h = NativeLibrary.Load(directPath);
+                            TestContext.WriteLine($"Load succeeded: {h}");
+                            NativeLibrary.Free(h);
+                        }
+                        catch (Exception ex)
+                        {
+                            TestContext.WriteLine($"Load threw: {ex.GetType().Name}: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TestContext.WriteLine($"Exception: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+            else
+            {
+                TestContext.WriteLine("Library file not found at direct path");
+            }
+
+            // Just pass - this is a diagnostic test
+            Assert.Pass("Diagnostic test completed - check output above");
+        }
+#endif
 
         [Test]
         [Category("NativeCodecs")]
