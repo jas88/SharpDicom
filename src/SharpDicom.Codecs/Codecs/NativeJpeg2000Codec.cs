@@ -203,67 +203,79 @@ namespace SharpDicom.Codecs.Native
 
             int bitsPerComponent = info.BitsStored;
             int isSigned = info.IsSigned ? 1 : 0;
+            int numberOfFrames = info.NumberOfFrames;
+            int frameSize = info.FrameSize;
 
-            // Allocate output buffer - estimate 4x raw size for worst case (lossless)
+            // Allocate output buffer - estimate 4x raw size for worst case (lossless) per frame
             int bytesPerSample = (info.BitsStored + 7) / 8;
-            int rawSize = info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
-            int outputBufferSize = Math.Max(rawSize * 4, 4096);
+            int rawFrameSize = info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
+            int outputBufferSize = Math.Max(rawFrameSize * 4, 4096);
             var outputBuffer = new byte[outputBufferSize];
 
-            fixed (byte* input = pixelData)
+            // Create encoding parameters struct
+            J2kEncodeParams encParams = _transferSyntax.IsLossy
+                ? J2kEncodeParams.Lossy(opts.CompressionRatio, opts.TileSize)
+                : J2kEncodeParams.DefaultLossless;
+
+            var fragments = new List<ReadOnlyMemory<byte>>(numberOfFrames);
+
             fixed (byte* output = outputBuffer)
             {
-                // Create encoding parameters struct on stack
-                J2kEncodeParams encParams = _transferSyntax.IsLossy
-                    ? J2kEncodeParams.Lossy(opts.CompressionRatio, opts.TileSize)
-                    : J2kEncodeParams.DefaultLossless;
-
-                nuint outSize = 0;
-                int result = NativeMethods.j2k_encode(
-                    input,
-                    (nuint)pixelData.Length,
-                    info.Columns,
-                    info.Rows,
-                    info.SamplesPerPixel,
-                    bitsPerComponent,
-                    isSigned,
-                    &encParams,
-                    output,
-                    (nuint)outputBufferSize,
-                    &outSize);
-
-                if (result < 0)
+                for (int frame = 0; frame < numberOfFrames; frame++)
                 {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        result,
-                        NativeCodecs.GetLastError(),
-                        TransferSyntax);
+                    int frameOffset = frame * frameSize;
+                    var frameData = pixelData.Slice(frameOffset, frameSize);
+
+                    fixed (byte* input = frameData)
+                    {
+                        nuint outSize = 0;
+                        int result = NativeMethods.j2k_encode(
+                            input,
+                            (nuint)frameSize,
+                            info.Columns,
+                            info.Rows,
+                            info.SamplesPerPixel,
+                            bitsPerComponent,
+                            isSigned,
+                            &encParams,
+                            output,
+                            (nuint)outputBufferSize,
+                            &outSize);
+
+                        if (result < 0)
+                        {
+                            throw NativeCodecException.EncodeError(
+                                Name,
+                                result,
+                                NativeCodecs.GetLastError(),
+                                TransferSyntax);
+                        }
+
+                        int outputLen = (int)outSize;
+
+                        // Validate output length from native code
+                        if (outputLen <= 0)
+                        {
+                            throw NativeCodecException.EncodeError(
+                                Name,
+                                -1,
+                                $"Native encoder returned zero or negative output length for frame {frame}",
+                                TransferSyntax);
+                        }
+
+                        // Copy encoded data to properly sized array
+                        var data = new byte[outputLen];
+                        Buffer.BlockCopy(outputBuffer, 0, data, 0, outputLen);
+                        fragments.Add(data);
+                    }
                 }
-
-                int outputLen = (int)outSize;
-
-                // Validate output length from native code
-                if (outputLen <= 0)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        -1,
-                        "Native encoder returned zero or negative output length",
-                        TransferSyntax);
-                }
-
-                // Copy encoded data to properly sized array
-                var data = new byte[outputLen];
-                Buffer.BlockCopy(outputBuffer, 0, data, 0, outputLen);
-
-                var fragments = new List<ReadOnlyMemory<byte>> { data };
-                return new DicomFragmentSequence(
-                    DicomTag.PixelData,
-                    DicomVR.OB,
-                    ReadOnlyMemory<byte>.Empty,
-                    fragments);
             }
+
+            return new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                fragments);
         }
 
         /// <inheritdoc />
