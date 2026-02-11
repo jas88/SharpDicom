@@ -161,32 +161,74 @@ pub fn build(b: *std.Build) void {
         _ = jpeg12_symbol_prefix_flags; // Used when have_libjpeg12 is true
 
         // Add C source files (core) - feature flags based on available libraries
+        // Build core flags from comptime constants first
         const core_flags_0 = if (have_libjpeg) jpeg_flags else common_flags;
         const core_flags_1 = if (have_libjpeg12)
             core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
         else
             core_flags_0;
-        const core_flags_2 = if (have_ffmpeg_enc)
+        const core_flags_base = if (have_ffmpeg_enc)
             core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
         else
             core_flags_1;
-        const core_flags_3 = if (have_stb_image)
-            core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
-        else
-            core_flags_2;
-        // Add J2K and JLS flags so sharpdicom_features() reports them
-        const core_flags_4 = if (have_openjpeg)
-            core_flags_3 ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"}
-        else
-            core_flags_3;
-        const core_flags = if (have_charls)
-            core_flags_4 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"}
-        else
-            core_flags_4;
-        lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = core_flags,
-        });
+
+        // Handle runtime-detected features with explicit conditionals
+        // We need separate flag arrays for each combination because Zig can't
+        // concatenate slices when either operand depends on a runtime value
+        if (have_openjpeg and have_charls and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_JLS",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_openjpeg and have_charls) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_JLS",
+                },
+            });
+        } else if (have_openjpeg and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_charls and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_JLS",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_openjpeg) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
+            });
+        } else if (have_charls) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
+            });
+        } else if (have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
+            });
+        } else {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base,
+            });
+        }
 
         // JPEG wrapper (libjpeg-turbo)
         if (have_libjpeg) {
@@ -545,29 +587,67 @@ pub fn build(b: *std.Build) void {
     else
         native_jpeg_flags_base;
 
-    // Native core flags with FFmpeg encoding and stb_image when available
-    const native_core_flags_2 = if (have_ffmpeg_enc)
+    // Native core flags with FFmpeg encoding when available
+    const native_core_flags_base = if (have_ffmpeg_enc)
         native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
     else
         native_core_flags_1;
-    const native_core_flags_3 = if (have_stb_image)
-        native_core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
-    else
-        native_core_flags_2;
-    // Add J2K and JLS flags so sharpdicom_features() reports them
-    const native_core_flags_4 = if (have_openjpeg)
-        native_core_flags_3 ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"}
-    else
-        native_core_flags_3;
-    const native_core_flags = if (have_charls)
-        native_core_flags_4 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"}
-    else
-        native_core_flags_4;
 
-    native_lib.addCSourceFile(.{
-        .file = b.path("src/sharpdicom_codecs.c"),
-        .flags = native_core_flags,
-    });
+    // Handle runtime-detected features with explicit conditionals
+    if (have_openjpeg and have_charls and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_JLS",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_openjpeg and have_charls) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_JLS",
+            },
+        });
+    } else if (have_openjpeg and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_charls and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_JLS",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_openjpeg) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
+        });
+    } else if (have_charls) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
+        });
+    } else if (have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
+        });
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base,
+        });
+    }
 
     // JPEG wrapper for native build
     if (have_libjpeg) {
