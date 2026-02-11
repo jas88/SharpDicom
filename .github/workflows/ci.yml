@@ -197,6 +197,21 @@ jobs:
       # Current issue: Ubuntu libnvjpeg2k0-dev-cuda-12 package has incomplete headers
       # (missing nvjpeg2kProgOrder and nvjpeg2kQualityType type definitions)
 
+      # Copy native libraries to test directories (built after .NET projects)
+      - name: Copy native codecs to test assemblies
+        run: |
+          NATIVE_LIB=${{ github.workspace }}/native/zig-out/linux-x64/libsharpdicom_codecs.so
+          echo "Native library: $NATIVE_LIB"
+          ls -la $NATIVE_LIB || echo "Warning: Native library not found"
+
+          # Copy to all test assembly directories
+          for testdir in tests/*/bin/Release/net*/; do
+            if [ -d "$testdir" ]; then
+              echo "Copying to $testdir"
+              cp -v "$NATIVE_LIB" "$testdir" 2>/dev/null || true
+            fi
+          done
+
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
