@@ -420,62 +420,8 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&install_step.step);
     }
 
-    // Native test executable (for local platform only)
-    // This test links against the shared library to verify the full build works
+    // Native target (for single-platform build and tests)
     const native_target = b.standardTargetOptions(.{});
-    const test_exe = b.addExecutable(.{
-        .name = "test_version",
-        .target = native_target,
-        .optimize = optimize,
-    });
-
-    // Link libc for standard library headers
-    test_exe.linkLibC();
-
-    test_exe.addCSourceFile(.{
-        .file = b.path("test/test_version.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    test_exe.addIncludePath(b.path("src"));
-
-    // Determine the native platform's runtime identifier for finding the library
-    const native_rid = getNativeRuntimeId(native_target);
-
-    // Link against the native platform's shared library
-    // The library is built by the main build step and placed in zig-out/<rid>/
-    test_exe.addLibraryPath(.{ .cwd_relative = std.fmt.allocPrint(b.allocator, "zig-out/{s}", .{native_rid}) catch "zig-out/lib" });
-    test_exe.linkSystemLibrary("sharpdicom_codecs");
-
-    // Set RPATH so the executable can find the library at runtime
-    test_exe.addRPath(.{ .cwd_relative = std.fmt.allocPrint(b.allocator, "zig-out/{s}", .{native_rid}) catch "zig-out/lib" });
-
-    // Link -ldl on Linux for dynamic library loading
-    if (native_target.result.os.tag == .linux) {
-        test_exe.linkSystemLibrary("dl");
-        // Also link C++ standard library since CharLS is C++
-        test_exe.linkLibCpp();
-    }
-
-    // On macOS, also need C++ stdlib for CharLS
-    if (native_target.result.os.tag == .macos) {
-        test_exe.linkLibCpp();
-    }
-
-    const test_install = b.addInstallArtifact(test_exe, .{});
-
-    // Test step - depends on the native library being built first
-    const test_step = b.step("test", "Run native tests");
-    const run_test = b.addRunArtifact(test_exe);
-
-    // Ensure the native platform library is built before running tests
-    // The test needs the library to already exist
-    test_step.dependOn(&test_install.step);
-    test_step.dependOn(&run_test.step);
 
     // Single-platform build step (for development)
     const single_step = b.step("native", "Build for native platform only");
@@ -737,6 +683,40 @@ pub fn build(b: *std.Build) void {
 
     const native_install = b.addInstallArtifact(native_lib, .{});
     single_step.dependOn(&native_install.step);
+
+    // Native test executable - links against native_lib to verify the full build
+    const test_exe = b.addExecutable(.{
+        .name = "test_version",
+        .target = native_target,
+        .optimize = optimize,
+    });
+
+    test_exe.linkLibC();
+    test_exe.addCSourceFile(.{
+        .file = b.path("test/test_version.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+    test_exe.addIncludePath(b.path("src"));
+
+    // Link against the native_lib artifact (this creates a build dependency)
+    test_exe.linkLibrary(native_lib);
+
+    // Link -ldl on Linux for dynamic library loading
+    if (native_target.result.os.tag == .linux) {
+        test_exe.linkSystemLibrary("dl");
+    }
+
+    const test_install = b.addInstallArtifact(test_exe, .{});
+
+    // Test step
+    const test_step = b.step("test", "Run native tests");
+    const run_test = b.addRunArtifact(test_exe);
+    test_step.dependOn(&test_install.step);
+    test_step.dependOn(&run_test.step);
 }
 
 /// Maps Zig target to .NET Runtime Identifier
@@ -748,32 +728,6 @@ fn getRuntimeId(target: std.Target.Query) []const u8 {
     };
 
     const os = switch (target.os_tag orelse .linux) {
-        .windows => "win",
-        .linux => "linux",
-        .macos => "osx",
-        else => "unknown",
-    };
-
-    // Return static string based on combination
-    if (std.mem.eql(u8, os, "win") and std.mem.eql(u8, arch, "x64")) return "win-x64";
-    if (std.mem.eql(u8, os, "win") and std.mem.eql(u8, arch, "arm64")) return "win-arm64";
-    if (std.mem.eql(u8, os, "linux") and std.mem.eql(u8, arch, "x64")) return "linux-x64";
-    if (std.mem.eql(u8, os, "linux") and std.mem.eql(u8, arch, "arm64")) return "linux-arm64";
-    if (std.mem.eql(u8, os, "osx") and std.mem.eql(u8, arch, "x64")) return "osx-x64";
-    if (std.mem.eql(u8, os, "osx") and std.mem.eql(u8, arch, "arm64")) return "osx-arm64";
-
-    return "unknown";
-}
-
-/// Maps a resolved target to .NET Runtime Identifier (for native platform)
-fn getNativeRuntimeId(target: std.Build.ResolvedTarget) []const u8 {
-    const arch = switch (target.result.cpu.arch) {
-        .x86_64 => "x64",
-        .aarch64 => "arm64",
-        else => "unknown",
-    };
-
-    const os = switch (target.result.os.tag) {
         .windows => "win",
         .linux => "linux",
         .macos => "osx",
