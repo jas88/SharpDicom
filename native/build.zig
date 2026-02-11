@@ -41,17 +41,17 @@ pub fn build(b: *std.Build) void {
             .os_tag = .windows,
             .abi = .gnu,
         },
-        // Linux x64 (musl for zero dependencies)
+        // Linux x64 (glibc for compatibility with .NET runtime)
         .{
             .cpu_arch = .x86_64,
             .os_tag = .linux,
-            .abi = .musl,
+            .abi = .gnu,
         },
-        // Linux ARM64 (musl for zero dependencies)
+        // Linux ARM64 (glibc for compatibility with .NET runtime)
         .{
             .cpu_arch = .aarch64,
             .os_tag = .linux,
-            .abi = .musl,
+            .abi = .gnu,
         },
         // macOS x64
         .{
