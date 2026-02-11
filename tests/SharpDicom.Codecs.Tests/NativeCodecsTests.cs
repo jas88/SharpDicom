@@ -41,12 +41,40 @@ namespace SharpDicom.Codecs.Tests
         [Category("NativeCodecs")]
         public void Initialize_WhenLibraryMissing_SetsIsAvailableFalse()
         {
-            // Native library is likely not present in test environment
-            // Initialize with SuppressInitializationErrors to avoid exceptions
-            NativeCodecs.Initialize(new NativeCodecOptions
+            // Try initializing WITHOUT suppressing errors first to see the actual error
+            Exception? initError = null;
+            try
             {
-                SuppressInitializationErrors = true
-            });
+                NativeCodecs.Initialize(new NativeCodecOptions
+                {
+                    SuppressInitializationErrors = false
+                });
+            }
+            catch (Exception ex)
+            {
+                initError = ex;
+                // Reset and retry with suppression
+                NativeCodecs.Reset();
+                NativeCodecs.Initialize(new NativeCodecOptions
+                {
+                    SuppressInitializationErrors = true
+                });
+            }
+
+            // Log the initialization error for debugging
+            if (initError != null)
+            {
+                TestContext.WriteLine($"Native codec initialization error: {initError.GetType().Name}");
+                TestContext.WriteLine($"Message: {initError.Message}");
+                if (initError.InnerException != null)
+                {
+                    TestContext.WriteLine($"Inner: {initError.InnerException.Message}");
+                }
+            }
+            else if (NativeCodecs.IsAvailable)
+            {
+                TestContext.WriteLine($"Native codecs loaded successfully, version={NativeCodecs.NativeVersion}");
+            }
 
             // Assert IsAvailable reflects whether native library was found
             // In CI without native libs, this should be false
