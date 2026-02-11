@@ -247,7 +247,10 @@ namespace SharpDicom.Tests.Codecs.JpegLs
                 }
 
                 // Compare decoded output
+                // djpls outputs 16-bit samples in big-endian byte order,
+                // so we must byte-swap before comparing with our LE original.
                 var decoded = File.ReadAllBytes(tempRaw);
+                ByteSwap16(decoded);
                 Assert.That(decoded, Is.EqualTo(original), "Decoded data does not match original");
             }
             finally
@@ -383,6 +386,18 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         }
 
         // Helper methods
+
+        /// <summary>
+        /// Byte-swaps 16-bit samples in place (converts between LE and BE).
+        /// djpls outputs 16-bit raw data in big-endian byte order.
+        /// </summary>
+        private static void ByteSwap16(byte[] data)
+        {
+            for (int i = 0; i + 1 < data.Length; i += 2)
+            {
+                (data[i], data[i + 1]) = (data[i + 1], data[i]);
+            }
+        }
 
         private static byte[] CreateGradientImage8(int width, int height)
         {
