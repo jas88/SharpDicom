@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using FsCheck;
+using FsCheck.Fluent;
 using NUnit.Framework;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Htj2k;
@@ -26,7 +27,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_LosslessRoundtrip_PreservesPixelData()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenImageParams()),
@@ -84,7 +85,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_CodecSymmetry_SameInputProducesSameOutput()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenImageParams()),
@@ -144,7 +145,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_CleanupOnlySubset_ProducesValidCodestream()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenSmallImageParams()),
@@ -195,7 +196,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_PassCountBounds_AlwaysValid()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenSmallImageParams()),
@@ -233,7 +234,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_CapMarkerPresent_InAllHtCodestreams()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenImageParams()),
@@ -287,7 +288,7 @@ namespace SharpDicom.Tests.Codecs.Htj2k
         [Test]
         public void Property_OutputSizeMonotonicity_HigherQualityNotSmaller()
         {
-            var config = new Configuration { MaxNbOfTest = TestCount, QuietOnSuccess = true };
+            var config = Config.Quick.WithMaxTest(TestCount);
 
             Prop.ForAll(
                 Arb.From(GenImageParams()),

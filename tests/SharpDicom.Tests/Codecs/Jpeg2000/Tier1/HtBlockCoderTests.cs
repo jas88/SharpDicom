@@ -1,6 +1,7 @@
 using System;
 using NUnit.Framework;
 using FsCheck;
+using FsCheck.Fluent;
 using SharpDicom.Codecs.Jpeg2000.Tier1;
 
 using Random = System.Random;
@@ -510,7 +511,7 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
                 Arb.From(
                     Gen.Choose(2, 16).SelectMany(w =>
                     Gen.Choose(2, 16).SelectMany(h =>
-                    Gen.ArrayOf(w * h, Gen.Choose(-500, 500)).Select(arr =>
+                    Gen.Choose(-500, 500).ArrayOf(w * h).Select(arr =>
                         (Width: w, Height: h, Coefficients: arr)
                     )))),
                 tuple =>
