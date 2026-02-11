@@ -761,9 +761,7 @@ SHARPDICOM_API int j2k_encode(
     image->x1 = (OPJ_UINT32)width;
     image->y1 = (OPJ_UINT32)height;
 
-    /* Copy input data to image components */
-    int32_t bytes_per_sample = (bits_per_component <= 8) ? 1 : 2;
-
+    /* Copy input data to image components (bytes_per_sample computed above) */
     if (bytes_per_sample == 1) {
         for (int32_t y = 0; y < height; y++) {
             for (int32_t x = 0; x < width; x++) {

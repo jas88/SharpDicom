@@ -208,7 +208,7 @@ SHARPDICOM_API int jls_get_decode_size(
     /* Read SPIFF header (optional, may fail) */
     charls_spiff_header spiff_header;
     int32_t header_found = 0;
-    charls_jpegls_decoder_read_spiff_header(decoder, &spiff_header, &header_found);
+    (void)charls_jpegls_decoder_read_spiff_header(decoder, &spiff_header, &header_found);
 
     /* Read frame info from JPEG-LS header */
     error = charls_jpegls_decoder_read_header(decoder);
@@ -239,14 +239,14 @@ SHARPDICOM_API int jls_get_decode_size(
         params->components = frame_info.component_count;
         params->bits_per_sample = frame_info.bits_per_sample;
 
-        /* Get near-lossless parameter */
+        /* Get near-lossless parameter (ignore error - use default 0 if not available) */
         int32_t near_lossless = 0;
-        charls_jpegls_decoder_get_near_lossless(decoder, 0, &near_lossless);
+        (void)charls_jpegls_decoder_get_near_lossless(decoder, 0, &near_lossless);
         params->near_lossless = near_lossless;
 
-        /* Get interleave mode */
-        charls_interleave_mode interleave_mode;
-        charls_jpegls_decoder_get_interleave_mode(decoder, &interleave_mode);
+        /* Get interleave mode (ignore error - use default if not available) */
+        charls_interleave_mode interleave_mode = CHARLS_INTERLEAVE_MODE_NONE;
+        (void)charls_jpegls_decoder_get_interleave_mode(decoder, &interleave_mode);
         params->interleave_mode = charls_to_jls_interleave(interleave_mode);
     }
 
@@ -289,7 +289,7 @@ SHARPDICOM_API int jls_decode(
     /* Read SPIFF header (optional) */
     charls_spiff_header spiff_header;
     int32_t header_found = 0;
-    charls_jpegls_decoder_read_spiff_header(decoder, &spiff_header, &header_found);
+    (void)charls_jpegls_decoder_read_spiff_header(decoder, &spiff_header, &header_found);
 
     /* Read frame info */
     error = charls_jpegls_decoder_read_header(decoder);
@@ -316,11 +316,11 @@ SHARPDICOM_API int jls_decode(
         params->bits_per_sample = frame_info.bits_per_sample;
 
         int32_t near_lossless = 0;
-        charls_jpegls_decoder_get_near_lossless(decoder, 0, &near_lossless);
+        (void)charls_jpegls_decoder_get_near_lossless(decoder, 0, &near_lossless);
         params->near_lossless = near_lossless;
 
-        charls_interleave_mode interleave_mode;
-        charls_jpegls_decoder_get_interleave_mode(decoder, &interleave_mode);
+        charls_interleave_mode interleave_mode = CHARLS_INTERLEAVE_MODE_NONE;
+        (void)charls_jpegls_decoder_get_interleave_mode(decoder, &interleave_mode);
         params->interleave_mode = charls_to_jls_interleave(interleave_mode);
     }
 

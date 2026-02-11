@@ -794,6 +794,8 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-implicit-fallthrough",
+        "-Wno-unused-but-set-variable", // OpenJPEG has some variables set but not used
+        "-Wno-unused-function", // OpenJPEG has static functions not used in all configs
         "-DOPJ_STATIC",
         "-DUSE_JPIP=0",
     };

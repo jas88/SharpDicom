@@ -151,6 +151,7 @@ jobs:
           mv openjpeg-2.5.3 openjpeg/src
 
           # Generate OpenJPEG config headers (normally done by CMake)
+          # These need to be platform-aware for cross-compilation
           OPJ_DIR=openjpeg/src/src/lib/openjp2
           cat > $OPJ_DIR/opj_config.h << 'EOF'
           #ifndef OPJ_CONFIG_H_INCLUDED
@@ -162,9 +163,14 @@ jobs:
           EOF
           cat > $OPJ_DIR/opj_config_private.h << 'EOF'
           #define OPJ_PACKAGE_VERSION "2.5.3"
-          #define OPJ_HAVE_FSEEKO 1
-          #define OPJ_HAVE_POSIX_MEMALIGN 1
-          #define _POSIX_C_SOURCE 200112L
+          /* Platform-specific memory allocation */
+          #if defined(_WIN32) || defined(_WIN64)
+            #define OPJ_HAVE__ALIGNED_MALLOC 1
+          #else
+            #define OPJ_HAVE_POSIX_MEMALIGN 1
+            #define OPJ_HAVE_FSEEKO 1
+            #define _POSIX_C_SOURCE 200112L
+          #endif
           EOF
 
           # stb headers - single-header libraries
