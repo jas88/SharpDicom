@@ -77,7 +77,12 @@ namespace SharpDicom.Tests.Codecs.JpegLs
         {
             if (DjplsPath == null || CjplsPath == null)
             {
-                Assert.Ignore("charls-tools not installed - build cjpls/djpls from: https://github.com/malaterre/charls-tools");
+                // In CI, charls-tools should be installed — fail to catch misconfiguration.
+                // Locally, skip gracefully since the tools are optional.
+                if (Environment.GetEnvironmentVariable("CI") != null)
+                    Assert.Fail("charls-tools not installed in CI - check workflow setup");
+                else
+                    Assert.Ignore("charls-tools not installed - build cjpls/djpls from: https://github.com/malaterre/charls-tools");
             }
         }
 
