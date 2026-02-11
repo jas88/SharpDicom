@@ -12,17 +12,20 @@ const std = @import("std");
 /// - x265: vendor/x265/ (downloaded in CI) - HEVC software encoder
 /// - stb_image: vendor/stb/ (downloaded in CI) - image sequence loading
 pub fn build(b: *std.Build) void {
-    // All vendor libraries disabled for Phase 13a - building stubs only.
-    // Cross-compilation of vendor libraries requires proper sysroot setup.
-    // TODO: Add proper cross-compilation support in Phase 13b
+    // Auto-detect vendor libraries by checking if source directories exist.
+    // CI downloads these before running zig build.
+    // For local development, run scripts/download-vendors.sh first.
+    //
+    // TODO Phase 13c: libjpeg-turbo requires generated jconfig.h and complex
+    // multi-bit-depth compilation. Disabled until we add proper config generation.
     const have_libjpeg = false;
-    const have_libjpeg12 = false; // 12-bit libjpeg-turbo (raw libjpeg API, no TurboJPEG/SIMD)
-    const have_openjpeg = false; // Needs CMake-generated config + sysroot
-    const have_charls = false;
-    const have_ffmpeg = false;
-    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - requires vendor sources
-    const have_tesseract = false;
-    const have_stb_image = false; // stb_image for image sequence loading
+    const have_libjpeg12 = false; // 12-bit libjpeg-turbo requires additional config
+    const have_openjpeg = detectVendorLibrary("vendor/openjpeg/src");
+    const have_charls = detectVendorLibrary("vendor/charls/src");
+    const have_ffmpeg = false; // FFmpeg is complex - TODO Phase 13d
+    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - TODO Phase 13e
+    const have_tesseract = false; // Tesseract requires leptonica - TODO Phase 13f
+    const have_stb_image = detectVendorLibrary("vendor/stb"); // stb_image is header-only
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -232,11 +235,11 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_JLS",
                 },
             });
-            // Add CharLS include path
-            lib.addIncludePath(b.path("vendor/charls/src"));
+            // Add CharLS include paths
             lib.addIncludePath(b.path("vendor/charls/src/include"));
-            // Link against CharLS library
-            lib.linkSystemLibrary("charls");
+            lib.addIncludePath(b.path("vendor/charls/src/src"));
+            // Compile CharLS from source (C++17)
+            addCharlsSources(lib, b);
         } else {
             // Build stub version (JLS functions will error at runtime)
             lib.addCSourceFile(.{
@@ -596,9 +599,10 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_JLS",
             },
         });
-        native_lib.addIncludePath(b.path("vendor/charls/src"));
         native_lib.addIncludePath(b.path("vendor/charls/src/include"));
-        native_lib.linkSystemLibrary("charls");
+        native_lib.addIncludePath(b.path("vendor/charls/src/src"));
+        // Compile CharLS from source (C++17)
+        addCharlsSources(native_lib, b);
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jls_wrapper.c"),
@@ -804,6 +808,59 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
 
     // Add OpenJPEG include paths
     lib.addIncludePath(b.path(opj_base));
+}
+
+/// Add CharLS source files to compilation (JPEG-LS codec).
+/// Vendor sources are downloaded by CI into vendor/charls/src/.
+///
+/// CharLS is a C++17 library that provides a C API (charls.h).
+/// We compile the C++ sources and link them into our shared library.
+///
+/// Reference: https://github.com/team-charls/charls
+fn addCharlsSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const charls_base = "vendor/charls/src/src";
+
+    // CharLS C++17 compilation flags - relaxed warnings for third-party code
+    const charls_flags = &[_][]const u8{
+        "-std=c++17",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-missing-field-initializers",
+        "-DCHARLS_STATIC", // Build as static library to link into our shared lib
+    };
+
+    // CharLS source files (from src/CMakeLists.txt)
+    const charls_sources = [_][]const u8{
+        "charls_jpegls_decoder.cpp",
+        "charls_jpegls_encoder.cpp",
+        "golomb_lut.cpp",
+        "jpeg_stream_reader.cpp",
+        "jpeg_stream_writer.cpp",
+        "jpegls_error.cpp",
+        "make_scan_codec.cpp",
+        "quantization_lut.cpp",
+        "validate_spiff_header.cpp",
+        "version.cpp",
+    };
+
+    for (charls_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ charls_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = charls_flags,
+        });
+    }
+
+    // CharLS include paths
+    lib.addIncludePath(b.path("vendor/charls/src/include"));
+    lib.addIncludePath(b.path(charls_base));
+
+    // Link C++ standard library for C++ code
+    lib.linkLibCpp();
 }
 
 /// Add x264 source files to compilation (H.264 software encoder).

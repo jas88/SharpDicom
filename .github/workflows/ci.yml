@@ -135,6 +135,29 @@ jobs:
       - name: Build .NET projects
         run: dotnet build --no-restore --configuration Release
 
+      # Download vendor sources for native codecs
+      - name: Download vendor sources
+        run: |
+          cd native/vendor
+
+          # CharLS 2.4.2 - JPEG-LS codec
+          echo "Downloading CharLS..."
+          curl -sL https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz | tar xz
+          mv charls-2.4.2 charls/src
+
+          # OpenJPEG 2.5.3 - JPEG 2000 codec
+          echo "Downloading OpenJPEG..."
+          curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
+          mv openjpeg-2.5.3 openjpeg/src
+
+          # stb headers - single-header libraries
+          echo "Downloading stb..."
+          mkdir -p stb
+          curl -sL https://raw.githubusercontent.com/nothings/stb/master/stb_image.h -o stb/stb_image.h
+
+          # Verify downloads
+          ls -la charls/src/ openjpeg/src/ stb/
+
       # Build Phase 2: Native codecs (Zig)
       - name: Build native codecs (all platforms)
         working-directory: native
