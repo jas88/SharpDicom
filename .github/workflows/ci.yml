@@ -150,6 +150,23 @@ jobs:
           curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz | tar xz
           mv openjpeg-2.5.3 openjpeg/src
 
+          # Generate OpenJPEG config headers (normally done by CMake)
+          OPJ_DIR=openjpeg/src/src/lib/openjp2
+          cat > $OPJ_DIR/opj_config.h << 'EOF'
+          #ifndef OPJ_CONFIG_H_INCLUDED
+          #define OPJ_CONFIG_H_INCLUDED
+          #define OPJ_VERSION_MAJOR 2
+          #define OPJ_VERSION_MINOR 5
+          #define OPJ_VERSION_BUILD 3
+          #endif
+          EOF
+          cat > $OPJ_DIR/opj_config_private.h << 'EOF'
+          #define OPJ_PACKAGE_VERSION "2.5.3"
+          #define OPJ_HAVE_FSEEKO 1
+          #define OPJ_HAVE_POSIX_MEMALIGN 1
+          #define _POSIX_C_SOURCE 200112L
+          EOF
+
           # stb headers - single-header libraries
           echo "Downloading stb..."
           mkdir -p stb
@@ -157,6 +174,8 @@ jobs:
 
           # Verify downloads
           ls -la charls/src/ openjpeg/src/ stb/
+          echo "OpenJPEG config headers:"
+          ls -la $OPJ_DIR/opj_config*.h
 
       # Build Phase 2: Native codecs (Zig)
       - name: Build native codecs (all platforms)

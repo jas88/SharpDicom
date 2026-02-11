@@ -833,16 +833,16 @@ fn addCharlsSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-DCHARLS_STATIC", // Build as static library to link into our shared lib
     };
 
-    // CharLS source files (from src/CMakeLists.txt)
+    // CharLS 2.4.2 source files (from src/CMakeLists.txt)
+    // Note: Files like golomb_lut.cpp, make_scan_codec.cpp only exist in unreleased main branch.
+    // Using 2.4.2 stable release file list.
     const charls_sources = [_][]const u8{
         "charls_jpegls_decoder.cpp",
         "charls_jpegls_encoder.cpp",
-        "golomb_lut.cpp",
         "jpeg_stream_reader.cpp",
         "jpeg_stream_writer.cpp",
+        "jpegls.cpp",
         "jpegls_error.cpp",
-        "make_scan_codec.cpp",
-        "quantization_lut.cpp",
         "validate_spiff_header.cpp",
         "version.cpp",
     };
