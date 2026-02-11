@@ -45,29 +45,31 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
-        /// Bits used for limit escape encoding (typically log2(range) + 1).
-        /// For 16-bit: qbpp = 16.
+        /// Quantized bits per sample: ceil(log2(RANGE)).
+        /// For lossless, equals bitsPerSample.
         /// </summary>
         private int _qbpp = 16;
 
         /// <summary>
-        /// Limit value for quotient (LIMIT - qbpp - 1 per ITU-T T.87).
+        /// LIMIT - qbpp - 1, the threshold for escape coding.
+        /// LIMIT = 2 * (bpp + max(8, bpp)) per ITU-T T.87.
         /// </summary>
-        private int _limitMinusQbpp = 32 - 16 - 1;  // = 15 for 16-bit
+        private int _limitMinusQbppMinus1 = 64 - 16 - 1;
 
         /// <summary>
-        /// Sets the bits per pixel for limit escape encoding.
+        /// Sets the coding parameters for limit escape encoding.
         /// </summary>
         public void SetBitsPerPixel(int bpp)
         {
             _qbpp = bpp;
-            // LIMIT is 32, so LIMIT - qbpp - 1 = 31 - qbpp
-            _limitMinusQbpp = 31 - bpp;
-            if (_limitMinusQbpp < 0) _limitMinusQbpp = 0;
+            // LIMIT = 2 * (bpp + max(8, bpp)) per CharLS compute_limit_parameter
+            int limit = 2 * (bpp + Math.Max(8, bpp));
+            _limitMinusQbppMinus1 = limit - bpp - 1;
+            if (_limitMinusQbppMinus1 < 0) _limitMinusQbppMinus1 = 0;
         }
 
         /// <summary>
-        /// Encodes a mapped error value using Golomb-Rice coding.
+        /// Encodes a mapped error value using Golomb-Rice coding per ITU-T T.87, A.5.2.
         /// </summary>
         /// <param name="value">The mapped error value (non-negative).</param>
         /// <param name="k">The Golomb-Rice parameter.</param>
@@ -78,38 +80,37 @@ namespace SharpDicom.Codecs.JpegLs
             int quotient = value >> k;
             int remainder = value & ((1 << k) - 1);
 
-            // Check if we need limit escape per ITU-T T.87 Section A.5.3
-            // Escape when quotient >= LIMIT - qbpp - 1
-            if (quotient >= _limitMinusQbpp)
+            // Check if we need limit escape per ITU-T T.87 Section A.5.2
+            if (quotient >= _limitMinusQbppMinus1)
             {
                 // Write (LIMIT - qbpp - 1) zeros followed by 1
-                for (int i = 0; i < _limitMinusQbpp; i++)
+                // Use AppendBits for efficiency when count > 31
+                int escapeUnary = _limitMinusQbppMinus1;
+                if (escapeUnary > 31)
                 {
-                    WriteBit(0);
+                    AppendBits(0, escapeUnary / 2);
+                    escapeUnary -= escapeUnary / 2;
                 }
-                WriteBit(1);
+                AppendBits(1, escapeUnary + 1);
 
-                // Write (qbpp + 1) bits: the value with offset
-                // Per ITU-T T.87: write (value - 1) using (qbpp + 1) bits
-                int escapedValue = value - 1;
-                for (int i = _qbpp; i >= 0; i--)
-                {
-                    WriteBit((escapedValue >> i) & 1);
-                }
+                // Write qbpp bits: (value - 1) masked to qbpp bits
+                int escapedValue = (value - 1) & ((1 << _qbpp) - 1);
+                AppendBits((uint)escapedValue, _qbpp);
             }
             else
             {
                 // Write unary quotient (quotient zeros followed by 1)
-                for (int i = 0; i < quotient; i++)
+                if (quotient + 1 > 31)
                 {
-                    WriteBit(0);
+                    AppendBits(0, quotient / 2);
+                    quotient -= quotient / 2;
                 }
-                WriteBit(1);
+                AppendBits(1, quotient + 1);
 
-                // Write k-bit binary remainder (MSB first)
-                for (int i = k - 1; i >= 0; i--)
+                // Write k-bit binary remainder
+                if (k > 0)
                 {
-                    WriteBit((remainder >> i) & 1);
+                    AppendBits((uint)remainder, k);
                 }
             }
         }
@@ -238,32 +239,33 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
-        /// Bits used for limit escape encoding (typically log2(range) + 1).
-        /// For 16-bit: qbpp = 16.
+        /// Quantized bits per sample: ceil(log2(RANGE)).
+        /// For lossless, equals bitsPerSample.
         /// </summary>
         private int _qbpp = 16;
 
         /// <summary>
-        /// Limit value for quotient (LIMIT - qbpp - 1 per ITU-T T.87).
+        /// LIMIT - qbpp - 1, the threshold for escape coding.
         /// </summary>
-        private int _limitMinusQbpp = 32 - 16 - 1;  // = 15 for 16-bit
+        private int _limitMinusQbppMinus1 = 64 - 16 - 1;
 
         /// <summary>
-        /// Sets the bits per pixel for limit escape encoding.
+        /// Sets the coding parameters for limit escape decoding.
         /// </summary>
         public void SetBitsPerPixel(int bpp)
         {
             _qbpp = bpp;
-            // LIMIT is 32, so LIMIT - qbpp - 1 = 31 - qbpp
-            _limitMinusQbpp = 31 - bpp;
-            if (_limitMinusQbpp < 0) _limitMinusQbpp = 0;
+            // LIMIT = 2 * (bpp + max(8, bpp)) per CharLS compute_limit_parameter
+            int limit = 2 * (bpp + Math.Max(8, bpp));
+            _limitMinusQbppMinus1 = limit - bpp - 1;
+            if (_limitMinusQbppMinus1 < 0) _limitMinusQbppMinus1 = 0;
         }
 
         /// <summary>
-        /// Decodes a Golomb-Rice encoded value.
+        /// Decodes a Golomb-Rice encoded value per ITU-T T.87, A.5.2.
         /// </summary>
         /// <param name="k">The Golomb-Rice parameter.</param>
-        /// <returns>The decoded value.</returns>
+        /// <returns>The decoded mapped error value.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadGolombRice(int k)
         {
@@ -274,29 +276,34 @@ namespace SharpDicom.Codecs.JpegLs
                 quotient++;
             }
 
-            // Check for limit escape per ITU-T T.87 Section A.5.3
-            // Escape sequence: (LIMIT - qbpp - 1) zeros followed by 1
-            if (quotient >= _limitMinusQbpp)
+            // Check for limit escape
+            if (quotient >= _limitMinusQbppMinus1)
             {
-                // Read (qbpp + 1) bits for the value
-                int escapedValue = 0;
-                for (int i = 0; i <= _qbpp; i++)
-                {
-                    escapedValue = (escapedValue << 1) | ReadBit();
-                }
-                // Per ITU-T T.87: value = escapedValue + 1
+                // Read qbpp bits for the escaped value, then add 1
+                int escapedValue = ReadValue(_qbpp);
                 return escapedValue + 1;
             }
 
-            // Read k-bit binary remainder
-            int remainder = 0;
-            for (int i = 0; i < k; i++)
-            {
-                remainder = (remainder << 1) | ReadBit();
-            }
+            // Normal case: read k-bit remainder
+            if (k == 0)
+                return quotient;
 
-            // Reconstruct value
+            int remainder = ReadValue(k);
             return (quotient << k) | remainder;
+        }
+
+        /// <summary>
+        /// Reads multiple bits from the cache as a value.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int ReadValue(int bitCount)
+        {
+            int value = 0;
+            for (int i = 0; i < bitCount; i++)
+            {
+                value = (value << 1) | ReadBit();
+            }
+            return value;
         }
 
         /// <summary>

@@ -44,11 +44,21 @@ namespace SharpDicom.Codecs.JpegLs
             // Write SOF55 (Frame header)
             WriteFrameHeader(output, width, height, components, bitsPerSample);
 
-            // Write SOS (Scan header) - use non-interleaved mode for simplicity
-            WriteScanHeader(output, components, near, JlsInterleaveMode.None);
-
-            // Encode pixel data
-            EncodePixelData(output, pixelData, width, height, components, bitsPerSample, bytesPerSample, near, JlsInterleaveMode.None);
+            if (components == 1)
+            {
+                // Single component: one SOS, one scan
+                WriteScanHeader(output, 1, near, JlsInterleaveMode.None, 0);
+                EncodePixelData(output, pixelData, width, height, 1, bitsPerSample, bytesPerSample, near, JlsInterleaveMode.None);
+            }
+            else
+            {
+                // Non-interleaved: one SOS per component with fresh context state per CharLS
+                for (int c = 0; c < components; c++)
+                {
+                    WriteScanHeader(output, 1, near, JlsInterleaveMode.None, c);
+                    EncodeSingleComponent(output, pixelData, width, height, components, bitsPerSample, bytesPerSample, near, c);
+                }
+            }
 
             // Write EOI
             WriteMarker(output, EOI);
@@ -95,24 +105,24 @@ namespace SharpDicom.Codecs.JpegLs
             }
         }
 
-        private static void WriteScanHeader(List<byte> output, int components, int near, JlsInterleaveMode interleaveMode)
+        private static void WriteScanHeader(List<byte> output, int scanComponents, int near, JlsInterleaveMode interleaveMode, int startComponent)
         {
             // SOS marker
             WriteMarker(output, SOS);
 
-            // Length
-            int length = 6 + components * 2;
+            // Length: 2 (length field) + 1 (Ns) + scanComponents * 2 + 3 (NEAR, ILV, Ah/Al)
+            int length = 6 + scanComponents * 2;
             output.Add((byte)(length >> 8));
             output.Add((byte)(length & 0xFF));
 
             // Number of components in scan
-            output.Add((byte)components);
+            output.Add((byte)scanComponents);
 
             // Component selectors
-            for (int i = 0; i < components; i++)
+            for (int i = 0; i < scanComponents; i++)
             {
-                output.Add((byte)(i + 1));  // Component ID
-                output.Add(0);               // Mapping table index
+                output.Add((byte)(startComponent + i + 1));  // Component ID (1-based)
+                output.Add(0);                                 // Mapping table index
             }
 
             // NEAR parameter
@@ -150,18 +160,65 @@ namespace SharpDicom.Codecs.JpegLs
             encoder.SetBitsPerPixel(bitsPerSample);
             int stride = width * components * bytesPerSample;
 
+            // Compute quantization thresholds per ITU-T T.87, C.2.4.1.1.1
+            JpegLsPredictor.ComputeDefaultThresholds(maxVal, near, out int t1, out int t2, out int t3);
+
             // Encode based on interleave mode
             switch (interleaveMode)
             {
                 case JlsInterleaveMode.None:
-                    EncodeNonInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, contexts, ref encoder);
+                    EncodeNonInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     break;
                 case JlsInterleaveMode.Line:
-                    EncodeLineInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, contexts, ref encoder);
+                    EncodeLineInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     break;
                 case JlsInterleaveMode.Sample:
-                    EncodeSampleInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, contexts, ref encoder);
+                    EncodeSampleInterleaved(pixelData, width, height, components, bitsPerSample, bytesPerSample, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     break;
+            }
+
+            encoder.Flush();
+        }
+
+        /// <summary>
+        /// Encodes a single component with fresh context state and its own entropy segment.
+        /// Used for non-interleaved multi-component mode per CharLS behavior.
+        /// </summary>
+        private static void EncodeSingleComponent(
+            List<byte> output,
+            ReadOnlySpan<byte> pixelData,
+            int width,
+            int height,
+            int components,
+            int bitsPerSample,
+            int bytesPerSample,
+            int near,
+            int componentIndex)
+        {
+            int maxVal = (1 << bitsPerSample) - 1;
+            int range = maxVal + 1;
+
+            // Fresh contexts for each component per CharLS
+            var contexts = new JlsContext[365];
+            for (int i = 0; i < contexts.Length; i++)
+            {
+                contexts[i].Initialize(range);
+            }
+
+            var encoder = new GolombRiceEncoder(output);
+            encoder.SetBitsPerPixel(bitsPerSample);
+            int stride = width * components * bytesPerSample;
+
+            // Compute quantization thresholds per ITU-T T.87, C.2.4.1.1.1
+            JpegLsPredictor.ComputeDefaultThresholds(maxVal, near, out int t1, out int t2, out int t3);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int sample = GetSample(pixelData, x, y, componentIndex, width, components, bytesPerSample, stride, 0, 0);
+                    EncodeSample(pixelData, sample, x, y, componentIndex, width, components, bytesPerSample, stride, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
+                }
             }
 
             encoder.Flush();
@@ -177,10 +234,13 @@ namespace SharpDicom.Codecs.JpegLs
             int near,
             int maxVal,
             int range,
+            int t1,
+            int t2,
+            int t3,
             JlsContext[] contexts,
             ref GolombRiceEncoder encoder)
         {
-            // Encode each component separately
+            // Encode each component separately (used for single-component case)
             int stride = width * components * bytesPerSample;
 
             for (int c = 0; c < components; c++)
@@ -190,7 +250,7 @@ namespace SharpDicom.Codecs.JpegLs
                     for (int x = 0; x < width; x++)
                     {
                         int sample = GetSample(pixelData, x, y, c, width, components, bytesPerSample, stride, 0, 0);
-                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref encoder);
+                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     }
                 }
             }
@@ -206,6 +266,9 @@ namespace SharpDicom.Codecs.JpegLs
             int near,
             int maxVal,
             int range,
+            int t1,
+            int t2,
+            int t3,
             JlsContext[] contexts,
             ref GolombRiceEncoder encoder)
         {
@@ -219,7 +282,7 @@ namespace SharpDicom.Codecs.JpegLs
                     for (int x = 0; x < width; x++)
                     {
                         int sample = GetSample(pixelData, x, y, c, width, components, bytesPerSample, stride, 0, 0);
-                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref encoder);
+                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     }
                 }
             }
@@ -235,6 +298,9 @@ namespace SharpDicom.Codecs.JpegLs
             int near,
             int maxVal,
             int range,
+            int t1,
+            int t2,
+            int t3,
             JlsContext[] contexts,
             ref GolombRiceEncoder encoder)
         {
@@ -248,7 +314,7 @@ namespace SharpDicom.Codecs.JpegLs
                     for (int c = 0; c < components; c++)
                     {
                         int sample = GetSample(pixelData, x, y, c, width, components, bytesPerSample, stride, 0, 0);
-                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, contexts, ref encoder);
+                        EncodeSample(pixelData, sample, x, y, c, width, components, bytesPerSample, stride, near, maxVal, range, t1, t2, t3, contexts, ref encoder);
                     }
                 }
             }
@@ -268,6 +334,9 @@ namespace SharpDicom.Codecs.JpegLs
             int near,
             int maxVal,
             int range,
+            int t1,
+            int t2,
+            int t3,
             JlsContext[] contexts,
             ref GolombRiceEncoder encoder)
         {
@@ -283,9 +352,9 @@ namespace SharpDicom.Codecs.JpegLs
             int g3 = c_diag - a;
 
             // Quantize gradients
-            int q1 = JpegLsPredictor.QuantizeGradient(g1, near);
-            int q2 = JpegLsPredictor.QuantizeGradient(g2, near);
-            int q3 = JpegLsPredictor.QuantizeGradient(g3, near);
+            int q1 = JpegLsPredictor.QuantizeGradient(g1, near, t1, t2, t3);
+            int q2 = JpegLsPredictor.QuantizeGradient(g2, near, t1, t2, t3);
+            int q3 = JpegLsPredictor.QuantizeGradient(g3, near, t1, t2, t3);
 
             // Normalize gradients and track sign
             bool sign = JpegLsPredictor.NormalizeGradients(ref q1, ref q2, ref q3);
@@ -296,32 +365,39 @@ namespace SharpDicom.Codecs.JpegLs
             // Median edge detection prediction
             int predicted = JpegLsPredictor.MedianEdgeDetection(a, b, c_diag);
 
+            // Apply bias correction C to prediction (ITU-T T.87, A.6)
+            ref var ctx = ref contexts[contextIndex];
+            if (sign)
+                predicted -= ctx.C;
+            else
+                predicted += ctx.C;
+
             // Clamp prediction to valid range
             predicted = Clamp(predicted, 0, maxVal);
 
             // Compute prediction error
-            ref var ctx = ref contexts[contextIndex];
-            int rawError = sample - predicted;
-
-            // Apply bias correction
-            int biasCorrection = ctx.GetBiasCorrection();
-            int correctedError = rawError - biasCorrection;
+            int error = sample - predicted;
 
             // Apply sign from gradient normalization
             if (sign)
             {
-                correctedError = -correctedError;
+                error = -error;
             }
 
-            // Map error to non-negative for Golomb-Rice coding
-            int mappedError = ErrorMapping.MapError(correctedError);
+            // Compute Golomb-Rice parameter
+            int k = ctx.ComputeK();
+
+            // Apply error correction XOR and map to non-negative (ITU-T T.87, A.5.2)
+            // CharLS passes (k | near_lossless) so error correction is disabled for near-lossless
+            int errorCorrection = ctx.GetErrorCorrection(k | near);
+            int mappedError = ErrorMapping.MapError(errorCorrection ^ error);
 
             // Encode using Golomb-Rice
-            int k = ctx.ComputeK(32);
             encoder.WriteGolombRice(mappedError, k);
 
-            // Update context with prediction error (for statistics tracking)
-            ctx.Update(rawError, 64, range);
+            // Update context with the error value (ITU-T T.87, A.12)
+            // CharLS encoder updates with post-sign-flip error
+            ctx.Update(error, near, 64);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

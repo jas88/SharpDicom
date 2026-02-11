@@ -116,18 +116,52 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
+        /// Computes default quantization thresholds per ITU-T T.87, C.2.4.1.1.1.
+        /// </summary>
+        /// <param name="maxVal">Maximum sample value ((1 &lt;&lt; bitsPerSample) - 1).</param>
+        /// <param name="near">The NEAR parameter (0 for lossless).</param>
+        /// <param name="t1">Output: first threshold.</param>
+        /// <param name="t2">Output: second threshold.</param>
+        /// <param name="t3">Output: third threshold.</param>
+        public static void ComputeDefaultThresholds(int maxVal, int near, out int t1, out int t2, out int t3)
+        {
+            const int basicT1 = 3;
+            const int basicT2 = 7;
+            const int basicT3 = 21;
+
+            if (maxVal >= 128)
+            {
+                int factor = (Math.Min(maxVal, 4095) + 128) / 256;
+                t1 = ClampThreshold(factor * (basicT1 - 2) + 2 + 3 * near, near + 1, maxVal);
+                t2 = ClampThreshold(factor * (basicT2 - 3) + 3 + 5 * near, t1, maxVal);
+                t3 = ClampThreshold(factor * (basicT3 - 4) + 4 + 7 * near, t2, maxVal);
+            }
+            else
+            {
+                int factor = 256 / (maxVal + 1);
+                t1 = ClampThreshold(Math.Max(2, basicT1 / factor + 3 * near), near + 1, maxVal);
+                t2 = ClampThreshold(Math.Max(3, basicT2 / factor + 5 * near), t1, maxVal);
+                t3 = ClampThreshold(Math.Max(4, basicT3 / factor + 7 * near), t2, maxVal);
+            }
+        }
+
+        private static int ClampThreshold(int value, int min, int max)
+        {
+            if (value > max || value < min) return min;
+            return value;
+        }
+
+        /// <summary>
         /// Quantizes a gradient value for context selection per ITU-T T.87 Section 4.3.
         /// </summary>
         /// <param name="gradient">The gradient value (difference between neighboring samples).</param>
         /// <param name="near">The NEAR parameter (0 for lossless, >0 for near-lossless).</param>
+        /// <param name="t1">First quantization threshold.</param>
+        /// <param name="t2">Second quantization threshold.</param>
+        /// <param name="t3">Third quantization threshold.</param>
         /// <returns>Quantized gradient in range [-4, 4].</returns>
-        public static int QuantizeGradient(int gradient, int near)
+        public static int QuantizeGradient(int gradient, int near, int t1, int t2, int t3)
         {
-            // Threshold values per ITU-T T.87 Table A.1
-            int t1 = 3 + near;
-            int t2 = 7 + near;
-            int t3 = 21 + near;
-
             // Map gradient to quantization region
             if (gradient <= -t3) return -4;
             if (gradient <= -t2) return -3;
