@@ -234,6 +234,7 @@ namespace SharpDicom.Codecs.JpegLs
         {
             int maxVal = (1 << bitsPerSample) - 1;
             int range = ComputeRange(maxVal, near);
+            int qbpp = near == 0 ? bitsPerSample : Log2Ceiling(range);
             int bytesPerSample = (bitsPerSample + 7) / 8;
 
             var contexts = new JlsContext[365];
@@ -245,7 +246,7 @@ namespace SharpDicom.Codecs.JpegLs
             runContexts[1].Initialize(1, range);
 
             var decoder = new GolombRiceDecoder(scanData);
-            decoder.SetBitsPerPixel(bitsPerSample);
+            decoder.SetBitsPerPixel(bitsPerSample, qbpp);
 
             JpegLsPredictor.ComputeDefaultThresholds(maxVal, near, out int t1, out int t2, out int t3);
 
@@ -285,13 +286,13 @@ namespace SharpDicom.Codecs.JpegLs
                     {
                         currentLine[index] = DecodeRegular(qs,
                             JpegLsPredictor.MedianEdgeDetection(ra, rb, rc),
-                            maxVal, near, bitsPerSample, contexts, ref decoder);
+                            maxVal, near, range, bitsPerSample, qbpp, contexts, ref decoder);
                         index++;
                     }
                     else
                     {
                         int consumed = DecodeRunMode(currentLine, previousLine, index, width, ra,
-                            maxVal, near, bitsPerSample, runContexts, ref runIndex, ref decoder);
+                            maxVal, near, range, bitsPerSample, qbpp, runContexts, ref runIndex, ref decoder);
                         index += consumed;
                         rb = previousLine[index - 1];
                         rd = previousLine[index];
@@ -330,7 +331,9 @@ namespace SharpDicom.Codecs.JpegLs
             int predicted,
             int maxVal,
             int near,
+            int range,
             int bitsPerSample,
+            int qbpp,
             JlsContext[] contexts,
             ref GolombRiceDecoder decoder)
         {
@@ -354,6 +357,12 @@ namespace SharpDicom.Codecs.JpegLs
                 errorValue = errorValue ^ ctx.GetErrorCorrection(near);
             }
 
+            // For near-lossless: apply modulo range to get the quantized error
+            if (near > 0)
+            {
+                errorValue = ModuloRangeNearLossless(errorValue, range);
+            }
+
             // Update context BEFORE applying sign (CharLS ordering)
             ctx.Update(errorValue, near, 64);
 
@@ -361,7 +370,16 @@ namespace SharpDicom.Codecs.JpegLs
             errorValue = (errorValue ^ sign) - sign;
 
             // Reconstruct sample
-            return ComputeReconstructedSample(correctedPrediction, errorValue, maxVal);
+            if (near == 0)
+            {
+                return ComputeReconstructedSample(correctedPrediction, errorValue, maxVal);
+            }
+            else
+            {
+                return FixReconstructedValue(
+                    correctedPrediction + Dequantize(errorValue, near),
+                    near, maxVal, range);
+            }
         }
 
         /// <summary>
@@ -376,7 +394,9 @@ namespace SharpDicom.Codecs.JpegLs
             int ra,
             int maxVal,
             int near,
+            int range,
             int bitsPerSample,
+            int qbpp,
             JlsRunModeContext[] runContexts,
             ref int runIndex,
             ref GolombRiceDecoder decoder)
@@ -398,7 +418,7 @@ namespace SharpDicom.Codecs.JpegLs
             int rbVal = previousLine[ix];
 
             currentLine[ix] = DecodeRunInterruptionPixel(ra, rbVal,
-                maxVal, near, bitsPerSample, runContexts, ref runIndex, ref decoder);
+                maxVal, near, range, bitsPerSample, qbpp, runContexts, ref runIndex, ref decoder);
 
             if (runIndex > 0) runIndex--;
 
@@ -448,7 +468,7 @@ namespace SharpDicom.Codecs.JpegLs
         /// </summary>
         private static int DecodeRunInterruptionPixel(
             int ra, int rb,
-            int maxVal, int near, int bitsPerSample,
+            int maxVal, int near, int range, int bitsPerSample, int qbpp,
             JlsRunModeContext[] runContexts,
             ref int runIndex,
             ref GolombRiceDecoder decoder)
@@ -459,20 +479,34 @@ namespace SharpDicom.Codecs.JpegLs
             {
                 ref var ctx = ref runContexts[1];
                 int k = ctx.ComputeK();
-                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, bitsPerSample);
+                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, qbpp);
                 int errorValue = ctx.ComputeErrorValue(eMapped + ctx.RunInterruptionType, k);
                 ctx.UpdateVariables(errorValue, eMapped, 64);
-                return ComputeReconstructedSample(ra, errorValue, maxVal);
+                if (near == 0)
+                {
+                    return ComputeReconstructedSample(ra, errorValue, maxVal);
+                }
+                else
+                {
+                    return FixReconstructedValue(ra + Dequantize(errorValue, near), near, maxVal, range);
+                }
             }
             else
             {
                 ref var ctx = ref runContexts[0];
                 int k = ctx.ComputeK();
-                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, bitsPerSample);
+                int eMapped = decoder.ReadGolombRiceWithLimit(k, limit - J[runIndex] - 1, qbpp);
                 int errorValue = ctx.ComputeErrorValue(eMapped + ctx.RunInterruptionType, k);
                 ctx.UpdateVariables(errorValue, eMapped, 64);
                 int signVal = Sign(rb - ra);
-                return ComputeReconstructedSample(rb, errorValue * signVal, maxVal);
+                if (near == 0)
+                {
+                    return ComputeReconstructedSample(rb, errorValue * signVal, maxVal);
+                }
+                else
+                {
+                    return FixReconstructedValue(rb + Dequantize(errorValue, near) * signVal, near, maxVal, range);
+                }
             }
         }
 
@@ -535,6 +569,68 @@ namespace SharpDicom.Codecs.JpegLs
         private static int ComputeLimit(int bitsPerSample)
         {
             return 2 * (bitsPerSample + Math.Max(8, bitsPerSample));
+        }
+
+        /// <summary>
+        /// Computes ceil(log2(n)) matching CharLS log2_ceiling exactly.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Log2Ceiling(int n)
+        {
+            int k = 0;
+            int v = 1;
+            while (v < n)
+            {
+                k++;
+                v *= 2;
+            }
+            return k;
+        }
+
+        /// <summary>
+        /// Quantizes a prediction error for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Quantize(int errorValue, int near)
+        {
+            if (errorValue > 0)
+                return (errorValue + near) / (2 * near + 1);
+            return -(near - errorValue) / (2 * near + 1);
+        }
+
+        /// <summary>
+        /// Dequantizes an error value for near-lossless reconstruction.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Dequantize(int errorValue, int near)
+        {
+            return errorValue * (2 * near + 1);
+        }
+
+        /// <summary>
+        /// Range-based modulo reduction for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ModuloRangeNearLossless(int errorValue, int range)
+        {
+            if (errorValue < 0)
+                errorValue += range;
+            if (errorValue >= (range + 1) / 2)
+                errorValue -= range;
+            return errorValue;
+        }
+
+        /// <summary>
+        /// Fixes a reconstructed sample for near-lossless mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FixReconstructedValue(int value, int near, int maxVal, int range)
+        {
+            if (value < -near)
+                value += range * (2 * near + 1);
+            else if (value > maxVal + near)
+                value -= range * (2 * near + 1);
+            return CorrectPrediction(value, maxVal);
         }
     }
 }

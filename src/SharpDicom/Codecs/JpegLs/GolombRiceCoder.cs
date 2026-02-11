@@ -59,12 +59,14 @@ namespace SharpDicom.Codecs.JpegLs
         /// <summary>
         /// Sets the coding parameters for limit escape encoding.
         /// </summary>
-        public void SetBitsPerPixel(int bpp)
+        /// <param name="bpp">Bits per pixel (used for LIMIT computation).</param>
+        /// <param name="qbpp">Quantized bits per pixel: ceil(log2(RANGE)). For lossless, equals bpp.</param>
+        public void SetBitsPerPixel(int bpp, int qbpp)
         {
-            _qbpp = bpp;
+            _qbpp = qbpp;
             // LIMIT = 2 * (bpp + max(8, bpp)) per CharLS compute_limit_parameter
             int limit = 2 * (bpp + Math.Max(8, bpp));
-            _limitMinusQbppMinus1 = limit - bpp - 1;
+            _limitMinusQbppMinus1 = limit - qbpp - 1;
             if (_limitMinusQbppMinus1 < 0) _limitMinusQbppMinus1 = 0;
         }
 
@@ -309,12 +311,14 @@ namespace SharpDicom.Codecs.JpegLs
         /// <summary>
         /// Sets the coding parameters for limit escape decoding.
         /// </summary>
-        public void SetBitsPerPixel(int bpp)
+        /// <param name="bpp">Bits per pixel (used for LIMIT computation).</param>
+        /// <param name="qbpp">Quantized bits per pixel: ceil(log2(RANGE)). For lossless, equals bpp.</param>
+        public void SetBitsPerPixel(int bpp, int qbpp)
         {
-            _qbpp = bpp;
+            _qbpp = qbpp;
             // LIMIT = 2 * (bpp + max(8, bpp)) per CharLS compute_limit_parameter
             int limit = 2 * (bpp + Math.Max(8, bpp));
-            _limitMinusQbppMinus1 = limit - bpp - 1;
+            _limitMinusQbppMinus1 = limit - qbpp - 1;
             if (_limitMinusQbppMinus1 < 0) _limitMinusQbppMinus1 = 0;
         }
 
