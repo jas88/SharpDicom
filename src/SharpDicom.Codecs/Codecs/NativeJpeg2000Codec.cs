@@ -195,23 +195,36 @@ namespace SharpDicom.Codecs.Native
         {
             var opts = options as Jpeg2000EncodeOptions ?? Jpeg2000EncodeOptions.Default;
 
-            int lossless = _transferSyntax.IsLossy ? 0 : 1;
-            float compressionRatio = _transferSyntax.IsLossy ? opts.CompressionRatio : 1.0f;
-            int bitsPerSample = info.BitsStored;
+            int bitsPerComponent = info.BitsStored;
+            int isSigned = info.IsSigned ? 1 : 0;
+
+            // Allocate output buffer - estimate 4x raw size for worst case (lossless)
+            int bytesPerSample = (info.BitsStored + 7) / 8;
+            int rawSize = info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
+            int outputBufferSize = Math.Max(rawSize * 4, 4096);
+            var outputBuffer = new byte[outputBufferSize];
 
             fixed (byte* input = pixelData)
+            fixed (byte* output = outputBuffer)
             {
+                // Create encoding parameters struct on stack
+                J2kEncodeParams encParams = _transferSyntax.IsLossy
+                    ? J2kEncodeParams.Lossy(opts.CompressionRatio, opts.TileSize)
+                    : J2kEncodeParams.DefaultLossless;
+
+                nuint outSize = 0;
                 int result = NativeMethods.j2k_encode(
                     input,
+                    (nuint)pixelData.Length,
                     info.Columns,
                     info.Rows,
                     info.SamplesPerPixel,
-                    bitsPerSample,
-                    out byte* output,
-                    out int outputLen,
-                    lossless,
-                    compressionRatio,
-                    opts.TileSize);
+                    bitsPerComponent,
+                    isSigned,
+                    &encParams,
+                    output,
+                    (nuint)outputBufferSize,
+                    &outSize);
 
                 if (result < 0)
                 {
@@ -222,46 +235,28 @@ namespace SharpDicom.Codecs.Native
                         TransferSyntax);
                 }
 
-                try
+                int outputLen = (int)outSize;
+
+                // Validate output length from native code
+                if (outputLen <= 0)
                 {
-                    // Validate output length from native code
-                    if (outputLen < 0)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            "Native encoder returned negative output length",
-                            TransferSyntax);
-                    }
-
-                    // Sanity check: output shouldn't be larger than reasonable maximum
-                    // For small images, codec header overhead can exceed 4x raw size, so use minimum threshold
-                    int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
-                    long rawSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck;
-                    long maxReasonableSize = Math.Max(rawSize * 4, 4096);
-                    if (outputLen > maxReasonableSize)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
-                            TransferSyntax);
-                    }
-
-                    var data = new byte[outputLen];
-                    Marshal.Copy((IntPtr)output, data, 0, outputLen);
-
-                    var fragments = new List<ReadOnlyMemory<byte>> { data };
-                    return new DicomFragmentSequence(
-                        DicomTag.PixelData,
-                        DicomVR.OB,
-                        ReadOnlyMemory<byte>.Empty,
-                        fragments);
+                    throw NativeCodecException.EncodeError(
+                        Name,
+                        -1,
+                        "Native encoder returned zero or negative output length",
+                        TransferSyntax);
                 }
-                finally
-                {
-                    NativeMethods.j2k_free(output);
-                }
+
+                // Copy encoded data to properly sized array
+                var data = new byte[outputLen];
+                Buffer.BlockCopy(outputBuffer, 0, data, 0, outputLen);
+
+                var fragments = new List<ReadOnlyMemory<byte>> { data };
+                return new DicomFragmentSequence(
+                    DicomTag.PixelData,
+                    DicomVR.OB,
+                    ReadOnlyMemory<byte>.Empty,
+                    fragments);
             }
         }
 
