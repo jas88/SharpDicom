@@ -114,7 +114,7 @@ namespace SharpDicom.Codecs.Native
             ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
 
             if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
-                throw new ArgumentOutOfRangeException(nameof(frameIndex));
+                return DecodeResult.Fail(frameIndex, 0, $"Frame index {frameIndex} is out of range (0-{fragments.Fragments.Count - 1})");
 
             var fragment = fragments.Fragments[frameIndex];
             if (fragment.IsEmpty)
@@ -135,10 +135,11 @@ namespace SharpDicom.Codecs.Native
             }
 
             int result;
-            int width, height, components, bitsPerSample;
+            int width = 0, height = 0, components = 0;
 
             if (useGpu && NativeCodecs.HasFeature(NativeCodecFeature.Gpu))
             {
+                int bitsPerSample;
                 result = NativeMethods.gpu_j2k_decode(
                     (byte*)fragmentPin.Pointer, fragment.Length,
                     (byte*)destPin.Pointer, destination.Length,
@@ -146,11 +147,16 @@ namespace SharpDicom.Codecs.Native
             }
             else
             {
+                // Create decode options struct
+                J2kDecodeOptions decOpts = resolutionLevel > 0
+                    ? J2kDecodeOptions.WithReduce(resolutionLevel)
+                    : J2kDecodeOptions.Default;
+
                 result = NativeMethods.j2k_decode(
-                    (byte*)fragmentPin.Pointer, fragment.Length,
-                    (byte*)destPin.Pointer, destination.Length,
-                    out width, out height, out components, out bitsPerSample,
-                    resolutionLevel);
+                    (byte*)fragmentPin.Pointer, (nuint)fragment.Length,
+                    (byte*)destPin.Pointer, (nuint)destination.Length,
+                    &decOpts,
+                    &width, &height, &components);
             }
 
             if (result < 0)
@@ -160,9 +166,9 @@ namespace SharpDicom.Codecs.Native
                     string.IsNullOrEmpty(errorMessage) ? "JPEG 2000 decode failed" : errorMessage);
             }
 
-            // Calculate bytes written based on actual decoded dimensions and bit depth
-            // Use long arithmetic to prevent overflow on large images
-            int bytesPerSample = (bitsPerSample + 7) / 8;
+            // Calculate bytes written based on actual decoded dimensions
+            // Use bitsAllocated from info since native decode doesn't return it
+            int bytesPerSample = (info.BitsAllocated + 7) / 8;
             long bytesWrittenLong = (long)width * height * components * bytesPerSample;
 
             // Validate the result fits in an int (DecodeResult uses int)

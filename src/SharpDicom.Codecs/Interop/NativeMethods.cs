@@ -19,6 +19,39 @@ namespace SharpDicom.Codecs.Native.Interop
     }
 
     /// <summary>
+    /// Decoding options for JPEG 2000.
+    /// </summary>
+    /// <remarks>
+    /// Must match the native J2kDecodeOptions struct in j2k_wrapper.h.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct J2kDecodeOptions
+    {
+        /// <summary>Reduction factor (0=full, 1=half, 2=quarter, etc.).</summary>
+        public int Reduce;
+        /// <summary>Maximum quality layer to decode (0 = all layers).</summary>
+        public int MaxQualityLayers;
+
+        /// <summary>
+        /// Creates default decode options (full resolution, all layers).
+        /// </summary>
+        public static J2kDecodeOptions Default => new()
+        {
+            Reduce = 0,
+            MaxQualityLayers = 0
+        };
+
+        /// <summary>
+        /// Creates decode options with the specified reduction factor.
+        /// </summary>
+        public static J2kDecodeOptions WithReduce(int reduce) => new()
+        {
+            Reduce = reduce,
+            MaxQualityLayers = 0
+        };
+    }
+
+    /// <summary>
     /// Encoding parameters for JPEG 2000 compression.
     /// </summary>
     /// <remarks>
@@ -263,18 +296,26 @@ namespace SharpDicom.Codecs.Native.Interop
         /// <summary>
         /// Decodes JPEG 2000 compressed data.
         /// </summary>
+        /// <param name="input">Pointer to compressed J2K/JP2 data.</param>
+        /// <param name="inputLen">Length of compressed data in bytes.</param>
+        /// <param name="output">Pointer to output buffer for decoded pixels.</param>
+        /// <param name="outputLen">Size of output buffer in bytes.</param>
+        /// <param name="options">Decode options (can be null for defaults).</param>
+        /// <param name="outWidth">Output: Actual decoded width.</param>
+        /// <param name="outHeight">Output: Actual decoded height.</param>
+        /// <param name="outComponents">Output: Number of components.</param>
+        /// <returns>0 on success, negative error code on failure.</returns>
         [LibraryImport(LibraryName, EntryPoint = "j2k_decode")]
         [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_decode(
             byte* input,
-            int inputLen,
+            nuint inputLen,
             byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            int resolutionLevel);
+            nuint outputLen,
+            J2kDecodeOptions* options,
+            int* outWidth,
+            int* outHeight,
+            int* outComponents);
 
         /// <summary>
         /// Gets JPEG 2000 header information without decoding.
@@ -665,14 +706,13 @@ namespace SharpDicom.Codecs.Native.Interop
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_decode")]
         internal static extern int j2k_decode(
             byte* input,
-            int inputLen,
+            UIntPtr inputLen,
             byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            int resolutionLevel);
+            UIntPtr outputLen,
+            J2kDecodeOptions* options,
+            int* outWidth,
+            int* outHeight,
+            int* outComponents);
 
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_get_info")]
         internal static extern int j2k_get_info(
