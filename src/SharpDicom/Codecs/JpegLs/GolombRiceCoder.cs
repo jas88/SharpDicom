@@ -28,6 +28,7 @@ namespace SharpDicom.Codecs.JpegLs
         private List<byte> _output;
         private uint _buffer;
         private int _bitCount;
+        private bool _lastByteWasFF;
 
         /// <summary>
         /// Initializes a new Golomb-Rice encoder.
@@ -38,6 +39,7 @@ namespace SharpDicom.Codecs.JpegLs
             _output = output;
             _buffer = 0;
             _bitCount = 0;
+            _lastByteWasFF = false;
         }
 
         /// <summary>
@@ -121,18 +123,26 @@ namespace SharpDicom.Codecs.JpegLs
             _buffer = (_buffer << 1) | (uint)(bit & 1);
             _bitCount++;
 
-            // Flush when buffer full
-            if (_bitCount == 8)
-            {
-                byte b = (byte)_buffer;
-                _output.Add(b);
+            // JPEG-LS bit-stuffing (ITU-T T.87 Section A.1):
+            // After a 0xFF byte, the next byte uses only 7 data bits (MSB is a stuff bit = 0).
+            // So we flush at 7 bits if the previous byte was 0xFF, otherwise at 8 bits.
+            int limit = _lastByteWasFF ? 7 : 8;
 
-                // JPEG bit-stuffing: insert 0x00 after 0xFF
-                if (b == 0xFF)
+            if (_bitCount >= limit)
+            {
+                byte b;
+                if (_lastByteWasFF)
                 {
-                    _output.Add(0x00);
+                    // Stuff bit: MSB is 0, data in bits 6..0
+                    b = (byte)(_buffer & 0x7F);
+                }
+                else
+                {
+                    b = (byte)_buffer;
                 }
 
+                _output.Add(b);
+                _lastByteWasFF = (b == 0xFF);
                 _buffer = 0;
                 _bitCount = 0;
             }
@@ -145,12 +155,27 @@ namespace SharpDicom.Codecs.JpegLs
         {
             if (_bitCount > 0)
             {
-                // Pad with zeros to complete the byte
-                _buffer <<= (8 - _bitCount);
-                byte b = (byte)_buffer;
+                int limit = _lastByteWasFF ? 7 : 8;
+                int padBits = limit - _bitCount;
+
+                // Pad remaining bits with zeros
+                _buffer <<= padBits;
+
+                byte b;
+                if (_lastByteWasFF)
+                {
+                    // Stuff bit: MSB is 0, data in bits 6..0
+                    b = (byte)(_buffer & 0x7F);
+                }
+                else
+                {
+                    b = (byte)_buffer;
+                }
+
                 _output.Add(b);
 
-                // Apply bit-stuffing to final byte
+                // If the flush byte is 0xFF, we need another stuff byte (0x00)
+                // to prevent marker confusion before EOI
                 if (b == 0xFF)
                 {
                     _output.Add(0x00);
@@ -158,6 +183,7 @@ namespace SharpDicom.Codecs.JpegLs
 
                 _buffer = 0;
                 _bitCount = 0;
+                _lastByteWasFF = false;
             }
         }
     }
@@ -175,6 +201,7 @@ namespace SharpDicom.Codecs.JpegLs
         private int _pos;
         private int _bitPos;
         private uint _buffer;
+        private bool _lastByteWasFF;
 
         /// <summary>
         /// Initializes a new Golomb-Rice decoder.
@@ -186,6 +213,7 @@ namespace SharpDicom.Codecs.JpegLs
             _pos = 0;
             _bitPos = 0;
             _buffer = 0;
+            _lastByteWasFF = false;
         }
 
         /// <summary>
@@ -268,13 +296,18 @@ namespace SharpDicom.Codecs.JpegLs
 
                 _buffer = _data[_pos++];
 
-                // JPEG bit-unstuffing: skip 0x00 after 0xFF
-                if (_buffer == 0xFF && _pos < _data.Length && _data[_pos] == 0x00)
+                // JPEG-LS bit-unstuffing (ITU-T T.87 Section A.1):
+                // After a 0xFF byte, the next byte has only 7 data bits (MSB is stuff bit).
+                if (_lastByteWasFF)
                 {
-                    _pos++;
+                    _bitPos = 7; // Only 7 usable bits (MSB is stuff bit = 0)
+                }
+                else
+                {
+                    _bitPos = 8;
                 }
 
-                _bitPos = 8;
+                _lastByteWasFF = (_buffer == 0xFF);
             }
 
             // Extract bit from buffer
