@@ -154,6 +154,63 @@ namespace SharpDicom.Codecs.JpegLs
         }
 
         /// <summary>
+        /// Public accessor for AppendBits, used by run mode encoding.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AppendBitsPublic(uint bits, int bitCount)
+        {
+            AppendBits(bits, bitCount);
+        }
+
+        /// <summary>
+        /// Appends 'bitCount' ones to the bit stream. Used for run-length encoding.
+        /// Matches CharLS append_ones_to_bit_stream().
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void AppendOnesToBitStream(int bitCount)
+        {
+            AppendBits((1U << bitCount) - 1U, bitCount);
+        }
+
+        /// <summary>
+        /// Encodes a mapped error value with explicit limit parameter.
+        /// Used for run interruption encoding where LIMIT differs from regular mode.
+        /// Matches CharLS encode_mapped_value(k, mapped_error, limit).
+        /// </summary>
+        public void WriteGolombRiceWithLimit(int value, int k, int limit, int qbpp)
+        {
+            int highBits = value >> k;
+
+            if (highBits < limit - qbpp - 1)
+            {
+                if (highBits + 1 > 31)
+                {
+                    AppendBits(0, highBits / 2);
+                    highBits -= highBits / 2;
+                }
+                AppendBits(1, highBits + 1);
+                if (k > 0)
+                {
+                    AppendBits((uint)(value & ((1 << k) - 1)), k);
+                }
+            }
+            else
+            {
+                int escapeLength = limit - qbpp;
+                if (escapeLength > 31)
+                {
+                    AppendBits(0, 31);
+                    AppendBits(1, escapeLength - 31);
+                }
+                else
+                {
+                    AppendBits(1, escapeLength);
+                }
+                AppendBits((uint)((value - 1) & ((1 << qbpp) - 1)), qbpp);
+            }
+        }
+
+        /// <summary>
         /// Drains complete bytes from the MSB end of the 32-bit buffer,
         /// applying JPEG-LS bit-stuffing (ITU-T T.87 A.1).
         /// After a 0xFF byte, the next byte extracts only 7 bits (MSB forced to 0).
@@ -285,6 +342,32 @@ namespace SharpDicom.Codecs.JpegLs
             }
 
             // Normal case: read k-bit remainder
+            if (k == 0)
+                return quotient;
+
+            int remainder = ReadValue(k);
+            return (quotient << k) | remainder;
+        }
+
+        /// <summary>
+        /// Decodes a Golomb-Rice encoded value with explicit limit parameter.
+        /// Used for run interruption decoding where LIMIT differs from regular mode.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReadGolombRiceWithLimit(int k, int limit, int qbpp)
+        {
+            int quotient = 0;
+            while (ReadBit() == 0)
+            {
+                quotient++;
+            }
+
+            if (quotient >= limit - qbpp - 1)
+            {
+                int escapedValue = ReadValue(qbpp);
+                return escapedValue + 1;
+            }
+
             if (k == 0)
                 return quotient;
 
