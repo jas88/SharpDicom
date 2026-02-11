@@ -170,10 +170,19 @@ pub fn build(b: *std.Build) void {
             core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
         else
             core_flags_1;
-        const core_flags = if (have_stb_image)
+        const core_flags_3 = if (have_stb_image)
             core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
         else
             core_flags_2;
+        // Add J2K and JLS flags so sharpdicom_features() reports them
+        const core_flags_4 = if (have_openjpeg)
+            core_flags_3 ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"}
+        else
+            core_flags_3;
+        const core_flags = if (have_charls)
+            core_flags_4 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"}
+        else
+            core_flags_4;
         lib.addCSourceFile(.{
             .file = b.path("src/sharpdicom_codecs.c"),
             .flags = core_flags,
@@ -541,10 +550,19 @@ pub fn build(b: *std.Build) void {
         native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
     else
         native_core_flags_1;
-    const native_core_flags = if (have_stb_image)
+    const native_core_flags_3 = if (have_stb_image)
         native_core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
     else
         native_core_flags_2;
+    // Add J2K and JLS flags so sharpdicom_features() reports them
+    const native_core_flags_4 = if (have_openjpeg)
+        native_core_flags_3 ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"}
+    else
+        native_core_flags_3;
+    const native_core_flags = if (have_charls)
+        native_core_flags_4 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"}
+    else
+        native_core_flags_4;
 
     native_lib.addCSourceFile(.{
         .file = b.path("src/sharpdicom_codecs.c"),
