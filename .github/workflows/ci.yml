@@ -204,6 +204,11 @@ jobs:
           echo "Native library: $NATIVE_LIB"
           ls -la $NATIVE_LIB || echo "Warning: Native library not found"
 
+          # Check library dependencies
+          echo "Library dependencies (ldd):"
+          ldd $NATIVE_LIB || true
+          echo ""
+
           # Copy to all test assembly directories
           for testdir in tests/*/bin/Release/net*/; do
             if [ -d "$testdir" ]; then
