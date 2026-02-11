@@ -43,6 +43,46 @@ namespace SharpDicom.Codecs.Tests
 #if NET5_0_OR_GREATER
         [Test]
         [Category("NativeCodecs")]
+        [Order(0)] // Run this test first to check initialization before other tests
+        public void InitializeWithCustomPath_WhenLibraryExists_Succeeds()
+        {
+            // This test explicitly passes the library path to Initialize
+            var assemblyDir = AppContext.BaseDirectory;
+            string libName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "sharpdicom_codecs.dll"
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? "libsharpdicom_codecs.dylib"
+                    : "libsharpdicom_codecs.so";
+
+            string directPath = Path.Combine(assemblyDir, libName);
+            Console.Error.WriteLine($"[Test] Looking for library at: {directPath}");
+            Console.Error.WriteLine($"[Test] File exists: {File.Exists(directPath)}");
+
+            if (!File.Exists(directPath))
+            {
+                Assert.Ignore($"Native library not present at {directPath}");
+                return;
+            }
+
+            // Reset any previous state
+            NativeCodecs.Reset();
+
+            // Initialize with explicit custom path
+            Console.Error.WriteLine($"[Test] Calling Initialize with CustomLibraryPath={directPath}");
+            NativeCodecs.Initialize(new NativeCodecOptions
+            {
+                CustomLibraryPath = directPath,
+                SuppressInitializationErrors = false
+            });
+
+            Console.Error.WriteLine($"[Test] After Initialize: IsAvailable={NativeCodecs.IsAvailable}, Version={NativeCodecs.NativeVersion}");
+
+            Assert.That(NativeCodecs.IsAvailable, Is.True, "Library should be available when path is explicitly provided");
+            Assert.That(NativeCodecs.NativeVersion, Is.GreaterThan(0), "Version should be > 0");
+        }
+
+        [Test]
+        [Category("NativeCodecs")]
         public void DiagnoseNativeLibraryLoading()
         {
             // This test diagnoses native library loading issues

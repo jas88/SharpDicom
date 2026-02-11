@@ -67,6 +67,13 @@ namespace SharpDicom.Codecs.Native
         /// </summary>
         private static readonly object _initLock = new object();
 
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// Whether the DllImportResolver has been set (can only be set once per assembly).
+        /// </summary>
+        private static bool _resolverSet;
+#endif
+
         /// <summary>
         /// The native library version, or 0 if not initialized.
         /// </summary>
@@ -244,7 +251,9 @@ namespace SharpDicom.Codecs.Native
                     }
 
                     // Probe the native library
+                    Console.Error.WriteLine("[NativeCodecs] About to call sharpdicom_version()...");
                     _nativeVersion = NativeMethods.sharpdicom_version();
+                    Console.Error.WriteLine($"[NativeCodecs] sharpdicom_version() returned {_nativeVersion}");
 
                     // Verify version
                     if (_nativeVersion != ExpectedVersion && options?.SkipVersionCheck != true)
@@ -279,6 +288,7 @@ namespace SharpDicom.Codecs.Native
                 }
                 catch (DllNotFoundException ex)
                 {
+                    Console.Error.WriteLine($"[NativeCodecs] DllNotFoundException: {ex.Message}");
                     _initializationException = NativeCodecException.LibraryNotFound(
                         NativeMethods.LibraryName,
                         GetRuntimeIdentifier());
@@ -301,6 +311,7 @@ namespace SharpDicom.Codecs.Native
                 }
                 catch (Exception ex)
                 {
+                    Console.Error.WriteLine($"[NativeCodecs] Exception ({ex.GetType().Name}): {ex.Message}");
                     _initializationException = new NativeCodecException(
                         "Failed to initialize native codecs", ex);
                     _initializationState = 2;
@@ -400,9 +411,24 @@ namespace SharpDicom.Codecs.Native
         private static void SetupDllResolver(NativeCodecOptions? options)
         {
 #if NET5_0_OR_GREATER
-            NativeLibrary.SetDllImportResolver(
-                typeof(NativeCodecs).Assembly,
-                (libraryName, assembly, searchPath) => DllImportResolver(libraryName, assembly, searchPath, options));
+            // Only set the resolver once - it throws InvalidOperationException on subsequent calls
+            if (!_resolverSet)
+            {
+                try
+                {
+                    NativeLibrary.SetDllImportResolver(
+                        typeof(NativeCodecs).Assembly,
+                        (libraryName, assembly, searchPath) => DllImportResolver(libraryName, assembly, searchPath, options));
+                    _resolverSet = true;
+                    Console.Error.WriteLine("[NativeCodecs] DllImportResolver registered successfully");
+                }
+                catch (InvalidOperationException)
+                {
+                    // Resolver already set by another call - this is OK
+                    _resolverSet = true;
+                    Console.Error.WriteLine("[NativeCodecs] DllImportResolver was already registered");
+                }
+            }
 #else
             // On netstandard2.0, we rely on the default P/Invoke resolution
             _ = options; // Suppress unused parameter warning
