@@ -91,7 +91,6 @@
   #define HAVE_ATTRIBUTE_PACKED 1
   #define HAVE_ATTRIBUTE_MAY_ALIAS 1
   #define HAVE_MALLOC_H 1
-  #define HAVE_INTERLACED 1
   #define fseek fseeko
   #define ftell ftello
 #endif
@@ -148,6 +147,15 @@
 #else
   #define ALWAYS_INLINE inline
   #define NOINLINE
+#endif
+
+/* API visibility */
+#if defined(__GNUC__) || defined(__clang__)
+  #define X264_API __attribute__((visibility("default")))
+#elif defined(_MSC_VER)
+  #define X264_API __declspec(dllexport)
+#else
+  #define X264_API
 #endif
 
 /* Unused parameter suppression */
