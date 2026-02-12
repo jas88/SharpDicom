@@ -576,7 +576,8 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
         "-Ivendor/x264", // x264.h and x264_config.h
-        "-Ivendor/x264/common", // Internal x264 headers (only for x264 sources)
+        "-Ivendor/x264/common", // Internal x264 common headers
+        "-Ivendor/x264/encoder", // Internal x264 encoder headers (for analyse.h etc.)
     };
 
     // x264 core encoder sources (no CLI, no filters, no asm)

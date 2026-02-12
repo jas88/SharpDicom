@@ -8,6 +8,20 @@
 #ifndef X265_CONFIG_H
 #define X265_CONFIG_H
 
+/* Include C library headers early to ensure POSIX types (timespec, etc.)
+ * are defined before C++ standard library headers need them.
+ * This is required for Zig cross-compilation targeting macOS. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include <time.h>
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
+#ifdef __cplusplus
+}
+#endif
+
 /* x265 version */
 #define X265_VERSION "3.6"
 #define X265_BUILD 210
@@ -127,9 +141,6 @@
 #define HAVE_STDINT_H 1
 #define HAVE_INTTYPES_H 1
 #define HAVE_STDBOOL_H 1
-
-/* Include time.h for timespec (needed by C++ threading headers) */
-#include <time.h>
 
 /* Memory functions */
 #if defined(_WIN32)

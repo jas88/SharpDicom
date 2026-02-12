@@ -163,23 +163,8 @@
   #define STATIC_ASSERT(cond, msg)
 #endif
 
-/* Prefetch hints */
-#if defined(__GNUC__) || defined(__clang__)
-  #define x264_prefetch(x) __builtin_prefetch(x)
-#else
-  #define x264_prefetch(x)
-#endif
-
-/* Stack alignment - let osdep.h define this if not already defined */
-#ifndef DECLARE_ALIGNED
-  #if defined(__GNUC__) || defined(__clang__)
-    #define DECLARE_ALIGNED(n, t, v) t v __attribute__((aligned(n)))
-  #elif defined(_MSC_VER)
-    #define DECLARE_ALIGNED(n, t, v) __declspec(align(n)) t v
-  #else
-    #define DECLARE_ALIGNED(n, t, v) t v
-  #endif
-#endif
+/* Note: x264_prefetch and DECLARE_ALIGNED are defined in osdep.h */
+/* Do not define them here to avoid redefinition errors */
 
 /* Disable interlaced encoding (not used in DICOM) */
 #define HAVE_INTERLACED 0
