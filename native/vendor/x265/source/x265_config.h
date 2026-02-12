@@ -11,6 +11,18 @@
 /* Include C library headers early to ensure POSIX types (timespec, etc.)
  * are defined before C++ standard library headers need them.
  * This is required for Zig cross-compilation targeting macOS. */
+
+/* For Zig cross-compilation to macOS: the timespec struct may not be
+ * properly defined when libc++ headers need it. Define it explicitly
+ * before including any standard headers. */
+#if defined(__APPLE__) && !defined(_STRUCT_TIMESPEC)
+#define _STRUCT_TIMESPEC
+struct timespec {
+    long tv_sec;
+    long tv_nsec;
+};
+#endif
+
 #include <time.h>
 #if !defined(_WIN32)
 #include <unistd.h>
