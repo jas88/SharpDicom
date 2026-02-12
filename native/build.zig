@@ -30,34 +30,29 @@ pub fn build(b: *std.Build) void {
     const have_x265 = detectVendorLibrary("vendor/x265/source");
     const have_leptonica = detectVendorLibrary("vendor/leptonica/src");
 
-    // Report library status at build time
+    // All vendor libraries are required - fail the build if any are missing.
+    // Run scripts/download-vendors.sh or let CI download them before building.
     if (!have_libjpeg) {
-        std.log.warn("libjpeg-turbo not found at vendor/libjpeg-turbo/src - JPEG support disabled", .{});
+        @compileError("libjpeg-turbo sources required at vendor/libjpeg-turbo/src");
     }
     if (!have_openjpeg) {
-        std.log.warn("OpenJPEG not found at vendor/openjpeg/src - J2K support disabled", .{});
+        @compileError("OpenJPEG sources required at vendor/openjpeg/src");
     }
     if (!have_charls) {
-        std.log.warn("CharLS not found at vendor/charls/src - JLS support disabled", .{});
+        @compileError("CharLS sources required at vendor/charls/src");
     }
     if (!have_ffmpeg) {
-        std.log.warn("FFmpeg not found at vendor/ffmpeg - video support disabled", .{});
+        @compileError("FFmpeg sources required at vendor/ffmpeg");
     }
-    if (have_ffmpeg_enc and !have_x264) {
-        std.log.warn("x264 not found at vendor/x264 - H.264 encoding disabled", .{});
+    if (!have_x264) {
+        @compileError("x264 sources required at vendor/x264");
     }
-    if (have_ffmpeg_enc and !have_x265) {
-        std.log.warn("x265 not found at vendor/x265/source - HEVC encoding disabled", .{});
+    if (!have_x265) {
+        @compileError("x265 sources required at vendor/x265/source");
     }
-    if (!have_tesseract) {
-        std.log.warn("Tesseract not found at vendor/tesseract/src - OCR support disabled", .{});
+    if (!have_stb_image) {
+        @compileError("stb sources required at vendor/stb");
     }
-    if (have_tesseract and !have_leptonica) {
-        std.log.warn("Leptonica not found at vendor/leptonica/src - Tesseract requires Leptonica", .{});
-    }
-    // FFmpeg encoding is enabled when FFmpeg sources are present.
-    // x264/x265 are compiled separately when available (guarded by have_x264/have_x265).
-    const have_ffmpeg_enc_full = have_ffmpeg_enc;
     _ = have_leptonica;
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
@@ -146,7 +141,7 @@ pub fn build(b: *std.Build) void {
             core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
         else
             core_flags_0;
-        const core_flags_base = if (have_ffmpeg_enc_full)
+        const core_flags_base = if (have_ffmpeg)
             core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
         else
             core_flags_1;
@@ -302,7 +297,7 @@ pub fn build(b: *std.Build) void {
         }
 
         // Video encoder (FFmpeg encoding with x264/x265 backends)
-        if (have_ffmpeg_enc_full) {
+        if (have_ffmpeg) {
             lib.addCSourceFile(.{
                 .file = b.path("src/video_encoder.c"),
                 .flags = common_flags ++ &[_][]const u8{
@@ -310,14 +305,10 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_MPEG",
                 },
             });
-            // Compile x264 from source (H.264 software encoder) - only if available
-            if (have_x264) {
-                addX264Sources(lib, b);
-            }
-            // Compile x265 from source (HEVC software encoder) - only if available
-            if (have_x265) {
-                addX265Sources(lib, b);
-            }
+            // Compile x264 from source (H.264 software encoder)
+            addX264Sources(lib, b);
+            // Compile x265 from source (HEVC software encoder)
+            addX265Sources(lib, b);
             // Compile FFmpeg encoding libraries from source
             addFfmpegEncSources(lib, b);
         } else {
@@ -436,7 +427,7 @@ pub fn build(b: *std.Build) void {
         native_jpeg_flags_base;
 
     // Native core flags with FFmpeg encoding when available
-    const native_core_flags_base = if (have_ffmpeg_enc_full)
+    const native_core_flags_base = if (have_ffmpeg)
         native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
     else
         native_core_flags_1;
@@ -579,7 +570,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // Video encoder for native build (FFmpeg encoding with x264/x265 backends)
-    if (have_ffmpeg_enc_full) {
+    if (have_ffmpeg) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_encoder.c"),
             .flags = native_flags ++ &[_][]const u8{
@@ -587,14 +578,10 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
-        // Compile x264 from source (H.264 software encoder) - only if available
-        if (have_x264) {
-            addX264Sources(native_lib, b);
-        }
-        // Compile x265 from source (HEVC software encoder) - only if available
-        if (have_x265) {
-            addX265Sources(native_lib, b);
-        }
+        // Compile x264 from source (H.264 software encoder)
+        addX264Sources(native_lib, b);
+        // Compile x265 from source (HEVC software encoder)
+        addX265Sources(native_lib, b);
         // Compile FFmpeg encoding libraries from source
         addFfmpegEncSources(native_lib, b);
     } else {
