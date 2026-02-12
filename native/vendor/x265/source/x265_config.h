@@ -128,6 +128,9 @@
 #define HAVE_INTTYPES_H 1
 #define HAVE_STDBOOL_H 1
 
+/* Include time.h for timespec (needed by C++ threading headers) */
+#include <time.h>
+
 /* Memory functions */
 #if defined(_WIN32)
   #define HAVE_ALIGNED_MALLOC 1
