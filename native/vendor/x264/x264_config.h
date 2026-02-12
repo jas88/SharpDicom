@@ -149,20 +149,9 @@
   #define NOINLINE
 #endif
 
-/* API visibility - define X264_API directly for headers that need it before x264.h
- * This is needed because threadpool.h uses X264_API before x264.h is included.
- * x264.h will also define X264_API but the ifndef guard prevents redefinition. */
+/* API visibility - x264.h defines X264_API based on X264_API_EXPORTS.
+ * We just set the exports flag here; x264.h will define X264_API. */
 #define X264_API_EXPORTS 1
-
-#ifndef X264_API
-  #if defined(__GNUC__) && (__GNUC__ >= 4)
-    #define X264_API __attribute__((visibility("default")))
-  #elif defined(_MSC_VER)
-    #define X264_API __declspec(dllexport)
-  #else
-    #define X264_API
-  #endif
-#endif
 
 /* Unused parameter suppression */
 #define UNUSED __attribute__((unused))
@@ -181,13 +170,15 @@
   #define x264_prefetch(x)
 #endif
 
-/* Stack alignment */
-#if defined(__GNUC__) || defined(__clang__)
-  #define DECLARE_ALIGNED(n, t, v) t v __attribute__((aligned(n)))
-#elif defined(_MSC_VER)
-  #define DECLARE_ALIGNED(n, t, v) __declspec(align(n)) t v
-#else
-  #define DECLARE_ALIGNED(n, t, v) t v
+/* Stack alignment - let osdep.h define this if not already defined */
+#ifndef DECLARE_ALIGNED
+  #if defined(__GNUC__) || defined(__clang__)
+    #define DECLARE_ALIGNED(n, t, v) t v __attribute__((aligned(n)))
+  #elif defined(_MSC_VER)
+    #define DECLARE_ALIGNED(n, t, v) __declspec(align(n)) t v
+  #else
+    #define DECLARE_ALIGNED(n, t, v) t v
+  #endif
 #endif
 
 /* Disable interlaced encoding (not used in DICOM) */

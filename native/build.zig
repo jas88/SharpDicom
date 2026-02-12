@@ -561,6 +561,7 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // x264 compilation flags - relaxed warnings for third-party code
     // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
+    // Note: Include paths via -I flags to avoid polluting other codecs' compilation
     const x264_flags = &[_][]const u8{
         "-std=c11",
         "-O2", // Required for _FORTIFY_SOURCE with glibc
@@ -568,12 +569,14 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
         "-Wextra",
-        "-Werror",
+        "-Wno-error", // Downgrade errors to warnings for third-party code
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-unused-variable",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
+        "-Ivendor/x264", // x264.h and x264_config.h
+        "-Ivendor/x264/common", // Internal x264 headers (only for x264 sources)
     };
 
     // x264 core encoder sources (no CLI, no filters, no asm)
@@ -619,11 +622,9 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         });
     }
 
-    // x264 include paths (main dir contains x264.h and generated x264_config.h)
-    // Note: We only add the main x264 directory, NOT vendor/x264/common,
-    // to avoid polluting the global include path and causing conflicts with
-    // x265's similarly-named headers (common.h, threadpool.h).
-    lib.addIncludePath(b.path(x264_base));
+    // Note: x264 include paths are set via -I flags in x264_flags above,
+    // NOT via lib.addIncludePath, to avoid polluting x265's compilation
+    // with x264's similarly-named headers (common.h, threadpool.h).
 }
 
 /// Add x265 source files to compilation (HEVC software encoder).
@@ -641,7 +642,7 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // x265 compilation flags - C++ mode, relaxed warnings for third-party code
     // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
-    // Note: -include time.h fixes timespec incomplete type with Zig's libc++ on macOS
+    // Note: Include paths via -I flags to avoid polluting other codecs' compilation
     const x265_flags = &[_][]const u8{
         "-std=c++14",
         "-O2", // Required for _FORTIFY_SOURCE with glibc
@@ -659,8 +660,10 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-unused-function",
         "-Wno-unused-but-set-variable",
         "-DHAVE_CONFIG_H", // Use generated x265_config.h
-        "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc from stdint.h (used if FFmpeg headers included)
-        "-include", "time.h", // Force include time.h early to fix timespec on macOS cross-compilation
+        "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc from stdint.h
+        "-Ivendor/x265/source", // x265.h, x265_config.h
+        "-Ivendor/x265/source/common", // Internal x265 common headers
+        "-Ivendor/x265/source/encoder", // Internal x265 encoder headers
     };
 
     // x265 core encoder sources (no CLI, no asm)
@@ -725,10 +728,8 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         });
     }
 
-    // x265 include paths
-    lib.addIncludePath(b.path(x265_base));
-    lib.addIncludePath(b.path("vendor/x265/source/common"));
-    lib.addIncludePath(b.path("vendor/x265/source/encoder"));
+    // Note: x265 include paths are set via -I flags in x265_flags above,
+    // NOT via lib.addIncludePath, to avoid include path pollution.
 
     // Link C++ standard library for x265 (C++ code)
     lib.linkLibCpp();
