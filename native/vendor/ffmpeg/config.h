@@ -70,32 +70,77 @@
 #define HAVE_ATTRIBUTE_PACKED 1
 #define HAVE_PRAGMA_DEPRECATED 1
 
+/* Compiler attributes - use #ifndef to avoid redefinition with libavutil/attributes.h */
+#define HAVE_INLINE_ASM 0  /* Disable for cross-compilation */
+
 #if defined(__GNUC__) || defined(__clang__)
-  #define HAVE_INLINE_ASM 0  /* Disable for cross-compilation */
-  #define av_always_inline __attribute__((always_inline)) inline
-  #define av_noinline __attribute__((noinline))
-  #define av_pure __attribute__((pure))
-  #define av_const __attribute__((const))
-  #define av_cold __attribute__((cold))
-  #define av_flatten __attribute__((flatten))
-  #define av_unused __attribute__((unused))
-  #define av_used __attribute__((used))
-  #define av_alias __attribute__((may_alias))
-  #define av_noreturn __attribute__((noreturn))
-  #define attribute_deprecated __attribute__((deprecated))
+  #ifndef av_always_inline
+    #define av_always_inline __attribute__((always_inline)) inline
+  #endif
+  #ifndef av_noinline
+    #define av_noinline __attribute__((noinline))
+  #endif
+  #ifndef av_pure
+    #define av_pure __attribute__((pure))
+  #endif
+  #ifndef av_const
+    #define av_const __attribute__((const))
+  #endif
+  #ifndef av_cold
+    #define av_cold __attribute__((cold))
+  #endif
+  #ifndef av_flatten
+    #define av_flatten __attribute__((flatten))
+  #endif
+  #ifndef av_unused
+    #define av_unused __attribute__((unused))
+  #endif
+  #ifndef av_used
+    #define av_used __attribute__((used))
+  #endif
+  #ifndef av_alias
+    #define av_alias __attribute__((may_alias))
+  #endif
+  #ifndef av_noreturn
+    #define av_noreturn __attribute__((noreturn))
+  #endif
+  #ifndef attribute_deprecated
+    #define attribute_deprecated __attribute__((deprecated))
+  #endif
 #elif defined(_MSC_VER)
-  #define HAVE_INLINE_ASM 0
-  #define av_always_inline __forceinline
-  #define av_noinline __declspec(noinline)
-  #define av_pure
-  #define av_const
-  #define av_cold
-  #define av_flatten
-  #define av_unused
-  #define av_used
-  #define av_alias
-  #define av_noreturn __declspec(noreturn)
-  #define attribute_deprecated __declspec(deprecated)
+  #ifndef av_always_inline
+    #define av_always_inline __forceinline
+  #endif
+  #ifndef av_noinline
+    #define av_noinline __declspec(noinline)
+  #endif
+  #ifndef av_pure
+    #define av_pure
+  #endif
+  #ifndef av_const
+    #define av_const
+  #endif
+  #ifndef av_cold
+    #define av_cold
+  #endif
+  #ifndef av_flatten
+    #define av_flatten
+  #endif
+  #ifndef av_unused
+    #define av_unused
+  #endif
+  #ifndef av_used
+    #define av_used
+  #endif
+  #ifndef av_alias
+    #define av_alias
+  #endif
+  #ifndef av_noreturn
+    #define av_noreturn __declspec(noreturn)
+  #endif
+  #ifndef attribute_deprecated
+    #define attribute_deprecated __declspec(deprecated)
+  #endif
 #endif
 
 /* Threading */
@@ -286,12 +331,23 @@
 #define CONFIG_OPENCL 0
 
 /* ============================================================
- * Size types
+ * Size types - must be preprocessor constants, not sizeof()
  * ============================================================ */
 
-#define SIZEOF_LONG sizeof(long)
-#define SIZEOF_INT sizeof(int)
-#define SIZEOF_SHORT sizeof(short)
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
+  /* 64-bit platforms - LP64 (Unix) or LLP64 (Windows) */
+  #if defined(_WIN32) || defined(_WIN64)
+    #define SIZEOF_LONG 4  /* Windows uses LLP64: long is 32-bit */
+  #else
+    #define SIZEOF_LONG 8  /* Unix uses LP64: long is 64-bit */
+  #endif
+#else
+  /* 32-bit platforms */
+  #define SIZEOF_LONG 4
+#endif
+
+#define SIZEOF_INT 4    /* int is always 32-bit on all modern platforms */
+#define SIZEOF_SHORT 2  /* short is always 16-bit */
 
 /* Endianness */
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
