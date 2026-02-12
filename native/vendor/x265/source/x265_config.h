@@ -85,8 +85,12 @@
 #if defined(__GNUC__) || defined(__clang__)
   #define HAVE_ALIGNED_STACK 1
   #define HAVE_LOG2 1
-  #define HAVE_STRTOK_R 1
-  #define HAVE_CLOCK_GETTIME 1
+  /* HAVE_STRTOK_R already defined above based on platform */
+  #if !defined(_WIN32) && !defined(_WIN64)
+    #define HAVE_CLOCK_GETTIME 1
+  #else
+    #define HAVE_CLOCK_GETTIME 0
+  #endif
 
   #define ALIGN_VAR_8(T, var) T var __attribute__((aligned(8)))
   #define ALIGN_VAR_16(T, var) T var __attribute__((aligned(16)))
@@ -103,7 +107,7 @@
 #elif defined(_MSC_VER)
   #define HAVE_ALIGNED_STACK 0
   #define HAVE_LOG2 1
-  #define HAVE_STRTOK_R 0  /* Need custom implementation */
+  /* HAVE_STRTOK_R already defined above as 0 for Windows */
   #define HAVE_CLOCK_GETTIME 0
 
   #define ALIGN_VAR_8(T, var) __declspec(align(8)) T var
@@ -131,9 +135,21 @@
   #define HAVE_POSIX_MEMALIGN 1
 #endif
 
-/* Integer sizes */
-#define SIZEOF_INT 4
-#define SIZEOF_LONG sizeof(long)
+/* Integer sizes - must be preprocessor constants (not sizeof()) */
+#ifndef SIZEOF_INT
+  #define SIZEOF_INT 4
+#endif
+#ifndef SIZEOF_LONG
+  #if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
+    #if defined(_WIN32) || defined(_WIN64)
+      #define SIZEOF_LONG 4  /* Windows LLP64: long is 32-bit */
+    #else
+      #define SIZEOF_LONG 8  /* Unix LP64: long is 64-bit */
+    #endif
+  #else
+    #define SIZEOF_LONG 4
+  #endif
+#endif
 
 /* Visual Studio specific */
 #if defined(_MSC_VER)
@@ -167,8 +183,8 @@
 #define ENABLE_SVT_HEVC 0
 #define ENABLE_VTUNE 0
 
-/* Rate control */
-#define X265_RC_METHODS 1
+/* Rate control - X265_RC_METHODS is a typedef in x265.h, not a macro */
+/* Do not define X265_RC_METHODS here - it will conflict with the enum typedef */
 
 /* SEI (Supplemental Enhancement Information) */
 #define ENABLE_ALPHA 0
