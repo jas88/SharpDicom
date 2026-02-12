@@ -301,4 +301,53 @@
   #define SIZEOF_POINTER 4
 #endif
 
+/* ============================================================
+ * Additional required macros for FFmpeg compilation
+ * ============================================================ */
+
+/* Path handling */
+#if defined(_WIN32) || defined(_WIN64)
+  #define HAVE_DOS_PATHS 1
+#else
+  #define HAVE_DOS_PATHS 0
+#endif
+
+/* NULL_IF_CONFIG_SMALL - returns description or NULL based on config */
+#ifndef NULL_IF_CONFIG_SMALL
+  #define NULL_IF_CONFIG_SMALL(x) (x)
+#endif
+
+/* Swscale filter size */
+#ifndef SWS_MAX_FILTER_SIZE
+  #define SWS_MAX_FILTER_SIZE 256
+#endif
+
+/* Architecture macros that FFmpeg expects */
+#ifndef HAVE_ALTIVEC
+  #define HAVE_ALTIVEC 0
+#endif
+#ifndef HAVE_MMX
+  #define HAVE_MMX 0
+#endif
+#ifndef HAVE_LASX
+  #define HAVE_LASX 0
+#endif
+#ifndef HAVE_LSX
+  #define HAVE_LSX 0
+#endif
+
+/* Math functions - indicate we have standard C99 math */
+#define HAVE_ERF 1
+#define HAVE_HYPOT 1
+#define HAVE_ISFINITE 1
+
+/* Time functions */
+#define HAVE_GMTIME_R 1
+#define HAVE_LOCALTIME_R 1
+
+/* System features */
+#define HAVE_TERMIOS_H 1
+#define HAVE_SYS_MMAN_H 1
+#define HAVE_SYS_PARAM_H 1
+
 #endif /* FFMPEG_CONFIG_H */

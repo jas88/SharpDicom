@@ -1,0 +1,96 @@
+/*
+ * FFmpeg config_components.h - Component configuration for SharpDicom
+ *
+ * This file enables the minimal set of codecs needed for DICOM.
+ * Generated manually since we bypass FFmpeg's configure script.
+ */
+
+#ifndef FFMPEG_CONFIG_COMPONENTS_H
+#define FFMPEG_CONFIG_COMPONENTS_H
+
+/* Video decoders */
+#define CONFIG_MPEG1VIDEO_DECODER 1
+#define CONFIG_MPEG2VIDEO_DECODER 1
+#define CONFIG_H264_DECODER 1
+#define CONFIG_HEVC_DECODER 1
+#define CONFIG_MPEG4_DECODER 1
+
+/* Video encoders */
+#define CONFIG_MPEG2VIDEO_ENCODER 1
+#define CONFIG_LIBX264_ENCODER 1
+#define CONFIG_LIBX265_ENCODER 1
+
+/* Audio decoders */
+#define CONFIG_AAC_DECODER 1
+#define CONFIG_AAC_FIXED_DECODER 0
+#define CONFIG_AAC_LATM_DECODER 0
+#define CONFIG_PCM_S16LE_DECODER 1
+#define CONFIG_PCM_S16BE_DECODER 1
+
+/* Audio encoders */
+#define CONFIG_AAC_ENCODER 1
+#define CONFIG_PCM_S16LE_ENCODER 1
+
+/* Muxers */
+#define CONFIG_MPEGTS_MUXER 1
+#define CONFIG_H264_MUXER 1
+#define CONFIG_HEVC_MUXER 1
+#define CONFIG_WAV_MUXER 1
+#define CONFIG_ADTS_MUXER 1
+#define CONFIG_RAWVIDEO_MUXER 1
+#define CONFIG_PCM_S16LE_MUXER 0
+
+/* Demuxers */
+#define CONFIG_MPEGTS_DEMUXER 1
+#define CONFIG_H264_DEMUXER 1
+#define CONFIG_HEVC_DEMUXER 1
+#define CONFIG_WAV_DEMUXER 1
+#define CONFIG_AAC_DEMUXER 1
+
+/* Parsers */
+#define CONFIG_H264_PARSER 1
+#define CONFIG_HEVC_PARSER 1
+#define CONFIG_MPEG4VIDEO_PARSER 1
+#define CONFIG_MPEGVIDEO_PARSER 1
+#define CONFIG_AAC_PARSER 1
+#define CONFIG_AAC_LATM_PARSER 0
+
+/* Bitstream filters */
+#define CONFIG_H264_MP4TOANNEXB_BSF 1
+#define CONFIG_HEVC_MP4TOANNEXB_BSF 1
+#define CONFIG_NULL_BSF 1
+
+/* Protocols - disabled for in-memory I/O */
+#define CONFIG_FILE_PROTOCOL 0
+#define CONFIG_PIPE_PROTOCOL 0
+#define CONFIG_CONCAT_PROTOCOL 0
+#define CONFIG_HTTP_PROTOCOL 0
+#define CONFIG_HTTPS_PROTOCOL 0
+
+/* Common/shared */
+#define CONFIG_GOLOMB 1
+#define CONFIG_H264DSP 1
+#define CONFIG_H264CHROMA 1
+#define CONFIG_H264PRED 1
+#define CONFIG_H264QPEL 1
+#define CONFIG_HEVCDSP 1
+#define CONFIG_HEVCPARSE 1
+#define CONFIG_CABAC 1
+#define CONFIG_VIDEODSP 1
+#define CONFIG_IDCTDSP 1
+#define CONFIG_BLOCKDSP 1
+#define CONFIG_PIXBLOCKDSP 1
+#define CONFIG_FDCTDSP 1
+#define CONFIG_ME_CMP 1
+#define CONFIG_MPEGVIDEO 1
+#define CONFIG_MPEGVIDEOENC 1
+#define CONFIG_ERROR_RESILIENCE 1
+
+/* Disabled codecs */
+#define CONFIG_VP8_DECODER 0
+#define CONFIG_VP9_DECODER 0
+#define CONFIG_AV1_DECODER 0
+#define CONFIG_LIBVPX_VP8_ENCODER 0
+#define CONFIG_LIBVPX_VP9_ENCODER 0
+
+#endif /* FFMPEG_CONFIG_COMPONENTS_H */
