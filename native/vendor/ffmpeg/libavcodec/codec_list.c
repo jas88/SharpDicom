@@ -16,7 +16,9 @@ extern const FFCodec ff_pcm_s16be_decoder;
 /* Encoder declarations */
 extern const FFCodec ff_mpeg2video_encoder;
 extern const FFCodec ff_libx264_encoder;
+#ifdef SHARPDICOM_HAS_X265
 extern const FFCodec ff_libx265_encoder;
+#endif
 extern const FFCodec ff_aac_encoder;
 extern const FFCodec ff_pcm_s16le_encoder;
 
@@ -33,7 +35,9 @@ static const FFCodec * const codec_list[] = {
     /* Encoders */
     &ff_mpeg2video_encoder,
     &ff_libx264_encoder,
+#ifdef SHARPDICOM_HAS_X265
     &ff_libx265_encoder,
+#endif
     &ff_aac_encoder,
     &ff_pcm_s16le_encoder,
     NULL
