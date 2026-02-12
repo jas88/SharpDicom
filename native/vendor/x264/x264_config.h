@@ -149,13 +149,19 @@
   #define NOINLINE
 #endif
 
-/* API visibility */
-#if defined(__GNUC__) || defined(__clang__)
-  #define X264_API __attribute__((visibility("default")))
-#elif defined(_MSC_VER)
-  #define X264_API __declspec(dllexport)
-#else
-  #define X264_API
+/* API visibility - define X264_API directly for headers that need it before x264.h
+ * This is needed because threadpool.h uses X264_API before x264.h is included.
+ * x264.h will also define X264_API but the ifndef guard prevents redefinition. */
+#define X264_API_EXPORTS 1
+
+#ifndef X264_API
+  #if defined(__GNUC__) && (__GNUC__ >= 4)
+    #define X264_API __attribute__((visibility("default")))
+  #elif defined(_MSC_VER)
+    #define X264_API __declspec(dllexport)
+  #else
+    #define X264_API
+  #endif
 #endif
 
 /* Unused parameter suppression */

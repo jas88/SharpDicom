@@ -620,8 +620,10 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     }
 
     // x264 include paths (main dir contains x264.h and generated x264_config.h)
+    // Note: We only add the main x264 directory, NOT vendor/x264/common,
+    // to avoid polluting the global include path and causing conflicts with
+    // x265's similarly-named headers (common.h, threadpool.h).
     lib.addIncludePath(b.path(x264_base));
-    lib.addIncludePath(b.path("vendor/x264/common"));
 }
 
 /// Add x265 source files to compilation (HEVC software encoder).
@@ -639,6 +641,7 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // x265 compilation flags - C++ mode, relaxed warnings for third-party code
     // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
+    // Note: -include time.h fixes timespec incomplete type with Zig's libc++ on macOS
     const x265_flags = &[_][]const u8{
         "-std=c++14",
         "-O2", // Required for _FORTIFY_SOURCE with glibc
@@ -656,6 +659,8 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-unused-function",
         "-Wno-unused-but-set-variable",
         "-DHAVE_CONFIG_H", // Use generated x265_config.h
+        "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc from stdint.h (used if FFmpeg headers included)
+        "-include", "time.h", // Force include time.h early to fix timespec on macOS cross-compilation
     };
 
     // x265 core encoder sources (no CLI, no asm)
