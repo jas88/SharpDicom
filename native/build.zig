@@ -17,7 +17,6 @@ pub fn build(b: *std.Build) void {
     //
     // Verify required vendor sources exist. Build fails if any are missing.
     const have_libjpeg = detectVendorLibrary("vendor/libjpeg-turbo/src");
-    const have_libjpeg12 = have_libjpeg; // 12-bit uses same source with different flags
     const have_openjpeg = detectVendorLibrary("vendor/openjpeg/src");
     const have_charls = detectVendorLibrary("vendor/charls/src");
     const have_ffmpeg = detectVendorLibrary("vendor/ffmpeg");
@@ -144,114 +143,37 @@ pub fn build(b: *std.Build) void {
 
         // Note: 12-bit libjpeg-turbo symbol prefix flags are defined in addLibjpegTurbo12Sources()
 
-        // Add C source files (core) - feature flags based on available libraries
-        // Build core flags from comptime constants first
-        const core_flags_0 = if (have_libjpeg) jpeg_flags else common_flags;
-        const core_flags_1 = if (have_libjpeg12)
-            core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
-        else
-            core_flags_0;
-        const core_flags_base = if (have_ffmpeg)
-            core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
-        else
-            core_flags_1;
+        // All vendor libraries are required, so all features are enabled
+        const all_features_flags = common_flags ++ &[_][]const u8{
+            "-DSHARPDICOM_WITH_JPEG",
+            "-DSHARPDICOM_WITH_JPEG12",
+            "-DSHARPDICOM_WITH_J2K",
+            "-DSHARPDICOM_WITH_JLS",
+            "-DSHARPDICOM_WITH_STB_IMAGE",
+            "-DSHARPDICOM_WITH_FFMPEG_ENC",
+            "-DSHARPDICOM_WITH_MPEG",
+        };
 
-        // Handle runtime-detected features with explicit conditionals
-        // We need separate flag arrays for each combination because Zig can't
-        // concatenate slices when either operand depends on a runtime value
-        if (have_openjpeg and have_charls and have_stb_image) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_J2K",
-                    "-DSHARPDICOM_WITH_JLS",
-                    "-DSHARPDICOM_WITH_STB_IMAGE",
-                },
-            });
-        } else if (have_openjpeg and have_charls) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_J2K",
-                    "-DSHARPDICOM_WITH_JLS",
-                },
-            });
-        } else if (have_openjpeg and have_stb_image) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_J2K",
-                    "-DSHARPDICOM_WITH_STB_IMAGE",
-                },
-            });
-        } else if (have_charls and have_stb_image) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_JLS",
-                    "-DSHARPDICOM_WITH_STB_IMAGE",
-                },
-            });
-        } else if (have_openjpeg) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
-            });
-        } else if (have_charls) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
-            });
-        } else if (have_stb_image) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
-            });
-        } else {
-            lib.addCSourceFile(.{
-                .file = b.path("src/sharpdicom_codecs.c"),
-                .flags = core_flags_base,
-            });
-        }
+        // Core codec dispatcher
+        lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = all_features_flags,
+        });
 
-        // JPEG wrapper (libjpeg-turbo)
-        if (have_libjpeg) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/jpeg_wrapper.c"),
-                .flags = jpeg_flags,
-            });
-            // Compile libjpeg-turbo from source for static linking
-            addLibjpegTurboSources(lib, b);
-        } else {
-            // Build stub version (JPEG functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/jpeg_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        // JPEG wrapper (libjpeg-turbo 8-bit)
+        lib.addCSourceFile(.{
+            .file = b.path("src/jpeg_wrapper.c"),
+            .flags = all_features_flags,
+        });
+        addLibjpegTurboSources(lib, b);
 
         // J2K wrapper (OpenJPEG)
-        if (have_openjpeg) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/j2k_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_HAS_OPENJPEG",
-                    "-DSHARPDICOM_WITH_J2K",
-                },
-            });
-
-            // Add OpenJPEG include path
-            lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
-
-            // Add OpenJPEG source files needed for compilation
-            addOpenJpegSources(lib, b, common_flags);
-        } else {
-            // Build stub version
-            lib.addCSourceFile(.{
-                .file = b.path("src/j2k_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        lib.addCSourceFile(.{
+            .file = b.path("src/j2k_wrapper.c"),
+            .flags = all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_OPENJPEG"},
+        });
+        lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
+        addOpenJpegSources(lib, b, common_flags);
 
         // GPU wrapper (dynamically loads nvJPEG2000)
         lib.addCSourceFile(.{
@@ -260,89 +182,41 @@ pub fn build(b: *std.Build) void {
         });
 
         // JLS wrapper (CharLS)
-        if (have_charls) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/jls_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_HAS_CHARLS",
-                    "-DSHARPDICOM_WITH_JLS",
-                },
-            });
-            // Add CharLS include paths
-            lib.addIncludePath(b.path("vendor/charls/src/include"));
-            lib.addIncludePath(b.path("vendor/charls/src/src"));
-            // Compile CharLS from source (C++17)
-            addCharlsSources(lib, b);
-        } else {
-            // Build stub version (JLS functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/jls_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        lib.addCSourceFile(.{
+            .file = b.path("src/jls_wrapper.c"),
+            .flags = all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_CHARLS"},
+        });
+        lib.addIncludePath(b.path("vendor/charls/src/include"));
+        lib.addIncludePath(b.path("vendor/charls/src/src"));
+        addCharlsSources(lib, b);
 
         // Video wrapper (FFmpeg decoding)
-        if (have_ffmpeg) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/video_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_HAS_FFMPEG",
-                    "-DSHARPDICOM_WITH_MPEG",
-                },
-            });
-            // Add FFmpeg include paths
-            lib.addIncludePath(b.path("vendor/ffmpeg/src"));
-            // Link against FFmpeg libraries
-            lib.linkSystemLibrary("avcodec");
-            lib.linkSystemLibrary("avformat");
-            lib.linkSystemLibrary("avutil");
-            lib.linkSystemLibrary("swscale");
-            lib.linkSystemLibrary("swresample");
-        } else {
-            // Build stub version (video functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/video_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        lib.addCSourceFile(.{
+            .file = b.path("src/video_wrapper.c"),
+            .flags = all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_FFMPEG"},
+        });
+        lib.addIncludePath(b.path("vendor/ffmpeg"));
+        addFfmpegEncSources(lib, b);
 
-        // Video encoder (FFmpeg encoding with x264/x265 backends)
-        if (have_ffmpeg) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/video_encoder.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_FFMPEG_ENC",
-                    "-DSHARPDICOM_WITH_MPEG",
-                },
-            });
-            // Compile x264 from source (H.264 software encoder)
-            addX264Sources(lib, b);
-            // Compile x265 from source (HEVC software encoder)
-            addX265Sources(lib, b);
-            // Compile FFmpeg encoding libraries from source
-            addFfmpegEncSources(lib, b);
-        } else {
-            // Build stub version (video encoding functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/video_encoder.c"),
-                .flags = common_flags,
-            });
-        }
+        // Video encoder (FFmpeg encoding with x264/x265)
+        lib.addCSourceFile(.{
+            .file = b.path("src/video_encoder.c"),
+            .flags = all_features_flags,
+        });
+        addX264Sources(lib, b);
+        addX265Sources(lib, b);
 
-        // Tesseract OCR wrapper
+        // Tesseract OCR wrapper (optional - stub if not available)
         if (have_tesseract) {
             lib.addCSourceFile(.{
                 .file = b.path("src/tesseract_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_TESSERACT",
-                },
+                .flags = common_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_TESSERACT"},
             });
             lib.addIncludePath(b.path("vendor/tesseract/src"));
             lib.addIncludePath(b.path("vendor/leptonica/src"));
             lib.linkSystemLibrary("tesseract");
             lib.linkSystemLibrary("lept");
         } else {
-            // Build stub version (Tesseract functions will error at runtime)
             lib.addCSourceFile(.{
                 .file = b.path("src/tesseract_wrapper.c"),
                 .flags = common_flags,
@@ -350,39 +224,21 @@ pub fn build(b: *std.Build) void {
         }
 
         // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
-        if (have_libjpeg12) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/jpeg12_wrapper.c"),
-                .flags = jpeg12_flags,
-            });
-            // Compile 12-bit libjpeg-turbo with symbol prefixes
-            addLibjpegTurbo12Sources(lib, b);
-        } else {
-            // Build stub version (12-bit JPEG functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/jpeg12_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        lib.addCSourceFile(.{
+            .file = b.path("src/jpeg12_wrapper.c"),
+            .flags = jpeg12_flags,
+        });
+        addLibjpegTurbo12Sources(lib, b);
 
         // stb_image wrapper (image sequence loading)
-        if (have_stb_image) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/stb_image_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{
-                    "-DSHARPDICOM_WITH_STB_IMAGE",
-                    "-Wno-unused-function",
-                    "-Wno-sign-compare",
-                },
-            });
-            lib.addIncludePath(b.path("vendor/stb"));
-        } else {
-            // Build stub version (stb_image functions will error at runtime)
-            lib.addCSourceFile(.{
-                .file = b.path("src/stb_image_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        lib.addCSourceFile(.{
+            .file = b.path("src/stb_image_wrapper.c"),
+            .flags = all_features_flags ++ &[_][]const u8{
+                "-Wno-unused-function",
+                "-Wno-sign-compare",
+            },
+        });
+        lib.addIncludePath(b.path("vendor/stb"));
 
         // Include paths
         lib.addIncludePath(b.path("src"));
@@ -424,190 +280,74 @@ pub fn build(b: *std.Build) void {
         "-Werror",
     };
 
-    // Native flags with JPEG enabled (only when libjpeg is available)
-    const native_jpeg_flags_base = if (have_libjpeg)
-        native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG"}
-    else
-        native_flags;
+    // All vendor libraries are required, so all features are enabled
+    const native_all_features_flags = native_flags ++ &[_][]const u8{
+        "-DSHARPDICOM_WITH_JPEG",
+        "-DSHARPDICOM_WITH_JPEG12",
+        "-DSHARPDICOM_WITH_J2K",
+        "-DSHARPDICOM_WITH_JLS",
+        "-DSHARPDICOM_WITH_STB_IMAGE",
+        "-DSHARPDICOM_WITH_FFMPEG_ENC",
+        "-DSHARPDICOM_WITH_MPEG",
+    };
 
-    // Native flags with both JPEG and JPEG12 when available
-    const native_core_flags_1 = if (have_libjpeg12)
-        native_jpeg_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
-    else
-        native_jpeg_flags_base;
+    // Core codec dispatcher
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/sharpdicom_codecs.c"),
+        .flags = native_all_features_flags,
+    });
 
-    // Native core flags with FFmpeg encoding when available
-    const native_core_flags_base = if (have_ffmpeg)
-        native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
-    else
-        native_core_flags_1;
+    // JPEG wrapper (libjpeg-turbo 8-bit)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/jpeg_wrapper.c"),
+        .flags = native_all_features_flags,
+    });
+    addLibjpegTurboSources(native_lib, b);
 
-    // Handle runtime-detected features with explicit conditionals
-    if (have_openjpeg and have_charls and have_stb_image) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_J2K",
-                "-DSHARPDICOM_WITH_JLS",
-                "-DSHARPDICOM_WITH_STB_IMAGE",
-            },
-        });
-    } else if (have_openjpeg and have_charls) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_J2K",
-                "-DSHARPDICOM_WITH_JLS",
-            },
-        });
-    } else if (have_openjpeg and have_stb_image) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_J2K",
-                "-DSHARPDICOM_WITH_STB_IMAGE",
-            },
-        });
-    } else if (have_charls and have_stb_image) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_JLS",
-                "-DSHARPDICOM_WITH_STB_IMAGE",
-            },
-        });
-    } else if (have_openjpeg) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
-        });
-    } else if (have_charls) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
-        });
-    } else if (have_stb_image) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
-        });
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = native_core_flags_base,
-        });
-    }
+    // J2K wrapper (OpenJPEG)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/j2k_wrapper.c"),
+        .flags = native_all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_OPENJPEG"},
+    });
+    native_lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
+    addOpenJpegSources(native_lib, b, native_flags);
 
-    // JPEG wrapper for native build
-    if (have_libjpeg) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jpeg_wrapper.c"),
-            .flags = native_core_flags_1,
-        });
-        // Compile libjpeg-turbo from source for static linking
-        addLibjpegTurboSources(native_lib, b);
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jpeg_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
-
-    // J2K wrapper for native build
-    if (have_openjpeg) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/j2k_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_HAS_OPENJPEG",
-                "-DSHARPDICOM_WITH_J2K",
-            },
-        });
-        native_lib.addIncludePath(b.path("vendor/openjpeg/src/src/lib/openjp2"));
-        addOpenJpegSources(native_lib, b, native_flags);
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/j2k_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
-
-    // GPU wrapper for native build
+    // GPU wrapper (dynamically loads nvJPEG2000)
     native_lib.addCSourceFile(.{
         .file = b.path("src/gpu_wrapper.c"),
         .flags = native_flags,
     });
 
-    // JLS wrapper for native build
-    if (have_charls) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jls_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_HAS_CHARLS",
-                "-DSHARPDICOM_WITH_JLS",
-            },
-        });
-        native_lib.addIncludePath(b.path("vendor/charls/src/include"));
-        native_lib.addIncludePath(b.path("vendor/charls/src/src"));
-        // Compile CharLS from source (C++17)
-        addCharlsSources(native_lib, b);
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jls_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
+    // JLS wrapper (CharLS)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/jls_wrapper.c"),
+        .flags = native_all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_CHARLS"},
+    });
+    native_lib.addIncludePath(b.path("vendor/charls/src/include"));
+    native_lib.addIncludePath(b.path("vendor/charls/src/src"));
+    addCharlsSources(native_lib, b);
 
-    // Video wrapper for native build (FFmpeg decoding)
-    if (have_ffmpeg) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/video_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_HAS_FFMPEG",
-                "-DSHARPDICOM_WITH_MPEG",
-            },
-        });
-        native_lib.addIncludePath(b.path("vendor/ffmpeg/src"));
-        native_lib.linkSystemLibrary("avcodec");
-        native_lib.linkSystemLibrary("avformat");
-        native_lib.linkSystemLibrary("avutil");
-        native_lib.linkSystemLibrary("swscale");
-        native_lib.linkSystemLibrary("swresample");
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/video_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
+    // Video wrapper (FFmpeg decoding)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/video_wrapper.c"),
+        .flags = native_all_features_flags ++ &[_][]const u8{"-DSHARPDICOM_HAS_FFMPEG"},
+    });
+    native_lib.addIncludePath(b.path("vendor/ffmpeg"));
+    addFfmpegEncSources(native_lib, b);
 
-    // Video encoder for native build (FFmpeg encoding with x264/x265 backends)
-    if (have_ffmpeg) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/video_encoder.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_FFMPEG_ENC",
-                "-DSHARPDICOM_WITH_MPEG",
-            },
-        });
-        // Compile x264 from source (H.264 software encoder)
-        addX264Sources(native_lib, b);
-        // Compile x265 from source (HEVC software encoder)
-        addX265Sources(native_lib, b);
-        // Compile FFmpeg encoding libraries from source
-        addFfmpegEncSources(native_lib, b);
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/video_encoder.c"),
-            .flags = native_flags,
-        });
-    }
+    // Video encoder (FFmpeg encoding with x264/x265)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/video_encoder.c"),
+        .flags = native_all_features_flags,
+    });
+    addX264Sources(native_lib, b);
+    addX265Sources(native_lib, b);
 
-    // Tesseract OCR wrapper for native build
+    // Tesseract OCR wrapper (optional - stub if not available)
     if (have_tesseract) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/tesseract_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_TESSERACT",
-            },
+            .flags = native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_TESSERACT"},
         });
         native_lib.addIncludePath(b.path("vendor/tesseract/src"));
         native_lib.addIncludePath(b.path("vendor/leptonica/src"));
@@ -620,40 +360,22 @@ pub fn build(b: *std.Build) void {
         });
     }
 
-    // 12-bit JPEG wrapper for native build
-    if (have_libjpeg12) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jpeg12_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_JPEG12",
-            },
-        });
-        // Compile 12-bit libjpeg-turbo with symbol prefixes
-        addLibjpegTurbo12Sources(native_lib, b);
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/jpeg12_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
+    // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/jpeg12_wrapper.c"),
+        .flags = jpeg12_flags,
+    });
+    addLibjpegTurbo12Sources(native_lib, b);
 
-    // stb_image wrapper for native build
-    if (have_stb_image) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/stb_image_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{
-                "-DSHARPDICOM_WITH_STB_IMAGE",
-                "-Wno-unused-function",
-                "-Wno-sign-compare",
-            },
-        });
-        native_lib.addIncludePath(b.path("vendor/stb"));
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/stb_image_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
+    // stb_image wrapper (image sequence loading)
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/stb_image_wrapper.c"),
+        .flags = native_all_features_flags ++ &[_][]const u8{
+            "-Wno-unused-function",
+            "-Wno-sign-compare",
+        },
+    });
+    native_lib.addIncludePath(b.path("vendor/stb"));
 
     native_lib.addIncludePath(b.path("src"));
 
