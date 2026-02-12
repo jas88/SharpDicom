@@ -114,7 +114,7 @@ namespace SharpDicom.Codecs.Native
             ThrowHelpers.ThrowIfNull(fragments, nameof(fragments));
 
             if (frameIndex < 0 || frameIndex >= fragments.Fragments.Count)
-                throw new ArgumentOutOfRangeException(nameof(frameIndex));
+                return DecodeResult.Fail(frameIndex, 0, $"Frame index {frameIndex} is out of range (0-{fragments.Fragments.Count - 1})");
 
             var fragment = fragments.Fragments[frameIndex];
             if (fragment.IsEmpty)
@@ -135,10 +135,11 @@ namespace SharpDicom.Codecs.Native
             }
 
             int result;
-            int width, height, components, bitsPerSample;
+            int width = 0, height = 0, components = 0;
 
             if (useGpu && NativeCodecs.HasFeature(NativeCodecFeature.Gpu))
             {
+                int bitsPerSample;
                 result = NativeMethods.gpu_j2k_decode(
                     (byte*)fragmentPin.Pointer, fragment.Length,
                     (byte*)destPin.Pointer, destination.Length,
@@ -146,11 +147,16 @@ namespace SharpDicom.Codecs.Native
             }
             else
             {
+                // Create decode options struct
+                J2kDecodeOptions decOpts = resolutionLevel > 0
+                    ? J2kDecodeOptions.WithReduce(resolutionLevel)
+                    : J2kDecodeOptions.Default;
+
                 result = NativeMethods.j2k_decode(
-                    (byte*)fragmentPin.Pointer, fragment.Length,
-                    (byte*)destPin.Pointer, destination.Length,
-                    out width, out height, out components, out bitsPerSample,
-                    resolutionLevel);
+                    (byte*)fragmentPin.Pointer, (nuint)fragment.Length,
+                    (byte*)destPin.Pointer, (nuint)destination.Length,
+                    &decOpts,
+                    &width, &height, &components);
             }
 
             if (result < 0)
@@ -160,9 +166,9 @@ namespace SharpDicom.Codecs.Native
                     string.IsNullOrEmpty(errorMessage) ? "JPEG 2000 decode failed" : errorMessage);
             }
 
-            // Calculate bytes written based on actual decoded dimensions and bit depth
-            // Use long arithmetic to prevent overflow on large images
-            int bytesPerSample = (bitsPerSample + 7) / 8;
+            // Calculate bytes written based on actual decoded dimensions
+            // Use bitsAllocated from info since native decode doesn't return it
+            int bytesPerSample = (info.BitsAllocated + 7) / 8;
             long bytesWrittenLong = (long)width * height * components * bytesPerSample;
 
             // Validate the result fits in an int (DecodeResult uses int)
@@ -195,74 +201,92 @@ namespace SharpDicom.Codecs.Native
         {
             var opts = options as Jpeg2000EncodeOptions ?? Jpeg2000EncodeOptions.Default;
 
-            int lossless = _transferSyntax.IsLossy ? 0 : 1;
-            float compressionRatio = _transferSyntax.IsLossy ? opts.CompressionRatio : 1.0f;
-            int bitsPerSample = info.BitsStored;
+            int bitsPerComponent = info.BitsStored;
+            int isSigned = info.IsSigned ? 1 : 0;
+            int numberOfFrames = info.NumberOfFrames;
+            int frameSize = info.FrameSize;
 
-            fixed (byte* input = pixelData)
+            // Allocate output buffer - estimate 4x raw size for worst case (lossless) per frame
+            // Use long arithmetic to prevent integer overflow for large images
+            int bytesPerSample = (info.BitsStored + 7) / 8;
+            long rawFrameSizeLong = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSample;
+
+            // Validate the frame size fits in int (required for buffer allocation and native API)
+            if (rawFrameSizeLong > int.MaxValue / 4)
             {
-                int result = NativeMethods.j2k_encode(
-                    input,
-                    info.Columns,
-                    info.Rows,
-                    info.SamplesPerPixel,
-                    bitsPerSample,
-                    out byte* output,
-                    out int outputLen,
-                    lossless,
-                    compressionRatio,
-                    opts.TileSize);
+                throw new ArgumentException(
+                    $"Frame size ({rawFrameSizeLong} bytes) is too large for JPEG 2000 encoding",
+                    nameof(info));
+            }
 
-                if (result < 0)
-                {
-                    throw NativeCodecException.EncodeError(
-                        Name,
-                        result,
-                        NativeCodecs.GetLastError(),
-                        TransferSyntax);
-                }
+            int rawFrameSize = (int)rawFrameSizeLong;
+            int outputBufferSize = Math.Max(rawFrameSize * 4, 4096);
+            var outputBuffer = new byte[outputBufferSize];
 
-                try
+            // Create encoding parameters struct
+            J2kEncodeParams encParams = _transferSyntax.IsLossy
+                ? J2kEncodeParams.Lossy(opts.CompressionRatio, opts.TileSize)
+                : J2kEncodeParams.DefaultLossless;
+
+            var fragments = new List<ReadOnlyMemory<byte>>(numberOfFrames);
+
+            fixed (byte* output = outputBuffer)
+            {
+                for (int frame = 0; frame < numberOfFrames; frame++)
                 {
-                    // Validate output length from native code
-                    if (outputLen < 0)
+                    int frameOffset = frame * frameSize;
+                    var frameData = pixelData.Slice(frameOffset, frameSize);
+
+                    fixed (byte* input = frameData)
                     {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            "Native encoder returned negative output length",
-                            TransferSyntax);
+                        nuint outSize = 0;
+                        int result = NativeMethods.j2k_encode(
+                            input,
+                            (nuint)frameSize,
+                            info.Columns,
+                            info.Rows,
+                            info.SamplesPerPixel,
+                            bitsPerComponent,
+                            isSigned,
+                            &encParams,
+                            output,
+                            (nuint)outputBufferSize,
+                            &outSize);
+
+                        if (result < 0)
+                        {
+                            throw NativeCodecException.EncodeError(
+                                Name,
+                                result,
+                                NativeCodecs.GetLastError(),
+                                TransferSyntax);
+                        }
+
+                        int outputLen = (int)outSize;
+
+                        // Validate output length from native code
+                        if (outputLen <= 0)
+                        {
+                            throw NativeCodecException.EncodeError(
+                                Name,
+                                -1,
+                                $"Native encoder returned zero or negative output length for frame {frame}",
+                                TransferSyntax);
+                        }
+
+                        // Copy encoded data to properly sized array
+                        var data = new byte[outputLen];
+                        Buffer.BlockCopy(outputBuffer, 0, data, 0, outputLen);
+                        fragments.Add(data);
                     }
-
-                    // Sanity check: output shouldn't be larger than reasonable maximum
-                    // For small images, codec header overhead can exceed 4x raw size, so use minimum threshold
-                    int bytesPerSampleCheck = (info.BitsStored + 7) / 8;
-                    long rawSize = (long)info.Columns * info.Rows * info.SamplesPerPixel * bytesPerSampleCheck;
-                    long maxReasonableSize = Math.Max(rawSize * 4, 4096);
-                    if (outputLen > maxReasonableSize)
-                    {
-                        throw NativeCodecException.EncodeError(
-                            Name,
-                            -1,
-                            $"Native encoder returned unreasonable output length: {outputLen} bytes (max expected: {maxReasonableSize})",
-                            TransferSyntax);
-                    }
-
-                    var data = new byte[outputLen];
-                    Marshal.Copy((IntPtr)output, data, 0, outputLen);
-
-                    var fragments = new List<ReadOnlyMemory<byte>> { data };
-                    return new DicomFragmentSequence(
-                        DicomTag.PixelData,
-                        DicomVR.OB,
-                        ReadOnlyMemory<byte>.Empty,
-                        fragments);
-                }
-                finally
-                {
-                    NativeMethods.j2k_free(output);
                 }
             }
+
+            return new DicomFragmentSequence(
+                DicomTag.PixelData,
+                DicomVR.OB,
+                ReadOnlyMemory<byte>.Empty,
+                fragments);
         }
 
         /// <inheritdoc />

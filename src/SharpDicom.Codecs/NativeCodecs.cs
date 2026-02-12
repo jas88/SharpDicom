@@ -53,6 +53,17 @@ namespace SharpDicom.Codecs.Native
         private const int ExpectedVersion = 1;
 
         /// <summary>
+        /// Environment variable name for enabling diagnostic output.
+        /// </summary>
+        private const string DiagnosticsEnvVar = "SHARPDICOM_NATIVE_DEBUG";
+
+        /// <summary>
+        /// Whether diagnostic output is enabled (set via SHARPDICOM_NATIVE_DEBUG env var).
+        /// </summary>
+        private static readonly bool _diagnosticsEnabled =
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(DiagnosticsEnvVar));
+
+        /// <summary>
         /// Initialization state: 0 = not started, 1 = in progress, 2 = complete.
         /// </summary>
         private static int _initializationState;
@@ -66,6 +77,13 @@ namespace SharpDicom.Codecs.Native
         /// Lock for initialization synchronization.
         /// </summary>
         private static readonly object _initLock = new object();
+
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// Whether the DllImportResolver has been set (can only be set once per assembly).
+        /// </summary>
+        private static bool _resolverSet;
+#endif
 
         /// <summary>
         /// The native library version, or 0 if not initialized.
@@ -244,7 +262,11 @@ namespace SharpDicom.Codecs.Native
                     }
 
                     // Probe the native library
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine("[NativeCodecs] About to call sharpdicom_version()...");
                     _nativeVersion = NativeMethods.sharpdicom_version();
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine($"[NativeCodecs] sharpdicom_version() returned {_nativeVersion}");
 
                     // Verify version
                     if (_nativeVersion != ExpectedVersion && options?.SkipVersionCheck != true)
@@ -279,6 +301,8 @@ namespace SharpDicom.Codecs.Native
                 }
                 catch (DllNotFoundException ex)
                 {
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine($"[NativeCodecs] DllNotFoundException: {ex.Message}");
                     _initializationException = NativeCodecException.LibraryNotFound(
                         NativeMethods.LibraryName,
                         GetRuntimeIdentifier());
@@ -301,6 +325,8 @@ namespace SharpDicom.Codecs.Native
                 }
                 catch (Exception ex)
                 {
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine($"[NativeCodecs] Exception ({ex.GetType().Name}): {ex.Message}");
                     _initializationException = new NativeCodecException(
                         "Failed to initialize native codecs", ex);
                     _initializationState = 2;
@@ -400,9 +426,26 @@ namespace SharpDicom.Codecs.Native
         private static void SetupDllResolver(NativeCodecOptions? options)
         {
 #if NET5_0_OR_GREATER
-            NativeLibrary.SetDllImportResolver(
-                typeof(NativeCodecs).Assembly,
-                (libraryName, assembly, searchPath) => DllImportResolver(libraryName, assembly, searchPath, options));
+            // Only set the resolver once - it throws InvalidOperationException on subsequent calls
+            if (!_resolverSet)
+            {
+                try
+                {
+                    NativeLibrary.SetDllImportResolver(
+                        typeof(NativeCodecs).Assembly,
+                        (libraryName, assembly, searchPath) => DllImportResolver(libraryName, assembly, searchPath, options));
+                    _resolverSet = true;
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine("[NativeCodecs] DllImportResolver registered successfully");
+                }
+                catch (InvalidOperationException)
+                {
+                    // Resolver already set by another call - this is OK
+                    _resolverSet = true;
+                    if (_diagnosticsEnabled)
+                        Console.Error.WriteLine("[NativeCodecs] DllImportResolver was already registered");
+                }
+            }
 #else
             // On netstandard2.0, we rely on the default P/Invoke resolution
             _ = options; // Suppress unused parameter warning
@@ -465,36 +508,83 @@ namespace SharpDicom.Codecs.Native
 
             // Get base directory - handle single-file deployment
             string assemblyDir = assembly.Location;
+            bool usedBaseDir = false;
             if (string.IsNullOrEmpty(assemblyDir))
             {
                 // Single-file deployment - use AppContext.BaseDirectory
                 assemblyDir = AppContext.BaseDirectory;
+                usedBaseDir = true;
             }
             else
             {
                 assemblyDir = System.IO.Path.GetDirectoryName(assemblyDir) ?? string.Empty;
             }
 
+            // Diagnostic output (only when SHARPDICOM_NATIVE_DEBUG is set)
+            if (_diagnosticsEnabled)
+            {
+                Console.Error.WriteLine($"[DllResolver] Looking for {libraryName}");
+                Console.Error.WriteLine($"[DllResolver] Assembly location: {assembly.Location}");
+                Console.Error.WriteLine($"[DllResolver] Assembly dir (usedBaseDir={usedBaseDir}): {assemblyDir}");
+            }
+
             if (string.IsNullOrEmpty(assemblyDir))
             {
+                if (_diagnosticsEnabled)
+                    Console.Error.WriteLine("[DllResolver] Empty assemblyDir, returning Zero");
                 return IntPtr.Zero;
             }
 
             // Try RID-specific paths
             string rid = RuntimeInformation.RuntimeIdentifier;
+            if (_diagnosticsEnabled)
+                Console.Error.WriteLine($"[DllResolver] RID: {rid}");
 
             // Try runtimes/{rid}/native/{library}
             string ridPath = System.IO.Path.Combine(assemblyDir, "runtimes", rid, "native", GetLibraryFileName());
+            if (_diagnosticsEnabled)
+            {
+                Console.Error.WriteLine($"[DllResolver] Trying RID path: {ridPath}");
+                Console.Error.WriteLine($"[DllResolver] Exists: {System.IO.File.Exists(ridPath)}");
+            }
             if (NativeLibrary.TryLoad(ridPath, out IntPtr ridHandle))
             {
+                if (_diagnosticsEnabled)
+                    Console.Error.WriteLine("[DllResolver] Loaded from RID path");
                 return ridHandle;
             }
 
             // Try native directory next to assembly
             string nativePath = System.IO.Path.Combine(assemblyDir, GetLibraryFileName());
+            if (_diagnosticsEnabled)
+            {
+                Console.Error.WriteLine($"[DllResolver] Trying native path: {nativePath}");
+                Console.Error.WriteLine($"[DllResolver] Exists: {System.IO.File.Exists(nativePath)}");
+            }
             if (NativeLibrary.TryLoad(nativePath, out IntPtr nativeHandle))
             {
+                if (_diagnosticsEnabled)
+                    Console.Error.WriteLine("[DllResolver] Loaded from native path");
                 return nativeHandle;
+            }
+
+            // List files in assembly directory for debugging
+            if (_diagnosticsEnabled)
+            {
+                try
+                {
+                    Console.Error.WriteLine($"[DllResolver] Files in {assemblyDir}:");
+                    foreach (var file in System.IO.Directory.GetFiles(assemblyDir, "*sharpdicom*"))
+                    {
+                        Console.Error.WriteLine($"[DllResolver]   {System.IO.Path.GetFileName(file)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"[DllResolver] Could not list files: {ex.Message}");
+                }
+
+                Console.Error.WriteLine("[DllResolver] Returning Zero for default resolution");
             }
 
             // Let default resolution take over

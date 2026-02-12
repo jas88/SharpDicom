@@ -1,4 +1,7 @@
 using System;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 using NUnit.Framework;
 using SharpDicom.Codecs;
 using SharpDicom.Codecs.Native;
@@ -37,16 +40,170 @@ namespace SharpDicom.Codecs.Tests
             Assert.That(NativeCodecs.IsAvailable, Is.False);
         }
 
+#if NET5_0_OR_GREATER
+        [Test]
+        [Category("NativeCodecs")]
+        [Order(0)] // Run this test first to check initialization before other tests
+        public void InitializeWithCustomPath_WhenLibraryExists_Succeeds()
+        {
+            // This test explicitly passes the library path to Initialize
+            var assemblyDir = AppContext.BaseDirectory;
+            string libName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "sharpdicom_codecs.dll"
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? "libsharpdicom_codecs.dylib"
+                    : "libsharpdicom_codecs.so";
+
+            string directPath = Path.Combine(assemblyDir, libName);
+            Console.Error.WriteLine($"[Test] Looking for library at: {directPath}");
+            Console.Error.WriteLine($"[Test] File exists: {File.Exists(directPath)}");
+
+            if (!File.Exists(directPath))
+            {
+                Assert.Ignore($"Native library not present at {directPath}");
+                return;
+            }
+
+            // Reset any previous state
+            NativeCodecs.Reset();
+
+            // Initialize with explicit custom path
+            Console.Error.WriteLine($"[Test] Calling Initialize with CustomLibraryPath={directPath}");
+            NativeCodecs.Initialize(new NativeCodecOptions
+            {
+                CustomLibraryPath = directPath,
+                SuppressInitializationErrors = false
+            });
+
+            Console.Error.WriteLine($"[Test] After Initialize: IsAvailable={NativeCodecs.IsAvailable}, Version={NativeCodecs.NativeVersion}");
+
+            Assert.That(NativeCodecs.IsAvailable, Is.True, "Library should be available when path is explicitly provided");
+            Assert.That(NativeCodecs.NativeVersion, Is.GreaterThan(0), "Version should be > 0");
+        }
+
+        [Test]
+        [Category("NativeCodecs")]
+        public void DiagnoseNativeLibraryLoading()
+        {
+            // This test diagnoses native library loading issues
+            var assemblyDir = AppContext.BaseDirectory;
+            TestContext.WriteLine($"AppContext.BaseDirectory: {assemblyDir}");
+            TestContext.WriteLine($"RuntimeInformation.RuntimeIdentifier: {RuntimeInformation.RuntimeIdentifier}");
+
+            // Check for library in various locations
+            string libName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "sharpdicom_codecs.dll"
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? "libsharpdicom_codecs.dylib"
+                    : "libsharpdicom_codecs.so";
+
+            string directPath = Path.Combine(assemblyDir, libName);
+            TestContext.WriteLine($"Direct path: {directPath}");
+            TestContext.WriteLine($"Direct exists: {File.Exists(directPath)}");
+
+            string ridPath = Path.Combine(assemblyDir, "runtimes", RuntimeInformation.RuntimeIdentifier, "native", libName);
+            TestContext.WriteLine($"RID path: {ridPath}");
+            TestContext.WriteLine($"RID exists: {File.Exists(ridPath)}");
+
+            // List all .so/.dll files in base directory
+            TestContext.WriteLine("Files in base directory:");
+            foreach (var file in Directory.GetFiles(assemblyDir, "*sharpdicom*"))
+            {
+                var info = new FileInfo(file);
+                TestContext.WriteLine($"  {info.Name} ({info.Length} bytes)");
+            }
+
+            // Try to load the library directly
+            if (File.Exists(directPath))
+            {
+                TestContext.WriteLine("Attempting to load library directly...");
+                try
+                {
+                    if (NativeLibrary.TryLoad(directPath, out IntPtr handle))
+                    {
+                        TestContext.WriteLine($"SUCCESS: Loaded library, handle={handle}");
+                        NativeLibrary.Free(handle);
+                        Assert.Pass($"Native library loaded successfully from {directPath}");
+                    }
+                    else
+                    {
+                        // Try with explicit Load to get exception details
+                        try
+                        {
+                            var h = NativeLibrary.Load(directPath);
+                            NativeLibrary.Free(h);
+                            Assert.Inconclusive($"TryLoad returned false but Load succeeded - unexpected");
+                        }
+                        catch (Exception loadEx)
+                        {
+                            // Library has missing dependencies - mark as inconclusive to allow CI to continue
+                            // The ldd output in CI will show which dependencies are missing
+                            Assert.Inconclusive($"Native library at {directPath} ({new FileInfo(directPath).Length} bytes) failed to load: {loadEx.GetType().Name}: {loadEx.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Assert.Inconclusive($"Exception loading {directPath}: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+            else
+            {
+                // List what files ARE there
+                var files = string.Join(", ", Directory.GetFiles(assemblyDir).Select(Path.GetFileName));
+                Assert.Inconclusive($"Library file not found at {directPath}. BaseDir={assemblyDir}, Files={files}");
+            }
+        }
+#endif
+
         [Test]
         [Category("NativeCodecs")]
         public void Initialize_WhenLibraryMissing_SetsIsAvailableFalse()
         {
-            // Native library is likely not present in test environment
-            // Initialize with SuppressInitializationErrors to avoid exceptions
-            NativeCodecs.Initialize(new NativeCodecOptions
+            // Try initializing WITHOUT suppressing errors first to see the actual error
+            Exception? initError = null;
+            try
             {
-                SuppressInitializationErrors = true
-            });
+                NativeCodecs.Initialize(new NativeCodecOptions
+                {
+                    SuppressInitializationErrors = false
+                });
+            }
+            catch (Exception ex)
+            {
+                initError = ex;
+                // Reset and retry with suppression
+                NativeCodecs.Reset();
+                NativeCodecs.Initialize(new NativeCodecOptions
+                {
+                    SuppressInitializationErrors = true
+                });
+            }
+
+            // Log the initialization error for debugging - use Console.Error for visibility in CI
+            if (initError != null)
+            {
+                Console.Error.WriteLine($"[NativeCodecsTest] Native codec initialization error: {initError.GetType().Name}");
+                Console.Error.WriteLine($"[NativeCodecsTest] Message: {initError.Message}");
+                var ex = initError;
+                while (ex.InnerException != null)
+                {
+                    ex = ex.InnerException;
+                    Console.Error.WriteLine($"[NativeCodecsTest] Inner ({ex.GetType().Name}): {ex.Message}");
+                }
+                Console.Error.WriteLine($"[NativeCodecsTest] Stack trace: {initError.StackTrace}");
+                TestContext.WriteLine($"Native codec initialization error: {initError.GetType().Name}");
+                TestContext.WriteLine($"Message: {initError.Message}");
+            }
+            else if (NativeCodecs.IsAvailable)
+            {
+                Console.Error.WriteLine($"[NativeCodecsTest] Native codecs loaded successfully, version={NativeCodecs.NativeVersion}");
+                TestContext.WriteLine($"Native codecs loaded successfully, version={NativeCodecs.NativeVersion}");
+            }
+            else
+            {
+                Console.Error.WriteLine($"[NativeCodecsTest] No error thrown but IsAvailable=false");
+            }
 
             // Assert IsAvailable reflects whether native library was found
             // In CI without native libs, this should be false

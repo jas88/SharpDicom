@@ -8,6 +8,119 @@ using System.Runtime.InteropServices.Marshalling;
 namespace SharpDicom.Codecs.Native.Interop
 {
     /// <summary>
+    /// JPEG 2000 output format.
+    /// </summary>
+    internal enum J2kFormat : int
+    {
+        /// <summary>Raw J2K codestream (for DICOM).</summary>
+        J2K = 0,
+        /// <summary>JP2 file format with box structure.</summary>
+        JP2 = 1
+    }
+
+    /// <summary>
+    /// Decoding options for JPEG 2000.
+    /// </summary>
+    /// <remarks>
+    /// Must match the native J2kDecodeOptions struct in j2k_wrapper.h.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct J2kDecodeOptions
+    {
+        /// <summary>Reduction factor (0=full, 1=half, 2=quarter, etc.).</summary>
+        public int Reduce;
+        /// <summary>Maximum quality layer to decode (0 = all layers).</summary>
+        public int MaxQualityLayers;
+
+        /// <summary>
+        /// Creates default decode options (full resolution, all layers).
+        /// </summary>
+        public static J2kDecodeOptions Default => new()
+        {
+            Reduce = 0,
+            MaxQualityLayers = 0
+        };
+
+        /// <summary>
+        /// Creates decode options with the specified reduction factor.
+        /// </summary>
+        public static J2kDecodeOptions WithReduce(int reduce) => new()
+        {
+            Reduce = reduce,
+            MaxQualityLayers = 0
+        };
+    }
+
+    /// <summary>
+    /// Encoding parameters for JPEG 2000 compression.
+    /// </summary>
+    /// <remarks>
+    /// Must match the native J2kEncodeParams struct in j2k_wrapper.h.
+    /// </remarks>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct J2kEncodeParams
+    {
+        /// <summary>Lossless mode (1=lossless with 5/3 wavelet, 0=lossy with 9/7 wavelet).</summary>
+        public int Lossless;
+        /// <summary>Compression ratio for lossy mode (e.g., 10 = 10:1 compression, 0 = use quality).</summary>
+        public float CompressionRatio;
+        /// <summary>Quality for lossy mode (1-100, 100=best, only used if compression_ratio is 0).</summary>
+        public float Quality;
+        /// <summary>Number of resolution levels (0 = auto based on image size).</summary>
+        public int NumResolutions;
+        /// <summary>Number of quality layers (0 = single layer).</summary>
+        public int NumQualityLayers;
+        /// <summary>Tile width (0 = single tile covering whole image).</summary>
+        public int TileWidth;
+        /// <summary>Tile height (0 = single tile covering whole image).</summary>
+        public int TileHeight;
+        /// <summary>Output format (J2K or JP2).</summary>
+        public J2kFormat Format;
+        /// <summary>Code-block width exponent (4-10, 0 = default 6 = 64 pixels).</summary>
+        public int CblkWidthExp;
+        /// <summary>Code-block height exponent (4-10, 0 = default 6 = 64 pixels).</summary>
+        public int CblkHeightExp;
+        /// <summary>Progression order: LRCP=0, RLCP=1, RPCL=2, PCRL=3, CPRL=4.</summary>
+        public int ProgressionOrder;
+
+        /// <summary>
+        /// Creates default lossless encoding parameters.
+        /// </summary>
+        public static J2kEncodeParams DefaultLossless => new()
+        {
+            Lossless = 1,
+            CompressionRatio = 0,
+            Quality = 0,
+            NumResolutions = 0,
+            NumQualityLayers = 0,
+            TileWidth = 0,
+            TileHeight = 0,
+            Format = J2kFormat.J2K,
+            CblkWidthExp = 0,
+            CblkHeightExp = 0,
+            ProgressionOrder = 0
+        };
+
+        /// <summary>
+        /// Creates lossy encoding parameters with the given compression ratio.
+        /// </summary>
+        public static J2kEncodeParams Lossy(float compressionRatio, int tileSize = 0) => new()
+        {
+            Lossless = 0,
+            CompressionRatio = compressionRatio,
+            Quality = 0,
+            NumResolutions = 0,
+            NumQualityLayers = 0,
+            TileWidth = tileSize,
+            TileHeight = tileSize,
+            Format = J2kFormat.J2K,
+            CblkWidthExp = 0,
+            CblkHeightExp = 0,
+            ProgressionOrder = 0
+        };
+    }
+
+    /// <summary>
     /// P/Invoke declarations for the native codec library.
     /// </summary>
     /// <remarks>
@@ -183,18 +296,26 @@ namespace SharpDicom.Codecs.Native.Interop
         /// <summary>
         /// Decodes JPEG 2000 compressed data.
         /// </summary>
+        /// <param name="input">Pointer to compressed J2K/JP2 data.</param>
+        /// <param name="inputLen">Length of compressed data in bytes.</param>
+        /// <param name="output">Pointer to output buffer for decoded pixels.</param>
+        /// <param name="outputLen">Size of output buffer in bytes.</param>
+        /// <param name="options">Decode options (can be null for defaults).</param>
+        /// <param name="outWidth">Output: Actual decoded width.</param>
+        /// <param name="outHeight">Output: Actual decoded height.</param>
+        /// <param name="outComponents">Output: Number of components.</param>
+        /// <returns>0 on success, negative error code on failure.</returns>
         [LibraryImport(LibraryName, EntryPoint = "j2k_decode")]
         [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_decode(
             byte* input,
-            int inputLen,
+            nuint inputLen,
             byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            int resolutionLevel);
+            nuint outputLen,
+            J2kDecodeOptions* options,
+            int* outWidth,
+            int* outHeight,
+            int* outComponents);
 
         /// <summary>
         /// Gets JPEG 2000 header information without decoding.
@@ -213,19 +334,32 @@ namespace SharpDicom.Codecs.Native.Interop
         /// <summary>
         /// Encodes raw pixel data to JPEG 2000.
         /// </summary>
+        /// <param name="input">Pointer to raw pixel data (component-interleaved).</param>
+        /// <param name="inputLen">Length of input data in bytes.</param>
+        /// <param name="width">Image width in pixels.</param>
+        /// <param name="height">Image height in pixels.</param>
+        /// <param name="numComponents">Number of components (1, 3, or 4).</param>
+        /// <param name="bitsPerComponent">Bits per component (8, 12, or 16).</param>
+        /// <param name="isSigned">Whether samples are signed.</param>
+        /// <param name="encodingParams">Encoding parameters (can be null for defaults).</param>
+        /// <param name="output">Pointer to output buffer for compressed data.</param>
+        /// <param name="outputLen">Size of output buffer in bytes.</param>
+        /// <param name="outSize">Output: Actual size of compressed data.</param>
+        /// <returns>0 on success, negative error code on failure.</returns>
         [LibraryImport(LibraryName, EntryPoint = "j2k_encode")]
         [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
         internal static partial int j2k_encode(
             byte* input,
+            nuint inputLen,
             int width,
             int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
-            int lossless,
-            float compressionRatio,
-            int tileSize);
+            int numComponents,
+            int bitsPerComponent,
+            int isSigned,
+            J2kEncodeParams* encodingParams,
+            byte* output,
+            nuint outputLen,
+            nuint* outSize);
 
         /// <summary>
         /// Frees JPEG 2000-allocated memory.
@@ -572,14 +706,13 @@ namespace SharpDicom.Codecs.Native.Interop
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_decode")]
         internal static extern int j2k_decode(
             byte* input,
-            int inputLen,
+            UIntPtr inputLen,
             byte* output,
-            int outputLen,
-            out int width,
-            out int height,
-            out int components,
-            out int bitsPerSample,
-            int resolutionLevel);
+            UIntPtr outputLen,
+            J2kDecodeOptions* options,
+            int* outWidth,
+            int* outHeight,
+            int* outComponents);
 
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_get_info")]
         internal static extern int j2k_get_info(
@@ -594,15 +727,16 @@ namespace SharpDicom.Codecs.Native.Interop
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_encode")]
         internal static extern int j2k_encode(
             byte* input,
+            UIntPtr inputLen,
             int width,
             int height,
-            int components,
-            int bitsPerSample,
-            out byte* output,
-            out int outputLen,
-            int lossless,
-            float compressionRatio,
-            int tileSize);
+            int numComponents,
+            int bitsPerComponent,
+            int isSigned,
+            J2kEncodeParams* encodingParams,
+            byte* output,
+            UIntPtr outputLen,
+            UIntPtr* outSize);
 
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "j2k_free")]
         internal static extern void j2k_free(byte* buffer);

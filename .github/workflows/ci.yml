@@ -135,6 +135,64 @@ jobs:
       - name: Build .NET projects
         run: dotnet build --no-restore --configuration Release
 
+      # Download vendor sources for native codecs
+      - name: Download vendor sources
+        run: |
+          cd native/vendor
+
+          # CharLS 2.4.2 - JPEG-LS codec
+          echo "Downloading CharLS..."
+          CHARLS_SHA256="d1c2c35664976f1e43fec7764d72755e6a50a80f38eca70fcc7553cad4fe19d9"
+          curl -sL https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz -o charls.tar.gz
+          echo "${CHARLS_SHA256}  charls.tar.gz" | sha256sum -c -
+          tar xzf charls.tar.gz && rm charls.tar.gz
+          mv charls-2.4.2 charls/src
+
+          # OpenJPEG 2.5.3 - JPEG 2000 codec
+          echo "Downloading OpenJPEG..."
+          OPENJPEG_SHA256="368fe0468228e767433c9ebdea82ad9d801a3ad1e4234421f352c8b06e7aa707"
+          curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
+          echo "${OPENJPEG_SHA256}  openjpeg.tar.gz" | sha256sum -c -
+          tar xzf openjpeg.tar.gz && rm openjpeg.tar.gz
+          mv openjpeg-2.5.3 openjpeg/src
+
+          # Generate OpenJPEG config headers (normally done by CMake)
+          # These need to be platform-aware for cross-compilation
+          OPJ_DIR=openjpeg/src/src/lib/openjp2
+          cat > $OPJ_DIR/opj_config.h << 'EOF'
+          #ifndef OPJ_CONFIG_H_INCLUDED
+          #define OPJ_CONFIG_H_INCLUDED
+          #define OPJ_VERSION_MAJOR 2
+          #define OPJ_VERSION_MINOR 5
+          #define OPJ_VERSION_BUILD 3
+          #endif
+          EOF
+          cat > $OPJ_DIR/opj_config_private.h << 'EOF'
+          #define OPJ_PACKAGE_VERSION "2.5.3"
+          /* Platform-specific memory allocation */
+          #if defined(_WIN32) || defined(_WIN64)
+            #define OPJ_HAVE__ALIGNED_MALLOC 1
+          #else
+            #define OPJ_HAVE_POSIX_MEMALIGN 1
+            #define OPJ_HAVE_FSEEKO 1
+            #define _POSIX_C_SOURCE 200112L
+          #endif
+          EOF
+
+          # stb headers - single-header libraries (pinned to commit for reproducibility)
+          # Using commit f75e8d1 from stb master
+          echo "Downloading stb..."
+          mkdir -p stb
+          STB_COMMIT="f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31"
+          STB_IMAGE_SHA256="594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3"
+          curl -sL "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}/stb_image.h" -o stb/stb_image.h
+          echo "${STB_IMAGE_SHA256}  stb/stb_image.h" | sha256sum -c -
+
+          # Verify downloads
+          ls -la charls/src/ openjpeg/src/ stb/
+          echo "OpenJPEG config headers:"
+          ls -la $OPJ_DIR/opj_config*.h
+
       # Build Phase 2: Native codecs (Zig)
       - name: Build native codecs (all platforms)
         working-directory: native
@@ -149,11 +207,32 @@ jobs:
       # Current issue: Ubuntu libnvjpeg2k0-dev-cuda-12 package has incomplete headers
       # (missing nvjpeg2kProgOrder and nvjpeg2kQualityType type definitions)
 
+      # Copy native libraries to test directories (built after .NET projects)
+      - name: Copy native codecs to test assemblies
+        run: |
+          NATIVE_LIB=${{ github.workspace }}/native/zig-out/linux-x64/libsharpdicom_codecs.so
+          echo "Native library: $NATIVE_LIB"
+          ls -la $NATIVE_LIB || echo "Warning: Native library not found"
+
+          # Check library dependencies
+          echo "Library dependencies (ldd):"
+          ldd $NATIVE_LIB || true
+          echo ""
+
+          # Copy to all test assembly directories
+          for testdir in tests/*/bin/Release/net*/; do
+            if [ -d "$testdir" ]; then
+              echo "Copying to $testdir"
+              cp -v "$NATIVE_LIB" "$testdir" 2>/dev/null || true
+            fi
+          done
+
       # Test Phase: .NET tests with coverage
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
+          SHARPDICOM_NATIVE_DEBUG: "1"
 
       # Integration Tests: Orthanc
       - name: Wait for Orthanc

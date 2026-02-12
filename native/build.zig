@@ -12,17 +12,20 @@ const std = @import("std");
 /// - x265: vendor/x265/ (downloaded in CI) - HEVC software encoder
 /// - stb_image: vendor/stb/ (downloaded in CI) - image sequence loading
 pub fn build(b: *std.Build) void {
-    // All vendor libraries disabled for Phase 13a - building stubs only.
-    // Cross-compilation of vendor libraries requires proper sysroot setup.
-    // TODO: Add proper cross-compilation support in Phase 13b
+    // Auto-detect vendor libraries by checking if source directories exist.
+    // CI downloads these before running zig build.
+    // For local development, run scripts/download-vendors.sh first.
+    //
+    // TODO Phase 13c: libjpeg-turbo requires generated jconfig.h and complex
+    // multi-bit-depth compilation. Disabled until we add proper config generation.
     const have_libjpeg = false;
-    const have_libjpeg12 = false; // 12-bit libjpeg-turbo (raw libjpeg API, no TurboJPEG/SIMD)
-    const have_openjpeg = false; // Needs CMake-generated config + sysroot
-    const have_charls = false;
-    const have_ffmpeg = false;
-    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - requires vendor sources
-    const have_tesseract = false;
-    const have_stb_image = false; // stb_image for image sequence loading
+    const have_libjpeg12 = false; // 12-bit libjpeg-turbo requires additional config
+    const have_openjpeg = detectVendorLibrary("vendor/openjpeg/src");
+    const have_charls = detectVendorLibrary("vendor/charls/src");
+    const have_ffmpeg = false; // FFmpeg is complex - TODO Phase 13d
+    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - TODO Phase 13e
+    const have_tesseract = false; // Tesseract requires leptonica - TODO Phase 13f
+    const have_stb_image = detectVendorLibrary("vendor/stb"); // stb_image is header-only
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -38,17 +41,17 @@ pub fn build(b: *std.Build) void {
             .os_tag = .windows,
             .abi = .gnu,
         },
-        // Linux x64 (musl for zero dependencies)
+        // Linux x64 (glibc for compatibility with .NET runtime)
         .{
             .cpu_arch = .x86_64,
             .os_tag = .linux,
-            .abi = .musl,
+            .abi = .gnu,
         },
-        // Linux ARM64 (musl for zero dependencies)
+        // Linux ARM64 (glibc for compatibility with .NET runtime)
         .{
             .cpu_arch = .aarch64,
             .os_tag = .linux,
-            .abi = .musl,
+            .abi = .gnu,
         },
         // macOS x64
         .{
@@ -80,8 +83,10 @@ pub fn build(b: *std.Build) void {
         lib.linkLibC();
 
         // Build flags common to all source files
+        // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
         const common_flags = &[_][]const u8{
             "-std=c11",
+            "-O2", // Required for _FORTIFY_SOURCE with glibc
             "-fstack-protector-strong", // Security hardening
             "-D_FORTIFY_SOURCE=2",
             "-Wall",
@@ -158,23 +163,74 @@ pub fn build(b: *std.Build) void {
         _ = jpeg12_symbol_prefix_flags; // Used when have_libjpeg12 is true
 
         // Add C source files (core) - feature flags based on available libraries
+        // Build core flags from comptime constants first
         const core_flags_0 = if (have_libjpeg) jpeg_flags else common_flags;
         const core_flags_1 = if (have_libjpeg12)
             core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
         else
             core_flags_0;
-        const core_flags_2 = if (have_ffmpeg_enc)
+        const core_flags_base = if (have_ffmpeg_enc)
             core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
         else
             core_flags_1;
-        const core_flags = if (have_stb_image)
-            core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
-        else
-            core_flags_2;
-        lib.addCSourceFile(.{
-            .file = b.path("src/sharpdicom_codecs.c"),
-            .flags = core_flags,
-        });
+
+        // Handle runtime-detected features with explicit conditionals
+        // We need separate flag arrays for each combination because Zig can't
+        // concatenate slices when either operand depends on a runtime value
+        if (have_openjpeg and have_charls and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_JLS",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_openjpeg and have_charls) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_JLS",
+                },
+            });
+        } else if (have_openjpeg and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_J2K",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_charls and have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{
+                    "-DSHARPDICOM_WITH_JLS",
+                    "-DSHARPDICOM_WITH_STB_IMAGE",
+                },
+            });
+        } else if (have_openjpeg) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
+            });
+        } else if (have_charls) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
+            });
+        } else if (have_stb_image) {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
+            });
+        } else {
+            lib.addCSourceFile(.{
+                .file = b.path("src/sharpdicom_codecs.c"),
+                .flags = core_flags_base,
+            });
+        }
 
         // JPEG wrapper (libjpeg-turbo)
         if (have_libjpeg) {
@@ -232,11 +288,11 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_JLS",
                 },
             });
-            // Add CharLS include path
-            lib.addIncludePath(b.path("vendor/charls/src"));
+            // Add CharLS include paths
             lib.addIncludePath(b.path("vendor/charls/src/include"));
-            // Link against CharLS library
-            lib.linkSystemLibrary("charls");
+            lib.addIncludePath(b.path("vendor/charls/src/src"));
+            // Compile CharLS from source (C++17)
+            addCharlsSources(lib, b);
         } else {
             // Build stub version (JLS functions will error at runtime)
             lib.addCSourceFile(.{
@@ -366,140 +422,8 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&install_step.step);
     }
 
-    // Native test executable (for local platform only)
+    // Native target (for single-platform build and tests)
     const native_target = b.standardTargetOptions(.{});
-    const test_exe = b.addExecutable(.{
-        .name = "test_version",
-        .target = native_target,
-        .optimize = optimize,
-    });
-
-    // Link libc for standard library headers
-    test_exe.linkLibC();
-
-    test_exe.addCSourceFile(.{
-        .file = b.path("test/test_version.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    test_exe.addIncludePath(b.path("src"));
-
-    // Link against the native platform's library
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/sharpdicom_codecs.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add jpeg_wrapper stub for tests (without libjpeg-turbo for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/jpeg_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add j2k_wrapper stub for tests (without OpenJPEG for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/j2k_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add gpu_wrapper for tests
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/gpu_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add jls_wrapper stub for tests (without CharLS for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/jls_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add video_wrapper stub for tests (without FFmpeg for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/video_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add video_encoder stub for tests (without FFmpeg encoding for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/video_encoder.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add tesseract_wrapper stub for tests (without Tesseract for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/tesseract_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add jpeg12_wrapper stub for tests (without 12-bit libjpeg for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/jpeg12_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Add stb_image_wrapper stub for tests (without stb_image for simplicity)
-    test_exe.addCSourceFile(.{
-        .file = b.path("src/stb_image_wrapper.c"),
-        .flags = &.{
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-        },
-    });
-
-    // Link -ldl on Linux for dynamic library loading
-    if (native_target.result.os.tag == .linux) {
-        test_exe.linkSystemLibrary("dl");
-    }
-
-    const test_install = b.addInstallArtifact(test_exe, .{});
-
-    // Test step
-    const test_step = b.step("test", "Run native tests");
-    const run_test = b.addRunArtifact(test_exe);
-    test_step.dependOn(&test_install.step);
-    test_step.dependOn(&run_test.step);
 
     // Single-platform build step (for development)
     const single_step = b.step("native", "Build for native platform only");
@@ -533,20 +457,67 @@ pub fn build(b: *std.Build) void {
     else
         native_jpeg_flags_base;
 
-    // Native core flags with FFmpeg encoding and stb_image when available
-    const native_core_flags_2 = if (have_ffmpeg_enc)
+    // Native core flags with FFmpeg encoding when available
+    const native_core_flags_base = if (have_ffmpeg_enc)
         native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
     else
         native_core_flags_1;
-    const native_core_flags = if (have_stb_image)
-        native_core_flags_2 ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"}
-    else
-        native_core_flags_2;
 
-    native_lib.addCSourceFile(.{
-        .file = b.path("src/sharpdicom_codecs.c"),
-        .flags = native_core_flags,
-    });
+    // Handle runtime-detected features with explicit conditionals
+    if (have_openjpeg and have_charls and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_JLS",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_openjpeg and have_charls) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_JLS",
+            },
+        });
+    } else if (have_openjpeg and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_J2K",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_charls and have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{
+                "-DSHARPDICOM_WITH_JLS",
+                "-DSHARPDICOM_WITH_STB_IMAGE",
+            },
+        });
+    } else if (have_openjpeg) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_J2K"},
+        });
+    } else if (have_charls) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_JLS"},
+        });
+    } else if (have_stb_image) {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base ++ &[_][]const u8{"-DSHARPDICOM_WITH_STB_IMAGE"},
+        });
+    } else {
+        native_lib.addCSourceFile(.{
+            .file = b.path("src/sharpdicom_codecs.c"),
+            .flags = native_core_flags_base,
+        });
+    }
 
     // JPEG wrapper for native build
     if (have_libjpeg) {
@@ -596,9 +567,10 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_JLS",
             },
         });
-        native_lib.addIncludePath(b.path("vendor/charls/src"));
         native_lib.addIncludePath(b.path("vendor/charls/src/include"));
-        native_lib.linkSystemLibrary("charls");
+        native_lib.addIncludePath(b.path("vendor/charls/src/src"));
+        // Compile CharLS from source (C++17)
+        addCharlsSources(native_lib, b);
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jls_wrapper.c"),
@@ -713,6 +685,40 @@ pub fn build(b: *std.Build) void {
 
     const native_install = b.addInstallArtifact(native_lib, .{});
     single_step.dependOn(&native_install.step);
+
+    // Native test executable - links against native_lib to verify the full build
+    const test_exe = b.addExecutable(.{
+        .name = "test_version",
+        .target = native_target,
+        .optimize = optimize,
+    });
+
+    test_exe.linkLibC();
+    test_exe.addCSourceFile(.{
+        .file = b.path("test/test_version.c"),
+        .flags = &.{
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+        },
+    });
+    test_exe.addIncludePath(b.path("src"));
+
+    // Link against the native_lib artifact (this creates a build dependency)
+    test_exe.linkLibrary(native_lib);
+
+    // Link -ldl on Linux for dynamic library loading
+    if (native_target.result.os.tag == .linux) {
+        test_exe.linkSystemLibrary("dl");
+    }
+
+    const test_install = b.addInstallArtifact(test_exe, .{});
+
+    // Test step
+    const test_step = b.step("test", "Run native tests");
+    const run_test = b.addRunArtifact(test_exe);
+    test_step.dependOn(&test_install.step);
+    test_step.dependOn(&run_test.step);
 }
 
 /// Maps Zig target to .NET Runtime Identifier
@@ -780,8 +786,10 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
 
     // OpenJPEG-specific flags - defined as comptime constant to allow concatenation
     // Includes common flags plus OpenJPEG-specific suppressions for third-party code
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
     const opj_flags = &[_][]const u8{
         "-std=c11",
+        "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
@@ -790,6 +798,8 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-implicit-fallthrough",
+        "-Wno-unused-but-set-variable", // OpenJPEG has some variables set but not used
+        "-Wno-unused-function", // OpenJPEG has static functions not used in all configs
         "-DOPJ_STATIC",
         "-DUSE_JPIP=0",
     };
@@ -806,6 +816,61 @@ fn addOpenJpegSources(lib: *std.Build.Step.Compile, b: *std.Build, _: []const []
     lib.addIncludePath(b.path(opj_base));
 }
 
+/// Add CharLS source files to compilation (JPEG-LS codec).
+/// Vendor sources are downloaded by CI into vendor/charls/src/.
+///
+/// CharLS is a C++17 library that provides a C API (charls.h).
+/// We compile the C++ sources and link them into our shared library.
+///
+/// Reference: https://github.com/team-charls/charls
+fn addCharlsSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const charls_base = "vendor/charls/src/src";
+
+    // CharLS C++17 compilation flags - relaxed warnings for third-party code
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
+    const charls_flags = &[_][]const u8{
+        "-std=c++17",
+        "-O2", // Required for _FORTIFY_SOURCE with glibc
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-missing-field-initializers",
+        "-DCHARLS_STATIC", // Build as static library to link into our shared lib
+    };
+
+    // CharLS 2.4.2 source files (from src/CMakeLists.txt)
+    // Note: Files like golomb_lut.cpp, make_scan_codec.cpp only exist in unreleased main branch.
+    // Using 2.4.2 stable release file list.
+    const charls_sources = [_][]const u8{
+        "charls_jpegls_decoder.cpp",
+        "charls_jpegls_encoder.cpp",
+        "jpeg_stream_reader.cpp",
+        "jpeg_stream_writer.cpp",
+        "jpegls.cpp",
+        "jpegls_error.cpp",
+        "validate_spiff_header.cpp",
+        "version.cpp",
+    };
+
+    for (charls_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ charls_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = charls_flags,
+        });
+    }
+
+    // CharLS include paths
+    lib.addIncludePath(b.path("vendor/charls/src/include"));
+    lib.addIncludePath(b.path(charls_base));
+
+    // Link C++ standard library for C++ code
+    lib.linkLibCpp();
+}
+
 /// Add x264 source files to compilation (H.264 software encoder).
 /// Vendor sources are downloaded by CI into vendor/x264/.
 /// Requires a generated x264_config.h at vendor/x264/x264_config.h.
@@ -819,8 +884,10 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     const x264_base = "vendor/x264";
 
     // x264 compilation flags - relaxed warnings for third-party code
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
     const x264_flags = &[_][]const u8{
         "-std=c11",
+        "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
@@ -905,8 +972,10 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     const x265_base = "vendor/x265/source";
 
     // x265 compilation flags - C++ mode, relaxed warnings for third-party code
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
     const x265_flags = &[_][]const u8{
         "-std=c++14",
+        "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
@@ -1036,8 +1105,10 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // FFmpeg compilation flags - relaxed warnings for third-party code
     // config.h is generated by CI/scripts to enable only the needed codecs
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
     const ffmpeg_flags = &[_][]const u8{
         "-std=c11",
+        "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
