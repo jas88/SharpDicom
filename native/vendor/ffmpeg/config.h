@@ -96,7 +96,8 @@
 #define HAVE_MEMALIGN 1
 #define HAVE_POSIX_MEMALIGN 1
 
-/* Math functions */
+/* Math functions - tell FFmpeg we have standard C99 math functions
+ * This prevents FFmpeg's libm.h from providing conflicting fallbacks */
 #define HAVE_LRINT 1
 #define HAVE_LRINTF 1
 #define HAVE_LLRINT 1
@@ -113,6 +114,13 @@
 #define HAVE_ROUNDF 1
 #define HAVE_ISNAN 1
 #define HAVE_ISINF 1
+#define HAVE_ISFINITE 1
+#define HAVE_HYPOT 1
+#define HAVE_ERF 1
+
+/* Time functions */
+#define HAVE_GMTIME_R 1
+#define HAVE_LOCALTIME_R 1
 
 /* ============================================================
  * Enabled codecs (DICOM-relevant subset)
