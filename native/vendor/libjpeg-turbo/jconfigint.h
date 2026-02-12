@@ -67,15 +67,15 @@
 /* Memory allocation alignment */
 #define MEMALIGN(A, T) (((T) + ((A) - 1)) & ~((A) - 1))
 
-/* Fallthrough annotation for switch statements */
+/* Fallthrough annotation for switch statements - MUST include semicolon */
 #if defined(__clang__)
   #if __has_attribute(fallthrough)
-    #define FALLTHROUGH __attribute__((fallthrough))
+    #define FALLTHROUGH __attribute__((fallthrough));
   #else
     #define FALLTHROUGH
   #endif
 #elif defined(__GNUC__) && __GNUC__ >= 7
-  #define FALLTHROUGH __attribute__((fallthrough))
+  #define FALLTHROUGH __attribute__((fallthrough));
 #else
   #define FALLTHROUGH
 #endif
