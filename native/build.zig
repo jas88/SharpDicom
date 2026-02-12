@@ -197,22 +197,13 @@ pub fn build(b: *std.Build) void {
         addX264Sources(lib, b);
         addX265Sources(lib, b);
 
-        // Tesseract OCR wrapper (optional - stub if not available)
-        if (have_tesseract) {
-            lib.addCSourceFile(.{
-                .file = b.path("src/tesseract_wrapper.c"),
-                .flags = common_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_TESSERACT"},
-            });
-            lib.addIncludePath(b.path("vendor/tesseract/src"));
-            lib.addIncludePath(b.path("vendor/leptonica/src"));
-            lib.linkSystemLibrary("tesseract");
-            lib.linkSystemLibrary("lept");
-        } else {
-            lib.addCSourceFile(.{
-                .file = b.path("src/tesseract_wrapper.c"),
-                .flags = common_flags,
-            });
-        }
+        // Tesseract OCR wrapper - always compile as stub for cross-compilation
+        // System libraries (tesseract, lept) aren't available during cross-compilation.
+        // Tesseract support is only enabled for native builds where system libs are present.
+        lib.addCSourceFile(.{
+            .file = b.path("src/tesseract_wrapper.c"),
+            .flags = common_flags,
+        });
 
         // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
         lib.addCSourceFile(.{
