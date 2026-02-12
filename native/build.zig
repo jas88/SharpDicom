@@ -580,7 +580,6 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Ivendor/x264", // x264.h and x264_config.h
         "-Ivendor/x264/common", // Internal x264 common headers
         "-Ivendor/x264/encoder", // Internal x264 encoder headers (for analyse.h etc.)
-        "-include", "x264_config.h", // Force config header first for time.h etc.
     };
 
     // x264 core encoder sources (no CLI, no filters, no asm)
@@ -670,7 +669,6 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Ivendor/x265/source", // x265.h, x265_config.h
         "-Ivendor/x265/source/common", // Internal x265 common headers
         "-Ivendor/x265/source/encoder", // Internal x265 encoder headers
-        "-include", "x265_config.h", // Force config header first for time.h etc.
     };
 
     // x265 core encoder sources (no CLI, no asm)
@@ -794,7 +792,6 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-implicit-function-declaration", // For strftime, localtime_r on some platforms
         "-DHAVE_CONFIG_H", // Use generated config.h
         "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc macros
-        "-include", "config.h", // Force config header first for time.h etc.
     };
 
     // FFmpeg 7.1 source files for MPEG-2/H.264/HEVC encode+decode
