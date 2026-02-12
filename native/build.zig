@@ -31,26 +31,37 @@ pub fn build(b: *std.Build) void {
 
     // All vendor libraries are required - fail the build if any are missing.
     // Run scripts/download-vendors.sh or let CI download them before building.
+    var missing_vendors = false;
     if (!have_libjpeg) {
-        @compileError("libjpeg-turbo sources required at vendor/libjpeg-turbo/src");
+        std.log.err("libjpeg-turbo sources required at vendor/libjpeg-turbo/src", .{});
+        missing_vendors = true;
     }
     if (!have_openjpeg) {
-        @compileError("OpenJPEG sources required at vendor/openjpeg/src");
+        std.log.err("OpenJPEG sources required at vendor/openjpeg/src", .{});
+        missing_vendors = true;
     }
     if (!have_charls) {
-        @compileError("CharLS sources required at vendor/charls/src");
+        std.log.err("CharLS sources required at vendor/charls/src", .{});
+        missing_vendors = true;
     }
     if (!have_ffmpeg) {
-        @compileError("FFmpeg sources required at vendor/ffmpeg");
+        std.log.err("FFmpeg sources required at vendor/ffmpeg", .{});
+        missing_vendors = true;
     }
     if (!have_x264) {
-        @compileError("x264 sources required at vendor/x264");
+        std.log.err("x264 sources required at vendor/x264", .{});
+        missing_vendors = true;
     }
     if (!have_x265) {
-        @compileError("x265 sources required at vendor/x265/source");
+        std.log.err("x265 sources required at vendor/x265/source", .{});
+        missing_vendors = true;
     }
     if (!have_stb_image) {
-        @compileError("stb sources required at vendor/stb");
+        std.log.err("stb sources required at vendor/stb", .{});
+        missing_vendors = true;
+    }
+    if (missing_vendors) {
+        std.debug.panic("Missing required vendor sources. Run scripts/download-vendors.sh first.", .{});
     }
     _ = have_leptonica;
     // Target configurations for all supported platforms
