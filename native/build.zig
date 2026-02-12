@@ -325,22 +325,15 @@ pub fn build(b: *std.Build) void {
     addX264Sources(native_lib, b);
     addX265Sources(native_lib, b);
 
-    // Tesseract OCR wrapper (optional - compiled from source when vendor libs present)
-    if (have_tesseract and have_leptonica) {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/tesseract_wrapper.c"),
-            .flags = native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_TESSERACT"},
-        });
-        native_lib.addIncludePath(b.path("vendor/tesseract/src"));
-        native_lib.addIncludePath(b.path("vendor/leptonica/src"));
-        // TODO: addTesseractSources() and addLeptonicaSources() - large C++ codebases
-        // For now, Tesseract remains a stub until source compilation is implemented
-    } else {
-        native_lib.addCSourceFile(.{
-            .file = b.path("src/tesseract_wrapper.c"),
-            .flags = native_flags,
-        });
-    }
+    // Tesseract OCR wrapper - source compilation not yet implemented
+    // When implemented, this will compile Tesseract 5.x and Leptonica from source
+    // For now, always builds without Tesseract support
+    _ = have_tesseract;
+    _ = have_leptonica;
+    native_lib.addCSourceFile(.{
+        .file = b.path("src/tesseract_wrapper.c"),
+        .flags = native_flags,
+    });
 
     // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
     native_lib.addCSourceFile(.{
@@ -583,17 +576,7 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-missing-field-initializers",
     };
 
-    // TODO: Populate with actual x264 source files when vendor sources are downloaded.
-    // The file list below covers the core encoder (no CLI, no filters, no asm):
-    //
-    // common/ directory:
-    //   base.c, bitstream.c, cabac.c, common.c, dct.c, deblock.c, frame.c,
-    //   mc.c, mvpred.c, osdep.c, pixel.c, predict.c, quant.c, rectangle.c,
-    //   set.c, vlc.c, threadpool.c, cpu.c, tables.c
-    //
-    // encoder/ directory:
-    //   analyse.c, cabac.c, cavlc.c, encoder.c, lookahead.c,
-    //   macroblock.c, me.c, ratecontrol.c, set.c, slicetype.c
+    // x264 core encoder sources (no CLI, no filters, no asm)
     const x264_sources = [_][]const u8{
         // common/
         "common/base.c",
@@ -675,22 +658,7 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-DX265_NS=x265",
     };
 
-    // TODO: Populate with actual x265 source files when vendor sources are downloaded.
-    // The file list below covers the core encoder (no CLI, no asm):
-    //
-    // common/ directory:
-    //   bitstream.cpp, common.cpp, constants.cpp, cpu.cpp, cudata.cpp,
-    //   dct.cpp, deblock.cpp, frame.cpp, framedata.cpp, intrapred.cpp,
-    //   ipfilter.cpp, loopfilter.cpp, lowpassdct.cpp, lowres.cpp, md5.cpp,
-    //   param.cpp, piclist.cpp, picyuv.cpp, pixel.cpp, predict.cpp,
-    //   primitives.cpp, quant.cpp, ringmem.cpp, scalinglist.cpp, shortyuv.cpp,
-    //   slice.cpp, threading.cpp, threadpool.cpp, wavefront.cpp, yuv.cpp
-    //
-    // encoder/ directory:
-    //   analysis.cpp, api.cpp, bitcost.cpp, dpb.cpp, encoder.cpp,
-    //   entropy.cpp, frameencoder.cpp, framefilter.cpp, level.cpp,
-    //   motion.cpp, nal.cpp, ratecontrol.cpp, reference.cpp, sao.cpp,
-    //   search.cpp, sei.cpp, slicetype.cpp, weightPrediction.cpp
+    // x265 core encoder sources (no CLI, no asm)
     const x265_sources = [_][]const u8{
         // common/
         "common/bitstream.cpp",
@@ -809,61 +777,8 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-DHAVE_CONFIG_H", // Use generated config.h
     };
 
-    // TODO: Populate with actual FFmpeg source files when vendor sources are downloaded.
-    // The file lists below cover the minimal encoding subset.
-    // Each library's sources are listed separately for clarity.
-    //
-    // Source file discovery command (run from vendor/ffmpeg/):
-    //   grep -l 'REGISTER_ENCODER\|ff_mpeg2video_encoder\|ff_libx264_encoder\|ff_libx265_encoder' libavcodec/*.c
-    //
-    // ========================================================================
-    // libavutil sources (utility library - always needed)
-    // ========================================================================
-    // Core: avutil.c, buffer.c, channel_layout.c, cpu.c, crc.c, dict.c,
-    //   error.c, eval.c, fifo.c, frame.c, hwcontext.c, imgutils.c, log.c,
-    //   mathematics.c, mem.c, opt.c, parseutils.c, pixdesc.c, rational.c,
-    //   samplefmt.c, time.c, timecode.c, utils.c
-    //
-    // ========================================================================
-    // libavcodec sources (encoding/decoding framework)
-    // ========================================================================
-    // Core: allcodecs.c, avcodec.c, avpacket.c, bitstream.c, bsf.c,
-    //   codec_desc.c, decode.c, encode.c, options.c, parser.c, profiles.c,
-    //   utils.c
-    // MPEG-2 encoder: mpeg12enc.c, mpeg12data.c, mpegvideo.c, mpegvideo_enc.c,
-    //   motion_est.c, ratecontrol.c
-    // H.264 via libx264: libx264.c
-    // HEVC via libx265: libx265.c
-    // AAC encoder: aacenc.c, aaccoder.c, aacenctab.c, aacpsy.c, psymodel.c
-    // PCM encoder: pcm.c
-    //
-    // ========================================================================
-    // libswscale sources (pixel format conversion)
-    // ========================================================================
-    // Core: input.c, options.c, output.c, rgb2rgb.c, slice.c, swscale.c,
-    //   swscale_unscaled.c, utils.c, yuv2rgb.c
-    //
-    // ========================================================================
-    // libswresample sources (audio format conversion)
-    // ========================================================================
-    // Core: audioconvert.c, dither.c, options.c, rematrix.c, resample.c,
-    //   resample_dsp.c, swresample.c, swresample_frame.c
-    //
-    // ========================================================================
-    // libavformat sources (muxing)
-    // ========================================================================
-    // Core: allformats.c, avio.c, aviobuf.c, format.c, id3v2.c, mux.c,
-    //   mux_utils.c, options.c, protocols.c, url.c, utils.c
-    // MPEG-TS muxer: mpegtsenc.c
-    // Raw muxers: rawenc.c, h264_muxer.c, hevc_muxer.c
-    // Audio muxers: adtsenc.c, wavenc.c
-    //
-    // NOTE: The exact file lists will vary by FFmpeg version. The CI script
-    // that downloads vendor sources should also validate that these files exist
-    // and update the list if needed.
-
-    // For now, define the source file arrays. These will be populated
-    // when the vendor source download script is finalized.
+    // FFmpeg 7.1 source files for MPEG-2/H.264/HEVC encode+decode
+    // Source lists derived from FFmpeg Makefiles and allyourcodebase/ffmpeg
 
     // libavutil core sources (from FFmpeg 7.1 Makefile OBJS)
     const avutil_sources = [_][]const u8{
@@ -1471,17 +1386,38 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 ///
 /// Reference: https://github.com/tesseract-ocr/tesseract
 fn addTesseractSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    // Tesseract 5.x source compilation
+    // Requires: vendor/tesseract/src/ and vendor/leptonica/src/
+    //
+    // Source structure:
+    // - src/ccmain/ - Main API (capi.cpp, tesseractclass.cpp, etc.)
+    // - src/ccstruct/ - Data structures
+    // - src/classify/ - Character classification
+    // - src/dict/ - Dictionary lookup
+    // - src/lstm/ - Neural network recognition
+    // - src/textord/ - Text ordering
+    // - src/wordrec/ - Word recognition
+    //
+    // Build requires ~800 C++ files and Leptonica dependency
     _ = lib;
     _ = b;
-    // TODO: Tesseract is a large C++ library with many dependencies.
-    // For now, we link against system-installed Tesseract.
-    // Full source compilation to be implemented when needed.
+    @compileError("addTesseractSources not implemented - Tesseract source compilation requires ~800 C++ files");
+}
+
+/// Add Leptonica source files to compilation (image processing library).
+/// Vendor sources are downloaded by CI into vendor/leptonica/src/.
+///
+/// Leptonica is required by Tesseract for image preprocessing.
+/// Reference: https://github.com/DanBloomberg/leptonica
+fn addLeptonicaSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    // Leptonica source compilation
+    // Requires: vendor/leptonica/src/
     //
-    // When implementing:
-    // 1. Add Leptonica sources first (image I/O, preprocessing)
-    // 2. Add Tesseract CCMAIN sources (main API)
-    // 3. Add CCSTRUCT sources (data structures)
-    // 4. Add CLASSIFY sources (character recognition)
-    // 5. Add DICT sources (dictionary lookup)
-    // 6. Add LSTM sources (neural network recognition)
+    // Source structure:
+    // - src/ - ~200 C source files for image processing
+    //
+    // Dependencies: libjpeg, libpng, libtiff, zlib
+    _ = lib;
+    _ = b;
+    @compileError("addLeptonicaSources not implemented - Leptonica source compilation requires ~200 C files and image library dependencies");
 }
