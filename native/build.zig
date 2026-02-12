@@ -652,6 +652,8 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
+        "-D_POSIX_C_SOURCE=200809L", // Ensure POSIX functions are declared
+        "-D_GNU_SOURCE", // For additional GNU extensions
         "-Wall",
         "-Wextra",
         "-Wno-error", // Downgrade errors to warnings for third-party code
@@ -668,6 +670,7 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Ivendor/x265/source", // x265.h, x265_config.h
         "-Ivendor/x265/source/common", // Internal x265 common headers
         "-Ivendor/x265/source/encoder", // Internal x265 encoder headers
+        "-include", "x265_config.h", // Force config header first for time.h etc.
     };
 
     // x265 core encoder sources (no CLI, no asm)
