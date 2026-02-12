@@ -23,15 +23,12 @@ pub fn build(b: *std.Build) void {
     const have_tesseract = detectVendorLibrary("vendor/tesseract/src");
     const have_stb_image = detectVendorLibrary("vendor/stb"); // stb_image is header-only
 
-    // x264/x265 are optional - they require CMake to build properly
-    // For now, we use FFmpeg's built-in MPEG-2 encoder only
+    // Also check for encoder libraries when FFmpeg encoding is enabled
     const have_x264 = detectVendorLibrary("vendor/x264");
     const have_x265 = detectVendorLibrary("vendor/x265/source");
     const have_leptonica = detectVendorLibrary("vendor/leptonica/src");
-    _ = have_x264; // Unused for now - x264 requires CMake
-    _ = have_x265; // Unused for now - x265 requires CMake
 
-    // All core vendor libraries are required - fail the build if any are missing.
+    // All vendor libraries are required - fail the build if any are missing.
     // Run scripts/download-vendors.sh or let CI download them before building.
     var missing_vendors = false;
     if (!have_libjpeg) {
@@ -48,6 +45,14 @@ pub fn build(b: *std.Build) void {
     }
     if (!have_ffmpeg) {
         std.log.err("FFmpeg sources required at vendor/ffmpeg", .{});
+        missing_vendors = true;
+    }
+    if (!have_x264) {
+        std.log.err("x264 sources required at vendor/x264", .{});
+        missing_vendors = true;
+    }
+    if (!have_x265) {
+        std.log.err("x265 sources required at vendor/x265/source", .{});
         missing_vendors = true;
     }
     if (!have_stb_image) {
@@ -184,13 +189,13 @@ pub fn build(b: *std.Build) void {
         lib.addIncludePath(b.path("vendor/ffmpeg"));
         addFfmpegEncSources(lib, b);
 
-        // Video encoder (FFmpeg encoding - uses built-in MPEG-2 encoder)
-        // Note: x264/x265 external encoders require CMake to build properly
-        // and are disabled for now. FFmpeg's built-in MPEG-2 encoder is used.
+        // Video encoder (FFmpeg encoding with x264/x265)
         lib.addCSourceFile(.{
             .file = b.path("src/video_encoder.c"),
             .flags = all_features_flags,
         });
+        addX264Sources(lib, b);
+        addX265Sources(lib, b);
 
         // Tesseract OCR wrapper - always compile as stub for cross-compilation
         // System libraries (tesseract, lept) aren't available during cross-compilation.
@@ -312,12 +317,13 @@ pub fn build(b: *std.Build) void {
     native_lib.addIncludePath(b.path("vendor/ffmpeg"));
     addFfmpegEncSources(native_lib, b);
 
-    // Video encoder (FFmpeg encoding - uses built-in MPEG-2 encoder)
-    // Note: x264/x265 external encoders require CMake to build properly
+    // Video encoder (FFmpeg encoding with x264/x265)
     native_lib.addCSourceFile(.{
         .file = b.path("src/video_encoder.c"),
         .flags = native_all_features_flags,
     });
+    addX264Sources(native_lib, b);
+    addX265Sources(native_lib, b);
 
     // Tesseract OCR wrapper - source compilation not yet implemented
     // When implemented, this will compile Tesseract 5.x and Leptonica from source
@@ -972,8 +978,10 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "libavcodec/hevc/ps.c",
         "libavcodec/hevc/refs.c",
         "libavcodec/hevc/sei.c",
-        // Note: libx264.c and libx265.c removed - x264/x265 require CMake to build
-        // Using FFmpeg's built-in MPEG-2 encoder instead
+        // libx264 wrapper (H.264 encoding via x264)
+        "libavcodec/libx264.c",
+        // libx265 wrapper (HEVC encoding via x265)
+        "libavcodec/libx265.c",
         // AAC audio encoder
         "libavcodec/aacenc.c",
         "libavcodec/aaccoder.c",
@@ -1068,6 +1076,9 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     lib.addIncludePath(b.path("vendor/ffmpeg/libavformat"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswscale"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswresample"));
+    // x264/x265 headers for FFmpeg's libx264.c and libx265.c wrappers
+    lib.addIncludePath(b.path("vendor/x264"));
+    lib.addIncludePath(b.path("vendor/x265/source"));
 }
 
 /// Add libjpeg-turbo source files to compilation (8-bit JPEG codec).
