@@ -55,9 +55,9 @@ pub fn build(b: *std.Build) void {
     if (have_tesseract and !have_leptonica) {
         std.log.warn("Leptonica not found at vendor/leptonica/src - Tesseract requires Leptonica", .{});
     }
-    // FFmpeg encoding requires both FFmpeg AND at least one software encoder
-    // Without x264/x265, we can't actually encode H.264/HEVC
-    const have_ffmpeg_enc_full = have_ffmpeg_enc and (have_x264 or have_x265);
+    // FFmpeg encoding is enabled when FFmpeg sources are present.
+    // x264/x265 are compiled separately when available (guarded by have_x264/have_x265).
+    const have_ffmpeg_enc_full = have_ffmpeg_enc;
     _ = have_leptonica;
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support

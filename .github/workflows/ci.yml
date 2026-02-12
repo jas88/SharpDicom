@@ -208,7 +208,8 @@ jobs:
           curl -sL "https://code.videolan.org/videolan/x264/-/archive/${X264_COMMIT}/x264-${X264_COMMIT}.tar.gz" -o x264.tar.gz
           echo "${X264_SHA256}  x264.tar.gz" | sha256sum -c -
           tar xzf x264.tar.gz && rm x264.tar.gz
-          mv x264-${X264_COMMIT}/* x264/
+          # Use cp -r because x264/ already has x264_config.h
+          cp -r x264-${X264_COMMIT}/* x264/
           rm -rf x264-${X264_COMMIT}
 
           # x265 3.6 - HEVC software encoder (for FFmpeg)
@@ -217,7 +218,8 @@ jobs:
           curl -sL https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz -o x265.tar.gz
           echo "${X265_SHA256}  x265.tar.gz" | sha256sum -c -
           tar xzf x265.tar.gz && rm x265.tar.gz
-          mv x265_3.6/* x265/
+          # Use cp -r because x265/source/ already has x265_config.h
+          cp -r x265_3.6/* x265/
           rm -rf x265_3.6
 
           # Tesseract 5.5.0 - OCR engine
