@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     if (missing_vendors) {
         std.debug.panic("Missing required vendor sources. Run scripts/download-vendors.sh first.", .{});
     }
-    _ = have_leptonica;
+
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -325,16 +325,16 @@ pub fn build(b: *std.Build) void {
     addX264Sources(native_lib, b);
     addX265Sources(native_lib, b);
 
-    // Tesseract OCR wrapper (optional - stub if not available)
-    if (have_tesseract) {
+    // Tesseract OCR wrapper (optional - compiled from source when vendor libs present)
+    if (have_tesseract and have_leptonica) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/tesseract_wrapper.c"),
             .flags = native_flags ++ &[_][]const u8{"-DSHARPDICOM_WITH_TESSERACT"},
         });
         native_lib.addIncludePath(b.path("vendor/tesseract/src"));
         native_lib.addIncludePath(b.path("vendor/leptonica/src"));
-        native_lib.linkSystemLibrary("tesseract");
-        native_lib.linkSystemLibrary("lept");
+        // TODO: addTesseractSources() and addLeptonicaSources() - large C++ codebases
+        // For now, Tesseract remains a stub until source compilation is implemented
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/tesseract_wrapper.c"),
