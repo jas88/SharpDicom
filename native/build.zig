@@ -1097,7 +1097,7 @@ fn addLibjpegTurboSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // libjpeg-turbo compilation flags - 8-bit build, no SIMD
     // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
-    // HAVE_LOCALE_H=0 prevents jinclude.h from using setenv() which isn't available in C11
+    // NO_PUTENV disables PUTENV_S macro that uses setenv() which isn't available in strict C11
     const jpeg_flags = &[_][]const u8{
         "-std=c11",
         "-O2",
@@ -1111,7 +1111,8 @@ fn addLibjpegTurboSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-shift-negative-value",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
-        "-DHAVE_LOCALE_H=0", // Disable locale support to avoid setenv() usage
+        "-DNO_PUTENV", // Disable PUTENV_S macro (uses setenv not available in C11)
+        "-DNO_GETENV", // Disable GETENV_S macro for consistency
     };
 
     // Core libjpeg sources (from libjpeg-turbo CMakeLists.txt)
@@ -1217,7 +1218,7 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     const jpeg_base = "vendor/libjpeg-turbo/src";
 
     // 12-bit libjpeg-turbo compilation flags with symbol prefixes
-    // HAVE_LOCALE_H=0 prevents jinclude.h from using setenv() which isn't available in C11
+    // NO_PUTENV disables PUTENV_S macro that uses setenv() which isn't available in strict C11
     const jpeg12_flags = &[_][]const u8{
         "-std=c11",
         "-O2",
@@ -1231,7 +1232,8 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-shift-negative-value",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
-        "-DHAVE_LOCALE_H=0", // Disable locale support to avoid setenv() usage
+        "-DNO_PUTENV", // Disable PUTENV_S macro (uses setenv not available in C11)
+        "-DNO_GETENV", // Disable GETENV_S macro for consistency
         // Enable 12-bit mode
         "-DWITH_12BIT=1",
         "-DBITS_IN_JSAMPLE=12",
