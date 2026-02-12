@@ -132,16 +132,7 @@ pub fn build(b: *std.Build) void {
             "-Werror",
         };
 
-        // Feature flags (only defined when corresponding library is available)
-        const jpeg_flags = common_flags ++ &[_][]const u8{
-            "-DSHARPDICOM_WITH_JPEG",
-        };
-
-        const jpeg12_flags = common_flags ++ &[_][]const u8{
-            "-DSHARPDICOM_WITH_JPEG12",
-        };
-
-        // Note: 12-bit libjpeg-turbo symbol prefix flags are defined in addLibjpegTurbo12Sources()
+        // Note: 12-bit libjpeg-turbo uses addLibjpegTurbo12Sources() with full symbol prefix flags
 
         // All vendor libraries are required, so all features are enabled
         const all_features_flags = common_flags ++ &[_][]const u8{
@@ -226,7 +217,7 @@ pub fn build(b: *std.Build) void {
         // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
         lib.addCSourceFile(.{
             .file = b.path("src/jpeg12_wrapper.c"),
-            .flags = jpeg12_flags,
+            .flags = all_features_flags,
         });
         addLibjpegTurbo12Sources(lib, b);
 
@@ -363,7 +354,7 @@ pub fn build(b: *std.Build) void {
     // 12-bit JPEG wrapper (separate libjpeg-turbo build with symbol prefixes)
     native_lib.addCSourceFile(.{
         .file = b.path("src/jpeg12_wrapper.c"),
-        .flags = jpeg12_flags,
+        .flags = native_all_features_flags,
     });
     addLibjpegTurbo12Sources(native_lib, b);
 
