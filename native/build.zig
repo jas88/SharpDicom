@@ -21,7 +21,6 @@ pub fn build(b: *std.Build) void {
     const have_openjpeg = detectVendorLibrary("vendor/openjpeg/src");
     const have_charls = detectVendorLibrary("vendor/charls/src");
     const have_ffmpeg = detectVendorLibrary("vendor/ffmpeg");
-    const have_ffmpeg_enc = have_ffmpeg; // Encoding uses same FFmpeg build
     const have_tesseract = detectVendorLibrary("vendor/tesseract/src");
     const have_stb_image = detectVendorLibrary("vendor/stb"); // stb_image is header-only
 
