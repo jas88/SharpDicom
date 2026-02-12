@@ -11,15 +11,20 @@
 /* Include C library headers early to ensure POSIX types (timespec, etc.)
  * are defined before C++ standard library headers need them.
  * This is required for Zig cross-compilation targeting macOS. */
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include <time.h>
 #if !defined(_WIN32)
 #include <unistd.h>
+/* For Zig cross-compilation: nanosleep may not be declared in the sysroot.
+ * Provide a forward declaration to satisfy libc++ threading support. */
+#if defined(__APPLE__) && !defined(nanosleep)
+#ifdef __cplusplus
+extern "C" {
 #endif
+int nanosleep(const struct timespec *req, struct timespec *rem);
 #ifdef __cplusplus
 }
+#endif
+#endif
 #endif
 
 /* x265 version */
