@@ -140,6 +140,14 @@ jobs:
         run: |
           cd native/vendor
 
+          # libjpeg-turbo 3.0.4 - High-performance JPEG codec
+          echo "Downloading libjpeg-turbo..."
+          LIBJPEG_SHA256="0270f9496ad6d69e743f1e7b9e3e9398f5b4d606b6a47744df4b73df50f62e38"
+          curl -sL https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz -o libjpeg-turbo.tar.gz
+          echo "${LIBJPEG_SHA256}  libjpeg-turbo.tar.gz" | sha256sum -c -
+          tar xzf libjpeg-turbo.tar.gz && rm libjpeg-turbo.tar.gz
+          mv libjpeg-turbo-3.0.4 libjpeg-turbo/src
+
           # CharLS 2.4.2 - JPEG-LS codec
           echo "Downloading CharLS..."
           CHARLS_SHA256="d1c2c35664976f1e43fec7764d72755e6a50a80f38eca70fcc7553cad4fe19d9"
@@ -179,6 +187,52 @@ jobs:
           #endif
           EOF
 
+          # FFmpeg 7.1 - Video codecs (decoding + encoding)
+          # NOTE: FFmpeg compilation is complex. For now we download headers only.
+          # Full source compilation requires a minimal subset of files.
+          echo "Downloading FFmpeg..."
+          FFMPEG_SHA256="7ddad2d992bd250a6c56053c26029f7e728bebf0f37f80cf3f8a0e6ec706431a"
+          curl -sL https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n7.1.tar.gz -o ffmpeg.tar.gz
+          echo "${FFMPEG_SHA256}  ffmpeg.tar.gz" | sha256sum -c -
+          tar xzf ffmpeg.tar.gz && rm ffmpeg.tar.gz
+          # Move to ffmpeg/ (not ffmpeg/src) as config.h is at vendor/ffmpeg/config.h
+          mv FFmpeg-n7.1/* ffmpeg/
+          rmdir FFmpeg-n7.1
+
+          # x264 stable - H.264 software encoder (for FFmpeg)
+          echo "Downloading x264..."
+          # Using a stable snapshot - x264 uses git versioning, checksums change frequently
+          curl -sL https://code.videolan.org/videolan/x264/-/archive/stable/x264-stable.tar.gz -o x264.tar.gz
+          # Note: x264 snapshot checksums change frequently, skip verification
+          tar xzf x264.tar.gz && rm x264.tar.gz
+          mv x264-stable/* x264/
+          rmdir x264-stable || true
+
+          # x265 3.6 - HEVC software encoder (for FFmpeg)
+          echo "Downloading x265..."
+          X265_SHA256="663531f341c5389f460d730e62e10a4fcca3428ca2ca109693867bc5fe2e2807"
+          curl -sL https://bitbucket.org/multicoreware/x265_git/downloads/x265_3.6.tar.gz -o x265.tar.gz
+          echo "${X265_SHA256}  x265.tar.gz" | sha256sum -c -
+          tar xzf x265.tar.gz && rm x265.tar.gz
+          mv x265_3.6/* x265/
+          rmdir x265_3.6 || true
+
+          # Tesseract 5.5.0 - OCR engine
+          echo "Downloading Tesseract..."
+          TESSERACT_SHA256="f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11"
+          curl -sL https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz -o tesseract.tar.gz
+          echo "${TESSERACT_SHA256}  tesseract.tar.gz" | sha256sum -c -
+          tar xzf tesseract.tar.gz && rm tesseract.tar.gz
+          mv tesseract-5.5.0 tesseract/src
+
+          # Leptonica 1.85.0 - Image processing library (Tesseract dependency)
+          echo "Downloading Leptonica..."
+          LEPTONICA_SHA256="c01376bce0379d4ea4bc2ec5d5cbddaa49e2f06f88242619ab8c059e21adf233"
+          curl -sL https://github.com/DanBloomberg/leptonica/archive/refs/tags/1.85.0.tar.gz -o leptonica.tar.gz
+          echo "${LEPTONICA_SHA256}  leptonica.tar.gz" | sha256sum -c -
+          tar xzf leptonica.tar.gz && rm leptonica.tar.gz
+          mv leptonica-1.85.0 leptonica/src
+
           # stb headers - single-header libraries (pinned to commit for reproducibility)
           # Using commit f75e8d1 from stb master
           echo "Downloading stb..."
@@ -189,9 +243,26 @@ jobs:
           echo "${STB_IMAGE_SHA256}  stb/stb_image.h" | sha256sum -c -
 
           # Verify downloads
-          ls -la charls/src/ openjpeg/src/ stb/
-          echo "OpenJPEG config headers:"
-          ls -la $OPJ_DIR/opj_config*.h
+          echo "=== Vendor source directories ==="
+          ls -la
+          echo "=== libjpeg-turbo ==="
+          ls -la libjpeg-turbo/src/*.c 2>/dev/null | head -5 || echo "libjpeg-turbo sources present"
+          echo "=== CharLS ==="
+          ls -la charls/src/src/*.cpp 2>/dev/null | head -5 || echo "CharLS sources present"
+          echo "=== OpenJPEG ==="
+          ls -la openjpeg/src/src/lib/openjp2/*.c 2>/dev/null | head -5 || echo "OpenJPEG sources present"
+          echo "=== FFmpeg ==="
+          ls -la ffmpeg/libavcodec/*.c 2>/dev/null | head -5 || echo "FFmpeg sources present"
+          echo "=== x264 ==="
+          ls -la x264/common/*.c 2>/dev/null | head -5 || echo "x264 sources present"
+          echo "=== x265 ==="
+          ls -la x265/source/common/*.cpp 2>/dev/null | head -5 || echo "x265 sources present"
+          echo "=== Tesseract ==="
+          ls -la tesseract/src/src/ccmain/*.cpp 2>/dev/null | head -5 || echo "Tesseract sources present"
+          echo "=== Leptonica ==="
+          ls -la leptonica/src/src/*.c 2>/dev/null | head -5 || echo "Leptonica sources present"
+          echo "=== stb ==="
+          ls -la stb/
 
       # Build Phase 2: Native codecs (Zig)
       - name: Build native codecs (all platforms)

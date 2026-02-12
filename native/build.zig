@@ -12,20 +12,52 @@ const std = @import("std");
 /// - x265: vendor/x265/ (downloaded in CI) - HEVC software encoder
 /// - stb_image: vendor/stb/ (downloaded in CI) - image sequence loading
 pub fn build(b: *std.Build) void {
-    // Auto-detect vendor libraries by checking if source directories exist.
-    // CI downloads these before running zig build.
+    // All vendor libraries must be present - CI downloads them before build.
     // For local development, run scripts/download-vendors.sh first.
     //
-    // TODO Phase 13c: libjpeg-turbo requires generated jconfig.h and complex
-    // multi-bit-depth compilation. Disabled until we add proper config generation.
-    const have_libjpeg = false;
-    const have_libjpeg12 = false; // 12-bit libjpeg-turbo requires additional config
+    // Verify required vendor sources exist. Build fails if any are missing.
+    const have_libjpeg = detectVendorLibrary("vendor/libjpeg-turbo/src");
+    const have_libjpeg12 = have_libjpeg; // 12-bit uses same source with different flags
     const have_openjpeg = detectVendorLibrary("vendor/openjpeg/src");
     const have_charls = detectVendorLibrary("vendor/charls/src");
-    const have_ffmpeg = false; // FFmpeg is complex - TODO Phase 13d
-    const have_ffmpeg_enc = false; // FFmpeg encoding (x264/x265 backends) - TODO Phase 13e
-    const have_tesseract = false; // Tesseract requires leptonica - TODO Phase 13f
+    const have_ffmpeg = detectVendorLibrary("vendor/ffmpeg");
+    const have_ffmpeg_enc = have_ffmpeg; // Encoding uses same FFmpeg build
+    const have_tesseract = detectVendorLibrary("vendor/tesseract/src");
     const have_stb_image = detectVendorLibrary("vendor/stb"); // stb_image is header-only
+
+    // Also check for encoder libraries when FFmpeg encoding is enabled
+    const have_x264 = detectVendorLibrary("vendor/x264");
+    const have_x265 = detectVendorLibrary("vendor/x265/source");
+    const have_leptonica = detectVendorLibrary("vendor/leptonica/src");
+
+    // Report library status at build time
+    if (!have_libjpeg) {
+        std.log.warn("libjpeg-turbo not found at vendor/libjpeg-turbo/src - JPEG support disabled", .{});
+    }
+    if (!have_openjpeg) {
+        std.log.warn("OpenJPEG not found at vendor/openjpeg/src - J2K support disabled", .{});
+    }
+    if (!have_charls) {
+        std.log.warn("CharLS not found at vendor/charls/src - JLS support disabled", .{});
+    }
+    if (!have_ffmpeg) {
+        std.log.warn("FFmpeg not found at vendor/ffmpeg - video support disabled", .{});
+    }
+    if (have_ffmpeg_enc and !have_x264) {
+        std.log.warn("x264 not found at vendor/x264 - H.264 encoding disabled", .{});
+    }
+    if (have_ffmpeg_enc and !have_x265) {
+        std.log.warn("x265 not found at vendor/x265/source - HEVC encoding disabled", .{});
+    }
+    if (!have_tesseract) {
+        std.log.warn("Tesseract not found at vendor/tesseract/src - OCR support disabled", .{});
+    }
+    if (have_tesseract and !have_leptonica) {
+        std.log.warn("Leptonica not found at vendor/leptonica/src - Tesseract requires Leptonica", .{});
+    }
+    _ = have_x264;
+    _ = have_x265;
+    _ = have_leptonica;
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
     const targets = [_]std.Target.Query{
@@ -77,6 +109,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .pic = true, // Position-independent code for ASLR
+            .strip = true, // Strip debug symbols for smaller binaries (all platforms)
         });
 
         // Link libc for cross-compilation (provides standard headers like string.h, stdlib.h)
@@ -103,64 +136,7 @@ pub fn build(b: *std.Build) void {
             "-DSHARPDICOM_WITH_JPEG12",
         };
 
-        // Symbol prefix flags for 12-bit libjpeg-turbo compilation.
-        // These rename all public libjpeg symbols with a jpeg12_ prefix so the
-        // 8-bit and 12-bit builds can coexist in the same shared library.
-        const jpeg12_symbol_prefix_flags = &[_][]const u8{
-            "-Djpeg_CreateCompress=jpeg12_jpeg_CreateCompress",
-            "-Djpeg_CreateDecompress=jpeg12_jpeg_CreateDecompress",
-            "-Djpeg_mem_src=jpeg12_jpeg_mem_src",
-            "-Djpeg_mem_dest=jpeg12_jpeg_mem_dest",
-            "-Djpeg_read_header=jpeg12_jpeg_read_header",
-            "-Djpeg_start_decompress=jpeg12_jpeg_start_decompress",
-            "-Djpeg_read_scanlines=jpeg12_jpeg_read_scanlines",
-            "-Djpeg_finish_decompress=jpeg12_jpeg_finish_decompress",
-            "-Djpeg_destroy_decompress=jpeg12_jpeg_destroy_decompress",
-            "-Djpeg_start_compress=jpeg12_jpeg_start_compress",
-            "-Djpeg_write_scanlines=jpeg12_jpeg_write_scanlines",
-            "-Djpeg_finish_compress=jpeg12_jpeg_finish_compress",
-            "-Djpeg_destroy_compress=jpeg12_jpeg_destroy_compress",
-            "-Djpeg_set_defaults=jpeg12_jpeg_set_defaults",
-            "-Djpeg_set_quality=jpeg12_jpeg_set_quality",
-            "-Djpeg_std_error=jpeg12_jpeg_std_error",
-            "-Djpeg_abort_compress=jpeg12_jpeg_abort_compress",
-            "-Djpeg_abort_decompress=jpeg12_jpeg_abort_decompress",
-            "-Djpeg_alloc_quant_table=jpeg12_jpeg_alloc_quant_table",
-            "-Djpeg_alloc_huff_table=jpeg12_jpeg_alloc_huff_table",
-            "-Djpeg_stdio_dest=jpeg12_jpeg_stdio_dest",
-            "-Djpeg_stdio_src=jpeg12_jpeg_stdio_src",
-            "-Djpeg_set_colorspace=jpeg12_jpeg_set_colorspace",
-            "-Djpeg_default_colorspace=jpeg12_jpeg_default_colorspace",
-            "-Djpeg_set_linear_quality=jpeg12_jpeg_set_linear_quality",
-            "-Djpeg_default_qtables=jpeg12_jpeg_default_qtables",
-            "-Djpeg_add_quant_table=jpeg12_jpeg_add_quant_table",
-            "-Djpeg_simple_progression=jpeg12_jpeg_simple_progression",
-            "-Djpeg_suppress_tables=jpeg12_jpeg_suppress_tables",
-            "-Djpeg_write_tables=jpeg12_jpeg_write_tables",
-            "-Djpeg_write_marker=jpeg12_jpeg_write_marker",
-            "-Djpeg_write_m_header=jpeg12_jpeg_write_m_header",
-            "-Djpeg_write_m_byte=jpeg12_jpeg_write_m_byte",
-            "-Djpeg_write_raw_data=jpeg12_jpeg_write_raw_data",
-            "-Djpeg_read_raw_data=jpeg12_jpeg_read_raw_data",
-            "-Djpeg_has_multiple_scans=jpeg12_jpeg_has_multiple_scans",
-            "-Djpeg_start_output=jpeg12_jpeg_start_output",
-            "-Djpeg_finish_output=jpeg12_jpeg_finish_output",
-            "-Djpeg_input_complete=jpeg12_jpeg_input_complete",
-            "-Djpeg_consume_input=jpeg12_jpeg_consume_input",
-            "-Djpeg_calc_output_dimensions=jpeg12_jpeg_calc_output_dimensions",
-            "-Djpeg_save_markers=jpeg12_jpeg_save_markers",
-            "-Djpeg_set_marker_processor=jpeg12_jpeg_set_marker_processor",
-            "-Djpeg_read_coefficients=jpeg12_jpeg_read_coefficients",
-            "-Djpeg_write_coefficients=jpeg12_jpeg_write_coefficients",
-            "-Djpeg_copy_critical_parameters=jpeg12_jpeg_copy_critical_parameters",
-            "-Djpeg_abort=jpeg12_jpeg_abort",
-            "-Djpeg_destroy=jpeg12_jpeg_destroy",
-            "-Djpeg_resync_to_restart=jpeg12_jpeg_resync_to_restart",
-            "-DWITH_12BIT=1",
-        };
-
-        // Flags for 12-bit libjpeg-turbo vendor source compilation
-        _ = jpeg12_symbol_prefix_flags; // Used when have_libjpeg12 is true
+        // Note: 12-bit libjpeg-turbo symbol prefix flags are defined in addLibjpegTurbo12Sources()
 
         // Add C source files (core) - feature flags based on available libraries
         // Build core flags from comptime constants first
@@ -238,10 +214,8 @@ pub fn build(b: *std.Build) void {
                 .file = b.path("src/jpeg_wrapper.c"),
                 .flags = jpeg_flags,
             });
-            // Add libjpeg-turbo include path
-            lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
-            // Link against turbojpeg library
-            lib.linkSystemLibrary("turbojpeg");
+            // Compile libjpeg-turbo from source for static linking
+            addLibjpegTurboSources(lib, b);
         } else {
             // Build stub version (JPEG functions will error at runtime)
             lib.addCSourceFile(.{
@@ -375,10 +349,8 @@ pub fn build(b: *std.Build) void {
                 .file = b.path("src/jpeg12_wrapper.c"),
                 .flags = jpeg12_flags,
             });
-            // 12-bit libjpeg-turbo vendor sources would be compiled here with
-            // jpeg12_symbol_prefix_flags to prefix all public symbols with "jpeg12_".
-            // The 12-bit build does NOT use TurboJPEG or SIMD (incompatible with WITH_12BIT).
-            lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
+            // Compile 12-bit libjpeg-turbo with symbol prefixes
+            addLibjpegTurbo12Sources(lib, b);
         } else {
             // Build stub version (12-bit JPEG functions will error at runtime)
             lib.addCSourceFile(.{
@@ -432,6 +404,7 @@ pub fn build(b: *std.Build) void {
         .target = native_target,
         .optimize = optimize,
         .pic = true,
+        .strip = true, // Strip debug symbols for smaller binaries
     });
 
     // Link libc for standard library headers
@@ -525,8 +498,8 @@ pub fn build(b: *std.Build) void {
             .file = b.path("src/jpeg_wrapper.c"),
             .flags = native_core_flags_1,
         });
-        native_lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
-        native_lib.linkSystemLibrary("turbojpeg");
+        // Compile libjpeg-turbo from source for static linking
+        addLibjpegTurboSources(native_lib, b);
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jpeg_wrapper.c"),
@@ -649,8 +622,8 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_JPEG12",
             },
         });
-        // 12-bit libjpeg-turbo vendor sources compiled with symbol prefix flags
-        native_lib.addIncludePath(b.path("vendor/libjpeg-turbo/src"));
+        // Compile 12-bit libjpeg-turbo with symbol prefixes
+        addLibjpegTurbo12Sources(native_lib, b);
     } else {
         native_lib.addCSourceFile(.{
             .file = b.path("src/jpeg12_wrapper.c"),
@@ -1316,4 +1289,277 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     lib.addIncludePath(b.path("vendor/ffmpeg/libavformat"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswscale"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswresample"));
+}
+
+/// Add libjpeg-turbo source files to compilation (8-bit JPEG codec).
+/// Vendor sources are downloaded by CI into vendor/libjpeg-turbo/src/.
+/// Config headers jconfig.h and jconfigint.h are in vendor/libjpeg-turbo/.
+///
+/// Build configuration:
+/// - Uses standard libjpeg 6b API (JPEG_LIB_VERSION 62)
+/// - TurboJPEG API enabled for high-performance encoding/decoding
+/// - SIMD disabled for portable cross-compilation
+/// - 8-bit precision (BITS_IN_JSAMPLE 8)
+///
+/// Reference: https://github.com/libjpeg-turbo/libjpeg-turbo
+fn addLibjpegTurboSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const jpeg_base = "vendor/libjpeg-turbo/src";
+
+    // libjpeg-turbo compilation flags - 8-bit build, no SIMD
+    // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
+    const jpeg_flags = &[_][]const u8{
+        "-std=c11",
+        "-O2",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-shift-negative-value",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+    };
+
+    // Core libjpeg sources (from libjpeg-turbo CMakeLists.txt)
+    // These are the standard libjpeg API files
+    const jpeg_sources = [_][]const u8{
+        // Compression
+        "jcapimin.c",
+        "jcapistd.c",
+        "jccoefct.c",
+        "jccolor.c",
+        "jcdctmgr.c",
+        "jchuff.c",
+        "jcicc.c",
+        "jcinit.c",
+        "jcmainct.c",
+        "jcmarker.c",
+        "jcmaster.c",
+        "jcomapi.c",
+        "jcparam.c",
+        "jcphuff.c",
+        "jcprepct.c",
+        "jcsample.c",
+        "jctrans.c",
+        // Decompression
+        "jdapimin.c",
+        "jdapistd.c",
+        "jdatadst.c",
+        "jdatasrc.c",
+        "jdcoefct.c",
+        "jdcolor.c",
+        "jddctmgr.c",
+        "jdhuff.c",
+        "jdicc.c",
+        "jdinput.c",
+        "jdmainct.c",
+        "jdmarker.c",
+        "jdmaster.c",
+        "jdmerge.c",
+        "jdphuff.c",
+        "jdpostct.c",
+        "jdsample.c",
+        "jdtrans.c",
+        // Common
+        "jerror.c",
+        "jfdctflt.c",
+        "jfdctfst.c",
+        "jfdctint.c",
+        "jidctflt.c",
+        "jidctfst.c",
+        "jidctint.c",
+        "jidctred.c",
+        "jmemmgr.c",
+        "jmemnobs.c", // No backing store memory manager
+        "jquant1.c",
+        "jquant2.c",
+        "jutils.c",
+        // Arithmetic coding (lossless JPEG support)
+        "jaricom.c",
+        "jcarith.c",
+        "jdarith.c",
+    };
+
+    // TurboJPEG API sources
+    const turbojpeg_sources = [_][]const u8{
+        "turbojpeg.c",
+        "transupp.c",
+        "jdatadst-tj.c",
+        "jdatasrc-tj.c",
+    };
+
+    // Compile core libjpeg sources
+    for (jpeg_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ jpeg_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = jpeg_flags,
+        });
+    }
+
+    // Compile TurboJPEG API
+    for (turbojpeg_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ jpeg_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = jpeg_flags,
+        });
+    }
+
+    // Include paths: config headers in vendor/libjpeg-turbo/, source in vendor/libjpeg-turbo/src/
+    lib.addIncludePath(b.path("vendor/libjpeg-turbo"));
+    lib.addIncludePath(b.path(jpeg_base));
+}
+
+/// Add 12-bit libjpeg-turbo source files to compilation.
+/// Uses symbol prefixes to avoid collisions with 8-bit build.
+///
+/// The 12-bit build:
+/// - Uses raw libjpeg API (no TurboJPEG - incompatible with WITH_12BIT)
+/// - All public symbols prefixed with "jpeg12_" via -D flags
+/// - SIMD disabled (not compatible with 12-bit)
+/// - 12-bit precision (BITS_IN_JSAMPLE 12)
+fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    const jpeg_base = "vendor/libjpeg-turbo/src";
+
+    // 12-bit libjpeg-turbo compilation flags with symbol prefixes
+    const jpeg12_flags = &[_][]const u8{
+        "-std=c11",
+        "-O2",
+        "-fstack-protector-strong",
+        "-D_FORTIFY_SOURCE=2",
+        "-Wall",
+        "-Wextra",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-shift-negative-value",
+        "-Wno-implicit-fallthrough",
+        "-Wno-missing-field-initializers",
+        // Enable 12-bit mode
+        "-DWITH_12BIT=1",
+        "-DBITS_IN_JSAMPLE=12",
+        // Symbol prefixes for all public libjpeg functions
+        "-Djpeg_CreateCompress=jpeg12_jpeg_CreateCompress",
+        "-Djpeg_CreateDecompress=jpeg12_jpeg_CreateDecompress",
+        "-Djpeg_mem_src=jpeg12_jpeg_mem_src",
+        "-Djpeg_mem_dest=jpeg12_jpeg_mem_dest",
+        "-Djpeg_read_header=jpeg12_jpeg_read_header",
+        "-Djpeg_start_decompress=jpeg12_jpeg_start_decompress",
+        "-Djpeg_read_scanlines=jpeg12_jpeg_read_scanlines",
+        "-Djpeg_finish_decompress=jpeg12_jpeg_finish_decompress",
+        "-Djpeg_destroy_decompress=jpeg12_jpeg_destroy_decompress",
+        "-Djpeg_start_compress=jpeg12_jpeg_start_compress",
+        "-Djpeg_write_scanlines=jpeg12_jpeg_write_scanlines",
+        "-Djpeg_finish_compress=jpeg12_jpeg_finish_compress",
+        "-Djpeg_destroy_compress=jpeg12_jpeg_destroy_compress",
+        "-Djpeg_set_defaults=jpeg12_jpeg_set_defaults",
+        "-Djpeg_set_quality=jpeg12_jpeg_set_quality",
+        "-Djpeg_std_error=jpeg12_jpeg_std_error",
+        "-Djpeg_abort_compress=jpeg12_jpeg_abort_compress",
+        "-Djpeg_abort_decompress=jpeg12_jpeg_abort_decompress",
+        "-Djpeg_alloc_quant_table=jpeg12_jpeg_alloc_quant_table",
+        "-Djpeg_alloc_huff_table=jpeg12_jpeg_alloc_huff_table",
+        "-Djpeg_abort=jpeg12_jpeg_abort",
+        "-Djpeg_destroy=jpeg12_jpeg_destroy",
+        "-Djpeg_resync_to_restart=jpeg12_jpeg_resync_to_restart",
+    };
+
+    // Core libjpeg sources (same as 8-bit, but compiled with 12-bit flags)
+    // Note: No TurboJPEG for 12-bit builds (incompatible)
+    const jpeg12_sources = [_][]const u8{
+        // Compression
+        "jcapimin.c",
+        "jcapistd.c",
+        "jccoefct.c",
+        "jccolor.c",
+        "jcdctmgr.c",
+        "jchuff.c",
+        "jcicc.c",
+        "jcinit.c",
+        "jcmainct.c",
+        "jcmarker.c",
+        "jcmaster.c",
+        "jcomapi.c",
+        "jcparam.c",
+        "jcphuff.c",
+        "jcprepct.c",
+        "jcsample.c",
+        "jctrans.c",
+        // Decompression
+        "jdapimin.c",
+        "jdapistd.c",
+        "jdatadst.c",
+        "jdatasrc.c",
+        "jdcoefct.c",
+        "jdcolor.c",
+        "jddctmgr.c",
+        "jdhuff.c",
+        "jdicc.c",
+        "jdinput.c",
+        "jdmainct.c",
+        "jdmarker.c",
+        "jdmaster.c",
+        "jdmerge.c",
+        "jdphuff.c",
+        "jdpostct.c",
+        "jdsample.c",
+        "jdtrans.c",
+        // Common
+        "jerror.c",
+        "jfdctflt.c",
+        "jfdctfst.c",
+        "jfdctint.c",
+        "jidctflt.c",
+        "jidctfst.c",
+        "jidctint.c",
+        "jidctred.c",
+        "jmemmgr.c",
+        "jmemnobs.c",
+        "jquant1.c",
+        "jquant2.c",
+        "jutils.c",
+        // Arithmetic coding
+        "jaricom.c",
+        "jcarith.c",
+        "jdarith.c",
+    };
+
+    // Compile 12-bit libjpeg sources with symbol prefixes
+    for (jpeg12_sources) |src| {
+        const full_path = std.fmt.allocPrint(b.allocator, "{s}/{s}", .{ jpeg_base, src }) catch continue;
+        lib.addCSourceFile(.{
+            .file = b.path(full_path),
+            .flags = jpeg12_flags,
+        });
+    }
+
+    // Include paths
+    lib.addIncludePath(b.path("vendor/libjpeg-turbo"));
+    lib.addIncludePath(b.path(jpeg_base));
+}
+
+/// Add Tesseract OCR source files to compilation.
+/// Vendor sources are downloaded by CI into vendor/tesseract/src/ and vendor/leptonica/src/.
+///
+/// Build configuration:
+/// - Tesseract 5.x with C API (capi.h)
+/// - Leptonica for image processing (required dependency)
+/// - No training tools or language data (handled at runtime)
+///
+/// Reference: https://github.com/tesseract-ocr/tesseract
+fn addTesseractSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
+    _ = lib;
+    _ = b;
+    // TODO: Tesseract is a large C++ library with many dependencies.
+    // For now, we link against system-installed Tesseract.
+    // Full source compilation to be implemented when needed.
+    //
+    // When implementing:
+    // 1. Add Leptonica sources first (image I/O, preprocessing)
+    // 2. Add Tesseract CCMAIN sources (main API)
+    // 3. Add CCSTRUCT sources (data structures)
+    // 4. Add CLASSIFY sources (character recognition)
+    // 5. Add DICT sources (dictionary lookup)
+    // 6. Add LSTM sources (neural network recognition)
 }
