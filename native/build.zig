@@ -652,7 +652,6 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-unused-variable",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
-        "-Wno-class-memaccess",
         "-Wno-deprecated-declarations",
         "-Wno-unused-function",
         "-Wno-unused-but-set-variable",
@@ -765,7 +764,7 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
         "-Wextra",
-        "-Werror",
+        "-Wno-error", // Downgrade errors to warnings for third-party code
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-unused-variable",
@@ -775,7 +774,10 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-switch",
         "-Wno-parentheses",
         "-Wno-deprecated-declarations",
+        "-Wno-unused-function",
+        "-Wno-unused-but-set-variable",
         "-DHAVE_CONFIG_H", // Use generated config.h
+        "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc macros
     };
 
     // FFmpeg 7.1 source files for MPEG-2/H.264/HEVC encode+decode
@@ -1095,6 +1097,7 @@ fn addLibjpegTurboSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
 
     // libjpeg-turbo compilation flags - 8-bit build, no SIMD
     // Note: -O2 required before -D_FORTIFY_SOURCE=2 for glibc compatibility
+    // HAVE_LOCALE_H=0 prevents jinclude.h from using setenv() which isn't available in C11
     const jpeg_flags = &[_][]const u8{
         "-std=c11",
         "-O2",
@@ -1102,11 +1105,13 @@ fn addLibjpegTurboSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
         "-Wextra",
+        "-Wno-error", // Downgrade errors to warnings for third-party code
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-shift-negative-value",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
+        "-DHAVE_LOCALE_H=0", // Disable locale support to avoid setenv() usage
     };
 
     // Core libjpeg sources (from libjpeg-turbo CMakeLists.txt)
@@ -1212,6 +1217,7 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     const jpeg_base = "vendor/libjpeg-turbo/src";
 
     // 12-bit libjpeg-turbo compilation flags with symbol prefixes
+    // HAVE_LOCALE_H=0 prevents jinclude.h from using setenv() which isn't available in C11
     const jpeg12_flags = &[_][]const u8{
         "-std=c11",
         "-O2",
@@ -1219,11 +1225,13 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
         "-Wextra",
+        "-Wno-error", // Downgrade errors to warnings for third-party code
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-shift-negative-value",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
+        "-DHAVE_LOCALE_H=0", // Disable locale support to avoid setenv() usage
         // Enable 12-bit mode
         "-DWITH_12BIT=1",
         "-DBITS_IN_JSAMPLE=12",
