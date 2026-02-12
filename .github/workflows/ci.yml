@@ -196,17 +196,20 @@ jobs:
           echo "${FFMPEG_SHA256}  ffmpeg.tar.gz" | sha256sum -c -
           tar xzf ffmpeg.tar.gz && rm ffmpeg.tar.gz
           # Move to ffmpeg/ (not ffmpeg/src) as config.h is at vendor/ffmpeg/config.h
-          mv FFmpeg-n7.1/* ffmpeg/
-          rmdir FFmpeg-n7.1
+          # Use cp -r and rm -rf because ffmpeg/ already has config.h
+          cp -r FFmpeg-n7.1/* ffmpeg/
+          rm -rf FFmpeg-n7.1
 
-          # x264 stable - H.264 software encoder (for FFmpeg)
+          # x264 - H.264 software encoder (for FFmpeg)
+          # Pinned to specific commit for reproducible builds
           echo "Downloading x264..."
-          # Using a stable snapshot - x264 uses git versioning, checksums change frequently
-          curl -sL https://code.videolan.org/videolan/x264/-/archive/stable/x264-stable.tar.gz -o x264.tar.gz
-          # Note: x264 snapshot checksums change frequently, skip verification
+          X264_COMMIT="31e19f92f00c7003fa115047ce50978bc98c3a0d"
+          X264_SHA256="d053c9d86988d6bc78237ca5205865c5ddf99c98ef4cd9927eec8f6d388f6dd9"
+          curl -sL "https://code.videolan.org/videolan/x264/-/archive/${X264_COMMIT}/x264-${X264_COMMIT}.tar.gz" -o x264.tar.gz
+          echo "${X264_SHA256}  x264.tar.gz" | sha256sum -c -
           tar xzf x264.tar.gz && rm x264.tar.gz
-          mv x264-stable/* x264/
-          rmdir x264-stable || true
+          mv x264-${X264_COMMIT}/* x264/
+          rm -rf x264-${X264_COMMIT}
 
           # x265 3.6 - HEVC software encoder (for FFmpeg)
           echo "Downloading x265..."
@@ -215,7 +218,7 @@ jobs:
           echo "${X265_SHA256}  x265.tar.gz" | sha256sum -c -
           tar xzf x265.tar.gz && rm x265.tar.gz
           mv x265_3.6/* x265/
-          rmdir x265_3.6 || true
+          rm -rf x265_3.6
 
           # Tesseract 5.5.0 - OCR engine
           echo "Downloading Tesseract..."

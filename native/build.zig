@@ -55,8 +55,9 @@ pub fn build(b: *std.Build) void {
     if (have_tesseract and !have_leptonica) {
         std.log.warn("Leptonica not found at vendor/leptonica/src - Tesseract requires Leptonica", .{});
     }
-    _ = have_x264;
-    _ = have_x265;
+    // FFmpeg encoding requires both FFmpeg AND at least one software encoder
+    // Without x264/x265, we can't actually encode H.264/HEVC
+    const have_ffmpeg_enc_full = have_ffmpeg_enc and (have_x264 or have_x265);
     _ = have_leptonica;
     // Target configurations for all supported platforms
     // Using GNU ABI for Windows for better Zig cross-compilation support
@@ -145,7 +146,7 @@ pub fn build(b: *std.Build) void {
             core_flags_0 ++ &[_][]const u8{"-DSHARPDICOM_WITH_JPEG12"}
         else
             core_flags_0;
-        const core_flags_base = if (have_ffmpeg_enc)
+        const core_flags_base = if (have_ffmpeg_enc_full)
             core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
         else
             core_flags_1;
@@ -301,7 +302,7 @@ pub fn build(b: *std.Build) void {
         }
 
         // Video encoder (FFmpeg encoding with x264/x265 backends)
-        if (have_ffmpeg_enc) {
+        if (have_ffmpeg_enc_full) {
             lib.addCSourceFile(.{
                 .file = b.path("src/video_encoder.c"),
                 .flags = common_flags ++ &[_][]const u8{
@@ -309,10 +310,14 @@ pub fn build(b: *std.Build) void {
                     "-DSHARPDICOM_WITH_MPEG",
                 },
             });
-            // Compile x264 from source (H.264 software encoder)
-            addX264Sources(lib, b);
-            // Compile x265 from source (HEVC software encoder)
-            addX265Sources(lib, b);
+            // Compile x264 from source (H.264 software encoder) - only if available
+            if (have_x264) {
+                addX264Sources(lib, b);
+            }
+            // Compile x265 from source (HEVC software encoder) - only if available
+            if (have_x265) {
+                addX265Sources(lib, b);
+            }
             // Compile FFmpeg encoding libraries from source
             addFfmpegEncSources(lib, b);
         } else {
@@ -431,7 +436,7 @@ pub fn build(b: *std.Build) void {
         native_jpeg_flags_base;
 
     // Native core flags with FFmpeg encoding when available
-    const native_core_flags_base = if (have_ffmpeg_enc)
+    const native_core_flags_base = if (have_ffmpeg_enc_full)
         native_core_flags_1 ++ &[_][]const u8{"-DSHARPDICOM_WITH_FFMPEG_ENC"}
     else
         native_core_flags_1;
@@ -574,7 +579,7 @@ pub fn build(b: *std.Build) void {
     }
 
     // Video encoder for native build (FFmpeg encoding with x264/x265 backends)
-    if (have_ffmpeg_enc) {
+    if (have_ffmpeg_enc_full) {
         native_lib.addCSourceFile(.{
             .file = b.path("src/video_encoder.c"),
             .flags = native_flags ++ &[_][]const u8{
@@ -582,10 +587,14 @@ pub fn build(b: *std.Build) void {
                 "-DSHARPDICOM_WITH_MPEG",
             },
         });
-        // Compile x264 from source (H.264 software encoder)
-        addX264Sources(native_lib, b);
-        // Compile x265 from source (HEVC software encoder)
-        addX265Sources(native_lib, b);
+        // Compile x264 from source (H.264 software encoder) - only if available
+        if (have_x264) {
+            addX264Sources(native_lib, b);
+        }
+        // Compile x265 from source (HEVC software encoder) - only if available
+        if (have_x265) {
+            addX265Sources(native_lib, b);
+        }
         // Compile FFmpeg encoding libraries from source
         addFfmpegEncSources(native_lib, b);
     } else {
@@ -1439,30 +1448,83 @@ fn addLibjpegTurbo12Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         // Enable 12-bit mode
         "-DWITH_12BIT=1",
         "-DBITS_IN_JSAMPLE=12",
-        // Symbol prefixes for all public libjpeg functions
+        // Symbol prefixes for ALL public libjpeg functions to avoid collisions with 8-bit build
+        // Initialization and destruction
         "-Djpeg_CreateCompress=jpeg12_jpeg_CreateCompress",
         "-Djpeg_CreateDecompress=jpeg12_jpeg_CreateDecompress",
-        "-Djpeg_mem_src=jpeg12_jpeg_mem_src",
-        "-Djpeg_mem_dest=jpeg12_jpeg_mem_dest",
-        "-Djpeg_read_header=jpeg12_jpeg_read_header",
-        "-Djpeg_start_decompress=jpeg12_jpeg_start_decompress",
-        "-Djpeg_read_scanlines=jpeg12_jpeg_read_scanlines",
-        "-Djpeg_finish_decompress=jpeg12_jpeg_finish_decompress",
+        "-Djpeg_destroy_compress=jpeg12_jpeg_destroy_compress",
         "-Djpeg_destroy_decompress=jpeg12_jpeg_destroy_decompress",
+        "-Djpeg_abort_compress=jpeg12_jpeg_abort_compress",
+        "-Djpeg_abort_decompress=jpeg12_jpeg_abort_decompress",
+        "-Djpeg_abort=jpeg12_jpeg_abort",
+        "-Djpeg_destroy=jpeg12_jpeg_destroy",
+        // Error handling
+        "-Djpeg_std_error=jpeg12_jpeg_std_error",
+        // Data source/destination
+        "-Djpeg_stdio_dest=jpeg12_jpeg_stdio_dest",
+        "-Djpeg_stdio_src=jpeg12_jpeg_stdio_src",
+        "-Djpeg_mem_dest=jpeg12_jpeg_mem_dest",
+        "-Djpeg_mem_src=jpeg12_jpeg_mem_src",
+        // Compression parameter setup
+        "-Djpeg_set_defaults=jpeg12_jpeg_set_defaults",
+        "-Djpeg_set_colorspace=jpeg12_jpeg_set_colorspace",
+        "-Djpeg_default_colorspace=jpeg12_jpeg_default_colorspace",
+        "-Djpeg_set_quality=jpeg12_jpeg_set_quality",
+        "-Djpeg_set_linear_quality=jpeg12_jpeg_set_linear_quality",
+        "-Djpeg_default_qtables=jpeg12_jpeg_default_qtables",
+        "-Djpeg_add_quant_table=jpeg12_jpeg_add_quant_table",
+        "-Djpeg_quality_scaling=jpeg12_jpeg_quality_scaling",
+        "-Djpeg_enable_lossless=jpeg12_jpeg_enable_lossless",
+        "-Djpeg_simple_progression=jpeg12_jpeg_simple_progression",
+        "-Djpeg_suppress_tables=jpeg12_jpeg_suppress_tables",
+        "-Djpeg_alloc_quant_table=jpeg12_jpeg_alloc_quant_table",
+        "-Djpeg_alloc_huff_table=jpeg12_jpeg_alloc_huff_table",
+        // Compression
         "-Djpeg_start_compress=jpeg12_jpeg_start_compress",
         "-Djpeg_write_scanlines=jpeg12_jpeg_write_scanlines",
         "-Djpeg_finish_compress=jpeg12_jpeg_finish_compress",
-        "-Djpeg_destroy_compress=jpeg12_jpeg_destroy_compress",
-        "-Djpeg_set_defaults=jpeg12_jpeg_set_defaults",
-        "-Djpeg_set_quality=jpeg12_jpeg_set_quality",
-        "-Djpeg_std_error=jpeg12_jpeg_std_error",
-        "-Djpeg_abort_compress=jpeg12_jpeg_abort_compress",
-        "-Djpeg_abort_decompress=jpeg12_jpeg_abort_decompress",
-        "-Djpeg_alloc_quant_table=jpeg12_jpeg_alloc_quant_table",
-        "-Djpeg_alloc_huff_table=jpeg12_jpeg_alloc_huff_table",
-        "-Djpeg_abort=jpeg12_jpeg_abort",
-        "-Djpeg_destroy=jpeg12_jpeg_destroy",
+        "-Djpeg_calc_jpeg_dimensions=jpeg12_jpeg_calc_jpeg_dimensions",
+        "-Djpeg_write_raw_data=jpeg12_jpeg_write_raw_data",
+        "-Djpeg_write_marker=jpeg12_jpeg_write_marker",
+        "-Djpeg_write_m_header=jpeg12_jpeg_write_m_header",
+        "-Djpeg_write_m_byte=jpeg12_jpeg_write_m_byte",
+        "-Djpeg_write_tables=jpeg12_jpeg_write_tables",
+        "-Djpeg_write_icc_profile=jpeg12_jpeg_write_icc_profile",
+        "-Djpeg_write_coefficients=jpeg12_jpeg_write_coefficients",
+        // Decompression
+        "-Djpeg_read_header=jpeg12_jpeg_read_header",
+        "-Djpeg_start_decompress=jpeg12_jpeg_start_decompress",
+        "-Djpeg_read_scanlines=jpeg12_jpeg_read_scanlines",
+        "-Djpeg_skip_scanlines=jpeg12_jpeg_skip_scanlines",
+        "-Djpeg_crop_scanline=jpeg12_jpeg_crop_scanline",
+        "-Djpeg_finish_decompress=jpeg12_jpeg_finish_decompress",
+        "-Djpeg_read_raw_data=jpeg12_jpeg_read_raw_data",
+        "-Djpeg_calc_output_dimensions=jpeg12_jpeg_calc_output_dimensions",
+        "-Djpeg_core_output_dimensions=jpeg12_jpeg_core_output_dimensions",
+        "-Djpeg_save_markers=jpeg12_jpeg_save_markers",
+        "-Djpeg_set_marker_processor=jpeg12_jpeg_set_marker_processor",
+        "-Djpeg_read_coefficients=jpeg12_jpeg_read_coefficients",
+        "-Djpeg_copy_critical_parameters=jpeg12_jpeg_copy_critical_parameters",
+        "-Djpeg_read_icc_profile=jpeg12_jpeg_read_icc_profile",
+        // Buffered-image mode
+        "-Djpeg_has_multiple_scans=jpeg12_jpeg_has_multiple_scans",
+        "-Djpeg_start_output=jpeg12_jpeg_start_output",
+        "-Djpeg_finish_output=jpeg12_jpeg_finish_output",
+        "-Djpeg_input_complete=jpeg12_jpeg_input_complete",
+        "-Djpeg_new_colormap=jpeg12_jpeg_new_colormap",
+        "-Djpeg_consume_input=jpeg12_jpeg_consume_input",
+        // Restart marker
         "-Djpeg_resync_to_restart=jpeg12_jpeg_resync_to_restart",
+        // 12-bit specific entry points (also need prefixing to avoid self-collision)
+        "-Djpeg12_write_scanlines=jpeg12_jpeg12_write_scanlines",
+        "-Djpeg12_write_raw_data=jpeg12_jpeg12_write_raw_data",
+        "-Djpeg12_read_scanlines=jpeg12_jpeg12_read_scanlines",
+        "-Djpeg12_skip_scanlines=jpeg12_jpeg12_skip_scanlines",
+        "-Djpeg12_crop_scanline=jpeg12_jpeg12_crop_scanline",
+        "-Djpeg12_read_raw_data=jpeg12_jpeg12_read_raw_data",
+        // 16-bit entry points (also in 12-bit build)
+        "-Djpeg16_write_scanlines=jpeg12_jpeg16_write_scanlines",
+        "-Djpeg16_read_scanlines=jpeg12_jpeg16_read_scanlines",
     };
 
     // Core libjpeg sources (same as 8-bit, but compiled with 12-bit flags)
