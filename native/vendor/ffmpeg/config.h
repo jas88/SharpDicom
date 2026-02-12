@@ -12,6 +12,13 @@
 #ifndef FFMPEG_CONFIG_H
 #define FFMPEG_CONFIG_H
 
+/* Include system headers early to ensure types (time_t, struct tm, etc.)
+ * are defined before FFmpeg code uses them. */
+#include <time.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+
 /* FFmpeg version */
 #define FFMPEG_VERSION "7.1"
 #define LIBAVUTIL_VERSION_MAJOR 59
@@ -87,7 +94,12 @@
 #define HAVE_LIMITS_H 1
 #define HAVE_STDLIB_H 1
 #define HAVE_STRING_H 1
-#define HAVE_MALLOC_H 1
+/* malloc.h doesn't exist on macOS */
+#if defined(__APPLE__)
+  #define HAVE_MALLOC_H 0
+#else
+  #define HAVE_MALLOC_H 1
+#endif
 #define HAVE_MEMORY_H 1
 
 /* Memory functions */

@@ -8,6 +8,12 @@
 #ifndef X264_CONFIG_H
 #define X264_CONFIG_H
 
+/* Include system headers early to ensure types (time_t, struct tm, etc.)
+ * are defined before they're used by x264 code. */
+#include <time.h>
+#include <stdint.h>
+#include <stddef.h>
+
 /* x264 version */
 #define X264_VERSION " r3200 stable"
 #define X264_POINTVER "0.164.3200 stable"
@@ -90,7 +96,12 @@
   #define HAVE_ATTRIBUTE_VISIBILITY 1
   #define HAVE_ATTRIBUTE_PACKED 1
   #define HAVE_ATTRIBUTE_MAY_ALIAS 1
-  #define HAVE_MALLOC_H 1
+  /* malloc.h doesn't exist on macOS - use stdlib.h instead */
+  #if defined(__APPLE__)
+    #define HAVE_MALLOC_H 0
+  #else
+    #define HAVE_MALLOC_H 1
+  #endif
   #define fseek fseeko
   #define ftell ftello
 #endif

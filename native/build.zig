@@ -102,9 +102,8 @@ pub fn build(b: *std.Build) void {
         },
     };
 
-    const optimize = b.standardOptimizeOption(.{
-        .preferred_optimize_mode = .ReleaseFast,
-    });
+    // Force ReleaseFast for cross-compiled libraries - these should always be optimized
+    const optimize = std.builtin.OptimizeMode.ReleaseFast;
 
     // Build shared library for each target
     for (targets) |target_query| {
@@ -567,6 +566,8 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
+        "-D_POSIX_C_SOURCE=200809L", // Ensure POSIX functions (clock_gettime) are declared
+        "-D_GNU_SOURCE", // For additional GNU extensions
         "-Wall",
         "-Wextra",
         "-Wno-error", // Downgrade errors to warnings for third-party code
@@ -575,9 +576,11 @@ fn addX264Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-unused-variable",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
+        "-Wno-implicit-function-declaration", // For clock_gettime on some platforms
         "-Ivendor/x264", // x264.h and x264_config.h
         "-Ivendor/x264/common", // Internal x264 common headers
         "-Ivendor/x264/encoder", // Internal x264 encoder headers (for analyse.h etc.)
+        "-include", "x264_config.h", // Force config header first for time.h etc.
     };
 
     // x264 core encoder sources (no CLI, no filters, no asm)
@@ -769,6 +772,8 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-O2", // Required for _FORTIFY_SOURCE with glibc
         "-fstack-protector-strong",
         "-D_FORTIFY_SOURCE=2",
+        "-D_POSIX_C_SOURCE=200809L", // Ensure POSIX functions (localtime_r, etc.) are declared
+        "-D_GNU_SOURCE", // For additional GNU extensions
         "-Wall",
         "-Wextra",
         "-Wno-error", // Downgrade errors to warnings for third-party code
@@ -783,8 +788,10 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-Wno-deprecated-declarations",
         "-Wno-unused-function",
         "-Wno-unused-but-set-variable",
+        "-Wno-implicit-function-declaration", // For strftime, localtime_r on some platforms
         "-DHAVE_CONFIG_H", // Use generated config.h
         "-D__STDC_CONSTANT_MACROS", // Required for INT64_C etc macros
+        "-include", "config.h", // Force config header first for time.h etc.
     };
 
     // FFmpeg 7.1 source files for MPEG-2/H.264/HEVC encode+decode
