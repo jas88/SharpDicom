@@ -3,6 +3,9 @@
  *
  * Generated for SharpDicom cross-platform builds.
  * This file configures libjpeg-turbo for 8-bit and 12-bit JPEG support.
+ *
+ * IMPORTANT: This header must be included BEFORE jpeglib.h/jmorecfg.h.
+ * It sets up configuration that jmorecfg.h will use via #ifndef guards.
  */
 
 #ifndef JCONFIG_H
@@ -15,17 +18,19 @@
 /* JPEG library version (compatibility with libjpeg 6b API) */
 #define JPEG_LIB_VERSION 62
 
-/* Standard type definitions */
+/* Standard type definitions - tells libjpeg we have standard headers */
 #define HAVE_STDDEF_H 1
 #define HAVE_STDLIB_H 1
 #define HAVE_UNSIGNED_CHAR 1
 #define HAVE_UNSIGNED_SHORT 1
 
+/* Disable POSIX features that aren't available in cross-compilation.
+ * This prevents jinclude.h from using setenv() and other POSIX functions. */
+#undef HAVE_LOCALE_H
+#undef HAVE_SETENV
+
 /* Memory manager selection */
 #define JMEM_NOBS 1  /* Use no backing store (all in memory) */
-
-/* Maximum image dimensions (DICOM images can be large) */
-#define JPEG_MAX_DIMENSION 65535L
 
 /* Data precision for 8-bit or 12-bit builds.
  * This is set via compiler flags:
@@ -38,54 +43,9 @@
 #define BITS_IN_JSAMPLE 12
 #endif
 
-/* RGB pixel ordering (standard RGB, not BGR) */
-#define RGB_RED 0
-#define RGB_GREEN 1
-#define RGB_BLUE 2
-#define RGB_PIXELSIZE 3
-
-/* Component order for interleaved sampling */
-#define EXT_RGB_RED 0
-#define EXT_RGB_GREEN 1
-#define EXT_RGB_BLUE 2
-#define EXT_RGB_PIXELSIZE 3
-
-#define EXT_RGBX_RED 0
-#define EXT_RGBX_GREEN 1
-#define EXT_RGBX_BLUE 2
-#define EXT_RGBX_PIXELSIZE 4
-
-#define EXT_BGR_RED 2
-#define EXT_BGR_GREEN 1
-#define EXT_BGR_BLUE 0
-#define EXT_BGR_PIXELSIZE 3
-
-#define EXT_BGRX_RED 2
-#define EXT_BGRX_GREEN 1
-#define EXT_BGRX_BLUE 0
-#define EXT_BGRX_PIXELSIZE 4
-
-#define EXT_XBGR_RED 3
-#define EXT_XBGR_GREEN 2
-#define EXT_XBGR_BLUE 1
-#define EXT_XBGR_PIXELSIZE 4
-
-#define EXT_XRGB_RED 1
-#define EXT_XRGB_GREEN 2
-#define EXT_XRGB_BLUE 3
-#define EXT_XRGB_PIXELSIZE 4
-
-/* CMYK support */
+/* CMYK support (arithmetic coding) */
 #define C_ARITH_CODING_SUPPORTED 1
 #define D_ARITH_CODING_SUPPORTED 1
-
-/* Progressive JPEG support (used in DICOM) */
-#define C_PROGRESSIVE_SUPPORTED 1
-#define D_PROGRESSIVE_SUPPORTED 1
-
-/* Multiscan support (for progressive and non-interleaved) */
-#define C_MULTISCAN_FILES_SUPPORTED 1
-#define D_MULTISCAN_FILES_SUPPORTED 1
 
 /* ICC profile support */
 #define MEM_SRCDST_SUPPORTED 1

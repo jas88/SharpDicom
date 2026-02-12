@@ -646,16 +646,17 @@ fn addX265Sources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "-D_FORTIFY_SOURCE=2",
         "-Wall",
         "-Wextra",
-        "-Werror",
+        "-Wno-error", // Downgrade errors to warnings for third-party code
         "-Wno-unused-parameter",
         "-Wno-sign-compare",
         "-Wno-unused-variable",
         "-Wno-implicit-fallthrough",
         "-Wno-missing-field-initializers",
         "-Wno-class-memaccess",
-        "-DX265_DEPTH=8",
-        "-DEXPORT_C_API=1",
-        "-DX265_NS=x265",
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-function",
+        "-Wno-unused-but-set-variable",
+        "-DHAVE_CONFIG_H", // Use generated x265_config.h
     };
 
     // x265 core encoder sources (no CLI, no asm)
@@ -1073,6 +1074,9 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
     lib.addIncludePath(b.path("vendor/ffmpeg/libavformat"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswscale"));
     lib.addIncludePath(b.path("vendor/ffmpeg/libswresample"));
+    // x264/x265 headers for FFmpeg's libx264.c and libx265.c wrappers
+    lib.addIncludePath(b.path("vendor/x264"));
+    lib.addIncludePath(b.path("vendor/x265/source"));
 }
 
 /// Add libjpeg-turbo source files to compilation (8-bit JPEG codec).
