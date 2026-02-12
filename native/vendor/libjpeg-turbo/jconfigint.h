@@ -43,8 +43,14 @@
   #define THREAD_LOCAL
 #endif
 
-/* Size of various types */
-#define SIZEOF_SIZE_T sizeof(size_t)
+/* Size of various types - must be a preprocessor constant, not sizeof() expression */
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
+  /* 64-bit platforms */
+  #define SIZEOF_SIZE_T 8
+#else
+  /* 32-bit platforms */
+  #define SIZEOF_SIZE_T 4
+#endif
 
 /* Platform-specific memory alignment for SIMD */
 #if defined(__x86_64__) || defined(_M_X64)
