@@ -1000,9 +1000,15 @@ fn addFfmpegEncSources(lib: *std.Build.Step.Compile, b: *std.Build) void {
         "libavcodec/rl.c",
         "libavcodec/simple_idct.c",
         "libavcodec/startcode.c",
+        "libavcodec/threadprogress.c",
         "libavcodec/utils.c",
         "libavcodec/version.c",
+        "libavcodec/videodsp.c",
         "libavcodec/vlc.c",
+        // Additional codec dependencies
+        "libavcodec/aom_film_grain.c",
+        "libavcodec/bswapdsp.c",
+        "libavcodec/container_fifo.c",
         // MPEG-1/2 video decoder
         "libavcodec/mpeg12.c",
         "libavcodec/mpeg12data.c",
