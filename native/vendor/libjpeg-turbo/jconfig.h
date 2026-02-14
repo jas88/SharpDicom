@@ -32,15 +32,13 @@
 /* Memory manager selection */
 #define JMEM_NOBS 1  /* Use no backing store (all in memory) */
 
-/* Data precision for 8-bit or 12-bit builds.
- * This is set via compiler flags:
- *   -DWITH_12BIT=1 for 12-bit builds
- *   Default (no flag) for 8-bit builds
+/* Data precision for 8-bit, 12-bit, or 16-bit builds.
+ * When compiling multi-precision source files, BITS_IN_JSAMPLE is set
+ * via compiler flags (-DBITS_IN_JSAMPLE=12 or -DBITS_IN_JSAMPLE=16).
+ * Default to 8 if not already defined.
  */
-#ifndef WITH_12BIT
+#ifndef BITS_IN_JSAMPLE
 #define BITS_IN_JSAMPLE 8
-#else
-#define BITS_IN_JSAMPLE 12
 #endif
 
 /* CMYK support (arithmetic coding) */
