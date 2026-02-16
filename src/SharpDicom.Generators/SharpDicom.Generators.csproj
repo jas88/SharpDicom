@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  <PackageReference Include="System.Text.Encoding.CodePages" VersionOverride="10.0.3" />
   </ItemGroup>
 
 </Project>
