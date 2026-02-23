@@ -554,6 +554,7 @@ build_target() {
 
         $CC -shared -o "$OUTPUT_LIB" \
             -Wl,--gc-sections \
+            -Wl,-Bsymbolic \
             -Wl,--whole-archive "$WRAPPER_DIR"/*.o -Wl,--no-whole-archive \
             -Wl,--start-group \
             "$PREFIX/lib/libavcodec.a" \
