@@ -13,6 +13,20 @@
 #include <stdio.h>
 
 /*============================================================================
+ * C++ ABI support for -nostdlib builds (Linux only)
+ *
+ * When linking with -nostdlib, crtbeginS.o is omitted. C++ static
+ * constructors in CharLS/x265 call __cxa_atexit with __dso_handle to
+ * register their destructors. Define __dso_handle here so the linker can
+ * resolve it without pulling in crtbeginS.o (which registers exception
+ * frame info that crashes under musl when called without the full CRT).
+ * The ELF .init_array is still processed by the musl dynamic linker.
+ *============================================================================*/
+#if defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
+void* __dso_handle __attribute__((visibility("hidden"))) = (void*)&__dso_handle;
+#endif
+
+/*============================================================================
  * Platform detection
  *============================================================================*/
 

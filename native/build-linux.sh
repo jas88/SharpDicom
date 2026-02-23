@@ -551,13 +551,7 @@ build_target() {
         # Also need libstdc++ for C++ code (CharLS, x265)
         local LIBSTDCXX_PATH
         LIBSTDCXX_PATH=$($CXX -print-file-name=libstdc++.a)
-        # crtbeginS/crtendS provide __dso_handle for C++ static ctors in shared objects
-        local CRTBEGINS_PATH CRTENDS_PATH
-        CRTBEGINS_PATH=$($CC -print-file-name=crtbeginS.o)
-        CRTENDS_PATH=$($CC -print-file-name=crtendS.o)
-
         $CC -shared -o "$OUTPUT_LIB" \
-            "$CRTBEGINS_PATH" \
             -Wl,--gc-sections \
             -Wl,-Bsymbolic \
             -Wl,--whole-archive "$WRAPPER_DIR"/*.o -Wl,--no-whole-archive \
@@ -576,7 +570,6 @@ build_target() {
             "$LIBGCC_PATH" \
             "${TOOLCHAIN_SYSROOT}/lib/libc.a" \
             -Wl,--end-group \
-            "$CRTENDS_PATH" \
             -nostdlib
 
     elif [ "$IS_WINDOWS" = "1" ]; then
