@@ -439,7 +439,12 @@ build_target() {
     mkdir -p "$BUILD_DIR/ffmpeg"
     (
         cd "$BUILD_DIR/ffmpeg"
-        export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+        # PKG_CONFIG_LIBDIR replaces (not prepends) the default system search
+        # paths, preventing pkg-config from finding host system libraries when
+        # cross-compiling. PKG_CONFIG_PATH is kept in sync for tools that
+        # check it directly.
+        export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
+        export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 
         local ffmpeg_target_os="linux"
         local ffmpeg_extra_flags=""
