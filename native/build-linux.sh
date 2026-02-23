@@ -457,6 +457,7 @@ build_target() {
             --arch="$FFMPEG_ARCH" \
             --enable-cross-compile --target-os="$ffmpeg_target_os" \
             --cross-prefix="${FFMPEG_CROSS_PREFIX}" \
+            --pkg-config=pkg-config \
             --pkg-config-flags="--static" \
             --enable-static --disable-shared \
             --enable-gpl --enable-libx264 --enable-libx265 \
