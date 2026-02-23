@@ -98,7 +98,7 @@ jobs:
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 cmake libtiff-dev libboost-program-options-dev
+          packages: dcmtk libcharls-dev libcharls2 cmake nasm libtiff-dev libboost-program-options-dev
           version: 2.0
           execute_install_scripts: true
 
@@ -189,7 +189,7 @@ jobs:
           path: |
             native/runtimes/linux-*
             native/runtimes/win-*
-          key: native-linux-${{ hashFiles('native/build-linux.sh', 'native/src/**') }}
+          key: native-linux-${{ github.ref_type }}-${{ hashFiles('native/build-linux.sh', 'native/src/**') }}
 
       - name: Set build targets
         run: |

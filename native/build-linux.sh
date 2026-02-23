@@ -53,6 +53,11 @@ BOOTLIN_BASE_URL="https://toolchains.bootlin.com/downloads/releases/toolchains"
 LLVM_MINGW_VERSION="20240619"
 LLVM_MINGW_URL="https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VERSION}/llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-20.04-x86_64.tar.xz"
 
+# Toolchain checksums
+BOOTLIN_X64_SHA256="09fca3aa89540f1b01b5f4210d488cbeb00f522044c53e9989b1dd8a38076912"
+BOOTLIN_ARM64_SHA256="defba831ffa1175236f137069333e21ed46d4d19feb5080a90cf248b6fc2cb08"
+LLVM_MINGW_SHA256="27d33157cc252c29ad6f777a96a0d94176fea1b534ff09b5071485def143b90e"
+
 # ============================================================
 # Checksum verification
 # ============================================================
@@ -164,6 +169,7 @@ download_toolchains() {
                     local url="${BOOTLIN_BASE_URL}/x86-64/tarballs/x86-64--musl--${BOOTLIN_RELEASE}.tar.xz"
                     local archive="$DOWNLOAD_CACHE/bootlin-x64-musl.tar.xz"
                     [ -f "$archive" ] || curl -sL "$url" -o "$archive"
+                    sha256check "$BOOTLIN_X64_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/x86-64--musl--${BOOTLIN_RELEASE}" "$TOOLCHAIN_DIR/x86-64--musl"
                 fi
@@ -174,6 +180,7 @@ download_toolchains() {
                     local url="${BOOTLIN_BASE_URL}/aarch64/tarballs/aarch64--musl--${BOOTLIN_RELEASE}.tar.xz"
                     local archive="$DOWNLOAD_CACHE/bootlin-arm64-musl.tar.xz"
                     [ -f "$archive" ] || curl -sL "$url" -o "$archive"
+                    sha256check "$BOOTLIN_ARM64_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/aarch64--musl--${BOOTLIN_RELEASE}" "$TOOLCHAIN_DIR/aarch64--musl"
                 fi
@@ -183,6 +190,7 @@ download_toolchains() {
                     echo "Downloading LLVM-MinGW toolchain..."
                     local archive="$DOWNLOAD_CACHE/llvm-mingw.tar.xz"
                     [ -f "$archive" ] || curl -sL "$LLVM_MINGW_URL" -o "$archive"
+                    sha256check "$LLVM_MINGW_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-20.04-x86_64" \
                         "$TOOLCHAIN_DIR/llvm-mingw"
@@ -591,12 +599,15 @@ build_target() {
     echo ""
     echo "--- Verifying dependencies ($target) ---"
     if [ "$IS_LINUX" = "1" ]; then
-        # Linux: should report "statically linked" or "not a dynamic executable"
-        local ldd_output
-        ldd_output=$(ldd "$OUTPUT_LIB" 2>&1 || true)
-        if echo "$ldd_output" | grep -qvE "not a dynamic executable|statically linked|ldd:"; then
+        # Use cross-toolchain readelf to inspect ELF dynamic section.
+        # Host ldd cannot parse cross-arch ELF (e.g. aarch64 on x86_64 host)
+        # and always reports "not a dynamic executable", masking any real deps.
+        local readelf_bin="$TOOLCHAIN_PREFIX/bin/${COMPILER_PREFIX}-readelf"
+        local needed_libs
+        needed_libs=$("$readelf_bin" -d "$OUTPUT_LIB" 2>/dev/null | grep NEEDED || true)
+        if [ -n "$needed_libs" ]; then
             echo "WARNING: Unexpected dynamic dependencies:"
-            echo "$ldd_output"
+            echo "$needed_libs"
         else
             echo "  OK: No dynamic dependencies (fully static)"
         fi
@@ -615,7 +626,7 @@ main() {
     echo "================================================"
 
     # Verify required tools
-    for tool in cmake make curl; do
+    for tool in cmake make nasm curl; do
         if ! command -v "$tool" &>/dev/null; then
             echo "ERROR: Required tool '$tool' not found." >&2
             exit 1
