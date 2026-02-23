@@ -24,7 +24,7 @@
     <!-- CLI Dependencies -->
     <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
-    <PackageVersion Include="CsToml" Version="1.8.1" />
+    <PackageVersion Include="CsToml" Version="1.8.2" />
     <!-- AOT Cross-Compilation -->
     <PackageVersion Include="Fallenwood.PublishAotCross" Version="0.3.0" />
     <!-- Source Generator Dependencies -->
