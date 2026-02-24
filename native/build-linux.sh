@@ -75,7 +75,7 @@ download_vendors() {
 
     if [ ! -d libjpeg-turbo/src ]; then
         echo "Downloading libjpeg-turbo ${LIBJPEG_VERSION}..."
-        curl -sL "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/${LIBJPEG_VERSION}.tar.gz" -o libjpeg-turbo.tar.gz
+        curl -sfL --retry 3 "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/${LIBJPEG_VERSION}.tar.gz" -o libjpeg-turbo.tar.gz
         sha256check "$LIBJPEG_SHA256" libjpeg-turbo.tar.gz
         tar xzf libjpeg-turbo.tar.gz && rm libjpeg-turbo.tar.gz
         mkdir -p libjpeg-turbo
@@ -84,7 +84,7 @@ download_vendors() {
 
     if [ ! -d charls/src ]; then
         echo "Downloading CharLS ${CHARLS_VERSION}..."
-        curl -sL "https://github.com/team-charls/charls/archive/refs/tags/${CHARLS_VERSION}.tar.gz" -o charls.tar.gz
+        curl -sfL --retry 3 "https://github.com/team-charls/charls/archive/refs/tags/${CHARLS_VERSION}.tar.gz" -o charls.tar.gz
         sha256check "$CHARLS_SHA256" charls.tar.gz
         tar xzf charls.tar.gz && rm charls.tar.gz
         mkdir -p charls
@@ -93,7 +93,7 @@ download_vendors() {
 
     if [ ! -d openjpeg/src ]; then
         echo "Downloading OpenJPEG ${OPENJPEG_VERSION}..."
-        curl -sL "https://github.com/uclouvain/openjpeg/archive/refs/tags/v${OPENJPEG_VERSION}.tar.gz" -o openjpeg.tar.gz
+        curl -sfL --retry 3 "https://github.com/uclouvain/openjpeg/archive/refs/tags/v${OPENJPEG_VERSION}.tar.gz" -o openjpeg.tar.gz
         sha256check "$OPENJPEG_SHA256" openjpeg.tar.gz
         tar xzf openjpeg.tar.gz && rm openjpeg.tar.gz
         mkdir -p openjpeg
@@ -102,7 +102,7 @@ download_vendors() {
 
     if [ ! -f ffmpeg/configure ]; then
         echo "Downloading FFmpeg ${FFMPEG_VERSION}..."
-        curl -sL "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+        curl -sfL --retry 3 "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
         sha256check "$FFMPEG_SHA256" ffmpeg.tar.gz
         tar xzf ffmpeg.tar.gz && rm ffmpeg.tar.gz
         mkdir -p ffmpeg
@@ -112,7 +112,7 @@ download_vendors() {
 
     if [ ! -f x264/configure ]; then
         echo "Downloading x264..."
-        curl -sL "https://code.videolan.org/videolan/x264/-/archive/${X264_COMMIT}/x264-${X264_COMMIT}.tar.gz" -o x264.tar.gz
+        curl -sfL --retry 3 "https://code.videolan.org/videolan/x264/-/archive/${X264_COMMIT}/x264-${X264_COMMIT}.tar.gz" -o x264.tar.gz
         sha256check "$X264_SHA256" x264.tar.gz
         tar xzf x264.tar.gz && rm x264.tar.gz
         mkdir -p x264
@@ -122,7 +122,7 @@ download_vendors() {
 
     if [ ! -f x265/source/CMakeLists.txt ]; then
         echo "Downloading x265 ${X265_VERSION}..."
-        curl -sL "https://bitbucket.org/multicoreware/x265_git/downloads/x265_${X265_VERSION}.tar.gz" -o x265.tar.gz
+        curl -sfL --retry 3 "https://bitbucket.org/multicoreware/x265_git/downloads/x265_${X265_VERSION}.tar.gz" -o x265.tar.gz
         sha256check "$X265_SHA256" x265.tar.gz
         tar xzf x265.tar.gz && rm x265.tar.gz
         mkdir -p x265
@@ -147,7 +147,7 @@ download_vendors() {
     if [ ! -f stb/stb_image.h ]; then
         echo "Downloading stb_image..."
         mkdir -p stb
-        curl -sL "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}/stb_image.h" -o stb/stb_image.h
+        curl -sfL --retry 3 "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}/stb_image.h" -o stb/stb_image.h
         sha256check "$STB_IMAGE_SHA256" stb/stb_image.h
     fi
 
@@ -168,7 +168,7 @@ download_toolchains() {
                     echo "Downloading Bootlin x86_64 musl toolchain..."
                     local url="${BOOTLIN_BASE_URL}/x86-64/tarballs/x86-64--musl--${BOOTLIN_RELEASE}.tar.xz"
                     local archive="$DOWNLOAD_CACHE/bootlin-x64-musl.tar.xz"
-                    [ -f "$archive" ] || curl -sL "$url" -o "$archive"
+                    [ -f "$archive" ] || curl -sfL --retry 3 "$url" -o "$archive"
                     sha256check "$BOOTLIN_X64_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/x86-64--musl--${BOOTLIN_RELEASE}" "$TOOLCHAIN_DIR/x86-64--musl"
@@ -179,7 +179,7 @@ download_toolchains() {
                     echo "Downloading Bootlin aarch64 musl toolchain..."
                     local url="${BOOTLIN_BASE_URL}/aarch64/tarballs/aarch64--musl--${BOOTLIN_RELEASE}.tar.xz"
                     local archive="$DOWNLOAD_CACHE/bootlin-arm64-musl.tar.xz"
-                    [ -f "$archive" ] || curl -sL "$url" -o "$archive"
+                    [ -f "$archive" ] || curl -sfL --retry 3 "$url" -o "$archive"
                     sha256check "$BOOTLIN_ARM64_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/aarch64--musl--${BOOTLIN_RELEASE}" "$TOOLCHAIN_DIR/aarch64--musl"
@@ -189,7 +189,7 @@ download_toolchains() {
                 if [ ! -d "$TOOLCHAIN_DIR/llvm-mingw" ]; then
                     echo "Downloading LLVM-MinGW toolchain..."
                     local archive="$DOWNLOAD_CACHE/llvm-mingw.tar.xz"
-                    [ -f "$archive" ] || curl -sL "$LLVM_MINGW_URL" -o "$archive"
+                    [ -f "$archive" ] || curl -sfL --retry 3 "$LLVM_MINGW_URL" -o "$archive"
                     sha256check "$LLVM_MINGW_SHA256" "$archive"
                     tar xJf "$archive" -C "$TOOLCHAIN_DIR"
                     mv "$TOOLCHAIN_DIR/llvm-mingw-${LLVM_MINGW_VERSION}-ucrt-ubuntu-20.04-x86_64" \
