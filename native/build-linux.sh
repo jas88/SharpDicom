@@ -557,6 +557,17 @@ build_target() {
         # Also need libstdc++ for C++ code (CharLS, x265)
         local LIBSTDCXX_PATH
         LIBSTDCXX_PATH=$($CXX -print-file-name=libstdc++.a)
+        # Create stub linker scripts for host glibc libraries. With -nostdlib
+        # the linker doesn't add DT_NEEDED automatically, but dlopen(RTLD_NOW)
+        # needs them to resolve libc/libm/pthread symbols at load time.
+        local STUB_DIR="$BUILD_DIR/stubs"
+        mkdir -p "$STUB_DIR"
+        echo "GROUP ( libc.so.6 )"      > "$STUB_DIR/libc.so"
+        echo "GROUP ( libm.so.6 )"      > "$STUB_DIR/libm.so"
+        echo "GROUP ( libdl.so.2 )"     > "$STUB_DIR/libdl.so"
+        echo "GROUP ( libpthread.so.0 )" > "$STUB_DIR/libpthread.so"
+        echo "GROUP ( libgcc_s.so.1 )"  > "$STUB_DIR/libgcc_s.so"
+
         $CC -shared -o "$OUTPUT_LIB" \
             -Wl,--gc-sections \
             -Wl,-Bsymbolic \
@@ -576,7 +587,8 @@ build_target() {
             "$LIBGCC_PATH" \
             "$LIBGCC_EH_PATH" \
             -Wl,--end-group \
-            -nostdlib
+            -nostdlib \
+            -L"$STUB_DIR" -lc -lm -ldl -lpthread -lgcc_s
 
     elif [ "$IS_WINDOWS" = "1" ]; then
         # Windows: link against system libraries
