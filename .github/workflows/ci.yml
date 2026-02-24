@@ -230,11 +230,36 @@ jobs:
           echo "=== .init_array entries ==="
           readelf -d $LIB | grep -i init || echo "(none)"
           echo ""
+          echo "=== .init_array function addresses ==="
+          readelf -x .init_array $LIB 2>/dev/null || echo "(cannot dump)"
+          echo ""
+          echo "=== dl_iterate_phdr symbol check ==="
+          nm $LIB | grep dl_iterate_phdr || echo "(not in symbol table)"
+          nm -D $LIB | grep dl_iterate_phdr || echo "(not in dynamic symbols)"
+          echo ""
+          echo "=== __pthread_self / __pthread TLS symbols ==="
+          nm $LIB | grep -i pthread_self || echo "(none)"
+          echo ""
+          echo "=== Undefined dynamic symbols ==="
+          nm -D --undefined-only $LIB | head -20 || echo "(none)"
+          echo ""
           echo "=== dlopen smoke test ==="
           cat > /tmp/test_dlopen.c << 'CEOF'
+          #define _GNU_SOURCE
           #include <dlfcn.h>
           #include <stdio.h>
+          #include <signal.h>
+          #include <stdlib.h>
+          #include <execinfo.h>
+          void segfault_handler(int sig) {
+              void *bt[20];
+              int n = backtrace(bt, 20);
+              fprintf(stderr, "SEGFAULT during dlopen! Backtrace:\n");
+              backtrace_symbols_fd(bt, n, 2);
+              _exit(139);
+          }
           int main() {
+              signal(SIGSEGV, segfault_handler);
               printf("Attempting dlopen...\n");
               void *h = dlopen("libsharpdicom_codecs.so", RTLD_NOW);
               if (!h) { fprintf(stderr, "dlopen failed: %s\n", dlerror()); return 1; }
@@ -250,7 +275,7 @@ jobs:
               return 0;
           }
           CEOF
-          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl
+          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl -rdynamic
           LD_LIBRARY_PATH=$(dirname $(realpath $LIB)) /tmp/test_dlopen
 
       # Copy native libraries to test directories
