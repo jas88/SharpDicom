@@ -544,12 +544,11 @@ build_target() {
     local OUTPUT_LIB="$OUT_DIR/${LIB_PREFIX}sharpdicom_codecs.${LIB_EXT}"
 
     if [ "$IS_LINUX" = "1" ]; then
-        # Linux: statically link codec libraries, resolve libc symbols dynamically.
-        # We do NOT link musl's libc.a — the .so runs on glibc-based distros, so
-        # libc symbols (malloc, memcpy, dl_iterate_phdr, pthread_*, etc.) are
-        # resolved from the host's glibc at dlopen time. This avoids musl/glibc
-        # TLS and dynamic linker incompatibilities that cause segfaults.
+        # Linux: statically link musl libc + all codecs for zero runtime dependencies.
+        # musl bundles libc, libm, libpthread, libdl all into libc.a.
         # libgcc_eh.a provides _Unwind_* for C++ exception handling (CharLS).
+        # Problematic musl functions (dl_iterate_phdr, __cxa_atexit) are stubbed
+        # in sharpdicom_codecs.c to avoid musl/glibc incompatibilities.
         local LIBGCC_PATH
         LIBGCC_PATH=$($CC -print-libgcc-file-name)
         local LIBGCC_EH_PATH
@@ -557,17 +556,6 @@ build_target() {
         # Also need libstdc++ for C++ code (CharLS, x265)
         local LIBSTDCXX_PATH
         LIBSTDCXX_PATH=$($CXX -print-file-name=libstdc++.a)
-        # Create stub linker scripts for host glibc libraries. With -nostdlib
-        # the linker doesn't add DT_NEEDED automatically, but dlopen(RTLD_NOW)
-        # needs them to resolve libc/libm/pthread symbols at load time.
-        local STUB_DIR="$BUILD_DIR/stubs"
-        mkdir -p "$STUB_DIR"
-        echo "GROUP ( libc.so.6 )"      > "$STUB_DIR/libc.so"
-        echo "GROUP ( libm.so.6 )"      > "$STUB_DIR/libm.so"
-        echo "GROUP ( libdl.so.2 )"     > "$STUB_DIR/libdl.so"
-        echo "GROUP ( libpthread.so.0 )" > "$STUB_DIR/libpthread.so"
-        echo "GROUP ( libgcc_s.so.1 )"  > "$STUB_DIR/libgcc_s.so"
-
         $CC -shared -o "$OUTPUT_LIB" \
             -Wl,--gc-sections \
             -Wl,-Bsymbolic \
@@ -586,9 +574,9 @@ build_target() {
             "$LIBSTDCXX_PATH" \
             "$LIBGCC_PATH" \
             "$LIBGCC_EH_PATH" \
+            "${TOOLCHAIN_SYSROOT}/lib/libc.a" \
             -Wl,--end-group \
-            -nostdlib \
-            -L"$STUB_DIR" -lc -lm -ldl -lpthread -lgcc_s
+            -nostdlib
 
     elif [ "$IS_WINDOWS" = "1" ]; then
         # Windows: link against system libraries

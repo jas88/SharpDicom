@@ -13,27 +13,52 @@
 #include <stdio.h>
 
 /*============================================================================
- * C++ ABI support for -nostdlib builds (Linux only)
+ * musl/glibc compatibility shims for -nostdlib builds (Linux only)
  *
- * This .so is built with -nostdlib using a musl cross-compiler, but libc
- * symbols are NOT statically linked. Instead, libc functions (malloc, memcpy,
- * dl_iterate_phdr, pthread_*, etc.) resolve dynamically from the host's glibc
- * at dlopen time.
+ * This .so is built with -nostdlib, statically linking musl libc.a for pure
+ * computation (math, string, memory). However, certain musl functions access
+ * musl-internal data structures (TLS layout, dynamic linker state) that don't
+ * exist in a glibc host process. We stub those specific functions here.
  *
- * We still need __dso_handle (normally defined in crtbeginS.o, which we don't
- * link) and a no-op __cxa_atexit to prevent C++ static destructors from being
- * registered. Since this DSO stays loaded for the entire process lifetime,
- * the destructors are never needed.
+ * These .o files are linked with --whole-archive BEFORE the --start-group
+ * containing libc.a, so our definitions take precedence over musl's.
+ *
+ * Stubbed functions:
+ *   __dso_handle    - normally in crtbeginS.o (which we don't link)
+ *   __cxa_atexit    - musl's version accesses musl TLS; no-op is safe since
+ *                     this DSO is never dlclose'd
+ *   dl_iterate_phdr - musl's version accesses musl's dynamic linker internals
+ *                     which don't exist in a glibc process; returns 0 so
+ *                     libgcc_eh.a's frame registration is a no-op (C++ exception
+ *                     unwinding uses .eh_frame_hdr directly via PT_GNU_EH_FRAME)
  *============================================================================*/
 #if defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
+
 void* __dso_handle __attribute__((visibility("hidden"))) = (void*)&__dso_handle;
 
 int __attribute__((visibility("hidden")))
 __cxa_atexit(void (*func)(void *), void *arg, void *dso)
 {
     (void)func; (void)arg; (void)dso;
-    return 0; /* no-op: this DSO is never dlclose'd */
+    return 0;
 }
+
+/**
+ * Stub dl_iterate_phdr to prevent musl's version from crashing.
+ * musl's dl_iterate_phdr accesses musl's dynamic linker internals
+ * (__dso_head etc.) which don't exist in a glibc host process.
+ * Returning 0 means "no program headers found" — this is safe because:
+ * - Frame registration at init time becomes a no-op
+ * - Exception unwinding in libgcc_eh.a falls back to other mechanisms
+ */
+struct dl_phdr_info;
+int dl_iterate_phdr(int (*callback)(struct dl_phdr_info *, size_t, void *),
+                    void *data)
+{
+    (void)callback; (void)data;
+    return 0;
+}
+
 #endif
 
 /*============================================================================
