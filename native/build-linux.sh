@@ -545,10 +545,10 @@ build_target() {
 
     if [ "$IS_LINUX" = "1" ]; then
         # Linux: statically link musl libc + all codecs for zero runtime dependencies.
-        # musl bundles libc, libm, libpthread, libdl all into libc.a.
+        # musl's internal state (auxv, page_size) is initialized at load time by
+        # an .init_array constructor in sharpdicom_codecs.c that reads /proc/self/auxv.
         # libgcc_eh.a provides _Unwind_* for C++ exception handling (CharLS).
-        # Problematic musl functions (dl_iterate_phdr, __cxa_atexit) are stubbed
-        # in sharpdicom_codecs.c to avoid musl/glibc incompatibilities.
+        # dl_iterate_phdr and __cxa_atexit are stubbed in sharpdicom_codecs.c.
         local LIBGCC_PATH
         LIBGCC_PATH=$($CC -print-libgcc-file-name)
         local LIBGCC_EH_PATH

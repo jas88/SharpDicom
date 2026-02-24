@@ -13,26 +13,142 @@
 #include <stdio.h>
 
 /*============================================================================
- * musl/glibc compatibility shims for -nostdlib builds (Linux only)
+ * musl libc initialization for -nostdlib builds (Linux only)
  *
- * This .so is built with -nostdlib, statically linking musl libc.a for pure
- * computation (math, string, memory). However, certain musl functions access
- * musl-internal data structures (TLS layout, dynamic linker state) that don't
- * exist in a glibc host process. We stub those specific functions here.
+ * This .so is built with -nostdlib, statically linking musl libc.a. The .so
+ * is loaded by .NET on glibc-based Linux. musl and glibc coexist in the same
+ * process: glibc owns the C runtime (thread pointer, dynamic linker), while
+ * musl provides libc to our statically-linked codec code.
+ *
+ * musl's startup code (__libc_start_main) never runs, so we must initialize
+ * the musl globals that its subsystems need:
+ *   - libc.auxv     : auxiliary vector pointer (needed by malloc's RNG)
+ *   - libc.page_size: page size (needed by malloc's arena logic)
+ *
+ * We also stub functions that access musl-internal state incompatible with
+ * running inside a glibc process:
+ *   - __dso_handle  : normally in crtbeginS.o (which we don't link)
+ *   - __cxa_atexit  : no-op (DSO is never dlclose'd, destructors unneeded)
+ *   - dl_iterate_phdr: musl's version accesses musl's dynamic linker state
  *
  * These .o files are linked with --whole-archive BEFORE the --start-group
  * containing libc.a, so our definitions take precedence over musl's.
- *
- * Stubbed functions:
- *   __dso_handle    - normally in crtbeginS.o (which we don't link)
- *   __cxa_atexit    - musl's version accesses musl TLS; no-op is safe since
- *                     this DSO is never dlclose'd
- *   dl_iterate_phdr - musl's version accesses musl's dynamic linker internals
- *                     which don't exist in a glibc process; returns 0 so
- *                     libgcc_eh.a's frame registration is a no-op (C++ exception
- *                     unwinding uses .eh_frame_hdr directly via PT_GNU_EH_FRAME)
  *============================================================================*/
 #if defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
+
+#include <sys/syscall.h>
+
+/* Mirror of musl's struct __libc (from src/internal/libc.h, musl 1.2.5).
+ * Only the fields we need to initialize are listed; the rest are padding. */
+struct musl_libc {
+    char can_do_threads;
+    char threaded;
+    char secure;
+    volatile signed char need_locks;
+    int threads_minus_1;
+    size_t *auxv;               /* offset 8 on 64-bit */
+    void *tls_head;
+    size_t tls_size, tls_align, tls_cnt;
+    size_t page_size;           /* offset 48 on 64-bit */
+};
+extern struct musl_libc __libc;
+
+/* Raw syscall wrappers — avoid calling any libc during early init */
+static long raw_open(const char *path, int flags)
+{
+#ifdef __x86_64__
+    long ret;
+    __asm__ volatile("syscall"
+        : "=a"(ret)
+        : "a"((long)SYS_openat), "D"((long)-100/*AT_FDCWD*/), "S"((long)path),
+          "d"((long)flags)
+        : "rcx", "r11", "memory");
+    return ret;
+#elif defined(__aarch64__)
+    register long x8 __asm__("x8") = SYS_openat;
+    register long x0 __asm__("x0") = -100; /* AT_FDCWD */
+    register long x1 __asm__("x1") = (long)path;
+    register long x2 __asm__("x2") = flags;
+    __asm__ volatile("svc 0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x8) : "memory");
+    return x0;
+#endif
+}
+
+static long raw_read(int fd, void *buf, size_t count)
+{
+#ifdef __x86_64__
+    long ret;
+    __asm__ volatile("syscall"
+        : "=a"(ret)
+        : "a"((long)SYS_read), "D"((long)fd), "S"((long)buf), "d"((long)count)
+        : "rcx", "r11", "memory");
+    return ret;
+#elif defined(__aarch64__)
+    register long x8 __asm__("x8") = SYS_read;
+    register long x0 __asm__("x0") = fd;
+    register long x1 __asm__("x1") = (long)buf;
+    register long x2 __asm__("x2") = count;
+    __asm__ volatile("svc 0" : "+r"(x0) : "r"(x1), "r"(x2), "r"(x8) : "memory");
+    return x0;
+#endif
+}
+
+static long raw_close(int fd)
+{
+#ifdef __x86_64__
+    long ret;
+    __asm__ volatile("syscall"
+        : "=a"(ret)
+        : "a"((long)SYS_close), "D"((long)fd)
+        : "rcx", "r11", "memory");
+    return ret;
+#elif defined(__aarch64__)
+    register long x8 __asm__("x8") = SYS_close;
+    register long x0 __asm__("x0") = fd;
+    __asm__ volatile("svc 0" : "+r"(x0) : "r"(x8) : "memory");
+    return x0;
+#endif
+}
+
+/* Buffer for the auxiliary vector — static so it persists after init */
+#define AUXV_BUF_SIZE 128
+static unsigned long auxv_buf[AUXV_BUF_SIZE];
+
+/**
+ * Initialize musl's internal state before any other constructors run.
+ * Priority 101 = earliest user constructor (100 is reserved by the compiler).
+ * Reads /proc/self/auxv via raw syscalls to avoid any libc dependency.
+ */
+__attribute__((constructor(101)))
+static void init_musl_libc(void)
+{
+    int fd = (int)raw_open("/proc/self/auxv", 0 /* O_RDONLY */);
+    if (fd < 0) {
+        /* Fallback: set page_size to 4096 (correct for x86_64/aarch64) */
+        __libc.page_size = 4096;
+        return;
+    }
+
+    long n = raw_read(fd, auxv_buf, sizeof(auxv_buf));
+    raw_close(fd);
+
+    if (n > 0) {
+        __libc.auxv = auxv_buf;
+
+        /* Parse AT_PAGESZ from the auxiliary vector */
+        for (int i = 0; auxv_buf[i] != 0; i += 2) {
+            if (auxv_buf[i] == 6 /* AT_PAGESZ */) {
+                __libc.page_size = auxv_buf[i + 1];
+                break;
+            }
+        }
+    }
+
+    if (__libc.page_size == 0)
+        __libc.page_size = 4096;
+}
+
+/* --- ABI stubs --- */
 
 void* __dso_handle __attribute__((visibility("hidden"))) = (void*)&__dso_handle;
 
@@ -44,12 +160,8 @@ __cxa_atexit(void (*func)(void *), void *arg, void *dso)
 }
 
 /**
- * Stub dl_iterate_phdr to prevent musl's version from crashing.
- * musl's dl_iterate_phdr accesses musl's dynamic linker internals
- * (__dso_head etc.) which don't exist in a glibc host process.
- * Returning 0 means "no program headers found" — this is safe because:
- * - Frame registration at init time becomes a no-op
- * - Exception unwinding in libgcc_eh.a falls back to other mechanisms
+ * Stub dl_iterate_phdr — musl's version accesses musl's dynamic linker
+ * internals which don't exist in a glibc host process.
  */
 struct dl_phdr_info;
 int dl_iterate_phdr(int (*callback)(struct dl_phdr_info *, size_t, void *),
