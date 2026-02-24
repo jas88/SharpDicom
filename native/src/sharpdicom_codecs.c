@@ -15,15 +15,27 @@
 /*============================================================================
  * C++ ABI support for -nostdlib builds (Linux only)
  *
- * When linking with -nostdlib, crtbeginS.o is omitted. C++ static
- * constructors in CharLS/x265 call __cxa_atexit with __dso_handle to
- * register their destructors. Define __dso_handle here so the linker can
- * resolve it without pulling in crtbeginS.o (which registers exception
- * frame info that crashes under musl when called without the full CRT).
- * The ELF .init_array is still processed by the musl dynamic linker.
+ * This .so is built with -nostdlib, statically linking musl libc.a. However,
+ * the .so is loaded at runtime by .NET on glibc-based Linux distributions.
+ * musl's __cxa_atexit accesses TLS via __pthread_self, which expects musl's
+ * thread structure layout. In a glibc process the thread pointer points to
+ * glibc's structure (different layout), causing a crash during C++ static
+ * constructor execution.
+ *
+ * Fix: provide our own __dso_handle and a no-op __cxa_atexit so that C++
+ * static constructors in CharLS/x265 can complete without calling into musl
+ * libc. Since this DSO stays loaded for the entire process lifetime, the
+ * destructors they would register are never needed.
  *============================================================================*/
 #if defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
 void* __dso_handle __attribute__((visibility("hidden"))) = (void*)&__dso_handle;
+
+int __attribute__((visibility("hidden")))
+__cxa_atexit(void (*func)(void *), void *arg, void *dso)
+{
+    (void)func; (void)arg; (void)dso;
+    return 0; /* no-op: skip musl's TLS-dependent implementation */
+}
 #endif
 
 /*============================================================================
