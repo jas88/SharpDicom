@@ -222,55 +222,11 @@ jobs:
           echo "=== linux-x64 dependencies ==="
           ldd $LIB || true
           echo ""
-          echo "=== Dynamic symbols (cxa/dso) ==="
-          nm -D $LIB | grep -E "cxa_atexit|dso_handle|cxa_finalize" || echo "(none exported)"
-          echo "=== All symbols (cxa/dso) ==="
-          nm $LIB | grep -E "cxa_atexit|dso_handle|cxa_finalize" || echo "(none)"
-          echo ""
-          echo "=== .init_array entries ==="
-          readelf -d $LIB | grep -i init || echo "(none)"
-          echo ""
-          echo "=== .init_array function addresses ==="
-          readelf -x .init_array $LIB 2>/dev/null || echo "(cannot dump)"
-          echo ""
-          echo "=== dl_iterate_phdr symbol check ==="
-          nm $LIB | grep dl_iterate_phdr || echo "(not in symbol table)"
-          nm -D $LIB | grep dl_iterate_phdr || echo "(not in dynamic symbols)"
-          echo ""
-          echo "=== __pthread_self / __pthread TLS symbols ==="
-          nm $LIB | grep -i pthread_self || echo "(none)"
-          echo ""
-          echo "=== Undefined dynamic symbols ==="
-          nm -D --undefined-only $LIB | head -20 || echo "(none)"
-          echo ""
-          echo "=== What is at crash offset 0xa1fef5? ==="
-          objdump -d --start-address=0xa1fe80 --stop-address=0xa1ff20 $LIB 2>/dev/null || echo "(cannot disassemble)"
-          echo ""
-          echo "=== .init_array function names ==="
-          for addr in 0x000c25c0 0x000c27a0 0x000c27d0 0x000c2800 0x000c2970 0x000c2b60; do
-            nm $LIB | awk -v a="${addr#0x}" 'tolower($1)==tolower(a) {print $0}' || true
-          done
-          echo ""
-          echo "=== Symbols near crash site ==="
-          nm $LIB | sort | awk -v target="a1fef5" 'BEGIN{prev=""} {if ($1 >= target && prev != "") {print "BEFORE: " prev; print "AFTER:  " $0; exit} prev=$0}'
-          echo ""
           echo "=== dlopen smoke test ==="
           cat > /tmp/test_dlopen.c << 'CEOF'
-          #define _GNU_SOURCE
           #include <dlfcn.h>
           #include <stdio.h>
-          #include <signal.h>
-          #include <stdlib.h>
-          #include <execinfo.h>
-          void segfault_handler(int sig) {
-              void *bt[20];
-              int n = backtrace(bt, 20);
-              fprintf(stderr, "SEGFAULT during dlopen! Backtrace:\n");
-              backtrace_symbols_fd(bt, n, 2);
-              _exit(139);
-          }
           int main() {
-              signal(SIGSEGV, segfault_handler);
               printf("Attempting dlopen...\n");
               void *h = dlopen("libsharpdicom_codecs.so", RTLD_NOW);
               if (!h) { fprintf(stderr, "dlopen failed: %s\n", dlerror()); return 1; }
@@ -286,7 +242,7 @@ jobs:
               return 0;
           }
           CEOF
-          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl -rdynamic
+          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl
           LD_LIBRARY_PATH=$(dirname $(realpath $LIB)) /tmp/test_dlopen
 
       # Copy native libraries to test directories
