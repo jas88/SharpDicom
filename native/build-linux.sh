@@ -551,6 +551,10 @@ build_target() {
         # Also need libstdc++ for C++ code (CharLS, x265)
         local LIBSTDCXX_PATH
         LIBSTDCXX_PATH=$($CXX -print-file-name=libstdc++.a)
+        # libgcc_eh.a provides C++ exception unwinding (_Unwind_*)
+        local LIBGCC_EH_PATH
+        LIBGCC_EH_PATH=$($CC -print-file-name=libgcc_eh.a)
+
         $CC -shared -o "$OUTPUT_LIB" \
             -Wl,--gc-sections \
             -Wl,-Bsymbolic \
@@ -568,6 +572,7 @@ build_target() {
             "$PREFIX/lib/libx265.a" \
             "$LIBSTDCXX_PATH" \
             "$LIBGCC_PATH" \
+            "$LIBGCC_EH_PATH" \
             "${TOOLCHAIN_SYSROOT}/lib/libc.a" \
             -Wl,--end-group \
             -nostdlib
