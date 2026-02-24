@@ -215,11 +215,43 @@ jobs:
 
       - name: Verify native codec libraries
         run: |
+          LIB=native/runtimes/linux-x64/native/libsharpdicom_codecs.so
           echo "=== All native codec libraries ==="
           find native/runtimes/ -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) -exec ls -lh {} \;
           echo ""
           echo "=== linux-x64 dependencies ==="
-          ldd native/runtimes/linux-x64/native/libsharpdicom_codecs.so || true
+          ldd $LIB || true
+          echo ""
+          echo "=== Dynamic symbols (cxa/dso) ==="
+          nm -D $LIB | grep -E "cxa_atexit|dso_handle|cxa_finalize" || echo "(none exported)"
+          echo "=== All symbols (cxa/dso) ==="
+          nm $LIB | grep -E "cxa_atexit|dso_handle|cxa_finalize" || echo "(none)"
+          echo ""
+          echo "=== .init_array entries ==="
+          readelf -d $LIB | grep -i init || echo "(none)"
+          echo ""
+          echo "=== dlopen smoke test ==="
+          cat > /tmp/test_dlopen.c << 'CEOF'
+          #include <dlfcn.h>
+          #include <stdio.h>
+          int main() {
+              printf("Attempting dlopen...\n");
+              void *h = dlopen("libsharpdicom_codecs.so", RTLD_NOW);
+              if (!h) { fprintf(stderr, "dlopen failed: %s\n", dlerror()); return 1; }
+              printf("dlopen OK\n");
+              void *v = dlsym(h, "sharpdicom_codecs_version");
+              printf("sharpdicom_codecs_version sym: %p\n", v);
+              if (v) {
+                  const char* (*fn)(void) = v;
+                  printf("version: %s\n", fn());
+              }
+              dlclose(h);
+              printf("dlclose OK\n");
+              return 0;
+          }
+          CEOF
+          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl
+          LD_LIBRARY_PATH=$(dirname $(realpath $LIB)) /tmp/test_dlopen
 
       # Copy native libraries to test directories
       - name: Copy native codecs to test assemblies
