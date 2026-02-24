@@ -320,7 +320,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_C_FLAGS_INIT "-ffunction-sections -fdata-sections")
-set(CMAKE_CXX_FLAGS_INIT "-ffunction-sections -fdata-sections -fno-exceptions -fno-rtti")
+set(CMAKE_CXX_FLAGS_INIT "-ffunction-sections -fdata-sections")
 CMEOF
 }
 
@@ -544,12 +544,16 @@ build_target() {
     local OUTPUT_LIB="$OUT_DIR/${LIB_PREFIX}sharpdicom_codecs.${LIB_EXT}"
 
     if [ "$IS_LINUX" = "1" ]; then
-        # Linux: statically link musl libc for zero runtime dependencies.
-        # musl bundles libc, libm, libpthread, libdl all into libc.a.
-        # Use --start-group/--end-group for multi-pass symbol resolution
-        # between all static libraries, libgcc (compiler intrinsics), and musl libc.
+        # Linux: statically link codec libraries, resolve libc symbols dynamically.
+        # We do NOT link musl's libc.a — the .so runs on glibc-based distros, so
+        # libc symbols (malloc, memcpy, dl_iterate_phdr, pthread_*, etc.) are
+        # resolved from the host's glibc at dlopen time. This avoids musl/glibc
+        # TLS and dynamic linker incompatibilities that cause segfaults.
+        # libgcc_eh.a provides _Unwind_* for C++ exception handling (CharLS).
         local LIBGCC_PATH
         LIBGCC_PATH=$($CC -print-libgcc-file-name)
+        local LIBGCC_EH_PATH
+        LIBGCC_EH_PATH=$($CXX -print-file-name=libgcc_eh.a)
         # Also need libstdc++ for C++ code (CharLS, x265)
         local LIBSTDCXX_PATH
         LIBSTDCXX_PATH=$($CXX -print-file-name=libstdc++.a)
@@ -570,7 +574,7 @@ build_target() {
             "$PREFIX/lib/libx265.a" \
             "$LIBSTDCXX_PATH" \
             "$LIBGCC_PATH" \
-            "${TOOLCHAIN_SYSROOT}/lib/libc.a" \
+            "$LIBGCC_EH_PATH" \
             -Wl,--end-group \
             -nostdlib
 

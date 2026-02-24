@@ -15,17 +15,15 @@
 /*============================================================================
  * C++ ABI support for -nostdlib builds (Linux only)
  *
- * This .so is built with -nostdlib, statically linking musl libc.a. However,
- * the .so is loaded at runtime by .NET on glibc-based Linux distributions.
- * musl's __cxa_atexit accesses TLS via __pthread_self, which expects musl's
- * thread structure layout. In a glibc process the thread pointer points to
- * glibc's structure (different layout), causing a crash during C++ static
- * constructor execution.
+ * This .so is built with -nostdlib using a musl cross-compiler, but libc
+ * symbols are NOT statically linked. Instead, libc functions (malloc, memcpy,
+ * dl_iterate_phdr, pthread_*, etc.) resolve dynamically from the host's glibc
+ * at dlopen time.
  *
- * Fix: provide our own __dso_handle and a no-op __cxa_atexit so that C++
- * static constructors in CharLS/x265 can complete without calling into musl
- * libc. Since this DSO stays loaded for the entire process lifetime, the
- * destructors they would register are never needed.
+ * We still need __dso_handle (normally defined in crtbeginS.o, which we don't
+ * link) and a no-op __cxa_atexit to prevent C++ static destructors from being
+ * registered. Since this DSO stays loaded for the entire process lifetime,
+ * the destructors are never needed.
  *============================================================================*/
 #if defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
 void* __dso_handle __attribute__((visibility("hidden"))) = (void*)&__dso_handle;
@@ -34,7 +32,7 @@ int __attribute__((visibility("hidden")))
 __cxa_atexit(void (*func)(void *), void *arg, void *dso)
 {
     (void)func; (void)arg; (void)dso;
-    return 0; /* no-op: skip musl's TLS-dependent implementation */
+    return 0; /* no-op: this DSO is never dlclose'd */
 }
 #endif
 
