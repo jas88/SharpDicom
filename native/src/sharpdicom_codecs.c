@@ -135,8 +135,11 @@ static void init_musl_libc(void)
     if (n > 0) {
         __libc.auxv = auxv_buf;
 
-        /* Parse AT_PAGESZ from the auxiliary vector */
-        for (int i = 0; auxv_buf[i] != 0; i += 2) {
+        /* Parse AT_PAGESZ from the auxiliary vector.
+         * Bound the loop by the number of entries actually read, in case
+         * the read filled the entire buffer and the zero sentinel was lost. */
+        int nentries = (int)((unsigned long)n / sizeof(unsigned long));
+        for (int i = 0; i + 1 < nentries && auxv_buf[i] != 0; i += 2) {
             if (auxv_buf[i] == 6 /* AT_PAGESZ */) {
                 __libc.page_size = auxv_buf[i + 1];
                 break;
