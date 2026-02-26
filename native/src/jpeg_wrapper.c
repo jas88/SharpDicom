@@ -1,176 +1,113 @@
 /**
  * SharpDicom Native Codecs - JPEG Wrapper Implementation
  *
- * Uses libjpeg-turbo's TurboJPEG API for high-performance JPEG encoding/decoding.
- * Thread-safe implementation using thread-local handles.
+ * Uses libjpeg-turbo's standard libjpeg API for JPEG encoding/decoding.
+ * Thread-safe: no global state, all state is on the stack per call.
  */
 
 #include "jpeg_wrapper.h"
 #include "sharpdicom_codecs.h"
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <setjmp.h>
 
 /* Forward declaration of set_error from sharpdicom_codecs.c */
 extern void set_error(const char* message);
 
 #ifdef SHARPDICOM_WITH_JPEG
 
+#include <jpeglib.h>
+#include <jerror.h>
+
 /*============================================================================
- * TurboJPEG API declarations
+ * Error handling
  *
- * Minimal subset of turbojpeg.h for building without the full header.
- * When libjpeg-turbo is available, the actual header will be used.
+ * libjpeg uses setjmp/longjmp for error handling. We wrap this to integrate
+ * with our error reporting system.
  *============================================================================*/
 
-#ifndef TURBOJPEG_H
-#define TURBOJPEG_H
+typedef struct {
+    struct jpeg_error_mgr pub;
+    jmp_buf setjmp_buffer;
+    char error_msg[JMSG_LENGTH_MAX];
+} sharpdicom_error_mgr;
 
-/** TurboJPEG handle type */
-typedef void* tjhandle;
-
-/** Pixel formats */
-enum TJPF {
-    TJPF_RGB = 0,       /**< RGB pixel format */
-    TJPF_BGR = 1,       /**< BGR pixel format */
-    TJPF_RGBX = 2,      /**< RGBX pixel format */
-    TJPF_BGRX = 3,      /**< BGRX pixel format */
-    TJPF_XBGR = 4,      /**< XBGR pixel format */
-    TJPF_XRGB = 5,      /**< XRGB pixel format */
-    TJPF_GRAY = 6,      /**< Grayscale pixel format */
-    TJPF_RGBA = 7,      /**< RGBA pixel format */
-    TJPF_BGRA = 8,      /**< BGRA pixel format */
-    TJPF_ABGR = 9,      /**< ABGR pixel format */
-    TJPF_ARGB = 10,     /**< ARGB pixel format */
-    TJPF_CMYK = 11,     /**< CMYK pixel format */
-    TJPF_UNKNOWN = -1   /**< Unknown pixel format */
-};
-
-/** Chroma subsampling */
-enum TJSAMP {
-    TJSAMP_444 = 0,     /**< 4:4:4 */
-    TJSAMP_422 = 1,     /**< 4:2:2 */
-    TJSAMP_420 = 2,     /**< 4:2:0 */
-    TJSAMP_GRAY = 3,    /**< Grayscale */
-    TJSAMP_440 = 4,     /**< 4:4:0 */
-    TJSAMP_411 = 5,     /**< 4:1:1 */
-    TJSAMP_UNKNOWN = -1 /**< Unknown */
-};
-
-/** Colorspace */
-enum TJCS {
-    TJCS_RGB = 0,       /**< RGB */
-    TJCS_YCbCr = 1,     /**< YCbCr */
-    TJCS_GRAY = 2,      /**< Grayscale */
-    TJCS_CMYK = 3,      /**< CMYK */
-    TJCS_YCCK = 4       /**< YCCK */
-};
-
-/** Flags */
-#define TJFLAG_FASTUPSAMPLE  (1 << 0)  /**< Use fast upsampling */
-#define TJFLAG_NOREALLOC     (1 << 10) /**< Don't reallocate buffer */
-#define TJFLAG_FASTDCT       (1 << 11) /**< Use fast DCT */
-#define TJFLAG_ACCURATEDCT   (1 << 12) /**< Use accurate DCT */
-
-/** API functions - will link against actual libjpeg-turbo */
-extern tjhandle tjInitDecompress(void);
-extern tjhandle tjInitCompress(void);
-extern int tjDestroy(tjhandle handle);
-extern int tjDecompressHeader3(tjhandle handle,
-    const unsigned char* jpegBuf, unsigned long jpegSize,
-    int* width, int* height, int* jpegSubsamp, int* jpegColorspace);
-extern int tjDecompress2(tjhandle handle,
-    const unsigned char* jpegBuf, unsigned long jpegSize,
-    unsigned char* dstBuf, int width, int pitch, int height, int pixelFormat, int flags);
-extern int tjCompress2(tjhandle handle,
-    const unsigned char* srcBuf, int width, int pitch, int height, int pixelFormat,
-    unsigned char** jpegBuf, unsigned long* jpegSize, int jpegSubsamp, int jpegQual, int flags);
-extern unsigned char* tjAlloc(int bytes);
-extern void tjFree(unsigned char* buffer);
-extern const char* tjGetErrorStr2(tjhandle handle);
-extern int tjPixelSize[];
-extern unsigned long tjBufSize(int width, int height, int jpegSubsamp);
-
-#endif /* TURBOJPEG_H */
+static void error_exit_handler(j_common_ptr cinfo) {
+    sharpdicom_error_mgr* err = (sharpdicom_error_mgr*)cinfo->err;
+    (*cinfo->err->format_message)(cinfo, err->error_msg);
+    longjmp(err->setjmp_buffer, 1);
+}
 
 /*============================================================================
- * Thread-local handles
+ * Memory-based data source (for decompression from buffer)
  *============================================================================*/
 
-/* Thread-local storage: use __declspec(thread) only for actual MSVC */
-#if defined(_MSC_VER)
-    #define THREAD_LOCAL __declspec(thread)
-#else
-    #define THREAD_LOCAL __thread
-#endif
+/* jpeg_mem_src is available in libjpeg-turbo and libjpeg 9+ */
 
-/** Thread-local decompression handle */
-static THREAD_LOCAL tjhandle tls_decompress_handle = NULL;
+/*============================================================================
+ * Memory-based data destination (for compression to buffer)
+ *============================================================================*/
 
-/** Thread-local compression handle */
-static THREAD_LOCAL tjhandle tls_compress_handle = NULL;
-
-/** Get or create decompression handle for this thread */
-static tjhandle get_decompress_handle(void) {
-    if (tls_decompress_handle == NULL) {
-        tls_decompress_handle = tjInitDecompress();
-    }
-    return tls_decompress_handle;
-}
-
-/** Get or create compression handle for this thread */
-static tjhandle get_compress_handle(void) {
-    if (tls_compress_handle == NULL) {
-        tls_compress_handle = tjInitCompress();
-    }
-    return tls_compress_handle;
-}
+/* jpeg_mem_dest is available in libjpeg-turbo and libjpeg 9+ */
 
 /*============================================================================
  * Internal helper functions
  *============================================================================*/
 
-/** Map JpegSubsampling to TurboJPEG TJSAMP */
-static int map_subsamp_to_tj(int subsamp) {
+/** Map JpegSubsampling to J_COLOR_SPACE and sampling factors */
+static void set_subsamp_factors(struct jpeg_compress_struct* cinfo, int subsamp) {
     switch (subsamp) {
-        case JPEG_SAMP_444:  return TJSAMP_444;
-        case JPEG_SAMP_422:  return TJSAMP_422;
-        case JPEG_SAMP_420:  return TJSAMP_420;
-        case JPEG_SAMP_GRAY: return TJSAMP_GRAY;
-        case JPEG_SAMP_440:  return TJSAMP_440;
-        case JPEG_SAMP_411:  return TJSAMP_411;
-        default:             return TJSAMP_444;
-    }
-}
-
-/** Map TurboJPEG TJSAMP to JpegSubsampling */
-static int map_tj_to_subsamp(int tjsamp) {
-    switch (tjsamp) {
-        case TJSAMP_444:  return JPEG_SAMP_444;
-        case TJSAMP_422:  return JPEG_SAMP_422;
-        case TJSAMP_420:  return JPEG_SAMP_420;
-        case TJSAMP_GRAY: return JPEG_SAMP_GRAY;
-        case TJSAMP_440:  return JPEG_SAMP_440;
-        case TJSAMP_411:  return JPEG_SAMP_411;
-        default:          return JPEG_SAMP_444;
-    }
-}
-
-/** Get pixel format for requested colorspace and components
- * Marked unused for stub builds where this function isn't called. */
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((unused))
-#endif
-static int get_pixel_format(int colorspace, int components) {
-    if (components == 1 || colorspace == JPEG_CS_GRAY) {
-        return TJPF_GRAY;
-    }
-    switch (colorspace) {
-        case JPEG_CS_RGB:
-        case JPEG_CS_UNKNOWN:
+        case JPEG_SAMP_444:
+            cinfo->comp_info[0].h_samp_factor = 1;
+            cinfo->comp_info[0].v_samp_factor = 1;
+            break;
+        case JPEG_SAMP_422:
+            cinfo->comp_info[0].h_samp_factor = 2;
+            cinfo->comp_info[0].v_samp_factor = 1;
+            break;
+        case JPEG_SAMP_420:
+            cinfo->comp_info[0].h_samp_factor = 2;
+            cinfo->comp_info[0].v_samp_factor = 2;
+            break;
+        case JPEG_SAMP_440:
+            cinfo->comp_info[0].h_samp_factor = 1;
+            cinfo->comp_info[0].v_samp_factor = 2;
+            break;
+        case JPEG_SAMP_411:
+            cinfo->comp_info[0].h_samp_factor = 4;
+            cinfo->comp_info[0].v_samp_factor = 1;
+            break;
+        case JPEG_SAMP_GRAY:
         default:
-            return TJPF_RGB;
+            /* Grayscale or default: 1x1 */
+            cinfo->comp_info[0].h_samp_factor = 1;
+            cinfo->comp_info[0].v_samp_factor = 1;
+            break;
     }
+    /* Chroma components always 1x1 */
+    if (cinfo->num_components > 1) {
+        cinfo->comp_info[1].h_samp_factor = 1;
+        cinfo->comp_info[1].v_samp_factor = 1;
+        cinfo->comp_info[2].h_samp_factor = 1;
+        cinfo->comp_info[2].v_samp_factor = 1;
+    }
+}
+
+/** Map libjpeg subsampling to JpegSubsampling enum */
+static int get_subsamp_from_jpeg(struct jpeg_decompress_struct* cinfo) {
+    if (cinfo->num_components == 1) {
+        return JPEG_SAMP_GRAY;
+    }
+    int h = cinfo->comp_info[0].h_samp_factor;
+    int v = cinfo->comp_info[0].v_samp_factor;
+    if (h == 1 && v == 1) return JPEG_SAMP_444;
+    if (h == 2 && v == 1) return JPEG_SAMP_422;
+    if (h == 2 && v == 2) return JPEG_SAMP_420;
+    if (h == 1 && v == 2) return JPEG_SAMP_440;
+    if (h == 4 && v == 1) return JPEG_SAMP_411;
+    return JPEG_SAMP_444; /* default */
 }
 
 /*============================================================================
@@ -181,8 +118,8 @@ int jpeg_decode_header(
     const uint8_t* input, int inputLen,
     int* width, int* height, int* components, int* subsampling)
 {
-    tjhandle handle;
-    int tjSubsamp, tjColorspace;
+    struct jpeg_decompress_struct cinfo;
+    sharpdicom_error_mgr jerr;
 
     /* Validate arguments */
     if (input == NULL || inputLen <= 0) {
@@ -194,44 +131,34 @@ int jpeg_decode_header(
         return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
-    /* Get or create handle */
-    handle = get_decompress_handle();
-    if (handle == NULL) {
-        set_error("jpeg_decode_header: failed to initialize decompressor");
-        return SHARPDICOM_ERR_INTERNAL;
-    }
-
-    /* Read header */
-    if (tjDecompressHeader3(handle, input, (unsigned long)inputLen,
-                            width, height, &tjSubsamp, &tjColorspace) != 0) {
-        const char* err = tjGetErrorStr2(handle);
-        set_error(err ? err : "jpeg_decode_header: failed to read JPEG header");
+    /* Set up error handling */
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = error_exit_handler;
+    if (setjmp(jerr.setjmp_buffer)) {
+        set_error(jerr.error_msg);
+        jpeg_destroy_decompress(&cinfo);
         return JPEG_ERR_INVALID_HEADER;
     }
 
-    /* Determine components from colorspace */
-    switch (tjColorspace) {
-        case TJCS_GRAY:
-            *components = 1;
-            break;
-        case TJCS_RGB:
-        case TJCS_YCbCr:
-            *components = 3;
-            break;
-        case TJCS_CMYK:
-        case TJCS_YCCK:
-            *components = 4;
-            break;
-        default:
-            *components = 3;
-            break;
+    /* Create decompressor and read header */
+    jpeg_create_decompress(&cinfo);
+    jpeg_mem_src(&cinfo, input, (unsigned long)inputLen);
+
+    if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+        set_error("jpeg_decode_header: failed to read JPEG header");
+        jpeg_destroy_decompress(&cinfo);
+        return JPEG_ERR_INVALID_HEADER;
     }
 
-    /* Map subsampling */
+    *width = (int)cinfo.image_width;
+    *height = (int)cinfo.image_height;
+    *components = cinfo.num_components;
+
     if (subsampling != NULL) {
-        *subsampling = map_tj_to_subsamp(tjSubsamp);
+        *subsampling = get_subsamp_from_jpeg(&cinfo);
     }
 
+    jpeg_destroy_decompress(&cinfo);
     return SHARPDICOM_OK;
 }
 
@@ -241,11 +168,11 @@ int jpeg_decode(
     int* width, int* height, int* components,
     int colorspace)
 {
-    tjhandle handle;
-    int w, h, comps, subsamp;
-    int pixelFormat;
+    struct jpeg_decompress_struct cinfo;
+    sharpdicom_error_mgr jerr;
+    JSAMPROW row_pointer[1];
+    int row_stride;
     size_t requiredSize;
-    int flags;
 
     /* Validate input arguments */
     if (input == NULL || inputLen <= 0) {
@@ -257,56 +184,66 @@ int jpeg_decode(
         return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
-    /* Read header first to get dimensions */
-    if (jpeg_decode_header(input, inputLen, &w, &h, &comps, &subsamp) != SHARPDICOM_OK) {
-        return JPEG_ERR_INVALID_HEADER;  /* Error already set */
+    /* Set up error handling */
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = error_exit_handler;
+    if (setjmp(jerr.setjmp_buffer)) {
+        set_error(jerr.error_msg);
+        jpeg_destroy_decompress(&cinfo);
+        return SHARPDICOM_ERR_DECODE_FAILED;
     }
 
-    /* Get handle */
-    handle = get_decompress_handle();
-    if (handle == NULL) {
-        set_error("jpeg_decode: failed to initialize decompressor");
-        return SHARPDICOM_ERR_INTERNAL;
+    /* Create decompressor */
+    jpeg_create_decompress(&cinfo);
+    jpeg_mem_src(&cinfo, input, (unsigned long)inputLen);
+
+    if (jpeg_read_header(&cinfo, TRUE) != JPEG_HEADER_OK) {
+        set_error("jpeg_decode: failed to read JPEG header");
+        jpeg_destroy_decompress(&cinfo);
+        return JPEG_ERR_INVALID_HEADER;
     }
 
-    /* Determine output pixel format and components */
+    /* Set output colorspace */
     if (colorspace == JPEG_CS_GRAY) {
-        pixelFormat = TJPF_GRAY;
-        comps = 1;
-    } else if (colorspace == JPEG_CS_RGB || colorspace == JPEG_CS_UNKNOWN) {
-        pixelFormat = TJPF_RGB;
-        if (comps == 1) {
-            /* Keep grayscale as-is */
-            pixelFormat = TJPF_GRAY;
-        } else {
-            comps = 3;
-        }
+        cinfo.out_color_space = JCS_GRAYSCALE;
+    } else if (cinfo.jpeg_color_space == JCS_GRAYSCALE) {
+        cinfo.out_color_space = JCS_GRAYSCALE;
     } else {
-        pixelFormat = TJPF_RGB;
-        comps = 3;
+        cinfo.out_color_space = JCS_RGB;
     }
 
-    /* Check output buffer size (with overflow protection) */
-    requiredSize = safe_mul3_size((size_t)w, (size_t)h, (size_t)comps);
+    /* Use accurate IDCT for medical imaging quality */
+    cinfo.dct_method = JDCT_ISLOW;
+
+    /* Start decompression */
+    jpeg_start_decompress(&cinfo);
+
+    int out_components = cinfo.output_components;
+    int w = (int)cinfo.output_width;
+    int h = (int)cinfo.output_height;
+    row_stride = w * out_components;
+
+    /* Check output buffer size */
+    requiredSize = safe_mul3_size((size_t)w, (size_t)h, (size_t)out_components);
     if (requiredSize == 0 || (size_t)outputLen < requiredSize) {
         set_error("jpeg_decode: output buffer too small or dimensions too large");
+        jpeg_destroy_decompress(&cinfo);
         return JPEG_ERR_OUTPUT_TOO_SMALL;
     }
 
-    /* Decode with accurate DCT for medical imaging quality */
-    flags = TJFLAG_ACCURATEDCT;
-
-    if (tjDecompress2(handle, input, (unsigned long)inputLen,
-                      output, w, 0, h, pixelFormat, flags) != 0) {
-        const char* err = tjGetErrorStr2(handle);
-        set_error(err ? err : "jpeg_decode: decompression failed");
-        return SHARPDICOM_ERR_DECODE_FAILED;
+    /* Read scanlines */
+    while (cinfo.output_scanline < cinfo.output_height) {
+        row_pointer[0] = output + ((size_t)cinfo.output_scanline * (size_t)row_stride);
+        jpeg_read_scanlines(&cinfo, row_pointer, 1);
     }
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
 
     /* Return dimensions */
     if (width != NULL) *width = w;
     if (height != NULL) *height = h;
-    if (components != NULL) *components = comps;
+    if (components != NULL) *components = out_components;
 
     return SHARPDICOM_OK;
 }
@@ -316,12 +253,12 @@ int jpeg_encode(
     uint8_t** output, int* outputLen,
     int quality, int subsamp)
 {
-    tjhandle handle;
-    int pixelFormat;
-    int tjSubsamp;
-    unsigned char* jpegBuf = NULL;
-    unsigned long jpegSize = 0;
-    int flags;
+    struct jpeg_compress_struct cinfo;
+    sharpdicom_error_mgr jerr;
+    unsigned char* outbuf = NULL;
+    unsigned long outsize = 0;
+    JSAMPROW row_pointer[1];
+    int row_stride;
 
     /* Validate arguments */
     if (input == NULL) {
@@ -345,46 +282,60 @@ int jpeg_encode(
         return SHARPDICOM_ERR_INVALID_ARGUMENT;
     }
 
-    /* Get handle */
-    handle = get_compress_handle();
-    if (handle == NULL) {
-        set_error("jpeg_encode: failed to initialize compressor");
-        return SHARPDICOM_ERR_INTERNAL;
-    }
-
-    /* Determine pixel format */
-    pixelFormat = (components == 1) ? TJPF_GRAY : TJPF_RGB;
-
-    /* Map subsampling */
-    if (components == 1) {
-        tjSubsamp = TJSAMP_GRAY;
-    } else {
-        tjSubsamp = map_subsamp_to_tj(subsamp);
-    }
-
-    /* Use accurate DCT for medical imaging */
-    flags = TJFLAG_ACCURATEDCT;
-
-    /* Compress - TurboJPEG allocates the buffer */
-    if (tjCompress2(handle, input, width, 0, height, pixelFormat,
-                    &jpegBuf, &jpegSize, tjSubsamp, quality, flags) != 0) {
-        const char* err = tjGetErrorStr2(handle);
-        set_error(err ? err : "jpeg_encode: compression failed");
-        if (jpegBuf != NULL) {
-            tjFree(jpegBuf);
-        }
+    /* Set up error handling */
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = error_exit_handler;
+    if (setjmp(jerr.setjmp_buffer)) {
+        set_error(jerr.error_msg);
+        jpeg_destroy_compress(&cinfo);
+        if (outbuf != NULL) free(outbuf);
         return SHARPDICOM_ERR_ENCODE_FAILED;
     }
 
-    *output = jpegBuf;
-    *outputLen = (int)jpegSize;
+    /* Create compressor */
+    jpeg_create_compress(&cinfo);
+
+    /* Use memory destination */
+    jpeg_mem_dest(&cinfo, &outbuf, &outsize);
+
+    /* Set parameters */
+    cinfo.image_width = (JDIMENSION)width;
+    cinfo.image_height = (JDIMENSION)height;
+    cinfo.input_components = components;
+    cinfo.in_color_space = (components == 1) ? JCS_GRAYSCALE : JCS_RGB;
+
+    jpeg_set_defaults(&cinfo);
+    jpeg_set_quality(&cinfo, quality, TRUE);
+
+    /* Use accurate DCT for medical imaging */
+    cinfo.dct_method = JDCT_ISLOW;
+
+    /* Set subsampling */
+    if (components > 1) {
+        set_subsamp_factors(&cinfo, subsamp);
+    }
+
+    /* Compress */
+    jpeg_start_compress(&cinfo, TRUE);
+
+    row_stride = width * components;
+    while (cinfo.next_scanline < cinfo.image_height) {
+        row_pointer[0] = (JSAMPROW)(input + ((size_t)cinfo.next_scanline * (size_t)row_stride));
+        jpeg_write_scanlines(&cinfo, row_pointer, 1);
+    }
+
+    jpeg_finish_compress(&cinfo);
+    jpeg_destroy_compress(&cinfo);
+
+    *output = outbuf;
+    *outputLen = (int)outsize;
 
     return SHARPDICOM_OK;
 }
 
 void jpeg_free(uint8_t* buffer) {
     if (buffer != NULL) {
-        tjFree(buffer);
+        free(buffer);
     }
 }
 
@@ -412,11 +363,6 @@ int jpeg_decode_12bit(
     uint16_t* output, int outputLen,
     int* width, int* height, int* components)
 {
-#if JPEG_12BIT_AVAILABLE
-    /* 12-bit decoding implementation would go here
-     * Using tj12Decompress2 API from libjpeg-turbo 12-bit build */
-
-    /* For now, return unsupported until we have a 12-bit build */
     (void)input;
     (void)inputLen;
     (void)output;
@@ -424,22 +370,8 @@ int jpeg_decode_12bit(
     (void)width;
     (void)height;
     (void)components;
-
-    set_error("jpeg_decode_12bit: 12-bit JPEG requires special libjpeg-turbo build");
+    set_error("jpeg_decode_12bit: use jpeg12_decode for 12-bit JPEG");
     return JPEG_ERR_12BIT_NOT_SUPPORTED;
-#else
-    /* 12-bit not compiled in */
-    (void)input;
-    (void)inputLen;
-    (void)output;
-    (void)outputLen;
-    (void)width;
-    (void)height;
-    (void)components;
-
-    set_error("jpeg_decode_12bit: 12-bit JPEG support not available (library built without -DWITH_12BIT)");
-    return JPEG_ERR_12BIT_NOT_SUPPORTED;
-#endif
 }
 
 int jpeg_encode_12bit(
@@ -447,11 +379,6 @@ int jpeg_encode_12bit(
     uint8_t** output, int* outputLen,
     int quality)
 {
-#if JPEG_12BIT_AVAILABLE
-    /* 12-bit encoding implementation would go here
-     * Using tj12Compress2 API from libjpeg-turbo 12-bit build */
-
-    /* For now, return unsupported until we have a 12-bit build */
     (void)input;
     (void)width;
     (void)height;
@@ -459,22 +386,8 @@ int jpeg_encode_12bit(
     (void)output;
     (void)outputLen;
     (void)quality;
-
-    set_error("jpeg_encode_12bit: 12-bit JPEG requires special libjpeg-turbo build");
+    set_error("jpeg_encode_12bit: use jpeg12_encode for 12-bit JPEG");
     return JPEG_ERR_12BIT_NOT_SUPPORTED;
-#else
-    /* 12-bit not compiled in */
-    (void)input;
-    (void)width;
-    (void)height;
-    (void)components;
-    (void)output;
-    (void)outputLen;
-    (void)quality;
-
-    set_error("jpeg_encode_12bit: 12-bit JPEG support not available (library built without -DWITH_12BIT)");
-    return JPEG_ERR_12BIT_NOT_SUPPORTED;
-#endif
 }
 
 #else /* SHARPDICOM_WITH_JPEG not defined */

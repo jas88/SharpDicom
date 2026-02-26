@@ -10,12 +10,67 @@ on:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  ZIG_VERSION: '0.13.0'
 
 jobs:
+  build-native-macos:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Cache macOS native codecs
+        id: cache-macos
+        uses: actions/cache@v4
+        with:
+          path: native/runtimes/osx-*
+          key: native-macos-${{ hashFiles('native/build-macos.sh', 'native/src/**') }}
+
+      - name: Cache vendor sources
+        if: steps.cache-macos.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            native/vendor/libjpeg-turbo/src
+            native/vendor/charls/src
+            native/vendor/openjpeg/src
+            native/vendor/ffmpeg
+            native/vendor/x265
+            native/vendor/x264
+          key: vendors-macos-${{ hashFiles('native/build-macos.sh') }}
+
+      - name: Install build dependencies
+        if: steps.cache-macos.outputs.cache-hit != 'true'
+        run: |
+          brew install nasm cmake
+          nasm --version
+          cmake --version
+
+      - name: Build native codecs for macOS
+        if: steps.cache-macos.outputs.cache-hit != 'true'
+        run: |
+          chmod +x native/build-macos.sh
+          ./native/build-macos.sh
+
+      - name: Verify outputs
+        run: |
+          echo "=== macOS native codec libraries ==="
+          ls -lh native/runtimes/osx-arm64/native/ || echo "osx-arm64 not found"
+          ls -lh native/runtimes/osx-x64/native/ || echo "osx-x64 not found"
+
+      - name: Upload macOS native codecs
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-codecs-macos
+          path: native/runtimes/osx-*
+          retention-days: 7
+
   build:
+    needs: [build-native-macos]
+    if: always() && (needs.build-native-macos.result == 'success' || needs.build-native-macos.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     permissions:
       contents: write
 
@@ -39,26 +94,20 @@ jobs:
           cache: true
           cache-dependency-path: Directory.Packages.props
 
-      # Zig Setup for native codecs
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: ${{ env.ZIG_VERSION }}
-
       # Install packages with caching
       - name: Cache and install apt packages
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
-          packages: dcmtk libcharls-dev libcharls2 lld llvm cmake libtiff-dev libboost-program-options-dev
-          version: 1.7
+          packages: dcmtk libcharls-dev libcharls2 cmake nasm libtiff-dev libboost-program-options-dev binutils-aarch64-linux-gnu lld
+          version: 2.0
           execute_install_scripts: true
 
-      # ccache for native C/C++ builds
+      # ccache for native C/C++ builds (OpenJPH, charls-tools)
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: 500M
-          key: native-builds
+          key: test-tools
 
       # Build OpenJPH from source (openjph-tools not available in Noble 24.04)
       - name: Build and install OpenJPH
@@ -85,13 +134,6 @@ jobs:
           cmake --build /tmp/charls-tools/build --target cjpls djpls --parallel $(nproc)
           sudo install /tmp/charls-tools/build/cjpls /usr/local/bin/
           sudo install /tmp/charls-tools/build/djpls /usr/local/bin/
-
-      # xwin for Linux-to-Windows AOT cross-compilation
-      - name: Setup xwin
-        run: |
-          curl -sSfL https://github.com/Jake-Shadle/xwin/releases/download/0.7.0/xwin-0.7.0-x86_64-unknown-linux-musl.tar.gz | tar xz
-          mv xwin-0.7.0-x86_64-unknown-linux-musl/xwin /usr/local/bin/
-          xwin --version
 
       - name: Verify package installations
         run: |
@@ -124,9 +166,7 @@ jobs:
           sleep 2
 
           # Verify they're listening
-          netstat -ln | grep -E ":(11120|11113)" || echo "⚠ Some DCMTK services may not have started"
-
-          echo "✓ DCMTK services started (storescp on ports 11120, 11113)"
+          netstat -ln | grep -E ":(11120|11113)" || echo "Some DCMTK services may not have started"
 
       # Build Phase 1: .NET
       - name: Restore .NET dependencies
@@ -135,89 +175,82 @@ jobs:
       - name: Build .NET projects
         run: dotnet build --no-restore --configuration Release
 
-      # Download vendor sources for native codecs
-      - name: Download vendor sources
+      # Build Phase 2: Native codecs for Linux and Windows (cached)
+      - name: Cache cross-compilation toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/toolchains
+          key: toolchains-bootlin-2025.08-1-llvm-mingw-20240619
+
+      - name: Cache Linux/Windows native codecs
+        id: cache-linux
+        uses: actions/cache@v4
+        with:
+          path: |
+            native/runtimes/linux-*
+            native/runtimes/win-*
+          key: native-linux-${{ github.ref_type }}-${{ hashFiles('native/build-linux.sh', 'native/src/**') }}
+
+      - name: Set build targets
         run: |
-          cd native/vendor
+          if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" ]]; then
+            echo "BUILD_TARGETS=" >> $GITHUB_ENV
+          else
+            echo "BUILD_TARGETS=linux-x64" >> $GITHUB_ENV
+          fi
 
-          # CharLS 2.4.2 - JPEG-LS codec
-          echo "Downloading CharLS..."
-          CHARLS_SHA256="d1c2c35664976f1e43fec7764d72755e6a50a80f38eca70fcc7553cad4fe19d9"
-          curl -sL https://github.com/team-charls/charls/archive/refs/tags/2.4.2.tar.gz -o charls.tar.gz
-          echo "${CHARLS_SHA256}  charls.tar.gz" | sha256sum -c -
-          tar xzf charls.tar.gz && rm charls.tar.gz
-          mv charls-2.4.2 charls/src
+      - name: Build native codecs for Linux and Windows
+        if: steps.cache-linux.outputs.cache-hit != 'true'
+        run: |
+          chmod +x native/build-linux.sh
+          ./native/build-linux.sh $BUILD_TARGETS
 
-          # OpenJPEG 2.5.3 - JPEG 2000 codec
-          echo "Downloading OpenJPEG..."
-          OPENJPEG_SHA256="368fe0468228e767433c9ebdea82ad9d801a3ad1e4234421f352c8b06e7aa707"
-          curl -sL https://github.com/uclouvain/openjpeg/archive/refs/tags/v2.5.3.tar.gz -o openjpeg.tar.gz
-          echo "${OPENJPEG_SHA256}  openjpeg.tar.gz" | sha256sum -c -
-          tar xzf openjpeg.tar.gz && rm openjpeg.tar.gz
-          mv openjpeg-2.5.3 openjpeg/src
+      # Download macOS native codecs from the parallel macOS job
+      - name: Download macOS native codecs
+        if: needs.build-native-macos.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: native-codecs-macos
+          path: native/runtimes/
 
-          # Generate OpenJPEG config headers (normally done by CMake)
-          # These need to be platform-aware for cross-compilation
-          OPJ_DIR=openjpeg/src/src/lib/openjp2
-          cat > $OPJ_DIR/opj_config.h << 'EOF'
-          #ifndef OPJ_CONFIG_H_INCLUDED
-          #define OPJ_CONFIG_H_INCLUDED
-          #define OPJ_VERSION_MAJOR 2
-          #define OPJ_VERSION_MINOR 5
-          #define OPJ_VERSION_BUILD 3
-          #endif
-          EOF
-          cat > $OPJ_DIR/opj_config_private.h << 'EOF'
-          #define OPJ_PACKAGE_VERSION "2.5.3"
-          /* Platform-specific memory allocation */
-          #if defined(_WIN32) || defined(_WIN64)
-            #define OPJ_HAVE__ALIGNED_MALLOC 1
-          #else
-            #define OPJ_HAVE_POSIX_MEMALIGN 1
-            #define OPJ_HAVE_FSEEKO 1
-            #define _POSIX_C_SOURCE 200112L
-          #endif
-          EOF
+      - name: Verify native codec libraries
+        run: |
+          LIB=native/runtimes/linux-x64/native/libsharpdicom_codecs.so
+          echo "=== All native codec libraries ==="
+          find native/runtimes/ -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.dll' \) -exec ls -lh {} \;
+          echo ""
+          echo "=== linux-x64 dependencies ==="
+          ldd $LIB || true
+          echo ""
+          echo "=== dlopen smoke test ==="
+          cat > /tmp/test_dlopen.c << 'CEOF'
+          #include <dlfcn.h>
+          #include <stdio.h>
+          int main() {
+              printf("Attempting dlopen...\n");
+              void *h = dlopen("libsharpdicom_codecs.so", RTLD_NOW);
+              if (!h) { fprintf(stderr, "dlopen failed: %s\n", dlerror()); return 1; }
+              printf("dlopen OK\n");
+              void *v = dlsym(h, "sharpdicom_codecs_version");
+              printf("sharpdicom_codecs_version sym: %p\n", v);
+              if (v) {
+                  const char* (*fn)(void) = v;
+                  printf("version: %s\n", fn());
+              }
+              dlclose(h);
+              printf("dlclose OK\n");
+              return 0;
+          }
+          CEOF
+          gcc -o /tmp/test_dlopen /tmp/test_dlopen.c -ldl
+          LD_LIBRARY_PATH=$(dirname $(realpath $LIB)) /tmp/test_dlopen
 
-          # stb headers - single-header libraries (pinned to commit for reproducibility)
-          # Using commit f75e8d1 from stb master
-          echo "Downloading stb..."
-          mkdir -p stb
-          STB_COMMIT="f75e8d1cad7d90d72ef7a4661f1b994ef78b4e31"
-          STB_IMAGE_SHA256="594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3"
-          curl -sL "https://raw.githubusercontent.com/nothings/stb/${STB_COMMIT}/stb_image.h" -o stb/stb_image.h
-          echo "${STB_IMAGE_SHA256}  stb/stb_image.h" | sha256sum -c -
-
-          # Verify downloads
-          ls -la charls/src/ openjpeg/src/ stb/
-          echo "OpenJPEG config headers:"
-          ls -la $OPJ_DIR/opj_config*.h
-
-      # Build Phase 2: Native codecs (Zig)
-      - name: Build native codecs (all platforms)
-        working-directory: native
-        run: zig build
-
-      - name: Run native codec tests
-        working-directory: native
-        run: zig build test
-
-      # Build Phase 3: CUDA wrapper - DISABLED
-      # TODO: Phase 22.1 - Fix CUDA nvJPEG2000 wrapper build
-      # Current issue: Ubuntu libnvjpeg2k0-dev-cuda-12 package has incomplete headers
-      # (missing nvjpeg2kProgOrder and nvjpeg2kQualityType type definitions)
-
-      # Copy native libraries to test directories (built after .NET projects)
+      # Copy native libraries to test directories
       - name: Copy native codecs to test assemblies
         run: |
-          NATIVE_LIB=${{ github.workspace }}/native/zig-out/linux-x64/libsharpdicom_codecs.so
+          NATIVE_LIB=${{ github.workspace }}/native/runtimes/linux-x64/native/libsharpdicom_codecs.so
           echo "Native library: $NATIVE_LIB"
           ls -la $NATIVE_LIB || echo "Warning: Native library not found"
-
-          # Check library dependencies
-          echo "Library dependencies (ldd):"
-          ldd $NATIVE_LIB || true
-          echo ""
 
           # Copy to all test assembly directories
           for testdir in tests/*/bin/Release/net*/; do
@@ -231,7 +264,7 @@ jobs:
       - name: Test with coverage
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --results-directory $GITHUB_WORKSPACE/TestResults -- --coverage --coverage-output-format cobertura
         env:
-          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/runtimes/linux-x64/native
           SHARPDICOM_NATIVE_DEBUG: "1"
 
       # Integration Tests: Orthanc
@@ -239,13 +272,13 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl -s http://localhost:8042/system > /dev/null 2>&1; then
-              echo "✓ Orthanc is ready"
+              echo "Orthanc is ready"
               exit 0
             fi
             echo "Waiting for Orthanc... ($i/30)"
             sleep 2
           done
-          echo "⚠ Orthanc may not be ready, continuing anyway"
+          echo "Orthanc may not be ready, continuing anyway"
 
       - name: Integration tests with Orthanc
         continue-on-error: true  # Orthanc tests are optional for now
@@ -260,7 +293,7 @@ jobs:
         run: dotnet test --no-build --configuration Release --settings tests/test.runsettings --filter "Category=DCMTK" --project tests/SharpDicom.Tests/SharpDicom.Tests.csproj
         env:
           DCMTK_ROOT: /usr
-          LD_LIBRARY_PATH: ${{ github.workspace }}/native/zig-out/linux-x64
+          LD_LIBRARY_PATH: ${{ github.workspace }}/native/runtimes/linux-x64/native
 
       # Upload coverage
       - name: Collect coverage files
@@ -281,12 +314,12 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      # Upload Artifacts
+      # Upload combined native codec artifacts (all 6 platforms)
       - name: Upload native codec artifacts
         uses: actions/upload-artifact@v4
         with:
           name: native-codecs
-          path: native/zig-out/
+          path: native/runtimes/
           retention-days: 7
 
       # NuGet Package (on tags only)
@@ -314,12 +347,22 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
-      # Native AOT CLI binaries (Linux + Windows via Zig/xwin cross-compilation)
+      # Native AOT CLI binaries (Linux + Windows cross-compilation)
+      - name: Setup Zig (for AOT cross-compilation)
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+
       - name: Publish AOT for Linux and Windows
         run: |
           for rid in linux-x64 linux-arm64 win-x64 win-arm64; do
             echo "::group::Publishing $rid"
-            dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r $rid -o publish/$rid
+            EXTRA_PROPS=""
+            # Cross-compiled targets need the cross-objcopy for debug symbol extraction
+            case "$rid" in
+              linux-arm64) EXTRA_PROPS="-p:ObjCopyName=aarch64-linux-gnu-objcopy" ;;
+            esac
+            dotnet publish src/SharpDicom.Cli/SharpDicom.Cli.csproj -c Release -r $rid -o publish/$rid $EXTRA_PROPS
             echo "::endgroup::"
           done
 

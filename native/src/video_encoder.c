@@ -457,8 +457,13 @@ SHARPDICOM_API int video_encoder_create(
                     if (config->audio_channels == 1) {
                         enc->audio_ctx->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_MONO;
                     }
+                    /* sample_fmts is deprecated in FFmpeg 7.x but the replacement
+                     * avcodec_get_supported_config() is complex; use deprecated API */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
                     enc->audio_ctx->sample_fmt = enc->audio_codec->sample_fmts
                         ? enc->audio_codec->sample_fmts[0] : AV_SAMPLE_FMT_FLTP;
+#pragma GCC diagnostic pop
                     enc->audio_ctx->bit_rate = 128000;
                     enc->audio_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 

@@ -1,0 +1,13 @@
+# Build output
+build-macos/
+build-linux/
+runtimes/
+
+# Downloaded vendor sources (re-downloaded by build scripts)
+vendor/libjpeg-turbo/src/
+vendor/openjpeg/src/
+vendor/charls/src/
+vendor/x264/
+vendor/x265/
+vendor/ffmpeg/
+vendor/stb/

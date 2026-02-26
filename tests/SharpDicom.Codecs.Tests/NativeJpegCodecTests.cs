@@ -277,9 +277,8 @@ namespace SharpDicom.Codecs.Tests
             var decoded = new byte[64];
 
             // Frame index 5 is out of range for single-frame image
-            var result = codec.Decode(fragments, info, 5, decoded);
-
-            Assert.That(result.Success, Is.False);
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                codec.Decode(fragments, info, 5, decoded));
         }
 
         [Test]
