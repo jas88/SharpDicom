@@ -348,6 +348,11 @@ jobs:
         run: dotnet nuget push "src/**/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       # Native AOT CLI binaries (Linux + Windows cross-compilation)
+      - name: Setup Zig (for AOT cross-compilation)
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.13.0
+
       - name: Publish AOT for Linux and Windows
         run: |
           for rid in linux-x64 linux-arm64 win-x64 win-arm64; do
