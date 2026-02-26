@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SharpDicom\SharpDicom.csproj" />
+    <ProjectReference Include="..\SharpDicom.Codecs\SharpDicom.Codecs.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />

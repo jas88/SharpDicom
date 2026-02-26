@@ -5,10 +5,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using SharpDicom.Cli.Commands;
 using SharpDicom.Cli.Helpers;
+using SharpDicom.Codecs;
 
 // ---------------------------------------------------------------------------
 // sharpdcm - SharpDicom command-line toolkit
 // ---------------------------------------------------------------------------
+
+CodecInitializer.RegisterAll();
 
 var rootCommand = new RootCommand("SharpDicom command-line toolkit");
 
