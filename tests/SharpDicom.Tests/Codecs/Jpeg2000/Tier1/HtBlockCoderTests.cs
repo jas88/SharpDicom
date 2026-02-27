@@ -623,5 +623,166 @@ namespace SharpDicom.Tests.Codecs.Jpeg2000.Tier1
         }
 
         #endregion
+
+        #region Multi-Pass Encoding (3 and 6 Passes)
+
+        [Test]
+        [TestCase(4, 4, 3)]
+        [TestCase(8, 8, 3)]
+        [TestCase(16, 16, 3)]
+        [TestCase(32, 32, 3)]
+        [TestCase(64, 64, 3)]
+        [TestCase(4, 4, 6)]
+        [TestCase(8, 8, 6)]
+        [TestCase(16, 16, 6)]
+        [TestCase(32, 32, 6)]
+        [TestCase(64, 64, 6)]
+        public void MultiPass_Roundtrip(int width, int height, int requestedPasses)
+        {
+            int[] input = new int[width * height];
+            var rng = new Random(42 + width * height + requestedPasses);
+            for (int i = 0; i < input.Length; i++)
+            {
+                // Mix of zero and non-zero values with varying magnitudes
+                if (rng.Next(100) < 40)
+                {
+                    input[i] = rng.Next(-200, 201);
+                    if (input[i] == 0) input[i] = 1;
+                }
+            }
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses);
+
+            Assert.That(encoded.NumPasses, Is.GreaterThanOrEqualTo(1),
+                "Should produce at least 1 pass");
+
+            int[] decoded = new int[width * height];
+            HtBlockEncoder.Instance.DecodeBlock(
+                encoded.Data.Span, encoded.NumPasses,
+                decoded, width, height, encoded.MsbPosition, subbandType: 0);
+
+            Assert.That(decoded, Is.EqualTo(input),
+                $"Multi-pass roundtrip failed for {width}x{height} with {requestedPasses} requested passes (actual: {encoded.NumPasses})");
+        }
+
+        [Test]
+        public void MultiPass_3Passes_ProducesCorrectPassCount()
+        {
+            int width = 8, height = 8;
+            int[] input = new int[width * height];
+            var rng = new Random(99);
+            for (int i = 0; i < input.Length; i++)
+            {
+                input[i] = rng.Next(-100, 101);
+            }
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses: 3);
+
+            // With values up to +-100, MSB >= 6, so 3 passes should be achievable
+            Assert.That(encoded.NumPasses, Is.EqualTo(3),
+                "Should produce 3 passes (1 HT Set) for coefficients with MSB >= 1");
+        }
+
+        [Test]
+        public void MultiPass_6Passes_ProducesCorrectPassCount()
+        {
+            int width = 8, height = 8;
+            int[] input = new int[width * height];
+            var rng = new Random(100);
+            for (int i = 0; i < input.Length; i++)
+            {
+                input[i] = rng.Next(-100, 101);
+            }
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses: 6);
+
+            // With values up to +-100, MSB >= 6, so 6 passes should be achievable
+            Assert.That(encoded.NumPasses, Is.EqualTo(6),
+                "Should produce 6 passes (2 HT Sets) for coefficients with MSB >= 2");
+        }
+
+        [Test]
+        public void MultiPass_LowMsb_CapsPassCount()
+        {
+            // MSB = 0 means only cleanup pass is possible
+            int width = 4, height = 4;
+            int[] input = new int[width * height];
+            input[0] = 1; // MSB = 0
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses: 6);
+
+            Assert.That(encoded.NumPasses, Is.EqualTo(1),
+                "MSB=0 should cap at 1 pass regardless of request");
+        }
+
+        [Test]
+        public void MultiPass_Msb1_CapsAt3Passes()
+        {
+            // MSB = 1 means at most 3 passes (1 HT Set)
+            int width = 4, height = 4;
+            int[] input = new int[width * height];
+            input[0] = 2; // MSB = 1
+            input[1] = 3; // MSB = 1
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses: 6);
+
+            Assert.That(encoded.NumPasses, Is.EqualTo(3),
+                "MSB=1 should cap at 3 passes (1 HT Set)");
+
+            // Verify roundtrip
+            int[] decoded = new int[width * height];
+            HtBlockEncoder.Instance.DecodeBlock(
+                encoded.Data.Span, encoded.NumPasses,
+                decoded, width, height, encoded.MsbPosition, subbandType: 0);
+
+            Assert.That(decoded, Is.EqualTo(input));
+        }
+
+        [Test]
+        [TestCase(0)]  // LL
+        [TestCase(1)]  // LH
+        [TestCase(2)]  // HL
+        [TestCase(3)]  // HH
+        public void MultiPass_AllSubbandTypes_Roundtrip(int subbandType)
+        {
+            int width = 16, height = 16;
+            int[] input = new int[width * height];
+            var rng = new Random(42 + subbandType);
+            for (int i = 0; i < input.Length; i++)
+            {
+                input[i] = rng.Next(-50, 51);
+            }
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType, msbPosition: -1, requestedPasses: 6);
+
+            int[] decoded = new int[width * height];
+            HtBlockEncoder.Instance.DecodeBlock(
+                encoded.Data.Span, encoded.NumPasses,
+                decoded, width, height, encoded.MsbPosition, subbandType);
+
+            Assert.That(decoded, Is.EqualTo(input),
+                $"Multi-pass roundtrip failed for subband type {subbandType}");
+        }
+
+        [Test]
+        public void MultiPass_AllZero_ReturnsEmpty()
+        {
+            int width = 8, height = 8;
+            int[] input = new int[width * height];
+
+            var encoded = HtBlockEncoder.Instance.EncodeBlock(
+                input, width, height, subbandType: 0, msbPosition: -1, requestedPasses: 6);
+
+            Assert.That(encoded.NumPasses, Is.EqualTo(0),
+                "All-zero block should return empty regardless of requested passes");
+        }
+
+        #endregion
     }
 }

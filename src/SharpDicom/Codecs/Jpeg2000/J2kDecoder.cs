@@ -728,6 +728,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                     {
                         byte[] slice = new byte[safeLength];
                         Array.Copy(pktBytes, safeOffset, slice, 0, safeLength);
+
                         accumulatedData[info.GlobalIdx].AddRange(slice);
                     }
 
@@ -790,6 +791,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             int position = 0;
             int currentTileIndex = -1;
             int currentTilePartLength = 0;
+            int sotMarkerStart = -1;
 
             while (position + 2 <= data.Length)
             {
@@ -805,27 +807,35 @@ namespace SharpDicom.Codecs.Jpeg2000
                 {
                     if (marker == J2kMarkers.SOD)
                     {
-                        // Data follows SOD marker
-                        // Calculate data length from tile-part length
+                        // Data follows SOD marker.
+                        // Use Psot (tile-part length from SOT) to compute exact data extent
+                        // rather than scanning for marker-like byte patterns in the data,
+                        // which can cause false marker detection (0xFF90/0xFFD9 in code block data).
                         int dataLength;
-                        if (currentTilePartLength > 0)
+                        if (currentTilePartLength > 0 && sotMarkerStart >= 0)
                         {
-                            // SOT told us the total tile-part length
-                            // We need to figure out how much has been consumed since the SOT marker
-                            // The data length extends to the end of the tile-part
-                            // Since we may have had markers between SOT and SOD, use remaining length
-                            // For simplicity: scan for next SOT or EOC to determine end
-                            int endPos = FindNextTileOrEnd(data, position);
-                            dataLength = endPos - position;
+                            // Psot is the total tile-part length from the start of the SOT marker.
+                            // Data starts at current position (after SOD marker).
+                            int tilePartEnd = sotMarkerStart + currentTilePartLength;
+                            dataLength = Math.Max(0, Math.Min(tilePartEnd, data.Length) - position);
                         }
                         else
                         {
-                            // No tile-part length info, scan for next marker
-                            int endPos = FindNextTileOrEnd(data, position);
-                            dataLength = endPos - position;
+                            // Psot == 0 means tile-part extends to end of codestream (minus EOC).
+                            // Scan for the EOC marker (last 2 bytes) or use remaining length.
+                            if (data.Length >= 2 &&
+                                data[data.Length - 2] == 0xFF &&
+                                data[data.Length - 1] == 0xD9)
+                            {
+                                dataLength = data.Length - 2 - position;
+                            }
+                            else
+                            {
+                                dataLength = data.Length - position;
+                            }
                         }
 
-                        if (currentTileIndex >= 0)
+                        if (currentTileIndex >= 0 && dataLength > 0)
                         {
                             entries.Add(new TileDataEntry
                             {
@@ -838,6 +848,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                         position += dataLength;
                         currentTileIndex = -1;
                         currentTilePartLength = 0;
+                        sotMarkerStart = -1;
                     }
 
                     continue;
@@ -858,6 +869,8 @@ namespace SharpDicom.Codecs.Jpeg2000
 
                 if (marker == J2kMarkers.SOT)
                 {
+                    // Record where the SOT marker started (position - 4: 2 for marker + 2 for length)
+                    sotMarkerStart = position - 4;
                     if (position + 4 <= data.Length)
                     {
                         currentTileIndex = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(position));
@@ -872,30 +885,6 @@ namespace SharpDicom.Codecs.Jpeg2000
             }
 
             return entries;
-        }
-
-        /// <summary>
-        /// Finds the byte position of the next SOT marker or EOC marker after the given position.
-        /// </summary>
-        private static int FindNextTileOrEnd(ReadOnlySpan<byte> data, int startPos)
-        {
-            int pos = startPos;
-            while (pos + 1 < data.Length)
-            {
-                if (data[pos] == 0xFF)
-                {
-                    byte next = data[pos + 1];
-                    // SOT (0xFF90) or EOC (0xFFD9)
-                    if (next == 0x90 || next == 0xD9)
-                    {
-                        return pos;
-                    }
-                }
-
-                pos++;
-            }
-
-            return data.Length;
         }
 
         /// <summary>

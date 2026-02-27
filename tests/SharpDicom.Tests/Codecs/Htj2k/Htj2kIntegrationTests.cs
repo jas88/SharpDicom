@@ -123,6 +123,20 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             var opts = HtEncoderOptions.Lossless;
 
             Assert.That(opts.IsLossless, Is.True);
+            Assert.That(opts.HtSetCount, Is.EqualTo(1));
+            Assert.That(opts.IncludeSigProp, Is.False);
+            Assert.That(opts.IncludeMagRef, Is.False);
+            Assert.That(opts.TargetBpp, Is.Null);
+            Assert.That(opts.TargetPsnr, Is.Null);
+            Assert.That(opts.EffectivePassCount, Is.EqualTo(1));
+        }
+
+        [Test]
+        public void HtEncoderOptions_LosslessMultiPass_Has6Passes()
+        {
+            var opts = HtEncoderOptions.LosslessMultiPass;
+
+            Assert.That(opts.IsLossless, Is.True);
             Assert.That(opts.HtSetCount, Is.EqualTo(2));
             Assert.That(opts.IncludeSigProp, Is.True);
             Assert.That(opts.IncludeMagRef, Is.True);
@@ -138,8 +152,8 @@ namespace SharpDicom.Tests.Codecs.Htj2k
 
             Assert.That(opts.IsLossless, Is.False);
             Assert.That(opts.TargetPsnr, Is.EqualTo(40f));
-            Assert.That(opts.HtSetCount, Is.EqualTo(2));
-            Assert.That(opts.EffectivePassCount, Is.EqualTo(6));
+            Assert.That(opts.HtSetCount, Is.EqualTo(1));
+            Assert.That(opts.EffectivePassCount, Is.EqualTo(1));
         }
 
         [Test]
@@ -182,7 +196,8 @@ namespace SharpDicom.Tests.Codecs.Htj2k
             var htOpts = opts.EffectiveHtOptions;
 
             Assert.That(htOpts.IsLossless, Is.True);
-            Assert.That(htOpts.HtSetCount, Is.EqualTo(2));
+            Assert.That(htOpts.HtSetCount, Is.EqualTo(1));
+            Assert.That(htOpts.EffectivePassCount, Is.EqualTo(1));
         }
 
         [Test]
@@ -456,6 +471,118 @@ namespace SharpDicom.Tests.Codecs.Htj2k
 
             Assert.That(validation.IsValid, Is.True,
                 $"Validation should pass; issues: {string.Join(", ", validation.Issues ?? Array.Empty<CodecDiagnostic>())}");
+        }
+
+        // ---- Multi-pass and larger size tests ----
+
+        [Test]
+        [TestCase(64, 64)]
+        [TestCase(128, 128)]
+        [TestCase(256, 256)]
+        public void Lossless_LargerSizes_Roundtrip_PixelPerfect(int width, int height)
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = PixelDataInfo.Grayscale8((ushort)width, (ushort)height);
+            var pixelData = new byte[info.FrameSize];
+            var rng = new Random(width * height);
+            for (int i = 0; i < pixelData.Length; i++)
+            {
+                pixelData[i] = (byte)rng.Next(256);
+            }
+
+            var fragments = codec.Encode(pixelData, info);
+            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
+
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed at {width}x{height}: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(pixelData),
+                $"Lossless roundtrip must be pixel-perfect at {width}x{height}");
+        }
+
+        [Test]
+        [TestCase(64, 64)]
+        [TestCase(128, 128)]
+        [TestCase(256, 256)]
+        public void Lossless_LargerSizes_16Bit_Roundtrip(int width, int height)
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = PixelDataInfo.Grayscale16((ushort)width, (ushort)height);
+            var pixelData = new byte[info.FrameSize];
+            var rng = new Random(width * height + 16);
+            for (int i = 0; i < pixelData.Length / 2; i++)
+            {
+                ushort value = (ushort)rng.Next(65536);
+                pixelData[i * 2] = (byte)(value & 0xFF);
+                pixelData[i * 2 + 1] = (byte)(value >> 8);
+            }
+
+            var fragments = codec.Encode(pixelData, info);
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed at {width}x{height}: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(pixelData),
+                $"16-bit lossless roundtrip must be pixel-perfect at {width}x{height}");
+        }
+
+        [Test]
+        [TestCase(64, 64)]
+        [TestCase(128, 128)]
+        [TestCase(256, 256)]
+        public void Lossy_LargerSizes_EncodeDecode_Succeeds(int width, int height)
+        {
+            var codec = new Htj2kLossyCodec();
+            var info = PixelDataInfo.Grayscale8((ushort)width, (ushort)height);
+            var pixelData = new byte[info.FrameSize];
+            var rng = new Random(width * height + 99);
+            for (int i = 0; i < pixelData.Length; i++)
+            {
+                pixelData[i] = (byte)rng.Next(256);
+            }
+
+            var fragments = codec.Encode(pixelData, info);
+            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
+
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Lossy decode failed at {width}x{height}: {result.Diagnostic}");
+
+            // Lossy compression should produce output within a reasonable range
+            double mse = CalculateMse(pixelData, decoded);
+            double psnr = mse > 0 ? 10.0 * Math.Log10(255.0 * 255.0 / mse) : double.PositiveInfinity;
+            Assert.That(psnr, Is.GreaterThan(15.0),
+                $"PSNR {psnr:F1} dB too low for lossy {width}x{height}");
+        }
+
+        [Test]
+        public void Lossless_WithExplicit6Pass_Options_Roundtrip()
+        {
+            var codec = new Htj2kLosslessCodec();
+            var info = PixelDataInfo.Grayscale8(128, 128);
+            var pixelData = new byte[info.FrameSize];
+            var rng = new Random(42);
+            for (int i = 0; i < pixelData.Length; i++)
+            {
+                pixelData[i] = (byte)rng.Next(256);
+            }
+
+            // Encode with explicit LosslessMultiPass preset (6 passes)
+            var options = new Htj2kCodecOptions(true, 5, false, true, HtEncoderOptions.LosslessMultiPass);
+            Assert.That(options.EffectiveHtOptions.EffectivePassCount, Is.EqualTo(6),
+                "LosslessMultiPass should request 6 passes");
+
+            var fragments = codec.Encode(pixelData, info, options);
+            Assert.That(fragments.Fragments.Count, Is.EqualTo(1));
+
+            var decoded = new byte[info.FrameSize];
+            var result = codec.Decode(fragments, info, 0, decoded);
+
+            Assert.That(result.Success, Is.True, $"Decode failed: {result.Diagnostic}");
+            Assert.That(decoded, Is.EqualTo(pixelData),
+                "6-pass lossless roundtrip must be pixel-perfect");
         }
 
         // ---- Helper methods ----
