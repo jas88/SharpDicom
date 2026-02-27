@@ -276,9 +276,9 @@ public class ConvertCommandTests
     {
         ConvertCommand.TryResolvePreset("diagnostic", out var options);
         Assert.That(options.TargetPsnr, Is.EqualTo(40f));
-        Assert.That(options.HtSetCount, Is.EqualTo(2));
-        Assert.That(options.IncludeSigProp, Is.True);
-        Assert.That(options.IncludeMagRef, Is.True);
+        Assert.That(options.HtSetCount, Is.EqualTo(1));
+        Assert.That(options.IncludeSigProp, Is.False);
+        Assert.That(options.IncludeMagRef, Is.False);
     }
 
     [Test]

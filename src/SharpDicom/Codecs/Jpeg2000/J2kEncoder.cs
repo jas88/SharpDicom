@@ -147,13 +147,18 @@ namespace SharpDicom.Codecs.Jpeg2000
         /// <param name="options">Encoder options.</param>
         /// <param name="lossless">True for lossless encoding (5/3 wavelet), false for lossy (9/7).</param>
         /// <param name="blockCoder">Block coder implementation (EBCOT or HT).</param>
+        /// <param name="htRequestedPasses">
+        /// Number of HT coding passes requested (1, 3, or 6). Only used when
+        /// <paramref name="blockCoder"/> is <see cref="HtBlockEncoder"/>.
+        /// </param>
         /// <returns>Encoded JPEG 2000 codestream.</returns>
         public static ReadOnlyMemory<byte> EncodeFrame(
             ReadOnlySpan<byte> pixelData,
             PixelDataInfo info,
             J2kEncoderOptions options,
             bool lossless,
-            IBlockCoder blockCoder)
+            IBlockCoder blockCoder,
+            int htRequestedPasses = 1)
         {
             if (pixelData.Length < info.FrameSize)
             {
@@ -218,7 +223,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                 tileResults[0] = EncodeSingleTile(
                     componentData, width, height, components,
                     options, lossless, blockCoder, isHtMode,
-                    info.BitsStored, usesMct);
+                    info.BitsStored, usesMct, htRequestedPasses);
             }
             else
             {
@@ -249,7 +254,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                             tileResults[tileIdx] = EncodeSingleTile(
                                 tileComponentData, actualTileW, actualTileH, components,
                                 options, lossless, localCoder, isHtMode,
-                                info.BitsStored, usesMct);
+                                info.BitsStored, usesMct, htRequestedPasses);
                         }
                         finally
                         {
@@ -275,7 +280,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                         tileResults[tileIdx] = EncodeSingleTile(
                             tileComponentData, actualTileW, actualTileH, components,
                             options, lossless, blockCoder, isHtMode,
-                            info.BitsStored, usesMct);
+                            info.BitsStored, usesMct, htRequestedPasses);
                     }
                 }
             }
@@ -314,7 +319,7 @@ namespace SharpDicom.Codecs.Jpeg2000
         private static TileEncodeResult EncodeSingleTile(
             int[][] componentData, int tileWidth, int tileHeight, int components,
             J2kEncoderOptions options, bool lossless, IBlockCoder blockCoder, bool isHtMode,
-            int bitDepth, bool usesMct)
+            int bitDepth, bool usesMct, int htRequestedPasses = 1)
         {
             // Apply forward DWT to each component (operates in-place on tile data)
             for (int c = 0; c < components; c++)
@@ -342,7 +347,7 @@ namespace SharpDicom.Codecs.Jpeg2000
                     componentData[c], tileWidth, tileHeight,
                     cbWidth, cbHeight,
                     blockCoder, options.DecompositionLevels,
-                    subbandKmax);
+                    subbandKmax, htRequestedPasses);
                 allCodeBlocks.Add(codeBlocks);
                 subbands = sbs;
             }
@@ -798,7 +803,7 @@ namespace SharpDicom.Codecs.Jpeg2000
             int[] data, int width, int height,
             int cbWidth, int cbHeight,
             IBlockCoder blockCoder, int decompositionLevels,
-            int[]? subbandKmax = null)
+            int[]? subbandKmax = null, int htRequestedPasses = 1)
         {
             using var tileComp = new TileComponent(0, 0, width, height, decompositionLevels, cbWidth, cbHeight);
 
@@ -842,8 +847,17 @@ namespace SharpDicom.Codecs.Jpeg2000
                         }
 
                         // Encode with auto-detected MSB position
-                        var cb = blockCoder.EncodeBlock(
-                            packed, actualW, actualH, subbandType, msbPosition: -1);
+                        CodeBlockData cb;
+                        if (blockCoder is HtBlockEncoder htEncoder && htRequestedPasses > 1)
+                        {
+                            cb = htEncoder.EncodeBlock(
+                                packed, actualW, actualH, subbandType, -1, htRequestedPasses);
+                        }
+                        else
+                        {
+                            cb = blockCoder.EncodeBlock(
+                                packed, actualW, actualH, subbandType, msbPosition: -1);
+                        }
 
                         // For HTJ2K: override MsbPosition so that
                         // zeroBitPlanes = 31 - MsbPosition = K_max - 1

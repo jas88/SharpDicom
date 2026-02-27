@@ -52,7 +52,7 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
         /// <remarks>
         /// <para>
         /// The HT block encoder is stateless: all state is local to each
-        /// <see cref="EncodeBlock"/> or <see cref="DecodeBlock"/> call.
+        /// encode or <see cref="DecodeBlock"/> call.
         /// The singleton is safe for both sequential and concurrent use.
         /// </para>
         /// </remarks>
@@ -87,6 +87,31 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             int subbandType,
             int msbPosition)
         {
+            return EncodeBlock(coefficients, width, height, subbandType, msbPosition, 1);
+        }
+
+        /// <summary>
+        /// Encodes a single code-block with a specified number of coding passes.
+        /// </summary>
+        /// <param name="coefficients">Wavelet coefficients in row-major order.</param>
+        /// <param name="width">Code-block width in coefficients.</param>
+        /// <param name="height">Code-block height in coefficients.</param>
+        /// <param name="subbandType">Subband type: 0=LL, 1=HL, 2=LH, 3=HH.</param>
+        /// <param name="msbPosition">MSB hint, or -1 for auto-detect.</param>
+        /// <param name="requestedPasses">
+        /// Requested number of coding passes (1, 3, or 6). The actual number may be
+        /// fewer if the MSB position does not support additional passes.
+        /// </param>
+        /// <returns>Encoded code-block data with pass and length information.</returns>
+#pragma warning disable CA1822 // Instance method: called via typed reference from J2kEncoder
+        public CodeBlockData EncodeBlock(
+            ReadOnlySpan<int> coefficients,
+            int width, int height,
+            int subbandType,
+            int msbPosition,
+            int requestedPasses)
+#pragma warning restore CA1822
+        {
             int size = width * height;
             if (coefficients.Length < size)
             {
@@ -109,19 +134,88 @@ namespace SharpDicom.Codecs.Jpeg2000.Tier1
             }
 
             // HT cleanup pass encodes full-precision coefficients.
-            // For lossless HTJ2K, a single cleanup pass is always sufficient
-            // because HtCleanup encodes the complete magnitude and sign of every
-            // non-zero coefficient. This matches OpenJPH's behavior which always
-            // produces exactly 1 coding pass for lossless HT blocks.
             byte[] cleanupData = HtCleanup.Encode(coefficients, width, height, subbandType);
 
-            return new CodeBlockData
+            // Determine actual pass count based on MSB and request
+            int passes = requestedPasses;
+            if (msb < 1 || passes <= 1)
             {
-                Data = cleanupData,
-                NumPasses = 1,
-                PassLengths = new[] { cleanupData.Length },
-                MsbPosition = msb
-            };
+                // Cleanup only: MSB too low for refinement, or single pass requested
+                return new CodeBlockData
+                {
+                    Data = cleanupData,
+                    NumPasses = 1,
+                    PassLengths = new[] { cleanupData.Length },
+                    MsbPosition = msb
+                };
+            }
+
+            // Cap at 3 passes if MSB only allows 1 HT Set
+            if (msb < 2)
+            {
+                passes = Math.Min(passes, PassesPerSet);
+            }
+            else
+            {
+                passes = Math.Min(passes, MaxPasses);
+            }
+
+            // Build significance state from coefficients (after cleanup, non-zero = significant)
+            byte[]? rentedSig = null;
+            byte[] sigState;
+            if (size <= 1024)
+            {
+                sigState = new byte[size];
+            }
+            else
+            {
+                rentedSig = ArrayPool<byte>.Shared.Rent(size);
+                sigState = rentedSig;
+            }
+
+            try
+            {
+                for (int i = 0; i < size; i++)
+                {
+                    sigState[i] = coefficients[i] != 0 ? (byte)1 : (byte)0;
+                }
+
+                // HT Set 1: SigProp + MagRef at bitplane 0
+                byte[] sigPropData = HtSigProp.Encode(
+                    coefficients, sigState, width, height, subbandType, 0);
+                byte[] magRefData = HtMagRef.Encode(
+                    coefficients, sigState, width, height, 0);
+
+                if (passes <= PassesPerSet)
+                {
+                    return BuildMultiPassResult(
+                        cleanupData, sigPropData, magRefData,
+                        null, null, msb, PassesPerSet);
+                }
+
+                // HT Set 2: Update significance state, refine at bitplane 1
+                // Re-derive significance (SigProp may have promoted samples)
+                for (int i = 0; i < size; i++)
+                {
+                    sigState[i] = coefficients[i] != 0 ? (byte)1 : (byte)0;
+                }
+
+                byte[] sigPropData2 = HtSigProp.Encode(
+                    coefficients, sigState, width, height, subbandType, 1);
+                byte[] magRefData2 = HtMagRef.Encode(
+                    coefficients, sigState, width, height, 1);
+
+                return BuildMultiPassResult(
+                    cleanupData, sigPropData, magRefData,
+                    sigPropData2, magRefData2, msb, MaxPasses);
+            }
+            finally
+            {
+                if (rentedSig != null)
+                {
+                    ArrayPool<byte>.Shared.Return(rentedSig);
+                }
+            }
         }
 
         /// <inheritdoc />

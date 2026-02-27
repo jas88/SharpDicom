@@ -112,6 +112,7 @@ namespace SharpDicom.Codecs.Htj2k
 
             // Use HT block coder for HTJ2K encoding
             IBlockCoder blockCoder = HtBlockEncoder.Instance;
+            int htPasses = htj2kOptions.EffectiveHtOptions.EffectivePassCount;
 
             // Build CAP marker from HT options
             byte[] capMarker = J2kCodestream.BuildCapMarker(
@@ -127,8 +128,8 @@ namespace SharpDicom.Codecs.Htj2k
             {
                 var frameData = pixelData.Slice(i * frameSize, frameSize);
 
-                // Encode using J2K pipeline with HT block coder
-                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless, blockCoder).ToArray();
+                // Encode using J2K pipeline with HT block coder and requested pass count
+                var encoded = J2kEncoder.EncodeFrame(frameData, info, j2kOptions, IsLossless, blockCoder, htPasses).ToArray();
 
                 // Inject CAP marker to identify as HTJ2K
                 var htj2kEncoded = InjectCapMarker(encoded, capMarker);

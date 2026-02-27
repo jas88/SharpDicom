@@ -59,13 +59,27 @@ namespace SharpDicom.Codecs.Htj2k
         public bool IsLossless => TargetBpp is null && TargetPsnr is null;
 
         /// <summary>
-        /// Lossless preset: 2 HT Sets with all passes, no rate target.
+        /// Lossless preset: 1 HT Set, cleanup only, no rate target.
         /// </summary>
         /// <remarks>
-        /// Provides maximum quality with full progressive refinement capability.
-        /// Suitable for archival and primary diagnostic imaging.
+        /// Standard-compatible lossless encoding. Produces codestreams decodable by any HTJ2K decoder.
+        /// HT cleanup encoding is inherently lossless for all coefficient data.
         /// </remarks>
         public static HtEncoderOptions Lossless { get; } = new(
+            HtSetCount: 1,
+            IncludeSigProp: false,
+            IncludeMagRef: false,
+            TargetBpp: null,
+            TargetPsnr: null);
+
+        /// <summary>
+        /// Lossless multi-pass preset: 2 HT Sets with all passes, no rate target.
+        /// </summary>
+        /// <remarks>
+        /// Uses an internal multi-pass format with embedded pass length header.
+        /// Only decodable by SharpDicom's own decoder. Provides progressive refinement capability.
+        /// </remarks>
+        public static HtEncoderOptions LosslessMultiPass { get; } = new(
             HtSetCount: 2,
             IncludeSigProp: true,
             IncludeMagRef: true,
@@ -73,15 +87,15 @@ namespace SharpDicom.Codecs.Htj2k
             TargetPsnr: null);
 
         /// <summary>
-        /// Diagnostic preset: 2 HT Sets with all passes, PSNR target of 40 dB.
+        /// Diagnostic preset: 1 HT Set, cleanup only, PSNR target of 40 dB.
         /// </summary>
         /// <remarks>
-        /// High-quality lossy compression for diagnostic-grade viewing.
+        /// Standard-compatible high-quality lossy compression for diagnostic-grade viewing.
         /// </remarks>
         public static HtEncoderOptions Diagnostic { get; } = new(
-            HtSetCount: 2,
-            IncludeSigProp: true,
-            IncludeMagRef: true,
+            HtSetCount: 1,
+            IncludeSigProp: false,
+            IncludeMagRef: false,
             TargetBpp: null,
             TargetPsnr: 40f);
 
