@@ -353,6 +353,11 @@ jobs:
         with:
           version: 0.13.0
 
+      - name: Install xwin (Windows SDK for cross-compilation)
+        run: |
+          curl -fsSL https://github.com/Jake-Shadle/xwin/releases/download/0.8.0/xwin-0.8.0-x86_64-unknown-linux-musl.tar.gz | tar xz -C /usr/local/bin --strip-components=1 xwin-0.8.0-x86_64-unknown-linux-musl/xwin
+          xwin --version
+
       - name: Publish AOT for Linux and Windows
         run: |
           for rid in linux-x64 linux-arm64 win-x64 win-arm64; do
