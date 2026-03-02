@@ -60,7 +60,7 @@ jobs:
           ls -lh native/runtimes/osx-x64/native/ || echo "osx-x64 not found"
 
       - name: Upload macOS native codecs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-codecs-macos
           path: native/runtimes/osx-*
@@ -316,7 +316,7 @@ jobs:
 
       # Upload combined native codec artifacts (all 6 platforms)
       - name: Upload native codec artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: native-codecs
           path: native/runtimes/
