@@ -208,7 +208,7 @@ jobs:
       # Download macOS native codecs from the parallel macOS job
       - name: Download macOS native codecs
         if: needs.build-native-macos.result == 'success'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: native-codecs-macos
           path: native/runtimes/
