@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RunSettings>
   <NUnit>
-    <!-- Default timeout for individual tests in milliseconds (60 seconds) -->
-    <DefaultTimeout>60000</DefaultTimeout>
     <!-- Stop on first failure for faster feedback -->
     <StopOnError>false</StopOnError>
   </NUnit>
-  <!-- Note: TestSessionTimeout removed - not supported by Microsoft.Testing.Platform -->
-  <!-- Session timeout is controlled by CI workflow timeout-minutes setting -->
+  <!-- Note: DefaultTimeout and TestSessionTimeout removed - not supported by Microsoft.Testing.Platform -->
+  <!-- Timeouts are controlled by CI workflow timeout-minutes and per-test [Timeout] attributes -->
 </RunSettings>
