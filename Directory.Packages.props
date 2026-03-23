@@ -38,6 +38,6 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.3" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.CodeFix.Testing" Version="1.1.3" />
     <!-- MongoDB Integration (v3.x targets netstandard2.1/net6.0+, NOT netstandard2.0) -->
-    <PackageVersion Include="MongoDB.Driver" Version="3.7.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.7.1" />
   </ItemGroup>
 </Project>
