@@ -13,16 +13,16 @@
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <!-- Explicit version to fix NUnit3TestAdapter binding issue -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.6" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.7" />
     <!-- Runtime Dependencies -->
     <PackageVersion Include="System.Memory" Version="4.6.3" />
-    <PackageVersion Include="System.Threading.Channels" Version="10.0.6" />
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.6" />
-    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.6" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.6" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.6" />
+    <PackageVersion Include="System.Threading.Channels" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.7" />
+    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.7" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.7" />
     <!-- CLI Dependencies -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.6" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.7" />
     <PackageVersion Include="Spectre.Console" Version="0.55.2" />
     <PackageVersion Include="CsToml" Version="1.8.2" />
     <!-- AOT Cross-Compilation -->
