@@ -18,5 +18,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
     <PackageReference Include="MongoDB.Driver" />
+    <!-- Pin vulnerable transitive deps of MongoDB.Driver (GHSA-6c8g-7p36-r338, GHSA-pggp-6c3x-2xmx) -->
+    <PackageReference Include="SharpCompress" />
+    <PackageReference Include="Snappier" />
   </ItemGroup>
 </Project>
