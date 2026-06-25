@@ -21,6 +21,8 @@
     <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.3" />
     <PackageVersion Include="System.Text.Json" Version="10.0.3" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.3" />
+    <!-- Pin native SQLite to non-vulnerable version (GHSA-2m69-gcr7-jv3q); transitive via Microsoft.Data.Sqlite -->
+    <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- CLI Dependencies -->
     <PackageVersion Include="System.CommandLine" Version="2.0.3" />
     <PackageVersion Include="Spectre.Console" Version="0.54.0" />
