@@ -29,6 +29,8 @@
     <!-- In shared framework for net10.0+; NuGet correctly omits this dependency from the packed .nuspec for those TFMs (earlier TFMs still get the package dependency). -->
     <PackageReference Include="System.Text.Encoding.CodePages" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!-- Pin native SQLite transitive dep to non-vulnerable version (GHSA-2m69-gcr7-jv3q) -->
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
 
