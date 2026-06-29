@@ -22,14 +22,14 @@ jobs:
 
       - name: Cache macOS native codecs
         id: cache-macos
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: native/runtimes/osx-*
           key: native-macos-${{ hashFiles('native/build-macos.sh', 'native/src/**') }}
 
       - name: Cache vendor sources
         if: steps.cache-macos.outputs.cache-hit != 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             native/vendor/libjpeg-turbo/src
@@ -177,14 +177,14 @@ jobs:
 
       # Build Phase 2: Native codecs for Linux and Windows (cached)
       - name: Cache cross-compilation toolchains
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/toolchains
           key: toolchains-bootlin-2025.08-1-llvm-mingw-20240619
 
       - name: Cache Linux/Windows native codecs
         id: cache-linux
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             native/runtimes/linux-*
