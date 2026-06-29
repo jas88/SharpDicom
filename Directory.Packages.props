@@ -11,7 +11,7 @@
     <PackageVersion Include="FsCheck.NUnit" Version="3.0.0-rc3" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <!-- Explicit version to fix NUnit3TestAdapter binding issue -->
     <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
     <!-- Runtime Dependencies -->
