@@ -25,7 +25,7 @@
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- CLI Dependencies -->
     <PackageVersion Include="System.CommandLine" Version="2.0.9" />
-    <PackageVersion Include="Spectre.Console" Version="0.57.1" />
+    <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="CsToml" Version="1.8.4" />
     <!-- AOT Cross-Compilation -->
     <PackageVersion Include="Fallenwood.PublishAotCross" Version="0.6.0" />
