@@ -11,20 +11,20 @@
     <PackageVersion Include="FsCheck.NUnit" Version="3.0.0-rc3" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <!-- Explicit version to fix NUnit3TestAdapter binding issue -->
-    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyModel" Version="10.0.11" />
     <!-- Runtime Dependencies -->
     <PackageVersion Include="System.Memory" Version="4.6.3" />
-    <PackageVersion Include="System.Threading.Channels" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.9" />
-    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.9" />
-    <PackageVersion Include="System.Text.Json" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
+    <PackageVersion Include="System.Threading.Channels" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
+    <PackageVersion Include="System.Text.Encoding.CodePages" Version="10.0.11" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11" />
     <!-- Pin native SQLite to non-vulnerable version (GHSA-2m69-gcr7-jv3q); transitive via Microsoft.Data.Sqlite -->
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="3.50.3" />
     <!-- CLI Dependencies -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.9" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.11" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />
     <PackageVersion Include="CsToml" Version="1.8.4" />
     <!-- AOT Cross-Compilation -->
