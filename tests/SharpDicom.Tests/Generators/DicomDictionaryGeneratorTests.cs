@@ -1,21 +1,19 @@
 using System.Collections.Immutable;
-using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NUnit.Framework;
 using SharpDicom.Generators;
-using VerifyNUnit;
 
 namespace SharpDicom.Tests.Generators;
 
 /// <summary>
-/// Snapshot tests for the DicomDictionaryGenerator using Verify.SourceGenerators.
+/// Snapshot tests for the DicomDictionaryGenerator.
 /// </summary>
 [TestFixture]
 public class DicomDictionaryGeneratorTests
 {
     [Test]
-    public Task GeneratesTagsFromMinimalXml()
+    public void GeneratesTagsFromMinimalXml()
     {
         // Minimal Part 6-like XML with one tag
         var xml = """
@@ -39,11 +37,11 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task GeneratesMultiVRTag()
+    public void GeneratesMultiVRTag()
     {
         // Tag with multiple VRs (US or SS)
         var xml = """
@@ -67,11 +65,11 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task GeneratesRetiredTag()
+    public void GeneratesRetiredTag()
     {
         // Retired tag (should be marked with IsRetired=true)
         var xml = """
@@ -95,11 +93,11 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task GeneratesUIDs()
+    public void GeneratesUIDs()
     {
         // UID registry table
         var xml = """
@@ -129,11 +127,11 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task HandlesMaskedTag()
+    public void HandlesMaskedTag()
     {
         // Masked tag (50xx,0010)
         var xml = """
@@ -157,11 +155,11 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task HandlesEmptyXml()
+    public void HandlesEmptyXml()
     {
         var xml = """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -169,19 +167,19 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task ReportsDiagnosticForInvalidXml()
+    public void ReportsDiagnosticForInvalidXml()
     {
         var xml = "not valid xml";
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
     [Test]
-    public Task GeneratesTagsAndUIDsCombined()
+    public void GeneratesTagsAndUIDsCombined()
     {
         // Combined tags and UIDs in same XML
         var xml = """
@@ -217,10 +215,10 @@ public class DicomDictionaryGeneratorTests
             </book>
             """;
 
-        return VerifyGenerator(xml, "part06.xml");
+        VerifyGenerator(xml, "part06.xml");
     }
 
-    private static Task VerifyGenerator(string xmlContent, string fileName)
+    private static void VerifyGenerator(string xmlContent, string fileName)
     {
         // Create compilation
         // IL3000: Assembly.Location is required for source generator tests to get metadata references
@@ -246,6 +244,6 @@ public class DicomDictionaryGeneratorTests
         driver = driver.RunGenerators(compilation);
 
         // Verify snapshot
-        return Verifier.Verify(driver);
+        GeneratorSnapshot.Verify(driver);
     }
 }

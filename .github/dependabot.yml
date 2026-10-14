@@ -15,7 +15,6 @@ updates:
         patterns:
           - "NUnit*"
           - "coverlet*"
-          - "Verify*"
 
   - package-ecosystem: github-actions
     directory: /

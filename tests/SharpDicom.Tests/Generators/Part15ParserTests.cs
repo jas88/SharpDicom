@@ -1,10 +1,8 @@
 using System.Collections.Immutable;
-using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using NUnit.Framework;
 using SharpDicom.Generators;
-using VerifyNUnit;
 
 namespace SharpDicom.Tests.Generators;
 
@@ -15,7 +13,7 @@ namespace SharpDicom.Tests.Generators;
 public class Part15ParserTests
 {
     [Test]
-    public Task ParsesBasicProfileActions()
+    public void ParsesBasicProfileActions()
     {
         // Table E.1-1 structure with common attributes
         var xml = """
@@ -67,11 +65,11 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
     [Test]
-    public Task ParsesPatientName()
+    public void ParsesPatientName()
     {
         // Patient Name with Z action
         var xml = """
@@ -104,11 +102,11 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
     [Test]
-    public Task ParsesSOPInstanceUID()
+    public void ParsesSOPInstanceUID()
     {
         // SOP Instance UID with U action and RetainUIDs option
         var xml = """
@@ -141,11 +139,11 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
     [Test]
-    public Task ParsesRetiredAttribute()
+    public void ParsesRetiredAttribute()
     {
         // Retired attribute (Acquisition Comments)
         var xml = """
@@ -178,11 +176,11 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
     [Test]
-    public Task ParsesCompoundActions()
+    public void ParsesCompoundActions()
     {
         // Compound action X/Z and X/Z/D
         var xml = """
@@ -232,11 +230,11 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
     [Test]
-    public Task ParsesAllProfileOptions()
+    public void ParsesAllProfileOptions()
     {
         // Institution Name with multiple profile options
         var xml = """
@@ -269,10 +267,10 @@ public class Part15ParserTests
             </book>
             """;
 
-        return VerifyGenerator(xml);
+        VerifyGenerator(xml);
     }
 
-    private static Task VerifyGenerator(string xmlContent)
+    private static void VerifyGenerator(string xmlContent)
     {
         // Create compilation
 #pragma warning disable IL3000 // Required for source generator tests
@@ -297,6 +295,6 @@ public class Part15ParserTests
         driver = driver.RunGenerators(compilation);
 
         // Verify snapshot
-        return Verifier.Verify(driver);
+        GeneratorSnapshot.Verify(driver);
     }
 }
