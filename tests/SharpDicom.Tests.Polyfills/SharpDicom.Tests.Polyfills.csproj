@@ -18,8 +18,6 @@
     <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
 
     <!-- Source Generator Testing -->
-    <PackageReference Include="Verify.SourceGenerators" />
-    <PackageReference Include="Verify.NUnit" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" />
   </ItemGroup>
@@ -30,8 +28,13 @@
     <ProjectReference Include="..\..\src\SharpDicom.Generators\SharpDicom.Generators.csproj" />
   </ItemGroup>
 
-  <!-- Share test source files from main test project, excluding obj/bin and NET5+ only tests -->
+  <!-- Share test source files from main test project, excluding obj/bin, generator snapshots and NET5+ only tests -->
   <ItemGroup>
-    <Compile Include="..\SharpDicom.Tests\**\*.cs" Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Cli\**;..\SharpDicom.Tests\Benchmarks\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs;..\SharpDicom.Tests\Network\Tls\TlsServerOptionsTests.cs;..\SharpDicom.Tests\Network\Tls\TlsIntegrationTests.cs" LinkBase="Tests" />
+    <Compile Include="..\SharpDicom.Tests\**\*.cs" Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Cli\**;..\SharpDicom.Tests\Benchmarks\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs;..\SharpDicom.Tests\Network\Tls\TlsServerOptionsTests.cs;..\SharpDicom.Tests\Network\Tls\TlsIntegrationTests.cs;..\SharpDicom.Tests\**\*.verified.cs;..\SharpDicom.Tests\**\*.received.cs" LinkBase="Tests" />
+  </ItemGroup>
+
+  <!-- Repository root for resolving generator snapshot paths when CI maps source paths to /_/ -->
+  <ItemGroup>
+    <AssemblyMetadata Include="RepositoryRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../'))" />
   </ItemGroup>
 </Project>

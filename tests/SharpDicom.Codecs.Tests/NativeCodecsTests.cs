@@ -428,8 +428,8 @@ namespace SharpDicom.Codecs.Tests
         [Test]
         public void Initialize_WithEnableOptions_SetsProperties()
         {
-            // Note: Enable options are only applied during successful initialization
-            // When native library is unavailable, options aren't applied after DllNotFoundException
+            // Enable options are applied before the native library is probed,
+            // so they take effect whether or not the library loads
             NativeCodecs.Initialize(new NativeCodecOptions
             {
                 SuppressInitializationErrors = true,
@@ -439,23 +439,10 @@ namespace SharpDicom.Codecs.Tests
                 EnableVideo = false
             });
 
-            // If native library was loaded successfully, enable options should be set
-            if (NativeCodecs.IsAvailable)
-            {
-                Assert.That(NativeCodecs.EnableJpeg, Is.False);
-                Assert.That(NativeCodecs.EnableJpeg2000, Is.False);
-                Assert.That(NativeCodecs.EnableJpegLs, Is.False);
-                Assert.That(NativeCodecs.EnableVideo, Is.False);
-            }
-            else
-            {
-                // When library unavailable, options weren't applied - properties remain default
-                // This is a design limitation when native libraries are missing
-                Assert.That(NativeCodecs.EnableJpeg, Is.True, "Default value when library unavailable");
-                Assert.That(NativeCodecs.EnableJpeg2000, Is.True, "Default value when library unavailable");
-                Assert.That(NativeCodecs.EnableJpegLs, Is.True, "Default value when library unavailable");
-                Assert.That(NativeCodecs.EnableVideo, Is.True, "Default value when library unavailable");
-            }
+            Assert.That(NativeCodecs.EnableJpeg, Is.False);
+            Assert.That(NativeCodecs.EnableJpeg2000, Is.False);
+            Assert.That(NativeCodecs.EnableJpegLs, Is.False);
+            Assert.That(NativeCodecs.EnableVideo, Is.False);
         }
 
         #endregion
