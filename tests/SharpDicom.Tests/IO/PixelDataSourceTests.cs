@@ -354,24 +354,24 @@ public class PixelDataSourceTests
     }
 
     [Test]
-    public void SkippedPixelDataSource_GetDataAsync_ThrowsInvalidOperationException()
+    public async Task SkippedPixelDataSource_GetDataAsync_ThrowsInvalidOperationException()
     {
         // Arrange
         using var source = new SkippedPixelDataSource(0, 100);
 
         // Act & Assert
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await source.GetDataAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await source.GetDataAsync());
     }
 
     [Test]
-    public void SkippedPixelDataSource_CopyToAsync_ThrowsInvalidOperationException()
+    public async Task SkippedPixelDataSource_CopyToAsync_ThrowsInvalidOperationException()
     {
         // Arrange
         using var source = new SkippedPixelDataSource(0, 100);
         using var destination = new MemoryStream();
 
         // Act & Assert
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await source.CopyToAsync(destination));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await source.CopyToAsync(destination));
     }
 
     [Test]

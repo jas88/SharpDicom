@@ -429,7 +429,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        public void SelfSigned_RejectedWithoutThumbprint()
+        public async Task SelfSigned_RejectedWithoutThumbprint()
         {
             // Arrange
             var serverCert = TlsCertificateHelper.CreateSelfSignedCertificate("localhost", TimeSpan.FromHours(1));
@@ -450,7 +450,7 @@ namespace SharpDicom.Tests.Network.Tls
 
             var server = new DicomServer(serverOptions);
             server.Start();
-            Task.Delay(100).Wait();
+            await Task.Delay(100);
 
             try
             {
@@ -476,7 +476,7 @@ namespace SharpDicom.Tests.Network.Tls
                 };
 
                 // Act & Assert
-                Assert.ThrowsAsync<TlsHandshakeException>(async () =>
+                await Assert.ThrowsAsync<TlsHandshakeException>(async () =>
                 {
                     await using (client)
                     {
@@ -561,7 +561,7 @@ namespace SharpDicom.Tests.Network.Tls
 
 #if NET6_0_OR_GREATER
         [Test]
-        public void MutualTls_MissingClientCert_Fails()
+        public async Task MutualTls_MissingClientCert_Fails()
         {
             // Arrange
             using var serverCert = TlsCertificateHelper.CreateSelfSignedCertificate("localhost", TimeSpan.FromHours(1));
@@ -584,7 +584,7 @@ namespace SharpDicom.Tests.Network.Tls
 
             var server = new DicomServer(serverOptions);
             server.Start();
-            Task.Delay(100).Wait();
+            await Task.Delay(100);
 
             try
             {
@@ -612,7 +612,7 @@ namespace SharpDicom.Tests.Network.Tls
 
                 // Act & Assert - Server will close connection when client doesn't provide cert
                 // This can manifest as TlsHandshakeException or EndOfStreamException
-                Assert.CatchAsync<Exception>(async () =>
+                await Assert.CatchAsync<Exception>(async () =>
                 {
                     await using (client)
                     {
@@ -628,7 +628,7 @@ namespace SharpDicom.Tests.Network.Tls
         }
 
         [Test]
-        public void InvalidCert_Rejected()
+        public async Task InvalidCert_Rejected()
         {
             // Arrange - Use expired certificate
             var expiredCert = TlsCertificateHelper.CreateExpiredCertificate("localhost");
@@ -649,7 +649,7 @@ namespace SharpDicom.Tests.Network.Tls
 
             var server = new DicomServer(serverOptions);
             server.Start();
-            Task.Delay(100).Wait();
+            await Task.Delay(100);
 
             try
             {
@@ -675,7 +675,7 @@ namespace SharpDicom.Tests.Network.Tls
                 };
 
                 // Act & Assert
-                var ex = Assert.ThrowsAsync<TlsHandshakeException>(async () =>
+                var ex = await Assert.ThrowsAsync<TlsHandshakeException>(async () =>
                 {
                     await using (client)
                     {

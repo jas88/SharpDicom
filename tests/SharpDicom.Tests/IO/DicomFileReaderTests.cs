@@ -38,7 +38,7 @@ namespace SharpDicom.Tests.IO
 
             await using var reader = new DicomFileReader(stream);
 
-            Assert.ThrowsAsync<DicomFileException>(async () =>
+            await Assert.ThrowsAsync<DicomFileException>(async () =>
                 await reader.ReadFileMetaInfoAsync());
         }
 
@@ -106,7 +106,7 @@ namespace SharpDicom.Tests.IO
             cts.Cancel();
 
             // TaskCanceledException is a subclass of OperationCanceledException
-            var ex = Assert.CatchAsync<OperationCanceledException>(async () =>
+            var ex = await Assert.CatchAsync<OperationCanceledException>(async () =>
             {
                 await foreach (var _ in reader.ReadElementsAsync(cts.Token))
                 {
@@ -219,7 +219,7 @@ namespace SharpDicom.Tests.IO
             var reader = new DicomFileReader(stream);
             await reader.DisposeAsync();
 
-            Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
                 await reader.ReadFileMetaInfoAsync());
         }
 
