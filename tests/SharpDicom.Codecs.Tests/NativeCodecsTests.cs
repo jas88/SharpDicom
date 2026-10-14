@@ -43,7 +43,6 @@ namespace SharpDicom.Codecs.Tests
 #if NET5_0_OR_GREATER
         [Test]
         [Category("NativeCodecs")]
-        [Order(0)] // Run this test first to check initialization before other tests
         public void InitializeWithCustomPath_WhenLibraryExists_Succeeds()
         {
             // This test explicitly passes the library path to Initialize
