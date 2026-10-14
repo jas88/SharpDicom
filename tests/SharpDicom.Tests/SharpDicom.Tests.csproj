@@ -31,4 +31,9 @@
   <ItemGroup>
     <Compile Remove="**\*.verified.cs;**\*.received.cs" />
   </ItemGroup>
+
+  <!-- Repository root for resolving generator snapshot paths when CI maps source paths to /_/ -->
+  <ItemGroup>
+    <AssemblyMetadata Include="RepositoryRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../'))" />
+  </ItemGroup>
 </Project>

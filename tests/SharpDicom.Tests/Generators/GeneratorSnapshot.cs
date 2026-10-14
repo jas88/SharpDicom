@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -35,7 +36,7 @@ internal static class GeneratorSnapshot
         Assert.That(exceptions, Is.Empty, "Generator threw an exception");
         Assert.That(runResult.Diagnostics.Select(d => d.ToString()), Is.Empty, "Generator reported diagnostics");
 
-        var directory = Path.GetDirectoryName(callerFilePath)!;
+        var directory = Path.GetDirectoryName(ResolveSourcePath(callerFilePath))!;
         var test = TestContext.CurrentContext.Test;
         var className = test.ClassName!.Substring(test.ClassName.LastIndexOf('.') + 1);
         var prefix = $"{className}.{test.MethodName}#";
@@ -78,6 +79,27 @@ internal static class GeneratorSnapshot
         }
 
         Assert.That(failures, Is.Empty, "Generator output does not match snapshots");
+    }
+
+    /// <summary>
+    /// Maps a compiler-recorded source path back to the local file system. Deterministic
+    /// CI builds record source paths under <c>/_/</c> rather than the real repository root.
+    /// </summary>
+    private static string ResolveSourcePath(string callerFilePath)
+    {
+        const string MappedRoot = "/_/";
+
+        if (File.Exists(callerFilePath) || !callerFilePath.StartsWith(MappedRoot, StringComparison.Ordinal))
+        {
+            return callerFilePath;
+        }
+
+        var repositoryRoot = typeof(GeneratorSnapshot).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(a => a.Key == "RepositoryRoot")
+            .Value!;
+
+        return Path.Combine(repositoryRoot, callerFilePath.Substring(MappedRoot.Length));
     }
 
     private static string Normalize(string text) =>

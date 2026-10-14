@@ -32,4 +32,9 @@
   <ItemGroup>
     <Compile Include="..\SharpDicom.Tests\**\*.cs" Exclude="..\SharpDicom.Tests\obj\**;..\SharpDicom.Tests\bin\**;..\SharpDicom.Tests\Cli\**;..\SharpDicom.Tests\Benchmarks\**;..\SharpDicom.Tests\Deidentification\DeidentificationConfigLoaderTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationIntegrationTests.cs;..\SharpDicom.Tests\Deidentification\BatchDeidentifierTests.cs;..\SharpDicom.Tests\Deidentification\DeidentificationApiSmokeTests.cs;..\SharpDicom.Tests\Network\Tls\TlsServerOptionsTests.cs;..\SharpDicom.Tests\Network\Tls\TlsIntegrationTests.cs;..\SharpDicom.Tests\**\*.verified.cs;..\SharpDicom.Tests\**\*.received.cs" LinkBase="Tests" />
   </ItemGroup>
+
+  <!-- Repository root for resolving generator snapshot paths when CI maps source paths to /_/ -->
+  <ItemGroup>
+    <AssemblyMetadata Include="RepositoryRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../'))" />
+  </ItemGroup>
 </Project>
