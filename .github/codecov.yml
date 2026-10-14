@@ -1,0 +1,7 @@
+coverage:
+  status:
+    project:
+      default:
+        # Coverage collection varies by a few lines between identical runs
+        # (+/-0.05%), so tolerate small drops rather than failing on noise
+        threshold: 0.1%
