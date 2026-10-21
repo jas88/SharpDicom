@@ -15,6 +15,12 @@ updates:
         patterns:
           - "NUnit*"
           - "coverlet*"
+    ignore:
+      # 6.3.x makes Microsoft.Testing.Extensions.CodeCoverage statically
+      # instrument every DLL under the repo root instead of the test bin dir,
+      # so parallel test hosts rewrite each other's binaries and CI hangs.
+      - dependency-name: "NUnit3TestAdapter"
+        versions: ["6.3.0", "6.3.1"]
 
   - package-ecosystem: github-actions
     directory: /
