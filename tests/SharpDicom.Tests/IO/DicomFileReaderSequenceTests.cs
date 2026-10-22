@@ -58,7 +58,7 @@ namespace SharpDicom.Tests.IO
 
             // Assert - should have the sequence
             Assert.That(elements, Has.Some.Matches<IDicomElement>(e =>
-                e.Tag == new DicomTag(0x0040, 0x0100) && e is DicomSequence));
+                e is DicomSequence sequence && sequence.Tag == new DicomTag(0x0040, 0x0100)));
         }
 
         [Test]
@@ -128,7 +128,7 @@ namespace SharpDicom.Tests.IO
 
             // Assert - should have the sequence
             Assert.That(elements, Has.Some.Matches<IDicomElement>(e =>
-                e.Tag == new DicomTag(0x0040, 0x0100) && e is DicomSequence));
+                e is DicomSequence sequence && sequence.Tag == new DicomTag(0x0040, 0x0100)));
         }
 
         [Test]

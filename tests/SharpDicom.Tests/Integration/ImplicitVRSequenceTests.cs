@@ -141,14 +141,14 @@ public class ImplicitVRSequenceTests
     }
 
     [Test]
-    public void Parse_NestedSequences_ExceedsMaxDepth_ThrowsException()
+    public async Task Parse_NestedSequences_ExceedsMaxDepth_ThrowsException()
     {
         var data = CreateDeeplyNestedSequenceFile(10);
         using var stream = new MemoryStream(data);
 
         var options = new DicomReaderOptions { MaxSequenceDepth = 4 };
 
-        Assert.ThrowsAsync<DicomDataException>(async () =>
+        await Assert.ThrowsAsync<DicomDataException>(async () =>
         {
             await DicomFile.OpenAsync(stream, options);
         });

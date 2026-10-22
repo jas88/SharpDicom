@@ -391,7 +391,7 @@ public class BatchDeidentifierTests
         var config = DeidentificationConfigLoader.GetPreset("basic-profile");
         await using var batch = new BatchDeidentifier(_dbPath, config);
 
-        Assert.ThrowsAsync<DirectoryNotFoundException>(async () =>
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(async () =>
         {
             await batch.ProcessDirectoryAsync("/nonexistent/path", _outputDir);
         });

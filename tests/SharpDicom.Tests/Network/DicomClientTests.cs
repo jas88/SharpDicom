@@ -290,7 +290,7 @@ namespace SharpDicom.Tests.Network
                 new PresentationContext(1, DicomUID.Verification, TransferSyntax.ImplicitVRLittleEndian)
             };
 
-            Assert.ThrowsAsync<ObjectDisposedException>(
+            await Assert.ThrowsAsync<ObjectDisposedException>(
                 async () => await client.ConnectAsync(contexts));
         }
 
@@ -301,7 +301,7 @@ namespace SharpDicom.Tests.Network
             var client = new DicomClient(options);
             await client.DisposeAsync();
 
-            Assert.ThrowsAsync<ObjectDisposedException>(
+            await Assert.ThrowsAsync<ObjectDisposedException>(
                 async () => await client.CEchoAsync());
         }
 

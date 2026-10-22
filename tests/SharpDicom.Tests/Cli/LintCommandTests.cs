@@ -122,7 +122,7 @@ public class LintCommandTests
         };
 
         // Strict mode throws on invalid UIDs rather than collecting them
-        Assert.ThrowsAsync<SharpDicom.Data.Exceptions.DicomDataException>(
+        await Assert.ThrowsAsync<SharpDicom.Data.Exceptions.DicomDataException>(
             async () => await DicomFile.OpenAsync(path, options));
     }
 

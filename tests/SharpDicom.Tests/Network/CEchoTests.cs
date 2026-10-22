@@ -259,7 +259,7 @@ namespace SharpDicom.Tests.Network
             };
 
             // Act & Assert
-            var ex = Assert.ThrowsAsync<DicomAssociationException>(
+            var ex = await Assert.ThrowsAsync<DicomAssociationException>(
                 async () => await client.ConnectAsync(contexts));
 
             Assert.That(ex, Is.Not.Null);
@@ -281,7 +281,7 @@ namespace SharpDicom.Tests.Network
             await using var client = new DicomClient(clientOptions);
 
             // Act & Assert
-            var ex = Assert.ThrowsAsync<DicomAssociationException>(
+            var ex = await Assert.ThrowsAsync<DicomAssociationException>(
                 async () => await client.CEchoAsync());
 
             Assert.That(ex, Is.Not.Null);
@@ -326,7 +326,7 @@ namespace SharpDicom.Tests.Network
             await client.ConnectAsync(contexts);
 
             // Act & Assert - C-ECHO should fail because Verification SOP Class not negotiated
-            var ex = Assert.ThrowsAsync<DicomAssociationException>(
+            var ex = await Assert.ThrowsAsync<DicomAssociationException>(
                 async () => await client.CEchoAsync());
 
             Assert.That(ex, Is.Not.Null);
