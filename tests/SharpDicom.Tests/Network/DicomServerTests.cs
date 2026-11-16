@@ -347,7 +347,9 @@ namespace SharpDicom.Tests.Network
 
             // Wait for handler to be called with timeout
             var handlerTask = handlerTcs.Task;
-            var completedTask = await Task.WhenAny(handlerTask, Task.Delay(2000));
+            using var timeoutCts = new CancellationTokenSource();
+            var completedTask = await Task.WhenAny(handlerTask, Task.Delay(2000, timeoutCts.Token));
+            timeoutCts.Cancel();
 
             if (completedTask != handlerTask)
             {
