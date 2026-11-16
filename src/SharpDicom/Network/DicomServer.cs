@@ -2178,9 +2178,13 @@ namespace SharpDicom.Network
             if (tasks.Length > 0)
             {
                 var allCompleted = Task.WhenAll(tasks);
+                using var timeoutCts = new CancellationTokenSource();
                 await Task.WhenAny(
                     allCompleted,
-                    Task.Delay(_options.ShutdownTimeout)).ConfigureAwait(false);
+                    Task.Delay(_options.ShutdownTimeout, timeoutCts.Token)).ConfigureAwait(false);
+
+                // Stop the timer if the associations finished first
+                timeoutCts.Cancel();
 
                 // If timeout elapsed and tasks still running, they'll be abandoned
                 // (the CancellationToken is already cancelled, so they should exit soon)
